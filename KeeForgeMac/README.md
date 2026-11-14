@@ -39,13 +39,24 @@ frames and the quit prompt. `-ui-testing` turns restoration and recording off, a
 `-ui-testing-database-window-size <w>x<h>` sets the database window's content size
 (`MacWindowLaunchOptions`).
 
-The Databases window (about 600 x 620 pt, so the 540 x 560 pt sheets fit) hosts
-`DatabaseListView`'s macOS branch with `MacDatabasesLauncherViewModel`: the
-local, WebDAV and FTP references, double-click or Return to open, Create New,
-Add Existing, Connect to Server, and the existing row management. It never shows
-a database's contents. It also presents the transition notice and What's New,
-once per launch, and asks which database a verification-code link belongs to
-when no database window was targeted.
+The Databases window (780 x 620 pt, title hidden, full-size content so the
+brand panel runs under the traffic lights; tall enough for a 560 pt sheet) is
+`MacDatabasesLauncherViewController` inside a SwiftUI host that presents its
+sheets and confirmations. The brand panel shows the app icon, name and version
+and sends New Database…, Open Database File… and Connect to Server… (captioned
+with the server types) to the same nil-targeted commands as the File menu. The
+list renders `MacDatabasesLauncherViewModel.rows` (local, WebDAV and FTP only)
+in an inset `NSTableView`: storage tile, name, "file · storage", a problem or
+last-opened line, and Quick Launch, Read-Only, Open (window unlocked) or the
+lock, and Touch ID. Return and double-click open or front the selected row;
+the row menu holds Open and the management items; the bottom bar's + offers
+the three add commands and − removes the selection. With nothing listed the
+list area shows the empty state alone. It never shows a database's contents.
+The host keeps the creation, server and Database Details sheets, rename, key
+file, export, the remove confirmation and refusal, and the pending-upload
+alerts in SwiftUI, driven by state on the view model. It also presents the
+transition notice and What's New, once per launch, and asks which database a
+verification-code link belongs to when no database window was targeted.
 
 Each `DatabaseWindowController` owns its session for its whole life and never
 looks one up through `activeSession`. Its window (identifier
@@ -161,7 +172,11 @@ Server are launcher operations and ignore every session's state; Connect to
 Server offers the server types first when there is more than one.
 Window ▸ Databases shows the Databases window, which AppKit's own window list
 leaves out; that list names each open database window, adding the unlocked
-window's subtitle in parentheses. Settings is an auxiliary window that cannot become main
+window's subtitle in parentheses, and `MacWindowMenuDecorator` gives each an
+open or closed lock glyph. Database ▸ Lock All Databases (⌥⌘L, dimmed while no
+window is unlocked) asks every unlocked window's session to lock through the
+same request as Lock, so unsaved work asks in that window. View ▸ Hide Sidebar
+reads Show Sidebar while the target window's sidebar is collapsed. Settings is an auxiliary window that cannot become main
 and chooses its own database where it needs one.
 
 Close Window, Close Database and Escape on the unlock screen all go through the

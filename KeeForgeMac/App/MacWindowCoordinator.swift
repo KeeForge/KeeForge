@@ -123,7 +123,11 @@ final class MacWindowCoordinator {
         self.notificationCenter = notificationCenter
         self.deferredPresentationDelay = deferredPresentationDelay
         launcher = MacDatabasesLauncherViewModel(references: { listViewModel.databases })
+        launcher.list = listViewModel
+        launcher.status = { listViewModel.status(for: $0) }
+        launcher.lastOpenedDescription = { listViewModel.lastOpenedDescription(for: $0) }
         launcher.hasWindow = { [weak self] in self?.databaseWindows[$0] != nil }
+        launcher.isUnlocked = { [weak self] in self?.isUnlocked($0) ?? false }
         launcher.openDatabase = { [weak self] in self?.open($0) }
         launcher.openCreatedDatabase = { [weak self] in self?.openCreated($0) }
         launcher.hasUnsavedWork = { [weak self] databaseID in
@@ -144,6 +148,11 @@ final class MacWindowCoordinator {
     }
 
     private var openDatabaseIDs: Set<UUID> { Set(databaseWindows.keys) }
+
+    /// A database window open on its unlocked session.
+    func isUnlocked(_ databaseID: UUID) -> Bool {
+        databaseWindows[databaseID]?.session.state == .unlocked
+    }
 
     // MARK: - Startup
 
@@ -412,6 +421,23 @@ final class MacWindowCoordinator {
                 self?.databaseWindows.values.first { $0.window === window }
             }
         ).resolve()
+    }
+
+    /// Database ▸ Lock All Databases.
+    var canLockAllDatabases: Bool {
+        databaseWindows.keys.contains(where: isUnlocked)
+    }
+
+    /// Each unlocked window locks through its own path, so unsaved work asks there as it would for Lock.
+    func lockAllDatabases() {
+        for controller in databaseWindows.values where controller.session.state == .unlocked {
+            DatabaseCommands(session: controller.session).lock()
+        }
+    }
+
+    /// Whether a Window-menu window is a database window, and if so whether it is unlocked.
+    func lockState(of window: NSWindow) -> Bool? {
+        databaseWindows.values.first { $0.window === window }.map { $0.session.state == .unlocked }
     }
 
     // MARK: - Incoming URLs

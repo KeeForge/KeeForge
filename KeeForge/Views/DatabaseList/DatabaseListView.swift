@@ -1,29 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct PickerPresentationState<T> {
-    private(set) var activeTarget: T?
-    private(set) var isPresented = false
-
-    mutating func present(_ target: T) {
-        activeTarget = target
-        isPresented = true
-    }
-
-    mutating func updatePresentation(_ isPresented: Bool) {
-        self.isPresented = isPresented
-    }
-
-    mutating func consumeActiveTarget() -> T? {
-        defer {
-            activeTarget = nil
-            isPresented = false
-        }
-
-        return activeTarget
-    }
-}
-
+#if os(iOS)
 struct DatabaseListView: View {
     private enum PickerTarget {
         case database
@@ -46,10 +24,6 @@ struct DatabaseListView: View {
         let isPresented: Binding<Bool>
         let content: () -> AnyView
     }
-    #if os(macOS)
-    /// The Databases window's open and connect decisions.
-    @Bindable var launcher: MacDatabasesLauncherViewModel
-    #endif
 
     @State private var pickerState = PickerPresentationState<PickerTarget>()
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
@@ -64,11 +38,7 @@ struct DatabaseListView: View {
     @State private var isDatabaseCreationPresented = false
     @State private var exportRequest: DatabaseExportRequest?
     @Environment(\.openURL) private var openURL
-    #if os(iOS)
     @State private var editMode: EditMode = .inactive
-    #else
-    @State private var isChoosingServer = false
-    #endif
 
     var body: some View {
         listShell
@@ -194,39 +164,11 @@ struct DatabaseListView: View {
             )
             .macSheetFrame()
         }
-        #if os(macOS)
-        .onChange(of: viewModel.newDatabaseRequestID) { _, _ in
-            isDatabaseCreationPresented = true
-        }
-        .onChange(of: launcher.connectRequest) { _, request in
-            guard let request else { return }
-            if let provider = request.provider {
-                activeCloudProvider = provider
-            } else {
-                isChoosingServer = true
-            }
-        }
-        .confirmationDialog("Connect to Server", isPresented: $isChoosingServer) {
-            ForEach(launcher.connectProviders) { providerKind in
-                Button(providerKind.displayName) {
-                    activeCloudProvider = providerKind
-                }
-            }
-        }
-        #endif
         .databaseExporter(request: $exportRequest)
     }
 
-    /// The list and its chrome, without a navigation container.
-    ///
-    /// macOS hosts this view as the window's sidebar column and gives it the
-    /// split view's own navigation; wrapping it in a `NavigationStack` there
-    /// would paint an opaque background over the sidebar material.
     @ViewBuilder
     private var listShell: some View {
-        #if os(macOS)
-        listContent
-        #else
         NavigationStack {
             listContent
                 .environment(\.editMode, $editMode)
@@ -234,7 +176,6 @@ struct DatabaseListView: View {
                     unlockPage?.content()
                 }
         }
-        #endif
     }
 
     /// The vault list, styled for where it is hosted.
@@ -242,7 +183,7 @@ struct DatabaseListView: View {
     /// A sidebar column has to use `.sidebar`. The grouped style draws its rows
     /// on a card meant for a plain grouped page; over a sidebar's own
     /// background that card comes out *darker* than the column behind it on
-    /// iPadOS, and opaque over the material on macOS. Full screen on iPhone,
+    /// iPadOS. Full screen on iPhone,
     /// grouped is still the right look.
     @ViewBuilder
     private var styledDatabaseList: some View {
@@ -257,7 +198,6 @@ struct DatabaseListView: View {
 
     @ViewBuilder
     private var databaseList: some View {
-        #if os(iOS)
         List {
             Section {
                 databaseRows
@@ -269,24 +209,10 @@ struct DatabaseListView: View {
                 }
             }
         }
-        #else
-        List(selection: $launcher.selectedDatabaseID) {
-            databaseRows
-        }
-        .contextMenu(forSelectionType: UUID.self) { ids in
-            if ids.count == 1, let id = ids.first, let reference = launcher.databases.first(where: { $0.id == id }) {
-                Button("Open") { launcher.open(reference) }
-                Divider()
-                contextMenu(for: reference)
-            }
-        } primaryAction: { ids in
-            launcher.open(ids: ids)
-        }
-        #endif
     }
 
-    /// iPhone and iPad list the tips below the databases; with no databases,
-    /// and on macOS, they stay pinned above.
+    /// iPhone and iPad list the tips below the databases; with no databases
+    /// they stay pinned above.
     private var tipsFollowTheList: Bool {
         PlatformDesign.followsIOSDesign && viewModel.databases.isEmpty == false
     }
@@ -312,7 +238,6 @@ struct DatabaseListView: View {
     }
 
     private var databaseRows: some View {
-        #if os(iOS)
         ForEach(viewModel.databases) { reference in
             databaseRowButton(for: reference)
                 // Outside Edit mode, the long press belongs to the context menu.
@@ -322,20 +247,10 @@ struct DatabaseListView: View {
                 )
         }
         .onMove(perform: viewModel.moveDatabases)
-        #else
-        ForEach(launcher.databases) { reference in
-            databaseRowButton(for: reference)
-                .tag(reference.id)
-        }
-        #endif
     }
 
     private var showsEmptyState: Bool {
-        #if os(macOS)
-        launcher.emptyState != nil
-        #else
         viewModel.databases.isEmpty
-        #endif
     }
 
     private var listContent: some View {
@@ -356,35 +271,16 @@ struct DatabaseListView: View {
                 }
             }
         }
-        #if os(macOS)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            launcherActions
-        }
-        #endif
         .modifier(DatabaseListTitle(count: viewModel.databases.count))
         .toolbar {
-            // `EditButton` does not exist on macOS; list rows reorder via
-            // drag and delete via context menus / swipe actions there.
-            #if os(iOS)
             if !viewModel.databases.isEmpty {
                 ToolbarItem(placement: .topBarLeading) {
                     EditButton()
                         .accessibilityIdentifier("database.edit.button")
                 }
             }
-            #endif
 
             ToolbarItemGroup(placement: .topBarTrailing) {
-                #if os(macOS)
-                // macOS uses the standard Settings window (⌘,) rather than a sheet.
-                Button {
-                    NSApp.sendAction(#selector(AppDelegate.showSettings(_:)), to: nil, from: nil)
-                } label: {
-                    Image(systemName: "gearshape")
-                }
-                .accessibilityIdentifier("database.settings.button")
-                .macHelp(String(localized: "Settings"))
-                #else
                 Button {
                     showSettings = true
                 } label: {
@@ -400,7 +296,6 @@ struct DatabaseListView: View {
                 .menuOrder(.fixed)
                 .accessibilityIdentifier("database.add.button")
                 .macHelp(String(localized: "Add Database"))
-                #endif
             }
         }
     }
@@ -441,7 +336,6 @@ struct DatabaseListView: View {
         }
     }
 
-    #if os(iOS)
     private func rowContent(for reference: DatabaseReference) -> some View {
         Button {
             onSelectDatabase(reference)
@@ -462,21 +356,6 @@ struct DatabaseListView: View {
             removeSwipeAction(for: reference)
         }
     }
-    #else
-    /// Plain content: the list owns selection, and double-click or Return opens the row.
-    private func rowContent(for reference: DatabaseReference) -> some View {
-        DatabaseRowView(
-            reference: reference,
-            status: viewModel.status(for: reference),
-            lastOpenedDescription: viewModel.lastOpenedDescription(
-                for: reference,
-                showsUsageStats: showDatabaseUsageStats
-            ),
-            filenameSubtitle: viewModel.detailSubtitle(for: reference)
-        )
-        .accessibilityIdentifier("database.row")
-    }
-    #endif
 
     private func databaseRowButton(for reference: DatabaseReference) -> some View {
         rowContent(for: reference)
@@ -497,11 +376,7 @@ struct DatabaseListView: View {
             presenting: pendingRemoval
         ) { target in
             Button("Remove", role: .destructive) {
-                #if os(macOS)
-                launcher.remove(target)
-                #else
                 viewModel.removeDatabase(target)
-                #endif
                 pendingRemoval = nil
             }
             Button("Cancel", role: .cancel) {
@@ -563,91 +438,6 @@ struct DatabaseListView: View {
         }
     }
 
-    #if os(macOS)
-    private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No Databases", systemImage: "folder.badge.plus")
-        } description: {
-            if launcher.emptyState == .noneAvailable {
-                Text("None of your databases can be opened on this Mac.")
-            } else {
-                Text("Create a database, open a .kdbx file or connect to a server to get started.")
-            }
-        } actions: {
-            VStack(spacing: 12) {
-                Button {
-                    isDatabaseCreationPresented = true
-                } label: {
-                    Label("Create New Database", systemImage: "doc.badge.plus")
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .accessibilityIdentifier("database.empty.create")
-
-                Button {
-                    presentDatabasePicker()
-                } label: {
-                    Label("Add Existing…", systemImage: "folder")
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("database.empty.add")
-            }
-        }
-        // Fills the window, so the action bar stays at its bottom edge.
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    /// The Databases window's actions, below the list in every state.
-    private var launcherActions: some View {
-        HStack(spacing: 8) {
-            Button("Create New…") {
-                isDatabaseCreationPresented = true
-            }
-            .accessibilityIdentifier("databases.create-new")
-
-            Button("Add Existing…") {
-                presentDatabasePicker()
-            }
-            .accessibilityIdentifier("databases.add-existing")
-
-            if launcher.connectProviders.isEmpty == false {
-                Menu("Connect to Server…") {
-                    ForEach(launcher.connectProviders) { providerKind in
-                        Button {
-                            activeCloudProvider = providerKind
-                        } label: {
-                            Label {
-                                Text(providerKind.displayName)
-                            } icon: {
-                                CloudProviderIcon(provider: providerKind)
-                            }
-                        }
-                        .accessibilityIdentifier("database.add.\(providerKind.rawValue)")
-                    }
-                }
-                .menuOrder(.fixed)
-                .fixedSize()
-                .accessibilityIdentifier("databases.connect-server")
-            }
-
-            Spacer(minLength: 0)
-
-            Button("Open") {
-                launcher.openSelection()
-            }
-            .keyboardShortcut(.defaultAction)
-            .disabled(launcher.canOpenSelection == false)
-            .accessibilityIdentifier("databases.open")
-        }
-        .padding(12)
-        .background(.bar)
-    }
-
-    private func presentDatabasePicker() {
-        selectionAlert = nil
-        pickerState.present(.database)
-    }
-    #else
     private var emptyState: some View {
         ContentUnavailableView {
             Label("No Databases", systemImage: "folder.badge.plus")
@@ -716,7 +506,6 @@ struct DatabaseListView: View {
 
     /// The "Files" source opens the OS file browser; iOS uses the device glyph that matches the Files app.
     private var filesMenuSymbolName: String { "iphone" }
-    #endif
 
     @ViewBuilder
     private func contextMenu(for reference: DatabaseReference) -> some View {
@@ -792,9 +581,6 @@ struct DatabaseListView: View {
         .accessibilityIdentifier("database-row.details")
 
         Button("Remove", role: .destructive) {
-            #if os(macOS)
-            guard launcher.requestRemoval(reference) else { return }
-            #endif
             pendingRemoval = reference
         }
     }
@@ -880,13 +666,11 @@ struct DatabaseListView: View {
 
 }
 
-/// iPhone and iPad: "Databases" with the count below it from iOS 26. The
-/// macOS sidebar keeps the app's name.
+/// "Databases" with the count below it from iOS 26.
 private struct DatabaseListTitle: ViewModifier {
     let count: Int
 
     func body(content: Content) -> some View {
-        #if os(iOS)
         if #available(iOS 26.0, *) {
             content
                 .navigationTitle("Databases")
@@ -897,10 +681,6 @@ private struct DatabaseListTitle: ViewModifier {
                 .navigationTitle("Databases")
                 .navigationBarTitleDisplayMode(.large)
         }
-        #else
-        content
-            .navigationTitle("KeeForge")
-        #endif
     }
 }
 
@@ -930,3 +710,4 @@ private struct DatabaseRowChrome: ViewModifier {
         }
     }
 }
+#endif

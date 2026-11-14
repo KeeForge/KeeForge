@@ -25,6 +25,9 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
             databaseWindowContentSize: options.databaseWindowContentSize)
     }()
     private var settingsWindowController: SettingsWindowController?
+    private lazy var windowMenuDecorator = MacWindowMenuDecorator { [weak self] in
+        self?.windowCoordinator.lockState(of: $0)
+    }
     private var didLaunch = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -74,6 +77,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         nextResponder = NSApp.nextResponder
         NSApp.nextResponder = self
         MainMenu.install(MainMenu.build())
+        NSApp.windowsMenu?.delegate = windowMenuDecorator
         let transitionNotice = MacTransitionNoticeService.claimPresentation()
         windowCoordinator.start(
             transitionNotice: transitionNotice,
@@ -120,8 +124,10 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
 
     @objc func newDatabase(_ sender: Any?) {
         windowCoordinator.showDatabasesWindow()
-        listViewModel.requestNewDatabase()
+        windowCoordinator.launcher.requestNewDatabase()
     }
+
+    @objc func lockAllDatabases(_ sender: Any?) { windowCoordinator.lockAllDatabases() }
 
     @objc func connectToServer(_ sender: Any?) {
         guard windowCoordinator.launcher.canConnect else { return }
@@ -139,6 +145,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
         case #selector(connectToServer): return windowCoordinator.launcher.canConnect
+        case #selector(lockAllDatabases): return windowCoordinator.canLockAllDatabases
         #if KEEFORGE_DIRECT_DOWNLOAD
         case #selector(checkForUpdates): return SoftwareUpdateService.shared.canCheckForUpdates
         #endif

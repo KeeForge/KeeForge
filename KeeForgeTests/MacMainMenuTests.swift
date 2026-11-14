@@ -59,7 +59,7 @@ final class MacMainMenuTests: XCTestCase {
             ("Delete", "\u{8}", command, "deleteSelection:"),
             ("Find", "f", command, "findEntry:"),
         ], [
-            ("Show Sidebar", "s", control, "toggleSidebar:"),
+            ("Hide Sidebar", "s", control, "toggleSidebar:"),
             (DatabaseCollection.allEntries.title, "1", command, "showAllEntries:"),
             (DatabaseCollection.verificationCodes.title, "2", command, "showVerificationCodes:"),
             (DatabaseCollection.passkeys.title, "3", command, "showPasskeys:"),
@@ -71,6 +71,7 @@ final class MacMainMenuTests: XCTestCase {
             ("Enter Full Screen", "f", control, "toggleFullScreen:"),
         ], [
             ("Lock", "l", command, "lockDatabase:"),
+            ("Lock All Databases", "l", option, "lockAllDatabases:"),
             ("Sync Now", "r", shift, "syncNow:"),
             ("Database Settings…", "i", command, "showDatabaseSettings:"),
         ], [
@@ -80,7 +81,7 @@ final class MacMainMenuTests: XCTestCase {
             ("Bring All to Front", "", [], "arrangeInFront:"),
         ], [("KeeForge Help", "", [], "showHelp:"), ("Report a Bug", "", [], "reportBug:")]]
         let databaseActions: Set<String> = ["newEntry:", "newGroup:", "saveDatabase:", "closeDatabase:", "copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "editEntry:", "duplicateSelectedEntry:", "moveSelectedEntries:", "deleteSelection:", "findEntry:", "showAllEntries:", "showVerificationCodes:", "showPasskeys:", "chooseSortOrder:", "chooseSortDirection:", "expandAllGroups:", "collapseAllGroups:", "lockDatabase:", "syncNow:", "showDatabaseSettings:"]
-        let appActions: Set<String> = ["showAboutPanel:", "showSettings:", "newDatabase:", "openDatabase:", "showHelp:", "reportBug:", "checkForUpdates:", "showDatabasesWindow:", "connectToServer:"]
+        let appActions: Set<String> = ["showAboutPanel:", "showSettings:", "newDatabase:", "openDatabase:", "showHelp:", "reportBug:", "checkForUpdates:", "showDatabasesWindow:", "connectToServer:", "lockAllDatabases:"]
         for (top, contracts) in zip(menu.items, expected) {
             let submenu = try XCTUnwrap(top.submenu)
             let items = submenu.items.filter { $0.action != nil && $0.submenu == nil }
@@ -109,7 +110,7 @@ final class MacMainMenuTests: XCTestCase {
             ["Edit Entry", "Duplicate", "Move to Group…", "Delete"], ["Find"],
         ].map { $0.map(localized) })
         XCTAssertEqual(separatedTitles(menu.items[3]), [
-            ["Show Sidebar"], [DatabaseCollection.allEntries.title, DatabaseCollection.verificationCodes.title,
+            [localized("Hide Sidebar")], [DatabaseCollection.allEntries.title, DatabaseCollection.verificationCodes.title,
              DatabaseCollection.passkeys.title],
             [localized("Sort By")] + DatabaseViewModel.SortOrder.allCases.map(\.title),
             ["Ascending", "Descending"].map(localized), ["Expand All Groups", "Collapse All Groups"].map(localized),
@@ -117,7 +118,7 @@ final class MacMainMenuTests: XCTestCase {
         ])
         let sortHeader = try XCTUnwrap(menu.items[3].submenu?.items.first { $0.title == localized("Sort By") })
         XCTAssertTrue(sortHeader.isSectionHeader)
-        XCTAssertEqual(separatedTitles(menu.items[4]), [["Lock"], ["Sync Now"], ["Database Settings…"]].map { $0.map(localized) })
+        XCTAssertEqual(separatedTitles(menu.items[4]), [["Lock", "Lock All Databases"], ["Sync Now"], ["Database Settings…"]].map { $0.map(localized) })
         let view = try XCTUnwrap(menu.items[3].submenu)
         XCTAssertEqual(view.items.filter { $0.action == #selector(DatabaseWindowController.chooseSortOrder) }
             .compactMap { $0.representedObject as? String }, DatabaseViewModel.SortOrder.allCases.map(\.rawValue))
@@ -143,6 +144,39 @@ final class MacMainMenuTests: XCTestCase {
         }
         XCTAssertEqual(delegate.validateMenuItem(item("connectToServer:")), delegate.windowCoordinator.launcher.canConnect)
         XCTAssertTrue(delegate.windowCoordinator.launcher.canConnect, "WebDAV and FTP are Mac servers")
+        XCTAssertEqual(delegate.validateMenuItem(item("lockAllDatabases:")), delegate.windowCoordinator.canLockAllDatabases)
+        XCTAssertTrue(NSApp.windowsMenu?.delegate is MacWindowMenuDecorator, "Database windows get lock glyphs")
+        XCTAssertEqual(window.titleVisibility, .hidden)
+        XCTAssertTrue(window.styleMask.contains(.fullSizeContentView), "The brand panel runs under the traffic lights")
+        XCTAssertEqual(window.title, String(localized: "Databases"))
+    }
+
+    func testWindowMenuDecoratorMarksDatabaseWindowsByLockState() throws {
+        let unlocked = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)
+        let locked = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)
+        let other = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)
+        let decorator = MacWindowMenuDecorator { window in
+            window === unlocked ? true : window === locked ? false : nil
+        }
+        let menu = NSMenu()
+        let items = [unlocked, locked, other].map { window -> NSMenuItem in
+            let item = NSMenuItem(title: "", action: #selector(NSWindow.makeKeyAndOrderFront(_:)), keyEquivalent: "")
+            item.target = window
+            menu.addItem(item)
+            return item
+        }
+        let plain = menu.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        let plainImage = plain.image
+        decorator.menuNeedsUpdate(menu)
+        let open = try XCTUnwrap(items[0].image)
+        let closed = try XCTUnwrap(items[1].image)
+        XCTAssertEqual(open.tiffRepresentation,
+                       NSImage(systemSymbolName: "lock.open.fill", accessibilityDescription: nil)?.tiffRepresentation)
+        XCTAssertEqual(closed.tiffRepresentation,
+                       NSImage(systemSymbolName: "lock.fill", accessibilityDescription: nil)?.tiffRepresentation)
+        XCTAssertEqual(closed.accessibilityDescription, String(localized: "Locked"))
+        XCTAssertNil(items[2].image, "Settings and other windows get no glyph")
+        XCTAssertTrue(plain.image === plainImage, "Items that are not windows keep what AppKit gave them")
     }
 
     /// Row and sidebar menus target their controllers, which sit in the
@@ -161,8 +195,11 @@ final class MacMainMenuTests: XCTestCase {
         let groupSelectors = ["newSubgroup:", "editGroup:", "restoreGroup:", "moveGroup:", "deleteGroup:"]
         for name in rowSelectors { XCTAssertTrue(list.responds(to: NSSelectorFromString(name)), name) }
         for name in groupSelectors { XCTAssertTrue(sidebar.responds(to: NSSelectorFromString(name)), name) }
-        XCTAssertTrue(mainSelectors.isDisjoint(with: rowSelectors + groupSelectors),
-                      "\(mainSelectors.intersection(rowSelectors + groupSelectors))")
+        let launcher = MacDatabasesLauncherViewController(launcher: MacDatabasesLauncherViewModel(references: { [] }))
+        let launcherSelectors = ["openClickedDatabase:", "performRowMenuItem:", "showAddMenu:", "removeSelectedDatabase:"]
+        for name in launcherSelectors { XCTAssertTrue(launcher.responds(to: NSSelectorFromString(name)), name) }
+        XCTAssertTrue(mainSelectors.isDisjoint(with: rowSelectors + groupSelectors + launcherSelectors),
+                      "\(mainSelectors.intersection(rowSelectors + groupSelectors + launcherSelectors))")
         let appCommands = mainSelectors.map(NSSelectorFromString).filter {
             DatabaseWindowController.instancesRespond(to: $0) || AppDelegate.instancesRespond(to: $0)
         }

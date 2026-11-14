@@ -225,7 +225,9 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
-        case #selector(toggleSidebar): return isCommandTarget() && workspace.splitViewController != nil
+        case #selector(toggleSidebar):
+            item.title = workspacePresentation.isSidebarCollapsed ? String(localized: "Show Sidebar") : String(localized: "Hide Sidebar")
+            return isCommandTarget() && workspace.splitViewController != nil
         case #selector(newEntry): return commands.canNewEntry
         case #selector(newGroup): return commands.canNewGroup
         case #selector(saveDatabase): return commands.canSave

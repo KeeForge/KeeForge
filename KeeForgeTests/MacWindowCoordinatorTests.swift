@@ -264,6 +264,48 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertFalse(list.databases.contains { $0.id == references[1].id })
     }
 
+    /// Lock All goes through each window's own lock: unsaved work defers to that window's prompt.
+    func testLockAllDatabasesLocksEveryUnlockedWindowAndLeavesUnsavedWorkToItsPrompt() async throws {
+        start()
+        XCTAssertFalse(coordinator.canLockAllDatabases, "Nothing is unlocked")
+        for reference in references { coordinator.open(reference) }
+        let controllers = try references.map { try XCTUnwrap(coordinator.databaseWindows[$0.id]) }
+        let (clean, dirty, locked) = (controllers[0], controllers[1], controllers[2])
+        XCTAssertFalse(coordinator.canLockAllDatabases, "Open but locked windows are not counted")
+        await clean.session.unlock(password: "testpassword123")
+        await dirty.session.unlock(password: "testpassword123")
+        try makeDirty(dirty.session, title: "Unsaved")
+        XCTAssertTrue(coordinator.canLockAllDatabases)
+        XCTAssertEqual(coordinator.launcher.rows.map(\.isUnlocked), [true, true, false], "The launcher shows Open")
+        XCTAssertEqual(coordinator.lockState(of: try XCTUnwrap(clean.window)), true)
+        XCTAssertEqual(coordinator.lockState(of: try XCTUnwrap(locked.window)), false)
+        XCTAssertNil(coordinator.lockState(of: NSWindow()))
+
+        coordinator.lockAllDatabases()
+        XCTAssertEqual(clean.session.state, .locked)
+        XCTAssertEqual(dirty.session.state, .unlocked, "The draft asks first, as Lock does")
+        XCTAssertNotNil(dirty.session.pendingLockRequest)
+        XCTAssertTrue(dirty.session.isDirty)
+        XCTAssertEqual(locked.session.state, .locked)
+        XCTAssertEqual(coordinator.databaseWindows.count, 3, "Locking keeps every window")
+        XCTAssertTrue(coordinator.canLockAllDatabases)
+        XCTAssertEqual(coordinator.launcher.rows.map(\.isUnlocked), [false, true, false])
+    }
+
+    func testLauncherRowActionsWriteThroughTheList() async throws {
+        start()
+        let reference = references[0]
+        XCTAssertFalse(reference.isQuickLaunch)
+        coordinator.launcher.perform(.quickLaunch(isOn: false), on: reference)
+        XCTAssertEqual(list.databases.first { $0.id == reference.id }?.isQuickLaunch, true)
+        coordinator.launcher.perform(.readOnly(isOn: false), on: reference)
+        XCTAssertEqual(list.databases.first { $0.id == reference.id }?.isReadOnly, true)
+        XCTAssertEqual(coordinator.launcher.rows.first?.isQuickLaunch, true)
+        XCTAssertEqual(coordinator.launcher.rows.first?.isReadOnly, true)
+        XCTAssertEqual(coordinator.launcher.rows.first?.subtitle,
+                       "\(reference.filename) · \(String(localized: "On This Mac"))")
+    }
+
     func testSessionRetiredElsewhereTakesItsWindowWithIt() async throws {
         start()
         coordinator.open(references[0])
@@ -574,7 +616,7 @@ final class MacWindowCoordinatorTests: XCTestCase {
     }
 
     func testRestoredDatabasesWindowUsesItsRecordedFrame() throws {
-        let launcherFrame = CGRect(x: 300, y: 200, width: 700, height: 720)
+        let launcherFrame = CGRect(x: 300, y: 200, width: 820, height: 720)
         restoration.recordTopology(.init(databaseWindows: [], databasesWindowOpen: true,
             databasesWindowFrame: launcherFrame, frontmostDatabaseID: nil))
         makeRestoringCoordinator()

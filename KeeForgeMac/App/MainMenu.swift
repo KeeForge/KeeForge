@@ -59,7 +59,7 @@ enum MainMenu {
         add(String(localized: "Find"), #selector(DatabaseWindowController.findEntry), key: "f", to: edit)
 
         let view = submenu(String(localized: "View"), in: menu)
-        add(String(localized: "Show Sidebar"), #selector(NSSplitViewController.toggleSidebar(_:)), key: "s", modifiers: [.command, .control], to: view)
+        add(String(localized: "Hide Sidebar"), #selector(NSSplitViewController.toggleSidebar(_:)), key: "s", modifiers: [.command, .control], to: view)
         view.addItem(.separator())
         add(DatabaseCollection.allEntries.title, #selector(DatabaseWindowController.showAllEntries), key: "1", to: view)
         add(DatabaseCollection.verificationCodes.title, #selector(DatabaseWindowController.showVerificationCodes), key: "2", to: view)
@@ -83,6 +83,7 @@ enum MainMenu {
 
         let database = submenu(String(localized: "Database"), in: menu)
         add(String(localized: "Lock"), #selector(DatabaseWindowController.lockDatabase), key: "l", to: database)
+        add(String(localized: "Lock All Databases"), #selector(AppDelegate.lockAllDatabases), key: "l", modifiers: [.command, .option], to: database)
         database.addItem(.separator())
         add(String(localized: "Sync Now"), #selector(DatabaseWindowController.syncNow), key: "r", modifiers: [.command, .shift], to: database)
         database.addItem(.separator())
@@ -124,5 +125,28 @@ enum MainMenu {
         item.keyEquivalentModifierMask = key.isEmpty ? [] : modifiers
         menu.addItem(item)
         return item
+    }
+}
+
+/// Gives each database window's Window-menu item a lock glyph: open while
+/// unlocked, closed while locked. AppKit owns the items; this only sets images.
+@MainActor
+final class MacWindowMenuDecorator: NSObject, NSMenuDelegate {
+    private let lockState: @MainActor (NSWindow) -> Bool?
+
+    init(lockState: @escaping @MainActor (NSWindow) -> Bool?) {
+        self.lockState = lockState
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        decorate(menu)
+    }
+
+    func decorate(_ menu: NSMenu) {
+        for item in menu.items {
+            guard let window = item.target as? NSWindow, let isUnlocked = lockState(window) else { continue }
+            item.image = NSImage(systemSymbolName: isUnlocked ? "lock.open.fill" : "lock.fill",
+                accessibilityDescription: isUnlocked ? nil : String(localized: "Locked"))
+        }
     }
 }

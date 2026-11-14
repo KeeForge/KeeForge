@@ -191,6 +191,21 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertEqual(NSPasteboard.general.string(forType: .string), entry.username)
     }
 
+    /// View ▸ Hide Sidebar reads Show Sidebar while the sidebar is collapsed.
+    func testSidebarMenuTitleFollowsTheCollapsedSidebar() throws {
+        let controller = DatabaseWindowController(session: try makeSession(), windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false)
+        let toggle = item("toggleSidebar:")
+        _ = controller.validateMenuItem(toggle)
+        XCTAssertEqual(toggle.title, String(localized: "Hide Sidebar"))
+        controller.workspacePresentation.isSidebarCollapsed = true
+        _ = controller.validateMenuItem(toggle)
+        XCTAssertEqual(toggle.title, String(localized: "Show Sidebar"))
+        controller.workspacePresentation.isSidebarCollapsed = false
+        _ = controller.validateMenuItem(toggle)
+        XCTAssertEqual(toggle.title, String(localized: "Hide Sidebar"))
+    }
+
     func testCloseDatabaseAndReturnToDatabasesUseTheGuardedClose() throws {
         let session = try makeSession()
         let closeRequests = Box<[NSWindow]>([])
