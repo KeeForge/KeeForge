@@ -7815,8 +7815,8 @@ final class DatabaseViewModelTests: XCTestCase {
         setup.vm.lock()
         let entered = expectation(description: "old unlock publication paused before coordination")
         let joined = expectation(description: "old unlock worker finished")
-        let cleanupJoined = expectation(description: "cleanup observes old worker completion")
-        let cleanupOpeningFinished = expectation(description: "cleanup observes complete original unlock task")
+        let cleanupJoined = XCTestExpectation(description: "cleanup observes old worker completion")
+        let cleanupOpeningFinished = XCTestExpectation(description: "cleanup observes complete original unlock task")
         let release = DispatchSemaphore(value: 0)
         defer { release.signal() }
         let effects = OSAllocatedUnfairLock(initialState: 0)
