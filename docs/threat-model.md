@@ -103,9 +103,69 @@ The legitimate user selects databases, authorizes unlocks, chooses recipients, a
 - The Mac SSH agent has been exercised unsigned and through unit tests, including OpenSSH's own `ssh-add` and `ssh-keygen` against the socket. Not yet established, and to be treated as open questions rather than known defects: its behavior in a signed, sandboxed build (whether a client outside the container reaches the socket), authentication against a real host, `git`, and a forwarded agent end to end ([Mac security model](../KeeForgeMac/SECURITY.md#ssh-agent)).
 - This source-based model does not verify deployed server settings, installed entitlements, dependency vulnerabilities, release-key custody, or all parser resource bounds. Those require targeted validation when the corresponding boundary changes. A valid encrypted file can still be stale or contain hostile content supplied by someone who knows its key.
 
+### Local replacement and key recovery
+
+Unconfirmed/planned target evidence, source admission, key publication, retirement
+and revocation remain fail-closed. A ready-to-retire certificate is established only
+after target/association/required-source settlement, with durable new owner epoch
+before withdrawal. Certified replay can finish owner CAS without a permanent target
+SHA check; planned/unconfirmed replay cannot. Fully durable retirement deliberately
+restores main's external restore/open/conflict behavior: no permanent cryptographic
+antirollback protection is claimed. Source epochs and tombstones still fence stale
+actors and preserve later ciphertext.
+
+Local cache reads capture reference/epoch before IO. Scanner, healing/relink,
+migration, creation and VM publication recheck current reference, actual bytes,
+epoch and revocation under list lock → original/cache coordination → owner flock.
+Recovery ciphertext and pending sources cannot be replaced by an older read or
+recreated after removal. Idle key-file preferences update only current registry
+fields; actual pending association intents retain their exact desired-field CAS.
+No password/key-file bytes/session key/XML enter owner records.
+
+A single authenticated ciphertext may remain in session RAM and clears on lock or
+new unlock. Explicit encrypted draft export is independent of owner availability,
+verifies the reopened full document/pool off main and never clears edits or grants
+cleanup permission. Active recovery prevents destructive conflict reload/merge;
+normal conflict actions resume after settlement. Native file grants, UI and physical
+durability remain separate validation requirements.
+
 ### Effective resource inventory
 
 Container paths below are relative to the OS-resolved location, not fixed device paths. They describe production behavior. Injected unit tests instead use `<temporary directory>/KeeForgeUnitTestAppGroup/group.com.keevault.shared` and the `group.com.keevault.shared.unit-tests` defaults suite. In production, failure to resolve the group directory falls back to the process temporary directory; defaults independently fall back to standard defaults if the suite is unavailable ([AppGroupContainer.swift:28](../KeeForge/Services/Persistence/AppGroupContainer.swift#L28)). Neither fallback guarantees app/extension sharing.
+
+Pending local AutoFill snapshots also live under `pending-local-saves/<database UUID>/`.
+New sources have an exclusive UUID parent and an unchanged timestamp `.kdbx` name;
+legacy flat sources remain readable. `pending-local-save-owners/<database UUID>/`
+contains a stable lock, permanent removal tombstone and versioned nonsecret retirement
+receipts (relative identity, inode and SHA-512). Database removal revokes late local
+writes before registry mutation and refuses to erase unresolved sources implicitly.
+The coordinated replace holds this owner lock through its final receipt/revocation
+check and replacement; the owner never takes the database-list lock. Partial source
+retirement remains a recovery requirement, including missing payloads. Exact encrypted
+source export is available without unlocking; destructive discard needs a separate
+snapshot-specific confirmation and never follows from export failure. App Group denial
+or unknown owner metadata blocks mutation instead of using the temporary fallback.
+Source preparation persists a provisional owner before publishing ciphertext; shared-copy
+installation and activation are distinct effects. Merge admission precedes its saver,
+and surviving admission prevents automatic reencryption, including of later sources.
+Known committed outcomes retain installed keys and SHA despite failed final sync or
+coordination; unknown outcomes retain recovery ownership. Exact target re-observation
+and durable removal of admitted sources precede idle publication. A visible idle
+rename whose final sync fails is reported as bookkeeping uncertainty, not rollback.
+
+Local master-key publication has its own barrier and a durable field-specific
+association receipt. Epoch settlement retains exact new-target identity/SHA and any
+unconfirmed target durability; later mutations reconfirm visible owner metadata under
+flock and reject rollback/missing/foreign targets and incompatible associations. Late
+old-epoch sources stay retained and ineligible. Valid encrypted reads, receipt exports
+and an unlocked session's verified encrypted draft export remain separate from mutation
+permission. Draft export keeps edits and uses the unlocked session's key; failed export
+never authorizes destructive discard. Abandoning key publication revokes writes without
+undoing an installed change. Native save completion and identity publication are withheld
+on warnings; lock-cycle guards still prevent secret restoration.
+
+These controls do not make database-list writes transactional or establish physical
+power-loss behavior ([PendingLocalSaveStore.swift](../KeeForge/Services/Persistence/PendingLocalSaveStore.swift)).
 
 | Deployment and resource | Effective location or configuration | Access and enforcing control | Evidence and limitation |
 | --- | --- | --- | --- |
@@ -155,3 +215,101 @@ Severity applies to a validated failure with a demonstrated trust-boundary cross
 | Low | Limited unintended non-secret disclosure or a minor security-relevant behavior with constrained impact | Authorized copying, expected optional favicon disclosure, and documented platform behavior alone are not vulnerabilities. |
 
 Maintain this model when unlock factors, shared storage, provider transports, AutoFill authority, SSH agent authority, plaintext outputs, or distribution trust change. Keep detailed platform contracts next to their implementation and historical audit results in `docs/audits/`.
+
+Ordinary local saves share the pending-local typed admission, with no source
+receipts, before encryption. Unknown effects or interruption block another
+automatic attempt across sessions until explicit recovery; old observable bytes
+are not proof of no replacement. Durable completion or affirmative pre-replacement
+proof releases that operation. Database-bookmark renewal is field-specific and
+bound to its observed epoch, so a stale resolver cannot restore old factors.
+Local AutoFill final key publication validates the read-bound ciphertext/identity,
+reference epoch and revocation under the owner lock through keychain-only writes.
+Legacy registry cleanup occurs afterwards by field CAS, without list-lock inversion;
+refusing key publication does not prevent filling authenticated credentials.
+
+Known ordinary output is distinct from an unknown effect: its typed commit is
+recorded in the existing empty-receipt admission. A new explicit save requires the
+exact installed identity/SHA and epoch, uses a new operation UUID, and never drains
+receipts or retries an unknown outcome. Only the exact actual commit receipt can
+authorize cache repair when its owner publication fails. Failed pre-replacement
+release remains an actionable recovery error rather than a promise of safe retry.
+App unlock now also holds the final reference/owner fence through keychain-only
+publication; old parsed data remains readable without overwriting later keys.
+
+Initial admission publication retains its ownership token on observed rename with
+unconfirmed sync/coordinator completion, stopping the action before encryption and
+showing recovery rather than promising retry. Rekey Keychain publication holds the
+current installed receipt/operation/epoch/revocation fence through keychain-only
+effects, including invalidation. Provider work and both checks run off MainActor:
+list snapshot is brief, full provider reads precede an immediate coord -> try-list
+attempt, and owner flock follows only successful try-list. Contention rejects
+without waiting or retry. Coordination/list/owner protect the exact current target
+identity/bytes against the receipt through the effect. A RAM permit closes pending
+authority before timeout/cancel delivery or on subsequent lock/new unlock; claimed
+IO may finish and cannot be called cancelled or effect-free. No early wrapper
+result releases committed ownership or restores session secrets. Cleanup is off
+MainActor and outside owner. Direct secret/timer lock and interrupted completion
+do not wait on these locks, but already-claimed Keychain IO may delay other list
+consumers; no global UI or provider-latency guarantee is claimed. A stale callback cannot overwrite
+or delete newer items, including after same-epoch witness retirement and an
+in-place restore with unchanged inode; fresh authenticated restored-file reads
+remain allowed after retirement, without a permanent antirollback pin. Unknown callbacks lack that authority. Legacy reference
+cleanup stays outside owner flock and uses field CAS. A created session also
+receives its already-authenticated creation ciphertext in the single current RAM
+context, so draft export remains available before a first backup or after a failed
+first save; lock clears that context and export never clears the draft.
+
+Master-entry timestamps in shared defaults retain their existing dictionary key
+and representation. A security-owned process-local leaf mutex now serializes all
+date snapshots, conditional insert/replacement and per-reference deletion, including
+list removal/clear, so a local rekey worker cannot overwrite a concurrent cloud
+unlock date in that process. It holds no Keychain/list/owner calls or awaits, and
+expiry deletes Keychain items only after releasing it. Missing-date and interval
+policies are unchanged. Separate app/extension processes still do not share that
+mutex: shared-UserDefaults RMW remains nontransactional across processes, and no
+atomic Keychain/date update or persistence-after-power-loss guarantee is claimed.
+
+Local recovery export compares the complete canonical KDBX XML representation and its binary pool; an in-memory fractional timestamp alone is not evidence that an export lost data. A known installed local rekey receipt can preserve its originating unlocked session’s key/SHA/ciphertext and the same receipt’s nonsecret key-file association/date when registry publication is unavailable, while persistent key/association effects retain current-owner authorization and lock/new-session revocation. Healthy idle pending sources remain owned across a conflict Reload; only verified durable merge retirement permits publication of the corresponding merged shared copy.
+
+A local database-bookmark renewal can carry a nonpersistent, durable-CAS receipt through its originating read. The receipt binds exact reference observations, owner epoch and target identity; it does not replace authentication or source/admission/revocation checks. Final local read-key persistence rechecks the authenticated ciphertext under target/registry coordination in a bounded worker, uses immediate try-list then owner authority and executes only keychain-only effects. Pending cancellation prevents late effects; an already-claimed Keychain operation may finish after timeout or memory lock and cannot restore session state. Registry-dependent UI work can still wait on claimed IO, while memory lock/AutoFill cleanup remain independent. This adds no permanent antirollback promise after full settlement.
+
+Local commit receipts do not grant file access. Pending-source consumption and the
+subsequent shared-cache refresh/invalidation retain the actual resolved bookmark
+scope while continuing to validate the installed identity and ciphertext. Read-key
+workers separately report observed no-claim termination; a timeout, cancellation
+or claimed effect cannot be treated as that proof to reopen AutoFill actions.
+Session factors are applied before the unlock publication await, and later work
+requires the same action identity even when a concurrent rekey keeps the lock cycle.
+
+An early session update from a known local rekey receipt does not advance the
+registry observation used to remove legacy metadata. Cleanup uses the captured
+pre-save observation with the existing field CAS after the fenced Keychain effect;
+a later registry change can reject cleanup without undoing or repeating that effect.
+
+Auxiliary no-renew local resolution is also no-heal: it does not create ownership
+state, rebind Documents references or reseed caches. Valid moved locations remain
+readable; known Trash remains distinct from unavailable. The shipped default heal
+is retained without claiming a durable registry transaction or issuing a renewal
+receipt. Actual authenticated read renewal keeps its historical reference through
+the final fence and applies only the same action’s bookmark after authorization.
+
+A durable bookmark renewal cannot precede a source-restricted final publication:
+its owner admission requires no recorded or filesystem sources in addition to the
+existing idle/epoch/revocation checks. Deferral preserves valid file reading and
+leaves the reference unchanged; it neither authorizes stale keys nor releases
+source/admission barriers. Default heal remains the separately documented limit.
+
+A source can arrive after bookmark-renewal admission. Read-key publication still
+rejects that window. A bookmark-only reconciliation may preserve the same read’s
+durable transition after exact authenticated target/reference/epoch checks, accepting
+only verified eligible sources. Session action/cycle checks prevent late RAM promotion;
+merge obtains new ownership and a new installed receipt. Failed proof retains sources
+for explicit recovery and never adopts another actor’s current factors or epoch.
+
+A local merge keeps its actual bookmark grant through installed-target bookmark
+publication, exact source retirement and cache refresh. The field publisher is
+coordinated with the new target and owner admission; a receipt’s canonical path is
+never access authority. Its RAM-only completion prevents a late VM callback from
+repeating retirement. An explicit same-session mutation can reconcile only its
+own authenticated pending renewal after revoking the old read-key permission;
+current target/reference/epoch checks and session lifecycle guards still apply.

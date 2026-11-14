@@ -40,7 +40,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `mergeAndSave()` gates its write on the conflict's `remoteSHA512` (the bytes it merged), not `openTimeSHA512`. Every failure leaves the draft and the conflict standing.
 - `mergePendingUploads()` drops upload markers only after `.saved`; `.changeUnidentified` must never suggest Discard.
 - Rekey and re-encryption refuse a dirty draft, an in-flight save, and cloud references with pending upload markers (draining them afterwards reverts the remote). The rekey stamps `lastMasterKeyChangeAt` so the drainer refuses older markers.
-- `save()` no-ops behind an in-flight save. An operation holding `isSaving` (rekey, re-encryption) flushes edits that landed behind it; `importEntries` refuses to start.
+- `save()` no-ops behind an in-flight save. An operation holding `isSaving` (rekey, re-encryption) flushes edits that landed behind it only after confirmed completion; a committed/unknown warning retains them for an explicit operation; `importEntries` refuses to start.
 - `syncCloudNow()` never discards unsaved work, never applies a response older than a save that finished mid-sync, never swaps a YubiKey session, and never pushes pending uploads.
 - A completion arriving while a save conflict is on screen is held by `EntryEditCompletionGate` until `isSettled`. Reporting it races the conflict alert, which presents from the editor, and loses the dismissal.
 - A successful new-entry save reports `.created` with its stable UUID; failed writes and unresolved conflicts report nothing, and Save and Lock keeps its ordinary completion without opening an entry.
@@ -71,6 +71,8 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `commitPendingTag()` is never called from the tag field's setter (rewriting a focused field drops keystrokes), and `normalizedTags()` includes the pending token. Both editors share these rules.
 - `AppSettingsViewModel.reload()` reads persisted values without replaying effects.
 
+- Pending-local merge retirement uses the receipts for the actual bytes merged. A failed retirement still applies the installed SHA/tree while keeping a recovery requirement; it never turns cleanup into proof that the target was not saved. Removal failure retains the reference and opens Database Details for source recovery.
+
 ## Tests
 
 Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, failure, cancellation, and stale completion there; keep UI tests for presentation, bindings, and focus. Non-obvious mappings:
@@ -87,3 +89,31 @@ Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, f
 - `../Views/AGENTS.md`, `../App/AGENTS.md`: the shells that adapt this state and run auto-unlock
 - `../Models/AGENTS.md`, `../Services/AGENTS.md`: `DatabaseDraft`, merge, save paths, pending uploads
 - `../../KeeForgeTests/AGENTS.md`, `../../KeeForgeMac/SECURITY.md`
+
+- Known local commits apply installed SHA/tree/key material across persistence boundaries while lock-cycle checks prevent restoring unlocked secrets. Warnings stop save loops and forms end with acknowledgement, without successful-save cleanup or automatic rekey repetition.
+- Pending-local merge admits the exact bytes it merged before invoking the saver. Only affirmative pre-replacement failure/conflict can release admission; cancellation, lock, generic errors and uncertain results retain it. Durable completion consumes receipts through the coordinated target/owner boundary.
+- Key-publication recovery can export an unlocked draft through the existing encrypted local-copy operation and native presenter. Keep the draft on export success, failure or cancellation; never present discard/removal as recovery of unsaved edits.
+
+- Same-epoch key-file Select/Clear and renewal run bookmark creation/hash/fsync off the main actor, reject stale generations and retain exact desired preferences on uncertain publication. Refresh only that nonsecret field before an explicit session save.
+
+- Fully durable key settlement retires target evidence; ordinary external restore/merge/reload behavior resumes without adoption. During actual recovery, conflict actions check ownership before discarding a draft. The same unlocked local dirty session exposes encrypted draft export even when owner data is absent or unreadable, using one RAM ciphertext context and cycle/revision/cancel guards.
+
+- App final unlock key publication uses the same pre-read lease/current-reference/owner fence as AutoFill, held through keychain-only effects, with legacy field cleanup outside flock. A stale parse may remain readable but cannot publish older keys. A known ordinary warning ends the action; a later explicit save uses a new UUID and exact current baseline without destructive discard.
+
+- Rekey completion checks actual receipt/operation/epoch/revocation plus exact current target identity/ciphertext on a background worker through keychain-only effects. Snapshot list briefly, do provider IO outside it, then use only immediate coord -> try-list -> owner acquisition; busy means reject, never wait or retry. A per-attempt RAM permit atomically changes pending to claimed or closed. Timeout/cancel/subsequent lock closes pending; a claimed effect may finish after the terminal warning without authorizing resend or restoring secrets. Legacy cleanup runs on that worker after owner/coordination release. The same asynchronous boundary protects the second post-association check; a fresh read after retirement keeps normal restore semantics. Recheck authority after asynchronous association settlement before applying session factors; an old callback cannot supersede a later rekey. Created sessions populate the same current encrypted RAM context as opened sessions, allowing draft export before any backup.
+
+- Rekey keeps its action UUID across an ordinary lock so a saver returning a real known commit afterwards can reconcile persistent keys. A new unlock invalidates the action before reference refresh; an old action cannot mint a permit for the new session. Each fence captures its own current lock cycle; later lock revokes that pending permit. Original save-cycle checks still govern session secrets. The interrupted completion path must not synchronously refresh the list on MainActor: an already-claimed worker may still own that lock. Secret/timer lock itself never joins that worker or acquires list/owner locks.
+
+- Recovery export verifies the complete representable KDBX XML plus the binary pool, rather than comparing in-memory subsecond dates with their serialized precision. A known local rekey receipt may update only its originating unlocked session’s key/SHA/ciphertext and receipt-specific key-file association/date for recovery before registry access succeeds; Keychain/association publication retains its independent current-owner fence, and lock/new-session guards still forbid RAM restoration.
+
+- Local authenticated-read key persistence has its own Sendable keychain-only seam; the cloud seam retains MainActor isolation. Pending permission belongs to the original read action and lock cycle, and lock/new unlock/rekey revoke it before claim. A claimed timeout does not authorize retry or late session restoration. Created sessions preserve their validated ciphertext for draft export without treating it as a completed local read-key fence or falling through to cloud persistence.
+
+- Unlock applies its session key-file factor together with the unlocked payload before awaiting read-key publication. Any post-publication continuation also belongs to the original action UUID, so a rekey in the same lock cycle cannot be overwritten by the earlier unlock.
+
+- Rekey legacy-metadata cleanup retains the exact pre-save persisted reference for its field CAS, separately from the originating session’s early application of known new factors. It cannot substitute that updated RAM date for the observed registry version. Final pending-merge cache reads, cache fingerprints and reloads resolve without renewal or heal, preserving their captured reference. A read that does renew carries only its actual durable receipt into the historical-reference fence; its originating action/cycle applies the bookmark to RAM after successful authorization, without adopting another actor’s factors or epoch.
+
+- When sources prevent read-key publication after this read’s durable bookmark renewal, the session may reconcile only that receipt’s bookmark after a separate authenticated target/reference/owner fence. Apply it only to the unchanged original action, cycle and session reference; never import factors, dates or a different epoch. Failed reconciliation retains sources and presents local recovery before merge encryption.
+
+- An explicit local mutation may encounter this same unlocked action’s unapplied durable read renewal. Revoke its pending read-key permit, revalidate the original authenticated receipt under the existing bookmark-only fence and apply only bookmarkData before a new mutation action begins. Retain only that current observation alongside the existing ciphertext context; lock/new unlock/reload/known replacement clears it. Old action continuations cannot apply factors, SHA or secrets afterward.
+
+- After a pending-local merge archives divergent sources, its cache tail uses only the original reference or the bookmark advanced by that same validated mergeCompletion and session cycle. It never rereads/adopts a current reference to bypass the final cache CAS; later sources, changed authority, unconfirmed receipts and removal remain fenced.

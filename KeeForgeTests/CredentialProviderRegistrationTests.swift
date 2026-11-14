@@ -381,6 +381,45 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         XCTAssertTrue(presenter.cancelledErrorCodes.isEmpty)
     }
 
+    func test_save_committedWarningRetainsInstalledStateWithoutCompletingRegistration() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let reference = try TestDatabaseSupport.makeReference(
+            for: makeTemporaryFileURL(name: "target.kdbx")
+        )
+        seedUnlockedVaultState(coordinator)
+        coordinator.activeDatabaseReference = reference
+        let recorder = Recorder()
+        coordinator.saveEnvironment = makeRecordingEnvironment(
+            recorder,
+            saveDraft: { [recorder] draft, _, _, _ in
+                recorder.events.append("saveDraft")
+                return .committedWithoutConfirmedDurability(.init(savedRootGroup: draft.rootGroup,
+                    newSHA512: Data("installed-warning-sha".utf8), enqueuedPendingUpload: false))
+            }
+        )
+        coordinator.pendingPasskeyRegistrationRequest = makeRegistrationRequest()
+
+        XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
+        let creator = try XCTUnwrap(presenter.passkeyCreator)
+
+        let outcome = await creator.onSave("My Passkey")
+
+        guard case .showWarningAndCancel(let message) = outcome else {
+            return XCTFail("Expected the committed warning, got \(outcome)")
+        }
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertNil(presenter.completedRegistration, "A warning must not complete the registration")
+        XCTAssertTrue(recorder.populatedEntryTitles.isEmpty)
+        XCTAssertEqual(coordinator.openTimeSHA512, Data("installed-warning-sha".utf8))
+        XCTAssertNotNil(coordinator.parsedRootGroup?.allEntries.first { $0.title == "My Passkey" })
+
+        // The creator's warning alert cancels on dismissal.
+        creator.onCancel()
+
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+        assertCleanedUp(coordinator)
+    }
+
     func test_save_conflict_returnsWarningAndCancelOutcome() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let reference = try TestDatabaseSupport.makeReference(

@@ -8,6 +8,25 @@ final class EncryptionSettingsViewModelTests: XCTestCase {
         var calls: [(cipher: DatabaseCreationCipher?, keyDerivation: EncryptionSettingsKeyDerivation?, isCompressed: Bool?)] = []
     }
 
+    func testBookkeepingWarningEndsInvocationWithoutOfferingTheSameSettingsAgain() async {
+        var calls = 0
+        let vm = EncryptionSettingsViewModel(current: summary(isCompressed: true), changeOperation: { _, _, _ in
+            calls += 1
+            throw SaveBookkeepingWarning()
+        })
+        vm.isCompressed = false
+        let first = await vm.performChange()
+        XCTAssertFalse(first)
+        XCTAssertTrue(vm.hasCompleted)
+        XCTAssertNotNil(vm.completedWarning)
+        XCTAssertFalse(vm.canSave)
+        vm.isCompressed = true
+        let second = await vm.performChange()
+        XCTAssertFalse(second)
+        XCTAssertNotNil(vm.completedWarning)
+        XCTAssertEqual(calls, 1)
+    }
+
     func testOfferedSettingsAreSelectedWithoutACurrentOption() {
         let viewModel = makeViewModel(
             current: summary(cipher: .chaCha20, keyDerivation: preset(.strong), isCompressed: true)

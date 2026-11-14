@@ -15,6 +15,10 @@
 
 ### Changes
 
+- Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
+
+- AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
+
 - AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
   - An entry for an IP address, such as a router, is suggested only on that exact address. Before, entries for other addresses ending in the same two numbers appeared as possible matches.
   - An entry for a subdomain is no longer suggested or filled on a parent that unrelated sites share, such as `localhost`, `github.io`, or `co.uk`.
@@ -25,6 +29,7 @@
 
 ### Fixes
 
+- Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
 - Downloaded website icons are no longer included in device backups; KeeForge fetches them again when needed.
 - In AutoFill, an entry URL with spaces before or after it now matches its website and appears in the system's suggestions (#285).
 - The entry editor's Title, Username, Password, URL, and Tags labels now appear in the app's language. Before, they stayed in English.

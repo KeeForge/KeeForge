@@ -91,6 +91,24 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(draft.url, "")
     }
 
+    func test_saveNewEntry_committedWarningPreservesInstalledResultWithoutPublishingIdentities() async throws {
+        let recorder = SaveRecorder()
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "Database")])
+        let result = try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: EntryDraftPayload(title: "Committed", username: "user", password: "secret"),
+            reference: makeLocalReference(), rootGroup: root, meta: KPMeta(), sessionKey: SymmetricKey(size: .bits256),
+            compositeKey: SymmetricKey(size: .bits256), openTimeSHA512: Data("baseline".utf8),
+            environment: makeEnvironment(recorder: recorder, saveDraft: { draft, _, _, _ in
+                .committedWithoutConfirmedDurability(.init(savedRootGroup: draft.rootGroup,
+                    newSHA512: Data("installed".utf8), enqueuedPendingUpload: false, warningScope: .sharedCopy))
+            }))
+        guard case .committedWithoutConfirmedDurability(let outcome) = result else { return XCTFail("Expected committed warning") }
+        XCTAssertEqual(outcome.newSHA512, Data("installed".utf8))
+        XCTAssertEqual(outcome.savedRootGroup.allEntries.map(\.title), ["Committed"])
+        XCTAssertTrue(recorder.populatedEntryTitles.isEmpty)
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+    }
+
     func test_saveNewEntry_localSource_createsDraftAndPublishesIdentitiesWithoutEnqueuing() async throws {
         let reference = makeLocalReference()
         let sessionKey = SymmetricKey(size: .bits256)
@@ -147,7 +165,7 @@ final class CredentialProviderSaveTests: XCTestCase {
                     openTimeSHA512: openTimeSHA512,
                     kdfPolicy: .autoFillExtension
                 ) {
-                case .saved(let newSHA512, _):
+                case .saved(let newSHA512, _, _):
                     return .saved(
                         AutoFillSaveCoordinator.SaveOutcome(
                             savedRootGroup: draft.rootGroup,
@@ -155,6 +173,10 @@ final class CredentialProviderSaveTests: XCTestCase {
                             enqueuedPendingUpload: false
                         )
                     )
+                case .committedWithoutConfirmedDurability(let sha, _, _, let scope):
+                    return .committedWithoutConfirmedDurability(.init(savedRootGroup: draft.rootGroup,
+                        newSHA512: sha, enqueuedPendingUpload: false, warningScope: scope))
+                case .indeterminate(let scope): return .indeterminate(scope)
                 case .conflict:
                     return .conflict
                 }
@@ -272,7 +294,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(recorder.populatedEntryTitles, [["Dropbox Entry"]])
     }
 
-    func test_saveNewEntry_cloudSource_saveThrowing_dropsProvisionalMarker() async {
+    func test_saveNewEntry_cloudSource_provenPreReplacementFailure_dropsProvisionalMarker() async {
         let reference = makeCloudReference(rev: "rev-9")
         let recorder = SaveRecorder()
 
@@ -293,13 +315,13 @@ final class CredentialProviderSaveTests: XCTestCase {
                 environment: makeEnvironment(
                     recorder: recorder,
                     saveDraft: { _, _, _, _ in
-                        throw SaveError.databaseLocationUnavailable
+                        throw LocalSaveBeforeReplacementFailure(underlying: SaveError.databaseLocationUnavailable)
                     }
                 )
             )
             XCTFail("Expected the save error to propagate")
         } catch {
-            XCTAssertEqual(error as? SaveError, .databaseLocationUnavailable)
+            XCTAssertEqual((error as? LocalSaveBeforeReplacementFailure)?.underlying as? SaveError, .databaseLocationUnavailable)
         }
 
         XCTAssertEqual(recorder.events, ["enqueue", "drop"])
@@ -308,20 +330,20 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(recorder.notifyCount, 0)
     }
 
-    func test_saveNewEntry_cloudSource_saveThrowing_keepsTheEarlierSavesMarker() async throws {
+    func test_saveNewEntry_cloudSource_provenPreReplacementFailure_keepsTheEarlierSavesMarker() async throws {
         let reference = makeCloudReference(rev: "rev-9")
         defer { try? PendingUploadQueue.removeAllMarkers(for: reference.id) }
         let earlierMarker = try enqueueFinalizedMarker(for: reference, payloadSHA512: Data("open-sha".utf8))
 
         var environment = makeQueueBackedEnvironment()
         environment.saveDraft = { _, _, _, _ in
-            throw SaveError.databaseLocationUnavailable
+            throw LocalSaveBeforeReplacementFailure(underlying: SaveError.databaseLocationUnavailable)
         }
         do {
             _ = try await saveCloudEntry(to: reference, environment: environment)
             XCTFail("Expected the save error to propagate")
         } catch {
-            XCTAssertEqual(error as? SaveError, .databaseLocationUnavailable)
+            XCTAssertEqual((error as? LocalSaveBeforeReplacementFailure)?.underlying as? SaveError, .databaseLocationUnavailable)
         }
 
         let markers = PendingUploadQueue.listMarkers(for: reference.id)

@@ -26,6 +26,7 @@ struct DatabaseDetailsView: View {
     var onSelectKeyFile: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var listViewModel: DatabaseListViewModel
     @State private var nickname = ""
     @State private var isQuickLaunch = false
@@ -37,6 +38,16 @@ struct DatabaseDetailsView: View {
     @State private var showAutoFillDestinationPicker = false
     @State private var backups: [DatabaseExportService.Backup] = []
     @State private var exportRequest: DatabaseExportRequest?
+    @State private var recoveryExportError: String?
+    @State private var isExportingRecoveryDraft = false
+    @State private var recoveryActionTask: Task<Void, Never>?
+    @State private var recoveryActionID = UUID()
+    @State private var localRecoveryViewModel: PendingLocalRecoveryViewModel
+    private struct LocalDiscardRequest {
+        let snapshot: PendingLocalSaveStore.RecoverySnapshot
+        let abandonKeyRecord: Bool
+    }
+    @State private var pendingLocalDiscard: LocalDiscardRequest?
 
     /// True when this view created its own `DatabaseListViewModel` because the
     /// caller could not reach the app's, and therefore has to install the
@@ -54,6 +65,7 @@ struct DatabaseDetailsView: View {
         self.onSelectKeyFile = onSelectKeyFile
         self.ownsListViewModel = listViewModel == nil
         _listViewModel = State(initialValue: listViewModel ?? DatabaseListViewModel())
+        _localRecoveryViewModel = State(initialValue: PendingLocalRecoveryViewModel(databaseID: reference.id, reference: reference))
     }
 
     private var currentReference: DatabaseReference {
@@ -65,6 +77,7 @@ struct DatabaseDetailsView: View {
             Form {
                 headerSection
                 areasSection
+                localRecoverySection
                 importSection
                 appSettingsSection
             }
@@ -93,6 +106,54 @@ struct DatabaseDetailsView: View {
             fileInfo = loadedFileInfo
             isLoadingFileInfo = false
         }
+        .alert(String(localized: "Local Save Recovery"), isPresented: Binding(
+            get: { recoveryExportError != nil }, set: { if !$0 { recoveryExportError = nil } }
+        )) { Button("OK") { recoveryExportError = nil } } message: { Text(recoveryExportError ?? "") }
+        .task { await refreshLocalRecovery() }
+        .onDisappear {
+            listViewModel.cancelKeyFilePreference(for: reference.id)
+            recoveryActionID = UUID()
+            recoveryActionTask?.cancel()
+            recoveryActionTask = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: PendingLocalSaveStore.didChange)) { _ in
+            Task { await refreshLocalRecovery() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task {
+                    await refreshLocalRecovery()
+                }
+            }
+        }
+        .confirmationDialog("Discard Local Recovery?", isPresented: Binding(
+            get: { pendingLocalDiscard != nil }, set: { if !$0 { pendingLocalDiscard = nil } }
+        ), presenting: pendingLocalDiscard) { request in
+            let snapshot = request.snapshot
+            Button("Discard Local Recovery", role: .destructive) {
+                Task {
+                    await localRecoveryViewModel.discard(snapshot, abandonKeyRecord: request.abandonKeyRecord)
+                    pendingLocalDiscard = nil
+                    backups = DatabaseExportService.backups(for: currentReference)
+                }
+            }
+            .accessibilityIdentifier("database-details.local-recovery.confirm-discard")
+            Button("Cancel", role: .cancel) { pendingLocalDiscard = nil }
+        } message: { request in
+            let snapshot = request.snapshot
+            if snapshot.preferenceIntent != nil {
+                Text("Abandoning this key-file preference recovery disables local writes. It does not change the database master key. Keep any snapshots and unsaved edits you need, then remove and add the database again.")
+            } else if snapshot.admission?.purpose == .ordinarySave, snapshot.admission?.knownTarget != nil,
+                      snapshot.entries.isEmpty, snapshot.keyEvidence?.pending == nil, !request.abandonKeyRecord, !snapshot.ownerUnavailable {
+                Text("The file contains this change, but its durability or recovery record is unconfirmed. You can make a new explicit save from this version without discarding recovery. Discarding the record does not undo the file change or discard your open draft.")
+            } else if snapshot.admission?.purpose == .ordinarySave, snapshot.keyEvidence?.pending == nil, !request.abandonKeyRecord, !snapshot.ownerUnavailable {
+                Text("This local save has an unresolved outcome. Export the database and any unsaved changes before discarding this recovery record. Discarding does not undo a replacement and deletes only the snapshots listed here; later snapshots and your open draft are kept.")
+            } else if request.abandonKeyRecord || snapshot.ownerUnavailable || snapshot.admission?.purpose.isMasterKeyChange == true || snapshot.keyEvidence?.pending != nil {
+                Text("Discarding this recovery record disables local writes. It does not undo a saved master-key change. Export any snapshots and unsaved edits you need first, then remove and add the database again using the correct master key. Changes not saved elsewhere will be lost.")
+            } else {
+                Text("This permanently deletes the selected AutoFill snapshots and their recovery record. Changes not saved elsewhere will be lost. New snapshots added after this confirmation was opened are kept.")
+            }
+        }
         .onAppear {
             installAutoFillBridgeIfNeeded()
             syncFormStateFromCurrentReference()
@@ -114,10 +175,11 @@ struct DatabaseDetailsView: View {
             switch result {
             case .success(let urls):
                 guard let url = urls.first else { return }
-                do {
-                    try listViewModel.setKeyFile(url: url, for: reference)
-                } catch {
-                    selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error)
+                Task {
+                    do { try await listViewModel.setKeyFile(url: url, for: currentReference) }
+                    catch is CancellationError {}
+                    catch { selectionAlert = .init(title: String(localized: "Key File Preference"), message: error.localizedDescription) }
+                    await refreshLocalRecovery()
                 }
             case .failure(let error):
                 selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
@@ -429,12 +491,19 @@ struct DatabaseDetailsView: View {
                     showKeyFilePicker = true
                 }
             }
+            .disabled(listViewModel.isChangingKeyFile(for: reference.id))
             .accessibilityIdentifier("database-details.key-file-select")
 
             if currentReference.keyFileFilename != nil {
                 Button("Clear Key File", role: .destructive) {
-                    try? listViewModel.setKeyFile(url: nil, for: reference)
+                    Task {
+                        do { try await listViewModel.setKeyFile(url: nil, for: currentReference) }
+                        catch is CancellationError {}
+                        catch { selectionAlert = .init(title: String(localized: "Key File Preference"), message: error.localizedDescription) }
+                        await refreshLocalRecovery()
+                    }
                 }
+                .disabled(listViewModel.isChangingKeyFile(for: reference.id))
             }
         } header: {
             Text("Key File")
@@ -453,7 +522,7 @@ struct DatabaseDetailsView: View {
                     MasterKeyChangeView(sessionViewModel: sessionViewModel)
                         // A rekey updates the stored reference; re-read it so
                         // the Associated File row is fresh when this pops.
-                        .onDisappear { listViewModel.reload() }
+                        .onDisappear { listViewModel.reload(); Task { await refreshLocalRecovery() } }
                 } label: {
                     Text("Change Master Key…")
                 }
@@ -608,6 +677,112 @@ struct DatabaseDetailsView: View {
             }
         }
         #endif
+    }
+
+    var showsLocalDraftExport: Bool {
+        sessionViewModel?.databaseReference.id == reference.id && sessionViewModel?.canExportLocalRecoveryDraft == true
+    }
+
+    @ViewBuilder
+    private var localRecoverySection: some View {
+        if showsLocalDraftExport, let sessionViewModel {
+            Section {
+                Text("Export a full encrypted copy of your unsaved changes before closing this session. Open it with the master key used by this unlocked session. Exporting keeps your edits here.")
+                Button("Export Unsaved Changes…") {
+                    isExportingRecoveryDraft = true
+                    let requestID = UUID()
+                    recoveryActionID = requestID
+                    recoveryActionTask = Task {
+                        defer { if recoveryActionID == requestID { isExportingRecoveryDraft = false } }
+                        do {
+                            let payload = try await sessionViewModel.makeLocalRecoveryExport()
+                            guard !Task.isCancelled, recoveryActionID == requestID else { return }
+                            exportRequest = .localRecovery(UUID(), payload.data, payload.suggestedFilename)
+                        } catch {
+                            guard !Task.isCancelled, recoveryActionID == requestID else { return }
+                            recoveryExportError = error.localizedDescription
+                        }
+                    }
+                }
+                .disabled(sessionViewModel.isSaving || isExportingRecoveryDraft)
+                .accessibilityIdentifier("database-details.local-recovery.export-draft")
+            }
+        }
+        if let localRecovery = localRecoveryViewModel.snapshot, !localRecovery.entries.isEmpty || localRecovery.needsRecovery || localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true || localRecovery.requiresAssociationRecovery(for: currentReference) || localRecoveryViewModel.targetNeedsRecovery {
+            Section("Local Save Recovery") {
+                if localRecovery.admission?.purpose == .ordinarySave, localRecovery.admission?.knownTarget != nil {
+                    Text("The file contains this change, but its durability or recovery record is unconfirmed. You can make a new explicit save from this version without discarding recovery. Discarding the record does not undo the file change or discard your open draft.")
+                } else if localRecovery.admission?.purpose == .ordinarySave {
+                    Text("This local save has an unresolved outcome. Export the database and any unsaved changes before discarding this recovery record. Discarding does not undo a replacement and deletes only the snapshots listed here; later snapshots and your open draft are kept.")
+                }
+                if !localRecovery.entries.isEmpty {
+                    Text("Each source is a full encrypted database snapshot. Open exported files with their original master key. Exporting does not discard the source.")
+                }
+                if localRecovery.isRevoked {
+                    Text("Local writes are disabled. Export any snapshots you want to keep, then separately discard pending changes and remove the database. Add it again with the correct master key if you want to keep using it.")
+                }
+                if localRecoveryViewModel.targetNeedsRecovery {
+                    Text("The current database file does not match the saved key record. Keep the original and new master keys and encrypted backups. Export unsaved changes before closing this session.")
+                }
+                if let admission = localRecovery.admission, admission.purpose.isMasterKeyChange {
+                    Text("This is a verified copy of the intended encrypted output, not proof that the original file was saved. Open it with the key chosen for that operation. Exporting does not resolve recovery.")
+                    Button("Export Encrypted Output…") { exportRequest = .keyPublicationIntent(UUID(), admission, currentReference) }
+                        .accessibilityIdentifier("database-details.local-recovery.export-key-copy")
+                } else if let evidence = localRecovery.keyEvidence {
+                    Text("This encrypted copy requires the master key from the saved key change. Exporting does not change the database or discard recovery records.")
+                    Button("Export Saved Database Copy…") { exportRequest = .keyPublication(UUID(), evidence, currentReference) }
+                        .accessibilityIdentifier("database-details.local-recovery.export-key-copy")
+                }
+                if localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true || localRecovery.admission?.knownTarget?.isConfirmed == false {
+                    Text("The current file's durability is unconfirmed. Keep an encrypted backup before closing this session.")
+                }
+                ForEach(localRecovery.entries) { source in
+                    LabeledContent {
+                        if let receipt = source.receipt {
+                            Button("Export AutoFill Snapshot…") {
+                                exportRequest = .pendingLocal(receipt, currentReference)
+                            }
+                            .accessibilityIdentifier("database-details.local-recovery.export")
+                        } else {
+                            Text("Unavailable")
+                        }
+                    } label: {
+                        let name = URL(fileURLWithPath: source.relativePath).lastPathComponent
+                        Text(DatabaseExportService.backupDate(fromFilename: name)?.formatted() ?? name)
+                    }
+                }
+                if localRecovery.preferenceIntent != nil || localRecovery.admission?.purpose.isMasterKeyChange == true || localRecovery.keyEvidence?.pending != nil || localRecovery.requiresAssociationRecovery(for: currentReference) {
+                    LabeledContent("Key File", value: localRecovery.recoveryKeyFileFilename ?? String(localized: "None"))
+                    Button(localRecovery.preferenceIntent != nil ? String(localized: "Confirm Key File Preference")
+                           : localRecovery.admission?.purpose.isMasterKeyChange == true ? String(localized: "Confirm Installed Key Change")
+                           : String(localized: "Confirm Current File")) {
+                        Task {
+                            await localRecoveryViewModel.confirmInstalledKeyChange(reference: currentReference, snapshot: localRecovery)
+                            await refreshLocalRecovery()
+                        }
+                    }
+                    .accessibilityIdentifier("database-details.local-recovery.confirm-key")
+                }
+                if !localRecovery.entries.isEmpty || localRecovery.admission != nil || localRecovery.ownerUnavailable || localRecovery.retirementID != nil || (localRecovery.keyEvidence != nil && localRecoveryViewModel.targetNeedsRecovery) || localRecovery.preferenceIntent != nil {
+                    Button("Discard Local Recovery…", role: .destructive) {
+                        pendingLocalDiscard = LocalDiscardRequest(snapshot: localRecovery, abandonKeyRecord: localRecovery.keyEvidence != nil && localRecoveryViewModel.targetNeedsRecovery)
+                    }
+                    .accessibilityIdentifier("database-details.local-recovery.discard")
+                }
+            }
+        }
+        if let localRecoveryError = localRecoveryViewModel.errorMessage {
+            Section("Local Save Recovery") {
+                Text(localRecoveryError)
+                Button("Try Again") { Task { await localRecoveryViewModel.retry() } }
+            }
+        }
+    }
+
+    private func refreshLocalRecovery() async {
+        listViewModel.reload()
+        await localRecoveryViewModel.refresh(reference: currentReference)
+        backups = DatabaseExportService.backups(for: currentReference)
     }
 
     private var backupsSection: some View {

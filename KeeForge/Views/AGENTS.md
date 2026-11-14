@@ -73,3 +73,5 @@ All of these shims live in `../Extensions/PlatformCompat.swift`.
 - `../App/AGENTS.md`: the shells and the macOS workspace
 - `../Extensions/AGENTS.md`: `PlatformCompat` shims
 - `../../KeeForgeUITests/AGENTS.md`, `../../KeeForgeMacUITests/AGENTS.md`
+
+- A committed or indeterminate local-save warning ends the requested operation with acknowledgement. Do not leave the same rekey/settings Save action enabled or run successful-completion haptics. Recovery export and destructive discard are separate actions; export failure never authorizes deletion.

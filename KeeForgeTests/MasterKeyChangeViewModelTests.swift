@@ -57,6 +57,30 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
         return url
     }
 
+    func testCommittedWarningEndsInvocationAndKeepsEnteredSecretsUntilDismissal() async {
+        var calls = 0
+        let vm = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
+            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _ in
+                calls += 1
+                throw SaveDurabilityWarning()
+            })
+        vm.newPassword = "new master password"
+        vm.confirmPassword = "new master password"
+        let first = await vm.performChange()
+        XCTAssertFalse(first)
+        XCTAssertTrue(vm.hasCompleted)
+        XCTAssertNotNil(vm.completedWarning)
+        XCTAssertEqual(vm.newPassword, "new master password")
+        vm.newPassword = "edited after warning"
+        let second = await vm.performChange()
+        XCTAssertFalse(second)
+        XCTAssertEqual(calls, 1)
+        XCTAssertNotNil(vm.completedWarning)
+        vm.cancelPendingChange()
+        XCTAssertTrue(vm.newPassword.isEmpty)
+        XCTAssertTrue(vm.confirmPassword.isEmpty)
+    }
+
     // MARK: - Validation
 
     func testPerformChangeRejectsMismatchedConfirmationWithoutInvokingChange() async throws {

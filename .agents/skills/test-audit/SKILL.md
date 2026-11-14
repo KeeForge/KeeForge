@@ -36,6 +36,9 @@ changes, apply the checklist below without producing a separate audit report.
 Before adding or changing a test, identify:
 
 - The observable outcome or independent contract and a credible regression it detects.
+- For persistent operations, separate assertions for data safety and a supported recovery
+  outcome after failure/restart. Exercise production wiring and adapter retry behavior;
+  a retained record or rejected retry alone does not establish recoverability.
 - The production boundary that owns the behavior and why existing tests do not already
   catch that regression. Extend a case table or shared fixture when it expresses the
   same contract without obscuring distinct failure paths.

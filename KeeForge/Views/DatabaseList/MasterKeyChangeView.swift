@@ -52,12 +52,12 @@ struct MasterKeyChangeView: View {
             keyFileSection
         }
         .macGroupedForm()
-        .disabled(viewModel.isWorking)
+        .disabled(viewModel.isWorking || viewModel.hasCompleted)
         .navigationTitle("Master Key")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .safeAreaInset(edge: .top, spacing: 0) {
-            if let errorMessage = viewModel.validationError ?? viewModel.changeError {
+            if let errorMessage = viewModel.completedWarning ?? viewModel.validationError ?? viewModel.changeError {
                 MasterKeyErrorBanner(message: errorMessage)
                     .padding(.horizontal)
                     .padding(.top, 8)
@@ -82,11 +82,16 @@ struct MasterKeyChangeView: View {
             }
 
             ToolbarItem(placement: .confirmationAction) {
+                if viewModel.hasCompleted {
+                    Button("OK") { dismiss() }
+                        .accessibilityIdentifier("master-key.warning-ok")
+                } else {
                 Button("Save") {
                     handleSaveTap()
                 }
                 .disabled(viewModel.isWorking || isAuthenticating)
                 .accessibilityIdentifier("master-key.save")
+                }
             }
         }
         .fileImporter(

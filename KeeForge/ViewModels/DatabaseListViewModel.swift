@@ -65,9 +65,28 @@ final class DatabaseListViewModel {
     private(set) var newDatabaseRequestID = 0
     private var didConsumeInitialLaunchSelection = false
     private let pendingUploadDrainer: PendingUploadDrainer
+    typealias KeyFileBookmarkOperation = @Sendable (URL) async throws -> Data
+    private let keyFileBookmarkOperation: KeyFileBookmarkOperation
+    private let keyFilePreferenceIO: DatabaseListStore.KeyFilePreferenceIO
+    private var keyFileRequests: [UUID: KeyFilePreferenceRequest] = [:]
 
-    init(pendingUploadDrainer: PendingUploadDrainer = PendingUploadDrainer()) {
+    private final class KeyFilePreferenceRequest: @unchecked Sendable {
+        let id = UUID()
+        private let lock = NSLock()
+        private var cancelled = false
+        func cancel() { lock.lock(); defer { lock.unlock() }; cancelled = true }
+        var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return cancelled }
+    }
+
+
+    init(pendingUploadDrainer: PendingUploadDrainer = PendingUploadDrainer(),
+        keyFileBookmarkOperation: @escaping KeyFileBookmarkOperation = { url in
+            try await Task.detached { try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true) }.value
+        }, keyFilePreferenceIO: DatabaseListStore.KeyFilePreferenceIO = .init()
+    ) {
         self.pendingUploadDrainer = pendingUploadDrainer
+        self.keyFileBookmarkOperation = keyFileBookmarkOperation
+        self.keyFilePreferenceIO = keyFilePreferenceIO
         reload()
     }
 
@@ -104,9 +123,11 @@ final class DatabaseListViewModel {
         return reference
     }
 
-    func removeDatabase(_ reference: DatabaseReference) {
-        DatabaseListStore.remove(id: reference.id)
+    @discardableResult
+    func removeDatabase(_ reference: DatabaseReference) -> Bool {
+        let removed = DatabaseListStore.remove(id: reference.id)
         reload()
+        return removed
     }
 
     func moveDatabases(from source: IndexSet, to destination: Int) {
@@ -172,16 +193,42 @@ final class DatabaseListViewModel {
         }
     }
 
-    func setKeyFile(url: URL?, for reference: DatabaseReference) throws {
-        try update(reference) { updatedReference in
-            if let url {
-                updatedReference.keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true)
-                updatedReference.keyFileFilename = url.lastPathComponent
-            } else {
-                updatedReference.keyFileBookmarkData = nil
-                updatedReference.keyFileFilename = nil
-            }
+    func isChangingKeyFile(for id: UUID) -> Bool { keyFileRequests[id] != nil }
+
+    func cancelKeyFilePreference(for id: UUID? = nil) {
+        if let id { keyFileRequests.removeValue(forKey: id)?.cancel() }
+        else {
+            for request in keyFileRequests.values { request.cancel() }
+            keyFileRequests.removeAll()
         }
+    }
+
+    func setKeyFile(url: URL?, for reference: DatabaseReference) async throws {
+        let observed = databases.first { $0.id == reference.id } ?? reference
+        let request = KeyFilePreferenceRequest()
+        keyFileRequests[reference.id]?.cancel()
+        keyFileRequests[reference.id] = request
+        defer {
+            reload()
+            if keyFileRequests[reference.id]?.id == request.id { keyFileRequests.removeValue(forKey: reference.id) }
+        }
+        let token = observed.isCloudBacked ? nil : try await Task.detached { try DatabaseListStore.prepareKeyFilePreference(for: observed) }.value
+        let bookmark: Data?
+        if let url { bookmark = try await keyFileBookmarkOperation(url) } else { bookmark = nil }
+        guard !Task.isCancelled, !request.isCancelled, keyFileRequests[reference.id]?.id == request.id else { throw CancellationError() }
+        let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: bookmark, filename: url?.lastPathComponent)
+        let io = keyFilePreferenceIO
+        let outcome = await withTaskCancellationHandler {
+            await Task.detached {
+                if let token {
+                    return DatabaseListStore.publishKeyFilePreference(token, desired: desired, io: io, canPublish: { !request.isCancelled })
+                }
+                return DatabaseListStore.publishRegistryKeyFilePreference(for: observed, desired: desired,
+                    io: io.registry, canPublish: { !request.isCancelled })
+            }.value
+        } onCancel: { request.cancel() }
+        guard !Task.isCancelled, !request.isCancelled, keyFileRequests[reference.id]?.id == request.id else { throw CancellationError() }
+        guard outcome == .saved else { throw DatabaseListStore.KeyFilePreferenceError(outcome: outcome) }
     }
 
     func refreshBookmarks() {
@@ -440,4 +487,78 @@ final class DatabaseListViewModel {
         pendingUploadAlert = alert
     }
 
+}
+
+@MainActor @Observable
+final class PendingLocalRecoveryViewModel {
+    private let databaseID: UUID
+    private var reference: DatabaseReference?
+    private var refreshID = UUID()
+    private(set) var targetNeedsRecovery = false
+    private(set) var snapshot: PendingLocalSaveStore.RecoverySnapshot?
+    private var loadError: String?
+    private var actionError: String?
+    var errorMessage: String? { actionError ?? loadError }
+
+    init(databaseID: UUID, reference: DatabaseReference? = nil) { self.databaseID = databaseID; self.reference = reference }
+
+    func refresh(reference updatedReference: DatabaseReference? = nil) async {
+        let request = UUID()
+        refreshID = request
+        if let updatedReference { reference = updatedReference }
+        let id = databaseID
+        do {
+            let loaded = try await Task.detached { try PendingLocalSaveStore.recovery(for: id) }.value
+            guard request == refreshID, !Task.isCancelled else { return }
+            snapshot = loaded
+            let targetMismatch: Bool
+            if let reference { targetMismatch = await LocalDatabaseSaver.keyTargetNeedsRecovery(for: reference, snapshot: loaded) }
+            else { targetMismatch = false }
+            guard request == refreshID, !Task.isCancelled else { return }
+            targetNeedsRecovery = targetMismatch
+            loadError = loaded.ownerUnavailable ? PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription : nil
+        } catch { if request == refreshID { loadError = error.localizedDescription } }
+    }
+
+    func becameActive() async { await refresh() }
+
+    func retry() async {
+        actionError = nil
+        await refresh()
+    }
+
+    func confirmInstalledKeyChange(reference: DatabaseReference, snapshot: PendingLocalSaveStore.RecoverySnapshot) async {
+        if let intent = snapshot.preferenceIntent {
+            let outcome = await Task.detached { DatabaseListStore.recoverKeyFilePreference(intent) }.value
+            actionError = outcome == .saved ? nil : DatabaseListStore.KeyFilePreferenceError(outcome: outcome).localizedDescription
+            await refresh()
+            return
+        }
+        do {
+            let outcome = try await Task.detached { try LocalDatabaseSaver.confirmInstalledKeyChange(for: reference, snapshot: snapshot) }.value
+            switch outcome {
+            case .resolved: actionError = nil
+            case .resolvedVisibleWithoutConfirmedDurability: actionError = RecoveryRecordWarning().localizedDescription
+            case .retainedForRecovery: actionError = PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription
+            }
+        } catch { actionError = error.localizedDescription }
+        await refresh()
+    }
+
+    func discard(_ confirmed: PendingLocalSaveStore.RecoverySnapshot, abandonKeyRecord: Bool = false) async {
+        do {
+            let outcome = try await Task.detached { try PendingLocalSaveStore.discard(confirmed, abandonKeyRecord: abandonKeyRecord) }.value
+            switch outcome {
+            case .resolved:
+                actionError = nil
+                if !abandonKeyRecord, let reference {
+                    let retirement = await Task.detached { LocalDatabaseSaver.retireSettledKeyWitness(for: reference) }.value
+                    if retirement != .resolved { actionError = RecoveryRecordWarning().localizedDescription }
+                }
+            case .resolvedVisibleWithoutConfirmedDurability: actionError = RecoveryRecordWarning().localizedDescription
+            case .retainedForRecovery: actionError = PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription
+            }
+        } catch { actionError = error.localizedDescription }
+        await refresh()
+    }
 }

@@ -39,6 +39,7 @@ Apple renames some of these, and KeeForge follows Apple:
 | en | de | fr | es | it | ru | ja | zh-Hans | zh-Hant |
 |---|---|---|---|---|---|---|---|---|
 | database | Datenbank | base de données | base de datos | database (m.) | база данных | データベース | 数据库 | 資料庫 |
+| snapshot | Momentaufnahme | instantané | instantánea | istantanea | снимок | スナップショット | 快照 | 快照 |
 | database file | Datenbankdatei | fichier de base de données | archivo de la base de datos | file del database | файл базы данных | データベースファイル | 数据库文件 | 資料庫檔案 |
 | entry | Eintrag | entrée | entrada | voce | запись | エントリ | 条目 | 項目 |
 | group | Gruppe | groupe | grupo | gruppo | группа | グループ | 群组 | 群組 |

@@ -3,6 +3,7 @@
 // `API_UNAVAILABLE(macos)`, one-time codes need macOS 15.
 import AuthenticationServices
 import CryptoKit
+import os
 import XCTest
 import KDBXKit
 @testable import KeeForge
@@ -211,7 +212,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let original = try makeFixtureWithRichTwitterEntry()
         try seedDatabaseBytes(original, for: database)
         defer {
-            PendingLocalSaveStore.removeAll(for: database.id)
             try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: database))
         }
 
@@ -292,7 +292,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let database = try seedResolvableDefaultDatabase()
         let fixture = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         try seedDatabaseBytes(fixture, for: database)
-        defer { PendingLocalSaveStore.removeAll(for: database.id) }
 
         let searchView = try await unlockDefaultDatabaseAndPresentSearch(
             coordinator,
@@ -321,7 +320,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let (coordinator, presenter) = makeCoordinator()
         let database = try seedResolvableDefaultDatabase()
         try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
-        defer { PendingLocalSaveStore.removeAll(for: database.id) }
         var failingSave = AutoFillSaveCoordinator.Environment.live
         failingSave.saveDraft = { _, _, _, _ in throw SaveError.databaseLocationUnavailable }
         coordinator.saveEnvironment = failingSave
@@ -1227,7 +1225,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         try seedDatabaseBytes(dataWithoutCodes, for: databaseA)
         try seedDatabaseBytes(KDBXTestFixture.kitchenSink.data(in: Bundle(for: Self.self)), for: databaseB)
         coordinator.memoryBudgetOverride = 512 * 1024 * 1024
-        coordinator.persistQuickUnlockKeys = { _, _, _ in true }
+        coordinator.persistLocalQuickUnlockKeys = { _, _, _ in true }
         coordinator.prepareTextInsertion()
         let emptyPicker = try await unlockPreparedRequestAndPresentSearch(coordinator, presenter)
 
@@ -3113,7 +3111,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let data = try KDBXTestFixture.test.data(in: bundle)
         try seedDatabaseBytes(data, for: database)
         let persisted = PersistedQuickUnlockKeys()
-        coordinator.persistQuickUnlockKeys = { keys, _, masterKeyEntered in
+        coordinator.persistLocalQuickUnlockKeys = { keys, _, masterKeyEntered in
             persisted.record(keys, masterKeyEntered: masterKeyEntered)
             return true
         }
@@ -3137,7 +3135,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let database = try seedKeyFileDefaultDatabase(fixture, bundle: bundle)
         XCTAssertNotNil(DatabaseListStore.resolveKeyFileURL(for: database))
         let persisted = PersistedQuickUnlockKeys()
-        coordinator.persistQuickUnlockKeys = { keys, _, masterKeyEntered in
+        coordinator.persistLocalQuickUnlockKeys = { keys, _, masterKeyEntered in
             persisted.record(keys, masterKeyEntered: masterKeyEntered)
             return true
         }
@@ -3255,17 +3253,17 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let database = try seedResolvableDefaultDatabase()
         try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
         coordinator.hasQuickUnlockKey = { _ in true }
-        var stored: [Bool] = []
-        coordinator.persistQuickUnlockKeys = { keys, reference, masterKeyEntered in
-            let result = QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered)
-            stored.append(result)
+        let stored = OSAllocatedUnfairLock(initialState: [Bool]())
+        coordinator.persistLocalQuickUnlockKeys = { keys, reference, masterKeyEntered in
+            let result = QuickUnlockKeychain.persistKeychainItems(keys, for: reference, masterKeyEntered: masterKeyEntered) == .stored
+            stored.withLock { $0.append(result) }
             return result
         }
 
         _ = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
 
         XCTAssertNil(presenter.unlockPrompt?.biometricOptionTitle, "Always never offers quick unlock")
-        XCTAssertEqual(stored, [false])
+        XCTAssertEqual(stored.withLock { $0 }, [false])
         XCTAssertFalse(KeychainService.hasStoredKey(for: database.id))
         let intervalStarts = AppGroupContainer.defaults.dictionary(forKey: "KeeForge.quickUnlockMasterKeyEntries")
         XCTAssertNil(intervalStarts?[database.id.uuidString])
@@ -3336,7 +3334,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             return QuickUnlockKeys(storedKey: SymmetricKey(size: .bits256))
         }
         let persisted = PersistedQuickUnlockKeys()
-        coordinator.persistQuickUnlockKeys = { keys, _, masterKeyEntered in
+        coordinator.persistLocalQuickUnlockKeys = { keys, _, masterKeyEntered in
             persisted.record(keys, masterKeyEntered: masterKeyEntered)
             return true
         }
@@ -3356,6 +3354,329 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(presenter.searchView)
     }
 
+    func testLocalLegacyUnlockUsesRealKeychainOnlyWriterWithoutReenteringOwner() async throws {
+        var database = try seedResolvableDefaultDatabase()
+        database.legacyKeychainFilename = "legacy-unlock-\(UUID().uuidString).kdbx"
+        DatabaseListStore.update(database)
+        let original = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        try seedDatabaseBytes(original, for: database)
+        let key = KDBXCrypto.compositeKey(password: "testpassword123")
+        do { try KeychainService.storeCompositeKey(key, for: database.id) }
+        catch { throw XCTSkip("Real Keychain writes unavailable: \(error)") }
+        defer { KeychainService.deleteCompositeKey(for: database.id) }
+        guard KeychainService.shouldStoreQuickUnlockKey(for: database.id, legacyFilename: database.legacyKeychainFilename) else {
+            throw XCTSkip("This host cannot refresh a real quick-unlock item")
+        }
+        let previous = SettingsService.quickUnlockPasswordInterval
+        SettingsService.quickUnlockPasswordInterval = .never
+        defer { SettingsService.quickUnlockPasswordInterval = previous }
+        let (coordinator, presenter) = makeCoordinator()
+        _ = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+        XCTAssertTrue(KeychainService.hasStoredKey(for: database.id))
+        XCTAssertTrue(KeychainService.hasExpressUnlockKey(for: database.id))
+        XCTAssertNil(DatabaseListStore.databases.first { $0.id == database.id }?.legacyKeychainFilename)
+        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: database.id))
+        coordinator.cleanup()
+    }
+
+    func testLocalReadProviderPauseAllowsCleanupAndCannotPublishOrFillLate() async throws {
+        let database = try seedResolvableDefaultDatabase()
+        try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
+        let (coordinator, presenter) = makeCoordinator()
+        let entered = expectation(description: "AutoFill enters read publication provider")
+        let joined = expectation(description: "AutoFill publication worker joined")
+        let promptReady = expectation(description: "AutoFill prompt ready")
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        let effects = OSAllocatedUnfairLock(initialState: 0)
+        let live = DatabaseListStore.KeyCommitPublicationIO()
+        var io = live
+        io.coordinate = { target, registry, accessor in
+            XCTAssertFalse(Thread.isMainThread)
+            entered.fulfill()
+            guard release.wait(timeout: .now() + 15) == .success else { throw CancellationError() }
+            try live.coordinate(target, registry, accessor)
+        }
+        io.didFinish = { joined.fulfill() }
+        coordinator.localReadPublicationIO = io
+        coordinator.persistLocalQuickUnlockKeys = { _, _, _ in effects.withLock { $0 += 1 }; return true }
+        presenter.onUnlockPromptPresented = { promptReady.fulfill() }
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+        presenter.isPresentationActive = true
+        coordinator.prepareCredentialList(for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)])
+        coordinator.presentationDidBecomeActive()
+        await fulfillment(of: [promptReady], timeout: 15)
+        try XCTUnwrap(presenter.unlockPrompt).onSubmitPassword("testpassword123")
+        let task = try XCTUnwrap(coordinator.unlockTask)
+        await fulfillment(of: [entered], timeout: 30)
+        coordinator.cleanup()
+        XCTAssertNil(coordinator.sessionKey)
+        XCTAssertNil(coordinator.compositeKey)
+        release.signal()
+        await fulfillment(of: [joined], timeout: 7)
+        await task.value
+        XCTAssertEqual(effects.withLock { $0 }, 0)
+        XCTAssertNil(presenter.searchView)
+        XCTAssertNil(presenter.completedCredential)
+        XCTAssertNil(coordinator.sessionKey)
+    }
+
+    func testFinishedReadPublicationFailureBeforeClaimKeepsFillAndExplicitActionsAvailable() async throws {
+        let database = try seedResolvableDefaultDatabase()
+        let bytes = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        try seedDatabaseBytes(bytes, for: database)
+        _ = try makeRegisteredDatabase(named: "another-database.kdbx")
+        let (coordinator, presenter) = makeCoordinator()
+        let finished = expectation(description: "failed worker positively finishes")
+        let promptReady = expectation(description: "interactive prompt")
+        let effects = OSAllocatedUnfairLock(initialState: 0)
+        var io = DatabaseListStore.KeyCommitPublicationIO()
+        io.coordinate = { _, _, _ in throw CocoaError(.fileReadUnknown) }
+        io.didFinish = { finished.fulfill() }
+        coordinator.localReadPublicationIO = io
+        coordinator.persistLocalQuickUnlockKeys = { _, _, _ in effects.withLock { $0 += 1 }; return true }
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+        presenter.onUnlockPromptPresented = { promptReady.fulfill() }
+        presenter.isPresentationActive = true
+        coordinator.prepareCredentialList(for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)])
+        coordinator.presentationDidBecomeActive()
+        await fulfillment(of: [promptReady], timeout: 15)
+        try XCTUnwrap(presenter.unlockPrompt).onSubmitPassword("testpassword123")
+        let task = try XCTUnwrap(coordinator.unlockTask)
+        await fulfillment(of: [finished], timeout: 30)
+        await task.value
+        let picker = try XCTUnwrap(presenter.searchView)
+        XCTAssertNotNil(picker.databaseSwitcher, "A finished no-effect rejection must not retain the timeout latch")
+        XCTAssertNotNil(picker.urlAddition, "A separate supported action remains available after confirmed no-effect failure")
+        XCTAssertEqual(effects.withLock { $0 }, 0)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: database)), bytes)
+        let entry = try XCTUnwrap(picker.searchEntries.first { $0.hasPassword && !$0.isExpired() })
+        picker.onSelect(entry)
+        XCTAssertNotNil(presenter.completedCredential)
+        XCTAssertNil(coordinator.sessionKey)
+    }
+
+    func testPublicationPermitDistinguishesPendingClaimAndObservedWorkerCompletion() {
+        let pending = DatabaseListStore.KeyCommitPublicationPermit(actionID: UUID(), lockCycleID: 1)
+        pending.close()
+        XCTAssertEqual(pending.workerCompletion, .pending, "Closing permission does not prove a worker has exited")
+        XCTAssertFalse(pending.claim())
+        pending.finishWorker()
+        XCTAssertEqual(pending.workerCompletion, .finishedWithoutClaim)
+        let claimed = DatabaseListStore.KeyCommitPublicationPermit(actionID: UUID(), lockCycleID: 1)
+        XCTAssertTrue(claimed.claim())
+        claimed.close()
+        XCTAssertEqual(claimed.workerCompletion, .claimedPending)
+        claimed.finishWorker()
+        XCTAssertEqual(claimed.workerCompletion, .finishedAfterClaim)
+        XCTAssertFalse(claimed.claim())
+    }
+
+    func testClaimedLocalReadTimeoutStillOffersFillWithoutBlockingOnTheRegistry() async throws {
+        let database = try seedResolvableDefaultDatabase()
+        try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
+        let (coordinator, presenter) = makeCoordinator()
+        let entered = expectation(description: "AutoFill keychain effect claimed")
+        let joined = expectation(description: "AutoFill claimed worker joined")
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        let effects = OSAllocatedUnfairLock(initialState: 0)
+        let claimedAt = OSAllocatedUnfairLock(initialState: Optional<Date>.none)
+        var io = DatabaseListStore.KeyCommitPublicationIO()
+        io.didFinish = { joined.fulfill() }
+        coordinator.localReadPublicationIO = io
+        coordinator.localReadPublicationTimeout = .seconds(1)
+        coordinator.persistLocalQuickUnlockKeys = { _, _, _ in
+            claimedAt.withLock { $0 = .now }
+            entered.fulfill()
+            XCTAssertEqual(release.wait(timeout: .now() + 15), .success)
+            effects.withLock { $0 += 1 }
+            return true
+        }
+        let opening = Task { _ = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter) }
+        do {
+            await fulfillment(of: [entered], timeout: 30)
+            try await opening.value
+            let picker = try XCTUnwrap(presenter.searchView)
+            XCTAssertLessThan(Date.now.timeIntervalSince(try XCTUnwrap(claimedAt.withLock { $0 })), 5,
+                "Presenting valid fill must not wait for the claimed Keychain worker")
+            let entry = try XCTUnwrap(picker.searchEntries.first { $0.hasPassword && !$0.isExpired() })
+            XCTAssertNil(picker.databaseSwitcher, "Unknown claimed publication must not wait on its held registry authority")
+            picker.onSelect(entry)
+            XCTAssertNotNil(presenter.completedCredential, "Valid authenticated credentials remain usable")
+            XCTAssertNil(coordinator.sessionKey)
+            release.signal()
+            await fulfillment(of: [joined], timeout: 7)
+            XCTAssertEqual(effects.withLock { $0 }, 1, "Claimed IO can finish after filling/cleanup without restoring secrets")
+            XCTAssertNil(coordinator.sessionKey)
+        } catch {
+            release.signal()
+            await fulfillment(of: [joined], timeout: 7)
+            _ = await opening.result
+            throw error
+        }
+    }
+
+    func testLateOldLocalUnlockCannotOverwriteRekeyKeysAndStillFillsCredentials() async throws {
+        let selector = #function
+        for unconfirmed in [true, false] {
+            let trace = TestDatabaseSupport.LocalPublicationTrace()
+            var database = try seedResolvableDefaultDatabase()
+            database.legacyKeychainFilename = "late-legacy-\(UUID().uuidString).kdbx"
+            DatabaseListStore.update(database)
+            let original = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+            try seedDatabaseBytes(original, for: database)
+            let (coordinator, presenter) = makeCoordinator()
+            defer { coordinator.cleanup() }
+            let promptPresented = expectation(description: "unlock prompt presented")
+            presenter.onUnlockPromptPresented = { promptPresented.fulfill() }
+            coordinator.prepareCredentialList(for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)])
+            presenter.isPresentationActive = true
+            coordinator.presentationDidBecomeActive()
+            await fulfillment(of: [promptPresented], timeout: 15)
+            presenter.onUnlockPromptPresented = nil
+            let prompt = try XCTUnwrap(presenter.unlockPrompt)
+            let parsedOldRead = expectation(description: "old snapshot reaches KDF")
+            let resume = DispatchSemaphore(value: 0)
+            defer { resume.signal() }
+            let lifecycle = OSAllocatedUnfairLock(initialState: (kdfEntered: false, kdfExited: false, taskFinished: false, publicationFinished: false))
+            let completed = XCTestExpectation(description: "actual unlock Task completed")
+            let drained = XCTestExpectation(description: "actual unlock Task completed after cleanup")
+            let published = XCTestExpectation(description: "actual read publication worker completed")
+            let publicationDrained = XCTestExpectation(description: "actual read publication worker completed after cleanup")
+            var readIO = DatabaseListStore.KeyCommitPublicationIO()
+            readIO.didFinish = {
+                lifecycle.withLock { $0.publicationFinished = true }
+                published.fulfill()
+                publicationDrained.fulfill()
+            }
+            coordinator.localReadPublicationIO = readIO
+            coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+            coordinator.keyDerivationOverride = { key, parameters, policy in
+                lifecycle.withLock { $0.kdfEntered = true }
+                defer { lifecycle.withLock { $0.kdfExited = true } }
+                parsedOldRead.fulfill()
+                guard resume.wait(timeout: .now() + 60) == .success else { throw CancellationError() }
+                return try KDBXKeyDerivation.deriveKey(compositeKey: key, parameters: parameters, policy: policy)
+            }
+            let stored = OSAllocatedUnfairLock(initialState: (composite: Optional<SymmetricKey>.none, express: Optional<ExpressUnlockKey>.none))
+            let latePublications = OSAllocatedUnfairLock(initialState: 0)
+            coordinator.persistLocalQuickUnlockKeys = { keys, _, _ in
+                latePublications.withLock { $0 += 1 }; stored.withLock { $0.composite = keys.storedKey; $0.express = keys.expressKey }
+                return true
+            }
+            prompt.onSubmitPassword("testpassword123")
+            let loading = try XCTUnwrap(coordinator.unlockTask)
+            Task {
+                await loading.value
+                lifecycle.withLock { $0.taskFinished = true }
+                completed.fulfill()
+                drained.fulfill()
+            }
+            func cleanupAndJoin(at stage: String) async {
+                let publicationMayHaveStarted = lifecycle.withLock { $0.kdfExited }
+                // Revoking the generation before KDF return prevents publication from starting afterwards.
+                coordinator.cleanup()
+                loading.cancel()
+                resume.signal()
+                let pending = publicationMayHaveStarted ? [drained, publicationDrained] : [drained]
+                let result = await XCTWaiter.fulfillment(of: pending, timeout: 7)
+                let observed = lifecycle.withLock { $0 }
+                guard result == .completed, observed.taskFinished,
+                      !publicationMayHaveStarted || observed.publicationFinished else {
+                    let failure = "\(selector) stage=\(stage) cleanupJoinTimeout=7 waiter=\(result) kdfEntered=\(observed.kdfEntered) kdfExited=\(observed.kdfExited) taskFinished=\(observed.taskFinished) publicationFinished=\(observed.publicationFinished)"
+                    XCTFail(failure)
+                    // An unquiesced worker must not race tearDown or another test's shared-store reset.
+                    fatalError(failure)
+                }
+            }
+            await fulfillment(of: [parsedOldRead], timeout: 60)
+            guard lifecycle.withLock({ $0.kdfEntered }) else {
+                await cleanupAndJoin(at: "KDF-entry")
+                return
+            }
+            let live = LocalDatabaseSaver.Environment.live
+            let app = DatabaseViewModel(databaseReference: database, localPublicationFailure: { trace.record($0, $1) }, localSaveOperation: { draft, ref, key, hash, reconciled, newKey, settings in
+                var environment = live
+                environment.localPublicationFailure = { trace.record($0, $1) }
+                environment.replaceFileAtomically = { bytes, target, baseline, authorization in
+                    var io = LocalDatabaseSaver.ReplacementIO()
+                    io.observedFailure = { trace.record("replacement-" + $0, $1) }
+                    if unconfirmed { io.synchronize = { _ in throw POSIXError(.EIO) } }
+                    return try LocalDatabaseSaver.replaceFileAtomically(bytes, at: target, expectedSHA512: baseline, authorization: authorization, io: io)
+                }
+                return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                    openTimeSHA512: hash, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                    newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+            }, localReadKeyPersistOperation: { keys, _, _ in
+                stored.withLock { $0.composite = keys.storedKey; $0.express = keys.expressKey }; return true
+            }, expressUnlockKeySaveOperation: { key, _ in stored.withLock { $0.express = key } }, storedKeyPresenceCheck: { _ in true },
+                storedKeyStoreOperation: { key, _ in stored.withLock { $0.composite = key } })
+            defer { app.lock() }
+            var stage = "app-unlock"
+            do {
+                await app.unlock(password: "testpassword123")
+                stage = "app-rekey"
+                do {
+                    try await app.changeMasterKey(newPassword: "new late-unlock key", newKeyFileData: nil,
+                        newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+                    XCTAssertFalse(unconfirmed)
+                } catch { XCTAssertTrue(unconfirmed && error is SaveDurabilityWarning, trace.failure(error, at: stage)) }
+                let newComposite = KDBXCrypto.compositeKey(password: "new late-unlock key")
+                XCTAssertEqual(stored.withLock { $0.composite }, newComposite)
+                XCTAssertNil(stored.withLock { $0.express })
+                let shown = expectation(description: "old authenticated credentials remain fillable")
+                presenter.onSearchViewPresented = { shown.fulfill() }
+                resume.signal()
+                await fulfillment(of: [shown], timeout: 60)
+                let completion = await XCTWaiter.fulfillment(of: [completed, published], timeout: 7)
+                let observed = lifecycle.withLock { $0 }
+                guard completion == .completed, observed.taskFinished, observed.publicationFinished else {
+                    XCTFail("Full unlock/publication completion unproven; waiter=\(completion) taskFinished=\(observed.taskFinished) publicationFinished=\(observed.publicationFinished)")
+                    await cleanupAndJoin(at: "normal-completion")
+                    return
+                }
+                XCTAssertEqual(latePublications.withLock { $0 }, 0)
+                XCTAssertEqual(stored.withLock { $0.composite }, newComposite)
+                XCTAssertNil(stored.withLock { $0.express })
+                let search = try XCTUnwrap(presenter.searchView)
+                let entry = try XCTUnwrap(search.searchEntries.first { $0.hasPassword && !$0.isExpired() })
+                search.onSelect(entry)
+                XCTAssertNotNil(presenter.completedCredential)
+                if !unconfirmed {
+                    stage = "current-registry"
+                    let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == database.id })
+                    XCTAssertNil(try PendingLocalSaveStore.recovery(for: database.id).keyEvidence)
+                    stage = "restore-original"
+                    try original.write(to: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: current, renewBookmark: false)), options: .atomic)
+                    stage = "restore-cache"
+                    try LocalDatabaseSaver.cacheLocalSnapshot(original, for: current, onFailure: { phase, error in
+                        let stored = DatabaseListStore.databases.first { $0.id == current.id }
+                        trace.record("restore-cache-" + phase.rawValue + " "
+                            + DatabaseListStore.localReferenceEqualityDiagnostic(current, current: stored), error)
+                    })
+                    let (fresh, freshPresenter) = makeCoordinator()
+                    defer { fresh.cleanup() }
+                    let freshWrites = OSAllocatedUnfairLock(initialState: 0)
+                    fresh.persistLocalQuickUnlockKeys = { keys, _, _ in
+                        freshWrites.withLock { $0 += 1 }; stored.withLock { $0.composite = keys.storedKey; $0.express = keys.expressKey }; return true
+                    }
+                    stage = "restored-unlock"
+                    _ = try await unlockDefaultDatabaseAndPresentSearch(fresh, freshPresenter)
+                    XCTAssertEqual(freshWrites.withLock { $0 }, 1, "A new read after complete settlement follows main without a permanent witness")
+                    XCTAssertEqual(stored.withLock { $0.composite }, KDBXCrypto.compositeKey(password: "testpassword123"))
+                    XCTAssertNotNil(stored.withLock { $0.express })
+                    fresh.cleanup()
+                }
+            } catch {
+                XCTFail(trace.failure(error, at: stage))
+                await cleanupAndJoin(at: stage)
+                throw error
+            }
+
+        }
+    }
+
     // MARK: - Shared copy freshness (issue #167)
 
     /// The app opens a bookmarked database from its file, so the picker must
@@ -3368,7 +3689,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let database = try seedResolvableDefaultDatabase()
         let fileData = try KDBXTestFixture.kitchenSink.data(in: bundle)
         try fileData.write(to: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: database)))
-        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: bundle), for: database)
+        try writeAtomicallyAndDurably(KDBXTestFixture.test.data(in: bundle), to: DatabaseListStore.cacheLocation(for: database), directoryAnchor: AppGroupContainer.url)
 
         let searchView = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
 
@@ -3393,7 +3714,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let (coordinator, presenter) = makeCoordinator()
         let database = try seedResolvableDefaultDatabase()
         try FileManager.default.removeItem(at: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: database)))
-        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
+        try writeAtomicallyAndDurably(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), to: DatabaseListStore.cacheLocation(for: database), directoryAnchor: AppGroupContainer.url)
         let copyDate = try XCTUnwrap(
             DatabaseListStore.cacheLocation(for: database)
                 .resourceValues(forKeys: [.contentModificationDateKey])
@@ -3424,7 +3745,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let database = try TestDatabaseSupport.makeReference(for: trashedURL)
         DatabaseListStore.update(database)
         DatabaseListStore.activeAutoFillDatabaseID = database.id
-        try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: bundle), for: database)
+        try writeAtomicallyAndDurably(KDBXTestFixture.test.data(in: bundle), to: DatabaseListStore.cacheLocation(for: database), directoryAnchor: AppGroupContainer.url)
 
         let searchView = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
 
@@ -3822,6 +4143,10 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.memoryBudgetOverride = 512 * 1024 * 1024
         coordinator.keyDerivationOverride = derivations.derive
         coordinator.biometricQuickUnlockKeys = { _, _ in keys }
+        coordinator.persistLocalQuickUnlockKeys = { keys, _, masterKeyEntered in
+            persisted.record(keys, masterKeyEntered: masterKeyEntered)
+            return true
+        }
         coordinator.persistQuickUnlockKeys = { keys, _, masterKeyEntered in
             persisted.record(keys, masterKeyEntered: masterKeyEntered)
             return true
@@ -3938,7 +4263,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let database = try seedResolvableDefaultDatabase()
         try seedDatabaseBytes(KDBXTestFixture.kitchenSink.data(in: Bundle(for: Self.self)), for: database)
         coordinator.memoryBudgetOverride = 512 * 1024 * 1024
-        coordinator.persistQuickUnlockKeys = { _, _, _ in true }
+        coordinator.persistLocalQuickUnlockKeys = { _, _, _ in true }
         coordinator.prepareTextInsertion()
         return try await unlockPreparedRequestAndPresentSearch(coordinator, presenter)
     }
@@ -4165,13 +4490,11 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     }
 }
 
-@MainActor
-private final class PersistedQuickUnlockKeys {
-    private(set) var last: QuickUnlockKeys?
-    private(set) var lastMasterKeyEntered: Bool?
-
+private final class PersistedQuickUnlockKeys: @unchecked Sendable {
+    private let storage = OSAllocatedUnfairLock(initialState: (keys: Optional<QuickUnlockKeys>.none, entered: Optional<Bool>.none))
+    var last: QuickUnlockKeys? { storage.withLock { $0.keys } }
+    var lastMasterKeyEntered: Bool? { storage.withLock { $0.entered } }
     func record(_ keys: QuickUnlockKeys, masterKeyEntered: Bool) {
-        last = keys
-        lastMasterKeyEntered = masterKeyEntered
+        storage.withLock { $0 = (keys, masterKeyEntered) }
     }
 }

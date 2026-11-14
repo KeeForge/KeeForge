@@ -905,31 +905,37 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         """
         let drafts = try ApplePasswordsCSVImporter.preview(from: Data(csv.utf8)).items.map(\.draft)
         let importTask = Task { try await vm.importEntries(drafts, into: groupID) }
-        await gate.firstCallStarted()
-
-        // The staged entries come back while the fetched copy is parsed.
-        let parsing = triggerWhenParsing(vm) {
-            Task { await gate.releaseFirstCall() }
-        }
-        let sync = Task { await vm.syncCloudNow() }
         do {
-            _ = try await importTask.value
-            XCTFail("entries built on the replaced tree must not be staged")
-        } catch {
-            XCTAssertEqual(
-                error as? DatabaseViewModel.PasswordImportFailure,
-                .databaseChanged,
-                "a tree being replaced is a change, not a locked session"
-            )
-        }
-        await sync.value
-        let triggered = await parsing.value
+            try await gate.firstCallStarted(for: importTask)
 
-        XCTAssertTrue(triggered)
-        XCTAssertEqual(vm.cloudSyncOutcome, .updated)
-        XCTAssertEqual(vm.state, .unlocked)
-        XCTAssertNil(vm.draft)
-        XCTAssertFalse(entryTitles(in: vm).contains("Imported During Sync"))
+            // The staged entries come back while the fetched copy is parsed.
+            let parsing = triggerWhenParsing(vm) {
+                Task { await gate.releaseFirstCall() }
+            }
+            let sync = Task { await vm.syncCloudNow() }
+            do {
+                _ = try await importTask.value
+                XCTFail("entries built on the replaced tree must not be staged")
+            } catch {
+                XCTAssertEqual(
+                    error as? DatabaseViewModel.PasswordImportFailure,
+                    .databaseChanged,
+                    "a tree being replaced is a change, not a locked session"
+                )
+            }
+            await sync.value
+            let triggered = await parsing.value
+
+            XCTAssertTrue(triggered)
+            XCTAssertEqual(vm.cloudSyncOutcome, .updated)
+            XCTAssertEqual(vm.state, .unlocked)
+            XCTAssertNil(vm.draft)
+            XCTAssertFalse(entryTitles(in: vm).contains("Imported During Sync"))
+        } catch {
+            await gate.releaseFirstCall()
+            _ = await importTask.result
+            throw error
+        }
     }
 
     // MARK: - Helpers

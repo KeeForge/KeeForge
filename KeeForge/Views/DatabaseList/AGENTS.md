@@ -36,6 +36,8 @@
 
 - `SaveConflictAlertModifier` stacks four mutually exclusive alerts. Acknowledging a failed merge puts the conflict alert back up; a merge failure is never a dead end.
 
+- Database Details enumerates pending-local recovery independently of unlock and target SHA. Exports read a receipt-verified full encrypted source and need its original key when opened. Discard is a separate destructive confirmation over a captured snapshot; export failure never invokes or authorizes it. Process-local owner notifications and foreground refresh both reload source and backup lists independently of the database SHA. Foreground refresh is the cross-process visibility boundary; Foundation NotificationCenter is not an interprocess signal.
+
 ## Tests
 
 - UI: `DatabaseListUITests`, `DatabaseCreationCompactUITests` / `DatabaseCreationRegularWidthUITests`, `MasterKeyChangeUITests`, `EncryptionSettingsUITests`, `SaveConflictMergeUITests`.
@@ -47,3 +49,10 @@
 - `../AGENTS.md`, `../Cloud/AGENTS.md`, `../Components/AGENTS.md` (`SettingsSummaryRow`)
 - `../../ViewModels/AGENTS.md`: rekey and re-encryption preconditions, conflict and merge policy
 - `../../Services/AGENTS.md`: save paths, pending uploads, AutoFill allow-list
+
+- Master-key and encryption-settings warnings complete that invocation and replace Save with acknowledgement. Keep entered master-key material until acknowledgement/dismissal; field edits cannot re-enable a completed request. Local recovery distinguishes target-file durability from cleanup-record uncertainty. Its destructive action is independent of export and explicitly warns that abandoning key publication does not undo an installed key change.
+- An unlocked session can export its retained unsaved draft through the existing native exporter while recovering local publication. The exported full snapshot uses the unlocked session's key; locked source exports continue to use exact encrypted receipts without restoring secrets.
+
+- The draft-export capability is outside optional owner/witness rows and requires the same unlocked local dirty session. Active recovery replaces normal conflict Merge/Reload promises with actionable Details/export; durable settlement resumes the existing conflict actions.
+
+- Distinguish a known committed ordinary file from an unknown save outcome. Known output supports a new explicit save without destructive record discard; neither acknowledgement nor activation resends the previous operation. Keep file-durability and record warnings truthful.

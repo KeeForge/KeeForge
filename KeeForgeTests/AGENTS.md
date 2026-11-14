@@ -94,9 +94,35 @@ Designated gates:
 - TOTP, HOTP, Base32, `otpauth` parsing, and the KeeOTP query rewrite are tested in `../Packages/OneTimeCodes/Tests`; `TOTPGeneratorTests` covers only the app adapter (decryption, `decodedSecret` precedence, placeholder).
 - Not unit-testable here: the live `FTPNetworkStream` (needs a server), live StoreKit purchases, and typed key events in an inactive Mac app (covered in `KeeForgeMacUITests`).
 
+- `PendingLocalSaveTests` also covers exclusive source identity, legacy flat sources, receipt-verified locked export, source replacement rejection, snapshot-scoped discard, unknown or unreadable owner records, independently unreadable sources, same-bytes inode replacement, foreground visibility without a process-local notification, and removal revocation. These storage contracts use the production owner and filesystem; the integrated saver/admission tests also cover post-publication faults, no automatic resend, exact target re-observation, partial consume, visible-unconfirmed clear and new-source retention.
+
 ## See also
 
 - [Support/AGENTS.md](Support/AGENTS.md), [../TestFixtures/README.md](../TestFixtures/README.md)
 - [../ci_scripts/AGENTS.md](../ci_scripts/AGENTS.md): the external KDBX compatibility gate
 - [../AGENTS.md](../AGENTS.md): "macOS tests", where Mac behavior gets tested
 - [../KeeForgeUITests/AGENTS.md](../KeeForgeUITests/AGENTS.md), [../KeeForgeMacUITests/AGENTS.md](../KeeForgeMacUITests/AGENTS.md)
+
+- Local durability coverage spans `LocalDatabaseSaverTests`, `PendingLocalSaveTests`, `DatabaseViewModelTests`, the two settings-form suites and the three credential save/registration/picker suites. Faults cross production filesystem boundaries; a mocked throw alone is not a staging-failure proof. Static typechecks are not runtime test results.
+
+- `DatabaseListViewModelTests` retains same-epoch preference publication/renewal, stale selection and pending-publication recovery through the production publisher. Local durability regressions include ready-certificate replay after external restore, stale epoch/source/removal fencing, scanner/heal/relink cache preservation and paused initial reads, no-witness/owner-unreadable encrypted draft export, and ordinary post-settlement conflict merge/reload. Assertions remain authored until the authorized runtime gate executes them.
+
+- Local durability also covers stale database-bookmark renewal after settled rekey, empty-receipt ordinary admission/no-resend across sessions, KeeForge-only witness retirement, final AutoFill key publication and legacy cleanup CAS. `QuickUnlockPasswordIntervalTests` covers the keychain-only helper and app wrapper with real Keychain operations where supported; these and native lock/Keychain deadlines require runtime execution.
+
+- Known ordinary-warning coverage checks exact cache refresh/invalidation even with failed owner publication, repeated explicit UUIDs without sources, same-epoch followups after rekey, and failed pre-replacement release. App stale-read key publication crosses the real owner fence while preserving readable parsed data. Express-unlock fixtures register real temporary ciphertext and use the production reader; created-session fixtures enter through actual creation, and planned-write fixtures retain an eligible current-epoch source rather than blocking themselves with provisional ownership.
+
+- Durability regressions exercise initial owner publication before/after rename and coordinator completion, settings terminal acknowledgement without repeat crypto, late real rekey receipts across two sessions, and created-session draft export without primary/backup bytes. These require production storage/saver wiring; mocked saved hashes do not grant local key-publication authority.
+
+- Rekey completion authority includes same-epoch retirement followed by an in-place restored ciphertext and a fresh authenticated key publication. Keep a separate active-barrier case with unchanged receipt inode so identity-only fences cannot pass; old callbacks must preserve the fresh composite/express items without extra crypto or replacement.
+
+- Local rekey background-publication regressions pause real coordination/read/effect boundaries with bounded entry and worker joins, distinguish pending revocation from claimed uncertainty, exercise immediate try-list contention, and verify MainActor heartbeat plus direct secret lock without joining IO. Express-item recorders must be thread-safe because that production seam is Sendable; mocks record external effects rather than supplying authority results. Keep known saver-after-lock reconciliation and new-session action invalidation as distinct contracts.
+
+- Master-entry date concurrency belongs to `QuickUnlockPasswordIntervalTests`: pause an actual snapshot while another record/remove/read attempts entry, verify unrelated dates and expiry after join, and exercise real local rekey against the production cloud quick-unlock persistence path. The Keychain-backed wiring case requires host policy support; storage-only removal/clear/read controls do not. Phase hooks observe external ordering and must never reenter list/owner or Keychain under the date mutex.
+
+- Positive local session fixtures register references before IO; keep unregistered-reference authorization as a separate negative control. Compare existing pending paths through canonical target/file/parent identity while preserving source order and bytes. Partial-retirement expectations follow admitted receipt order, not random source-creation UUID order. Host permission/protection limits require independent filesystem controls; do not replace physical class-A assertions with an unconditional simulator skip.
+
+- RAM draft export expectations use the effective KDBX serialization policy (including protected Password and representable timestamps) before whole-tree comparison; the generic compatibility snapshot remains exact. Publication diagnostics are scoped to the test action and report only rejection phase and metadata equality, never ciphertext, keys or secret values.
+
+- Local read-key tests inject the dedicated Sendable keychain-only seam with synchronized recorders; cloud tests retain the cloud seam. Renewal controls use the real field-specific writer and coordinated ciphertext reads, including no-receipt, changed target/authority/source, immediate list contention, provider pause, closed permission and claimed-timeout cases. Every suspended worker has bounded entry/release and a joined production task.
+
+- Merge-completion fault controls use the real replacement primitive and its actual ciphertext receipt to pause at the storage completion boundary; the full saver now completes under its live grant. End-to-end moved-file tests require a durable post-commit bookmark, exact target/cache bytes and usable subsequent save/rekey. Same-VM rekey tests force a real durable read renewal, pause only the old publication, and join its complete task before shared-store cleanup.
