@@ -272,3 +272,11 @@ atomic Keychain/date update or persistence-after-power-loss guarantee is claimed
 Local recovery export compares the complete canonical KDBX XML representation and its binary pool; an in-memory fractional timestamp alone is not evidence that an export lost data. A known installed local rekey receipt can preserve its originating unlocked session’s key/SHA/ciphertext and the same receipt’s nonsecret key-file association/date when registry publication is unavailable, while persistent key/association effects retain current-owner authorization and lock/new-session revocation. Healthy idle pending sources remain owned across a conflict Reload; only verified durable merge retirement permits publication of the corresponding merged shared copy.
 
 A local database-bookmark renewal can carry a nonpersistent, durable-CAS receipt through its originating read. The receipt binds exact reference observations, owner epoch and target identity; it does not replace authentication or source/admission/revocation checks. Final local read-key persistence rechecks the authenticated ciphertext under target/registry coordination in a bounded worker, uses immediate try-list then owner authority and executes only keychain-only effects. Pending cancellation prevents late effects; an already-claimed Keychain operation may finish after timeout or memory lock and cannot restore session state. Registry-dependent UI work can still wait on claimed IO, while memory lock/AutoFill cleanup remain independent. This adds no permanent antirollback promise after full settlement.
+
+Local commit receipts do not grant file access. Pending-source consumption and the
+subsequent shared-cache refresh/invalidation retain the actual resolved bookmark
+scope while continuing to validate the installed identity and ciphertext. Read-key
+workers separately report observed no-claim termination; a timeout, cancellation
+or claimed effect cannot be treated as that proof to reopen AutoFill actions.
+Session factors are applied before the unlock publication await, and later work
+requires the same action identity even when a concurrent rekey keeps the lock cycle.

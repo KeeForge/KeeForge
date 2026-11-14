@@ -7787,6 +7787,74 @@ final class DatabaseViewModelTests: XCTestCase {
         }
     }
 
+    func testRekeyDuringLocalReadPublicationDoesNotRestoreTheOldUnlockFactor() async throws {
+        let setup = try await makeLocalInteropSetup()
+        let reference = setup.vm.databaseReference
+        setup.vm.lock()
+        let entered = expectation(description: "old unlock publication paused before coordination")
+        let joined = expectation(description: "old unlock worker finished")
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        let effects = OSAllocatedUnfairLock(initialState: 0)
+        let live = DatabaseListStore.KeyCommitPublicationIO()
+        var io = live
+        io.coordinate = { target, registry, accessor in
+            entered.fulfill()
+            guard release.wait(timeout: .now() + 30) == .success else { throw CancellationError() }
+            try live.coordinate(target, registry, accessor)
+        }
+        io.didFinish = { joined.fulfill() }
+        let vm = DatabaseViewModel(databaseReference: reference, localReadPublicationIO: io,
+            localReadPublicationTimeout: .seconds(30), localReadKeyPersistOperation: { _, _, _ in
+                effects.withLock { $0 += 1 }; return true
+            })
+        defer { vm.lock() }
+        let opening = Task { await vm.unlock(password: "interop epoch key", keyFileData: Data(repeating: 0x4A, count: 32)) }
+        await fulfillment(of: [entered], timeout: 30)
+        do {
+            XCTAssertEqual(vm.state, .unlocked)
+            XCTAssertEqual(vm.sessionKeyFileData, Data(repeating: 0x4A, count: 32))
+            try await vm.changeMasterKey(newPassword: "factor removed", newKeyFileData: nil,
+                newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+            let newReference = vm.databaseReference
+            let newKey = vm.compositeKey
+            let newSHA = vm.openTimeSHA512
+            XCTAssertNil(vm.sessionKeyFileData)
+            release.signal()
+            await fulfillment(of: [joined], timeout: 7)
+            await opening.value
+            XCTAssertEqual(vm.databaseReference, newReference)
+            XCTAssertEqual(vm.compositeKey, newKey)
+            XCTAssertEqual(vm.openTimeSHA512, newSHA)
+            XCTAssertNil(vm.sessionKeyFileData, "The late unlock must not resurrect the removed key file")
+            XCTAssertNil(vm.databaseReference.keyFileBookmarkData)
+            XCTAssertNil(vm.databaseReference.keyFileFilename)
+            XCTAssertEqual(effects.withLock { $0 }, 0)
+            let form = MasterKeyChangeViewModel(currentKeyFileFilename: vm.databaseReference.keyFileFilename,
+                currentKeyFileBookmarkData: vm.databaseReference.keyFileBookmarkData, sessionKeyFileData: vm.sessionKeyFileData,
+                loadCurrentKeyFile: { XCTFail("There is no remaining key-file factor"); return nil },
+                changeOperation: { password, data, bookmark, filename in
+                    try await vm.changeMasterKey(newPassword: password, newKeyFileData: data,
+                        newKeyFileBookmarkData: bookmark, newKeyFileFilename: filename)
+                })
+            XCTAssertFalse(form.hasEffectiveKeyFile)
+            form.newPassword = "next form password"
+            form.confirmPassword = "next form password"
+            let changed = await form.performChange()
+            XCTAssertTrue(changed)
+            let reopened = DatabaseViewModel(databaseReference: vm.databaseReference, localReadKeyPersistOperation: { _, _, _ in false })
+            await reopened.unlock(password: "next form password")
+            XCTAssertEqual(reopened.state, .unlocked)
+            XCTAssertNil(reopened.sessionKeyFileData)
+            reopened.lock()
+        } catch {
+            release.signal()
+            await fulfillment(of: [joined], timeout: 7)
+            await opening.value
+            throw error
+        }
+    }
+
     func testClaimedLocalReadTimeoutIsUnconfirmedAndCannotRestoreSessionAfterLock() async throws {
         let reference = try makeReference()
         let entered = expectation(description: "keychain-only effect claimed")

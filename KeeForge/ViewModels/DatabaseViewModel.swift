@@ -1211,6 +1211,11 @@ final class DatabaseViewModel {
 
             guard finishUnlockAttempt(attempt) else { return }
             let readCycle = lockCycleID
+            sessionKeyFileData = keyFileData
+            if !databaseReference.isCloudBacked {
+                keyCommitPublicationPermit?.close()
+                keyCommitPublicationActionID = attempt
+            }
             finalizeSuccessfulUnlock(
                 payload: unlockPayload,
                 compositeKey: compositeKey,
@@ -1222,8 +1227,8 @@ final class DatabaseViewModel {
             let completed = await publishLocalReadKeys(readResult.readProof,
                 keys: QuickUnlockKeys(storedKey: quickLaunchKey, expressKey: hardwareKey == nil ? unlockPayload.expressKey : nil),
                 masterKeyEntered: true, actionID: attempt, expectedCycle: readCycle)
-            guard readCycle == lockCycleID, case .unlocked = state else { return }
-            sessionKeyFileData = keyFileData
+            guard readCycle == lockCycleID, case .unlocked = state,
+                  databaseReference.isCloudBacked || keyCommitPublicationActionID == attempt else { return }
             if completed { await mergePendingLocalSaves() }
         } catch {
             guard finishUnlockAttempt(attempt) else { return }
@@ -1306,6 +1311,10 @@ final class DatabaseViewModel {
             // owns the screen.
             guard finishUnlockAttempt(attempt) else { return .failed }
             let readCycle = lockCycleID
+            if !databaseReference.isCloudBacked {
+                keyCommitPublicationPermit?.close()
+                keyCommitPublicationActionID = attempt
+            }
             finalizeSuccessfulUnlock(
                 payload: unlockPayload,
                 compositeKey: compositeKey,
@@ -1317,7 +1326,8 @@ final class DatabaseViewModel {
             let completed = await publishLocalReadKeys(readResult.readProof,
                 keys: QuickUnlockKeys(storedKey: storedKey, expressKey: hardwareKey == nil ? unlockPayload.expressKey : nil),
                 masterKeyEntered: false, actionID: attempt, expectedCycle: readCycle)
-            guard readCycle == lockCycleID, case .unlocked = state else { return .failed }
+            guard readCycle == lockCycleID, case .unlocked = state,
+                  databaseReference.isCloudBacked || keyCommitPublicationActionID == attempt else { return .failed }
             if completed { await mergePendingLocalSaves() }
             return .unlocked
         } catch {
@@ -2988,7 +2998,7 @@ final class DatabaseViewModel {
         defer { if keyCommitPublicationPermit === permit { keyCommitPublicationPermit = nil } }
         let io = keyCommitPublicationIO
         let result = try await CoordinatedFileReader.performBlocking(timeout: keyCommitPublicationTimeout, onInterruption: { permit.close() }) {
-            defer { io.didFinish() }
+            defer { io.didFinish(); permit.finishWorker() }
             let result = try DatabaseListStore.withLocalKeyCommitPublication(for: reference, receipt: receipt, permit: permit, io: io, effect)
             cleanup(result)
             return result
@@ -4802,13 +4812,13 @@ final class DatabaseViewModel {
         masterKeyEntered: Bool, actionID: UUID, expectedCycle: Int
     ) async -> Bool {
         guard !databaseReference.isCloudBacked, let read else { return true }
-        guard expectedCycle == lockCycleID, case .unlocked = state else { return false }
+        guard expectedCycle == lockCycleID, keyCommitPublicationActionID == actionID,
+              case .unlocked = state else { return false }
         let reference = databaseReference
         if let renewal = read.lease.bookmarkRenewal, databaseReference == renewal.before {
             databaseReference.bookmarkData = renewal.after.bookmarkData
         }
         keyCommitPublicationPermit?.close()
-        keyCommitPublicationActionID = actionID
         let permit = DatabaseListStore.KeyCommitPublicationPermit(actionID: actionID, lockCycleID: expectedCycle)
         keyCommitPublicationPermit = permit
         defer { if keyCommitPublicationPermit === permit { keyCommitPublicationPermit = nil } }
@@ -4818,7 +4828,7 @@ final class DatabaseViewModel {
         do {
             stored = try await CoordinatedFileReader.performBlocking(timeout: localReadPublicationTimeout,
                 onInterruption: { permit.close() }) {
-                defer { io.didFinish() }
+                defer { io.didFinish(); permit.finishWorker() }
                 let stored = try DatabaseListStore.withLocalReadKeyPublication(for: reference, read: read, permit: permit, io: io) {
                     effect(keys, reference, masterKeyEntered)
                 }

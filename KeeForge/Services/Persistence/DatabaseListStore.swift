@@ -905,10 +905,24 @@ enum DatabaseListStore {
         let actionID: UUID
         let lockCycleID: Int
         private let lock = NSLock()
+        enum WorkerCompletion: Sendable, Equatable {
+            case pending, claimedPending, finishedWithoutClaim, finishedAfterClaim
+        }
         private var value = State.pending
+        private var workerFinished = false
         init(actionID: UUID, lockCycleID: Int) { self.actionID = actionID; self.lockCycleID = lockCycleID }
         var state: State { lock.lock(); defer { lock.unlock() }; return value }
         func close() { lock.lock(); defer { lock.unlock() }; if value == .pending { value = .closed } }
+        var workerCompletion: WorkerCompletion {
+            lock.lock(); defer { lock.unlock() }
+            if workerFinished { return value == .claimed ? .finishedAfterClaim : .finishedWithoutClaim }
+            return value == .claimed ? .claimedPending : .pending
+        }
+        func finishWorker() {
+            lock.lock(); defer { lock.unlock() }
+            workerFinished = true
+            if value == .pending { value = .closed }
+        }
         func claim() -> Bool {
             lock.lock(); defer { lock.unlock() }
             guard value == .pending else { return false }
@@ -998,7 +1012,8 @@ enum DatabaseListStore {
               FileDigest.sha512(authenticated) == read.sha512 else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
         let observed = try withStateLock {
             let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
-            guard let current = references.first(where: { $0.id == expected.id }), !current.isCloudBacked,
+            guard let current = references.first(where: { $0.id == expected.id }) else { throw PendingLocalSaveStore.OwnershipError.removed }
+            guard !current.isCloudBacked,
                   current.hardwareKey == expected.hardwareKey, current.legacyKeychainFilename == expected.legacyKeychainFilename else {
                 throw PendingLocalSaveStore.OwnershipError.sourceChanged
             }
@@ -1028,7 +1043,8 @@ enum DatabaseListStore {
                     guard stateLock.try() else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
                     defer { stateLock.unlock() }
                     let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
-                    guard let current = references.first(where: { $0.id == expected.id }), current == observed else {
+                    guard let current = references.first(where: { $0.id == expected.id }) else { throw PendingLocalSaveStore.OwnershipError.removed }
+                    guard current == observed else {
                         throw PendingLocalSaveStore.OwnershipError.sourceChanged
                     }
                     return try PendingLocalSaveStore.withReadKeyPublicationAuthorization(read) {

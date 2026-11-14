@@ -1452,7 +1452,7 @@ final class CredentialProviderCoordinator {
             do {
                 persisted = try await CoordinatedFileReader.performBlocking(timeout: localReadPublicationTimeout,
                     onInterruption: { permit.close() }) {
-                    defer { io.didFinish() }
+                    defer { io.didFinish(); permit.finishWorker() }
                     let stored = try DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: read,
                         permit: permit, io: io) { effect(keys, databaseReference, masterKeyEntered) }
                     if stored { _ = DatabaseListStore.clearLegacyKeychainFilename(for: read.lease.bookmarkRenewal?.after ?? databaseReference) }
@@ -1460,8 +1460,12 @@ final class CredentialProviderCoordinator {
                 }
                 if localReadPublicationPermit === permit { localReadPublicationPermit = nil }
             } catch {
-                // A claimed timeout cannot revoke Keychain IO already in progress.
                 permit.close()
+                if permit.workerCompletion == .finishedWithoutClaim, !Task.isCancelled,
+                   (error as? PendingLocalSaveStore.OwnershipError) != .removed,
+                   isRequestActive(generation), localReadPublicationPermit === permit {
+                    localReadPublicationPermit = nil
+                }
                 return
             }
         }

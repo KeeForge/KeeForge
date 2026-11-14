@@ -382,3 +382,17 @@ A supported stale-bookmark renewal changes only that field through its existing 
 Provider resolution/coordination and ciphertext IO occur in the existing bounded worker outside list lock. Lock, cancellation and a superseding read close pending permission. If Keychain IO already claimed permission, timeout reports uncertainty and cannot revoke its possible effects or restore session secrets later. Memory lock/AutoFill cleanup remain independent of that worker; a claimed Keychain call can still delay other registry-dependent work. AutoFill can fill authenticated credentials after rejected or uncertain key persistence, with registry-dependent switch/mutation actions withheld for the uncertain request. A created local session retains its authenticated RAM ciphertext and draft-export capability without invoking the cloud persistence callback as a substitute for local read authority.
 
 A known write publishes or invalidates its output cache against the installed target identity and ciphertext in its existing commit receipt. It does not select a different source by resolving the pre-replacement bookmark again. The current registry observation, owner epoch, pending-source barriers and exact target/ciphertext checks remain mandatory; an unknown write supplies no installed receipt.
+
+Unlock installs the session key-file factor with its unlocked payload before awaiting
+read-key persistence. Post-await work still requires that original action UUID:
+a same-session rekey can supersede the unlock without changing the lock cycle.
+AutoFill distinguishes observed worker termination without a claim from pending
+timeout and claimed uncertainty. Only the first releases its matching live-request
+latch after a terminal rejection; cancellation or revocation does not reopen it.
+
+A known commit receipt binds bytes and target identity, not sandbox authority.
+Pending-merge completion keeps the resolved bookmark grant open through source
+retirement, cache refresh and stale-cache invalidation, without renewing it during
+the transition. The original-file coordination is released before cache publication
+takes registry authority. Injected scope-lifetime observations exercise this order
+with real storage; signed external-file sandbox grants remain device validation.

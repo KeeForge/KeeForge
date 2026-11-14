@@ -3380,6 +3380,57 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.sessionKey)
     }
 
+    func testFinishedReadPublicationFailureBeforeClaimKeepsFillAndExplicitActionsAvailable() async throws {
+        let database = try seedResolvableDefaultDatabase()
+        let bytes = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        try seedDatabaseBytes(bytes, for: database)
+        _ = try makeRegisteredDatabase(named: "another-database.kdbx")
+        let (coordinator, presenter) = makeCoordinator()
+        let finished = expectation(description: "failed worker positively finishes")
+        let promptReady = expectation(description: "interactive prompt")
+        let effects = OSAllocatedUnfairLock(initialState: 0)
+        var io = DatabaseListStore.KeyCommitPublicationIO()
+        io.coordinate = { _, _, _ in throw CocoaError(.fileReadUnknown) }
+        io.didFinish = { finished.fulfill() }
+        coordinator.localReadPublicationIO = io
+        coordinator.persistLocalQuickUnlockKeys = { _, _, _ in effects.withLock { $0 += 1 }; return true }
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+        presenter.onUnlockPromptPresented = { promptReady.fulfill() }
+        presenter.isPresentationActive = true
+        coordinator.prepareCredentialList(for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)])
+        coordinator.presentationDidBecomeActive()
+        await fulfillment(of: [promptReady], timeout: 15)
+        try XCTUnwrap(presenter.unlockPrompt).onSubmitPassword("testpassword123")
+        let task = try XCTUnwrap(coordinator.unlockTask)
+        await fulfillment(of: [finished], timeout: 30)
+        await task.value
+        let picker = try XCTUnwrap(presenter.searchView)
+        XCTAssertNotNil(picker.databaseSwitcher, "A finished no-effect rejection must not retain the timeout latch")
+        XCTAssertNotNil(picker.urlAddition, "A separate supported action remains available after confirmed no-effect failure")
+        XCTAssertEqual(effects.withLock { $0 }, 0)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: database)), bytes)
+        let entry = try XCTUnwrap(picker.searchEntries.first { $0.hasPassword && !$0.isExpired() })
+        picker.onSelect(entry)
+        XCTAssertNotNil(presenter.completedCredential)
+        XCTAssertNil(coordinator.sessionKey)
+    }
+
+    func testPublicationPermitDistinguishesPendingClaimAndObservedWorkerCompletion() {
+        let pending = DatabaseListStore.KeyCommitPublicationPermit(actionID: UUID(), lockCycleID: 1)
+        pending.close()
+        XCTAssertEqual(pending.workerCompletion, .pending, "Closing permission does not prove a worker has exited")
+        XCTAssertFalse(pending.claim())
+        pending.finishWorker()
+        XCTAssertEqual(pending.workerCompletion, .finishedWithoutClaim)
+        let claimed = DatabaseListStore.KeyCommitPublicationPermit(actionID: UUID(), lockCycleID: 1)
+        XCTAssertTrue(claimed.claim())
+        claimed.close()
+        XCTAssertEqual(claimed.workerCompletion, .claimedPending)
+        claimed.finishWorker()
+        XCTAssertEqual(claimed.workerCompletion, .finishedAfterClaim)
+        XCTAssertFalse(claimed.claim())
+    }
+
     func testClaimedLocalReadTimeoutStillOffersFillWithoutBlockingOnTheRegistry() async throws {
         let database = try seedResolvableDefaultDatabase()
         try seedDatabaseBytes(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)

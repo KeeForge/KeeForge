@@ -333,6 +333,51 @@ final class PendingLocalSaveTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: later.fileURL), setup.original)
     }
 
+    func testMergeCompletionKeepsBookmarkScopeThroughSourceRetirementAndRealCacheRefresh() async throws {
+        let setup = try makeAdmittedSave()
+        let cache = DatabaseListStore.cacheLocation(for: setup.reference)
+        DatabaseListStore.update(setup.reference)
+        try FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try setup.original.write(to: cache, options: .atomicProtected)
+        let result = try await PendingLocalSaveStore.$saveToken.withValue(setup.token) {
+            try await LocalDatabaseSaver.save(draft: setup.context.draft, reference: setup.reference,
+                compositeKey: setup.context.compositeKey, openTimeSHA512: FileDigest.sha512(setup.original))
+        }
+        guard case .saved(_, _, let optionalCommit) = result else { return XCTFail("Expected durable merge output") }
+        let commit = try XCTUnwrap(optionalCommit)
+        let installed = try Data(contentsOf: XCTUnwrap(LocalDatabaseSaver.resolveLocation(for: setup.reference)).url)
+        XCTAssertEqual(FileDigest.sha512(installed), commit.sha512)
+        XCTAssertEqual(try Data(contentsOf: cache), setup.original)
+        let observations = ScopeObservations()
+        var scope = LocalDatabaseSaver.SecurityScopeIO()
+        // This observes grant lifetime; a temporary file does not prove a signed sandbox grant.
+        scope.begin = { url in
+            let depth = observations.begin()
+            XCTAssertEqual(FileManager.default.fileExists(atPath: setup.source.fileURL.path), depth == 1,
+                "The outer grant must precede retirement and remain open for the nested cache publication")
+            XCTAssertEqual(try? PendingLocalSaveStore.targetIdentity(at: url), commit.installedTarget)
+            return true
+        }
+        scope.end = { _ in
+            XCTAssertFalse(FileManager.default.fileExists(atPath: setup.source.fileURL.path))
+            XCTAssertEqual(try? Data(contentsOf: cache), installed)
+            observations.end()
+        }
+        XCTAssertEqual(LocalDatabaseSaver.completePendingMerge(commit, reference: setup.reference, scopeIO: scope), .resolved)
+        XCTAssertEqual(observations.events, ["begin:1", "begin:2", "end:2", "end:1"])
+        XCTAssertEqual(try Data(contentsOf: cache), installed)
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.reference.id).admission)
+    }
+
+    private final class ScopeObservations: @unchecked Sendable {
+        private let lock = NSLock()
+        private var depth = 0
+        private var values: [String] = []
+        var events: [String] { lock.lock(); defer { lock.unlock() }; return values }
+        func begin() -> Int { lock.lock(); defer { lock.unlock() }; depth += 1; values.append("begin:\(depth)"); return depth }
+        func end() { lock.lock(); defer { lock.unlock() }; values.append("end:\(depth)"); depth -= 1 }
+    }
+
     func testConsumeUnlinkThenDirectoryFailureRetainsAdmissionAndLaterSource() async throws {
         let setup = try makeAdmittedSave()
         let result = try await PendingLocalSaveStore.$saveToken.withValue(setup.token) {
