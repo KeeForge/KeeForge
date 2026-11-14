@@ -1,6 +1,7 @@
+#if os(iOS)
 import SwiftUI
 
-/// Shows an entry's read-only attachment list. Rows resolve their bytes
+/// The iPhone and iPad entry's read-only attachment list. Rows resolve their bytes
 /// lazily against the database's binary pool via `DatabaseViewModel`, write
 /// a short-lived plaintext temp file for QuickLook preview / sharing, and
 /// clean that temp file up as soon as the row's preview/share flow ends.
@@ -83,10 +84,8 @@ private struct AttachmentRow: View {
             loadCoordinator.deactivate()
             cleanUpTempFile()
         }
-        // Selecting another entry reuses this row rather than tearing it down
-        // (the shells share one detail column), so `onDisappear` may never
-        // fire. Without this the macOS Quick Look panel would linger over the
-        // newly selected entry — and over any sheet opened on top of it.
+        // Selecting another entry in the iPad detail column reuses this row
+        // rather than tearing it down, so `onDisappear` may never fire.
         .onChange(of: entryID) { _, _ in
             loadCoordinator.invalidate()
             cleanUpTempFile()
@@ -125,3 +124,4 @@ private struct AttachmentRow: View {
         return formatter
     }()
 }
+#endif

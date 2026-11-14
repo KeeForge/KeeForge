@@ -14,9 +14,9 @@
 
 ## Invariants
 
-- `EntryDetailView` shows entry actions and any sync warning in its iOS toolbar. On Mac the window's native workspace toolbar (`MacWorkspaceToolbar`) owns Edit and opens the shared presentation host’s editor; the detail reads that editor state to defer closing a deleted entry. On iPhone it also offers Lock (`lock.button`) beside Edit; at regular width the sidebar's Lock sits beside it, so the detail adds none.
-
-- On iOS the detail puts its fields in one `EntryFieldsCard` of label/value rows (`isCardRow` on the field rows); macOS keeps a section per field. The history viewer shares the card.
+- `EntryDetailView` is iOS only. It shows entry actions and any sync warning in its toolbar; on iPhone it also offers Lock (`lock.button`) beside Edit; at regular width the sidebar's Lock sits beside it, so the detail adds none.
+- The Mac detail is `Mac/MacEntryDetailView` on `MacEntryDetailModel` (`../../ViewModels/`): header (icon, title, path, Edit), cards of label/value rows, footer (dates, History link). It reads values, reveals and copies only through the model, never an `EncryptedValue`; the copy tick is `MacCopyFeedback`, whichever path copied. Edit (`entry-detail.edit`) sits in its header and opens the presentation host's editor; the detail reads that editor state to defer closing a deleted entry. History and the icon picker are still sheets from the detail.
+- On iOS the detail puts its fields in one `EntryFieldsCard` of label/value rows (`isCardRow` on the field rows). The Mac history viewer still uses those rows' section branch (`../Components/EntryFieldRows.swift`).
 - Below the fields, iOS gathers Group, Tags, Created, Expires and History in one card; the Group row pushes the group only in the compact stack. A row whose content switches with state (the password reveal) keeps one top-level container: in a `List` a changed top-level view is a new row, and its `onDisappear`/`onAppear` would clear and reload the reveal without end.
 - Entry rows in `EntryListView` and the group list are buttons, not `NavigationLink`s, so they carry no chevron; they still push `DatabaseRoute.entry` in compact and select in the regular shells.
 
@@ -25,7 +25,7 @@
 - `EntryDetailView` closes itself through `finishClose()` when its entry leaves the index. It runs at most once: both `onAppear`s can fire on one reveal and each `dismiss()` pops a level.
 - While its editor is up, the entry-unavailable branch does not close: the vanished entry is the editor's own permanent delete, and the editor's `.deleted` completion drives the close. On the iPad detail root that branch's `onAppear` fires even under the pushed editor.
 - On iOS the close waits for the `onAppear` that follows the editor pop. Popping the editor and the detail in one transaction drops the second pop on iOS 26. A macOS sheet never re-fires the presenter's `onAppear`, so it closes directly.
-- Selection-driven shells (iPad detail column, macOS) pass `popsOnClose: false` and clear the selection in `onClose`. Their `dismiss` has nothing of this screen to pop and would pop the sidebar's stack instead.
+- The iPad detail column passes `popsOnClose: false` and clears the selection in `onClose`. Its `dismiss` has nothing of this screen to pop and would pop the sidebar's stack instead. `MacEntryDetailView` clears the selection itself, once, while the session is unlocked and no editor is open.
 - A deletion handed to a container passes the finished `PendingDeletion`, never the entry, so the per-entry soft/permanent choice is not recomputed against the wrong group.
 
 ### List rendering
@@ -47,8 +47,8 @@
 
 - A completed password reveal survives the editor for the same mounted entry: disappearance clears the plaintext, reappearance and a same-entry password edit refresh it without a new prompt. A session-key change conceals it; selecting another entry replaces the detail's identity.
 - `EntryRowCopyActions` does not invalidate on disappearance, so a context-menu copy can finish after the menu closes. It still rejects a changed session, password, or entry.
-- Attachment previews are plaintext temp files (`AttachmentPreviewFileStore`). Cleanup runs from the Quick Look `onDismiss` on both platforms and when the shown entry changes; keep both when touching the preview flow.
-- Attachment rows are positional and carry `.id(attachment)`. Tests enumerate them by the `entry.attachment.<index>` prefix because SwiftUI collapses each row into one accessibility element; a shared row identifier would be shadowed.
+- Attachment previews are plaintext temp files (`AttachmentPreviewFileStore`). On iOS cleanup runs from the Quick Look `onDismiss` and when the shown entry changes. On Mac every Quick Look and Share goes through the window's `MacAttachmentPreviewController` (`../../../KeeForgeMac/App/`) and its `AttachmentPreviewSession`, whose cleanup triggers are listed in `../../ViewModels/AGENTS.md`; a Mac view never writes or holds a preview file.
+- iOS attachment rows are positional and carry `.id(attachment)`. Tests enumerate them by the `entry.attachment.<index>` prefix because SwiftUI collapses each row into one accessibility element; a shared row identifier would be shadowed. Mac rows keep `entry.attachment.<index>` on the clickable name; their buttons are `entry.attachment.quick-look.<index>` and `entry.attachment.share.<index>`.
 - `entry-detail.title` (a leaf `Text`) is how the macOS tests read which entry the detail column shows. `entry-detail.history` carries the stored-version count as its accessibility value.
 
 ### Editor
@@ -66,7 +66,7 @@
 
 - Search-results delete and move: `SearchResultsDeleteUITests` and `SearchResultsMoveUITests`, both in `KeeForgeUITests/EntryEditUITests.swift`. The move gate itself: `testEntryRowMove...` in `DatabaseViewModelTests`, the other row gates `testEntryRowActions...` there.
 - Row menu: `EntryRowCopyUITests`, `EntryDuplicateUITests`. Editor: `EntryEditSmokeUITests`; its custom-field cases cover moving, protection toggles, and reopening, with counterparts in `MacSmokeUITests`. `ProtectedCustomFieldEditorAuthUITests` covers the reveal and protection-removal authentication gates. Tags shown on detail: `InheritedTagsUITests`.
-- Attachments: `EntryAttachmentsSmokeUITests` and `EntryAttachmentFileLoaderTests` (size budget). The system file picker is exercised by hand.
+- Attachments: `EntryAttachmentsSmokeUITests` and `EntryAttachmentFileLoaderTests` (size budget). The system file picker is exercised by hand. Mac Quick Look and Share: `MacAttachmentPreviewControllerTests` (panel control, data source, share picker completion, every close trigger, responder-chain placement); the system panel and picker themselves are checked by hand.
 - History: `EntryHistoryUITests` on iOS. The Mac shell is only captured, as `08b-entry-history` in `MacScreenshotAuditUITests`.
 - Held completion behind a save conflict: `SaveConflictMergeUITests`.
 

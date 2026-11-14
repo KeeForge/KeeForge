@@ -9,12 +9,12 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         let session = try makeSession()
         let autosaveName = MacWindowRestorationStore.splitViewAutosaveName(for: session.databaseReference.id)
         let named = MacWorkspaceSplitViewController(session: session, presentation: MacWorkspacePresentation(),
-            autosaveName: autosaveName, currentSession: { nil })
+            attachmentPreview: .unshown(session), autosaveName: autosaveName, currentSession: { nil })
         XCTAssertEqual(named.splitView.autosaveName, autosaveName)
         // Unnamed, so toggling below writes nothing into the host app's defaults.
         let presentation = MacWorkspacePresentation()
         let controller = MacWorkspaceSplitViewController(session: session, presentation: presentation,
-            currentSession: { nil })
+            attachmentPreview: .unshown(session), currentSession: { nil })
         XCTAssertEqual(controller.splitViewItems.count, 3)
         let sidebar = controller.splitViewItems[0]
         let entries = controller.splitViewItems[1]
@@ -48,8 +48,9 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
     }
 
     func testWindowKeepsControllerUntilSessionChangesThenReleasesIt() throws {
-        let workspace = MacWindowWorkspace(presentation: MacWorkspacePresentation(), currentSession: { nil })
         let first = try makeSession()
+        let workspace = MacWindowWorkspace(presentation: MacWorkspacePresentation(),
+                                           attachmentPreview: .unshown(first), currentSession: { nil })
         let second = try makeSession()
         weak var original: MacWorkspaceSplitViewController?
         autoreleasepool {

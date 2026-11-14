@@ -329,6 +329,13 @@ final class MacEntryDetailModelTests: XCTestCase {
                        String(localized: "Modified \(MacEntryFormatting.relative(earlier, now: now))"))
         XCTAssertEqual(MacEntryFormatting.created(now),
                        String(localized: "Created \(now.formatted(date: .long, time: .omitted))"))
+
+        XCTAssertEqual(MacEntryFormatting.pathCandidates([]), [])
+        XCTAssertEqual(MacEntryFormatting.pathCandidates(["Work"]), ["Work"])
+        XCTAssertEqual(MacEntryFormatting.pathCandidates(["Work", "Dev"]), ["Work › Dev", "… › Dev"])
+        XCTAssertEqual(MacEntryFormatting.pathCandidates(["Work", "EU", "DE", "Frankfurt"]), [
+            "Work › EU › DE › Frankfurt", "Work › … › DE › Frankfurt", "Work › … › Frankfurt", "… › Frankfurt",
+        ], "The middle gives way first; the first and last groups stay longest")
     }
 
     // MARK: - Support

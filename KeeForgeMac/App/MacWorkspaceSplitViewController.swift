@@ -7,6 +7,7 @@ final class MacWindowWorkspace {
     private(set) var splitViewController: MacWorkspaceSplitViewController?
     private(set) var toolbar: MacWorkspaceToolbar?
     private let presentation: MacWorkspacePresentation
+    private let attachmentPreview: MacAttachmentPreviewController
     private var sidebarCollapseObservation: NSKeyValueObservation?
     private let splitAutosaveName: NSSplitView.AutosaveName?
     private let currentSession: @MainActor () -> DatabaseViewModel?
@@ -14,10 +15,12 @@ final class MacWindowWorkspace {
     /// `currentSession` is the window's own session while it still owns that window.
     init(
         presentation: MacWorkspacePresentation,
+        attachmentPreview: MacAttachmentPreviewController,
         splitAutosaveName: NSSplitView.AutosaveName? = nil,
         currentSession: @escaping @MainActor () -> DatabaseViewModel?
     ) {
         self.presentation = presentation
+        self.attachmentPreview = attachmentPreview
         self.splitAutosaveName = splitAutosaveName
         self.currentSession = currentSession
     }
@@ -35,7 +38,8 @@ final class MacWindowWorkspace {
     func show(_ session: DatabaseViewModel?) {
         guard splitViewController?.session !== session else { return }
         let controller = session.map {
-            MacWorkspaceSplitViewController(session: $0, presentation: presentation, autosaveName: splitAutosaveName,
+            MacWorkspaceSplitViewController(session: $0, presentation: presentation,
+                                            attachmentPreview: attachmentPreview, autosaveName: splitAutosaveName,
                                             currentSession: currentSession)
         }
         toolbar = controller.map {
@@ -61,6 +65,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
     init(
         session: DatabaseViewModel,
         presentation: MacWorkspacePresentation,
+        attachmentPreview: MacAttachmentPreviewController,
         autosaveName: NSSplitView.AutosaveName? = nil,
         currentSession: @escaping @MainActor () -> DatabaseViewModel?
     ) {
@@ -88,7 +93,8 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         addSplitViewItem(entries)
 
         let detail = NSSplitViewItem(viewController: Self.host(session: session, presentation: presentation,
-            MacWorkspaceDetailColumn(viewModel: session, presentation: presentation)
+            MacWorkspaceDetailColumn(viewModel: session, presentation: presentation,
+                                     attachmentPreview: attachmentPreview, currentSession: currentSession)
         ))
         detail.minimumThickness = 280
         detail.holdingPriority = .defaultLow

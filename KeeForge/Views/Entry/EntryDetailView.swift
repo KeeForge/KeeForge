@@ -1,32 +1,22 @@
+#if os(iOS)
 import CryptoKit
 import SwiftUI
-#if os(iOS)
-import UIKit
-#else
-import AppKit
-#endif
 
+/// The iPhone and iPad entry detail. The Mac detail is `MacEntryDetailView`.
 struct EntryDetailView: View {
     let entryID: UUID
     @Bindable var viewModel: DatabaseViewModel
     var onClose: () -> Void = {}
-    /// Routes a tapped tag chip in shells that select instead of push (the iPad
-    /// workspace, whose detail column has no browsing stack of its own, and
-    /// macOS, which selects the tag in its sidebar). Left nil in the compact
-    /// shell, where chips push `DatabaseRoute.tag` like any other row.
+    /// Routes a tapped tag chip in the iPad workspace, whose detail column has
+    /// no browsing stack of its own and selects instead of pushing. Left nil in
+    /// the compact shell, where chips push `DatabaseRoute.tag` like any other row.
     var onSelectTag: ((String) -> Void)? = nil
-    /// False in the selection-driven shells (iPad detail column, macOS), where
-    /// this screen is the detail root and closing means clearing the selection:
+    /// False in the iPad detail column, where this screen is the detail root and closing means clearing the selection:
     /// their `dismiss` has nothing of this screen's to pop, so it bubbles out
     /// to the split view and pops the *sidebar's* navigation stack instead.
     var popsOnClose: Bool = true
     @Environment(\.dismiss) private var dismiss
-    #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #endif
-    #if os(macOS)
-    @Environment(MacWorkspacePresentation.self) private var macPresentation: MacWorkspacePresentation?
-    #endif
     /// Both `onAppear`s in `body` can fire on the same reveal, and each
     /// `dismiss()` would pop one navigation level.
     @State private var hasFinishedClosing = false
@@ -65,22 +55,11 @@ struct EntryDetailView: View {
     /// offering the affordance.
     @ViewBuilder
     private func iconButton(for entry: KPEntry) -> some View {
-        let icon = Group {
-            if PlatformDesign.followsIOSDesign {
-                FaviconEntryIconView(
-                    entry: entry,
-                    customIconData: viewModel.customIconData(for: entry),
-                    size: headerIconSize
-                )
-            } else {
-                FaviconView(
-                    url: entry.url,
-                    iconID: entry.iconID,
-                    size: 40,
-                    customIconData: viewModel.customIconData(for: entry)
-                )
-            }
-        }
+        let icon = FaviconEntryIconView(
+            entry: entry,
+            customIconData: viewModel.customIconData(for: entry),
+            size: headerIconSize
+        )
 
         if viewModel.isReadOnly {
             icon
@@ -100,26 +79,20 @@ struct EntryDetailView: View {
             .accessibilityIdentifier("entry-detail.icon-button")
             .accessibilityLabel("Icon")
             .accessibilityHint("Changes the entry icon")
-            .macHelp(String(localized: "Changes the entry icon"))
         }
     }
 
     /// The "this can be edited" cue on the icon: a small pencil badge, in the
     /// same spot as the one on an editable avatar in Contacts. The ring is the
-    /// row's own colour so the badge reads as sitting on the row, not the icon.
+    /// screen's ground so the badge reads as sitting on it, not on the icon.
     private var editBadge: some View {
         Image(systemName: "pencil.circle.fill")
             .symbolRenderingMode(.palette)
             .foregroundStyle(.white, .tint)
             .font(.system(size: 18))
-            .background(Circle().fill(editBadgeRing).padding(-2))
+            .background(Circle().fill(Color(.systemGroupedBackground)).padding(-2))
             .offset(x: 6, y: 6)
             .accessibilityHidden(true)
-    }
-
-    /// The iOS header sits on the screen's ground, the macOS one on a row.
-    private var editBadgeRing: Color {
-        PlatformDesign.followsIOSDesign ? Color(.systemGroupedBackground) : Color(.secondarySystemGroupedBackground)
     }
 
     private func changeEntryIcon(_ icon: EntryIconSelection) {
@@ -141,9 +114,7 @@ struct EntryDetailView: View {
         EntrySecretAction.currentSession(viewModel)
     }
 
-    #if os(iOS)
     private var showsCloudSyncWarning: Bool { horizontalSizeClass == .compact }
-    #endif
 
     var body: some View {
         Group {
@@ -164,7 +135,7 @@ struct EntryDetailView: View {
                                     value: username,
                                     icon: "person.fill",
                                     accessibilityKey: "username",
-                                    isCardRow: PlatformDesign.followsIOSDesign
+                                    isCardRow: true
                                 )
                             }
                         }
@@ -176,25 +147,21 @@ struct EntryDetailView: View {
                                 secretAccess: viewModel.secretAccess,
                                 resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
                                 isCurrent: secretActionIsCurrent,
-                                isCardRow: PlatformDesign.followsIOSDesign
+                                isCardRow: true
                             )
                         }
 
                         if !entry.url.isEmpty {
                             ReferenceAwareFieldRow(label: String(localized: "URL"), raw: entry.url,
                                                    viewModel: viewModel, isCurrent: secretActionIsCurrent) { url in
-                                URLFieldRow(url: url, isCardRow: PlatformDesign.followsIOSDesign)
+                                URLFieldRow(url: url)
                             }
                         }
 
                         ForEach(Array(entry.additionalURLs.enumerated()), id: \.offset) { index, url in
                             ReferenceAwareFieldRow(label: String(localized: "URL \(index + 2)"), raw: url,
                                                    viewModel: viewModel, isCurrent: secretActionIsCurrent) { url in
-                                URLFieldRow(
-                                    url: url,
-                                    label: String(localized: "URL \(index + 2)"),
-                                    isCardRow: PlatformDesign.followsIOSDesign
-                                )
+                                URLFieldRow(url: url, label: String(localized: "URL \(index + 2)"))
                             }
                         }
 
@@ -202,7 +169,7 @@ struct EntryDetailView: View {
                             TOTPSection(
                                 config: totpConfig,
                                 sessionKey: sessionKey,
-                                isCardRow: PlatformDesign.followsIOSDesign
+                                isCardRow: true
                             )
                         }
                     }
@@ -219,8 +186,8 @@ struct EntryDetailView: View {
 
                     if let passkey = entry.passkeyCredential {
                         Section("Passkey") {
-                            FieldRow(label: String(localized: "Relying Party"), value: passkey.relyingParty, icon: "person.badge.key.fill", accessibilityKey: "relying_party", isCardRow: PlatformDesign.followsIOSDesign)
-                            FieldRow(label: String(localized: "Username"), value: passkey.username, icon: "person.fill", accessibilityKey: "username", isCardRow: PlatformDesign.followsIOSDesign)
+                            FieldRow(label: String(localized: "Relying Party"), value: passkey.relyingParty, icon: "person.badge.key.fill", accessibilityKey: "relying_party", isCardRow: true)
+                            FieldRow(label: String(localized: "Username"), value: passkey.username, icon: "person.fill", accessibilityKey: "username", isCardRow: true)
                         }
                     }
 
@@ -235,7 +202,7 @@ struct EntryDetailView: View {
                                         secretAccess: viewModel.secretAccess,
                                         resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
                                         showsInlineLabel: true,
-                                        isCardRow: PlatformDesign.followsIOSDesign,
+                                        isCardRow: true,
                                         isCurrent: secretActionIsCurrent
                                     )
                                 } else {
@@ -247,7 +214,7 @@ struct EntryDetailView: View {
                                             value: value,
                                             icon: "text.justify.left",
                                             showsInlineLabel: true,
-                                            isCardRow: PlatformDesign.followsIOSDesign
+                                            isCardRow: true
                                         )
                                     }
                                 }
@@ -259,40 +226,8 @@ struct EntryDetailView: View {
                         AttachmentsSection(entryID: entry.id, attachments: entry.attachments, viewModel: viewModel)
                     }
 
-                    if PlatformDesign.followsIOSDesign {
-                        detailsCard(for: entry)
-                    } else {
-                        tagsSection
-
-                        if entry.creationTime != nil ||
-                            entry.lastModificationTime != nil ||
-                            entry.enabledExpiryTime != nil {
-                            Section("Details") {
-                                if let created = entry.creationTime {
-                                    LabeledContent("Created", value: created.formatted(date: .abbreviated, time: .shortened))
-                                }
-                                if let modified = entry.lastModificationTime {
-                                    LabeledContent("Modified", value: modified.formatted(date: .abbreviated, time: .shortened))
-                                }
-                                if let expiry = entry.enabledExpiryTime {
-                                    LabeledContent("Expires", value: expiry.formatted(date: .abbreviated, time: .shortened))
-                                        .accessibilityIdentifier("entry-detail.expiry")
-                                }
-                            }
-                        }
-                        if !entry.history.isEmpty {
-                            Section {
-                                historyButton(for: entry) {
-                                    Text(entry.history.count, format: .number)
-                                        .foregroundStyle(.secondary)
-                                } label: {
-                                    Label("History", systemImage: "clock.arrow.circlepath")
-                                }
-                            }
-                        }
-                    }
+                    detailsCard(for: entry)
                 }
-                #if os(iOS)
                 .navigationTitle(entry.title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -331,10 +266,8 @@ struct EntryDetailView: View {
                         }
                     }
                 }
-                #endif
                 .sheet(isPresented: $isShowingHistory) {
                     EntryHistoryView(entryID: entryID, viewModel: viewModel)
-                        .macSheetFrame(minWidth: 760, minHeight: 520)
                 }
                 .sheet(isPresented: $isShowingIconPicker) {
                     EntryIconPickerView(
@@ -380,21 +313,14 @@ struct EntryDetailView: View {
     }
 
     private var isEditorOpen: Bool {
-        #if os(macOS)
-        macPresentation?.commandEditor != nil
-        #else
         viewModel.workspace.openEditor != nil
-        #endif
     }
 
-    /// iOS: the icon with its title below it, on the screen's ground. macOS: a
-    /// row with the icon beside the title.
-    @ViewBuilder
+    /// The icon with its title below it, on the screen's ground.
     private func header(for entry: KPEntry) -> some View {
         let title = Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
             .accessibilityIdentifier("entry-detail.title")
-        if PlatformDesign.followsIOSDesign {
-            Section {
+        return Section {
                 VStack(spacing: Theme.Spacing.cardGap) {
                     iconButton(for: entry)
                     VStack(spacing: Theme.Spacing.textLine) {
@@ -411,23 +337,12 @@ struct EntryDetailView: View {
                 .frame(maxWidth: .infinity)
                 .listRowBackground(Color.clear)
             }
-        } else {
-            Section {
-                HStack {
-                    iconButton(for: entry)
-                    title
-                        .font(.title2.bold())
-                }
-            }
-        }
     }
 
     /// Above the fields of an expired entry. Editing the entry clears it; the
     /// banner has no action of its own.
-    @ViewBuilder
     private func expiryBanner(for entry: KPEntry) -> some View {
-        if PlatformDesign.followsIOSDesign {
-            Section {
+        Section {
                 HStack(spacing: Theme.Spacing.iconText) {
                     Label("This entry has expired", systemImage: "clock.badge.exclamationmark")
                         .font(.body.weight(.semibold))
@@ -441,15 +356,6 @@ struct EntryDetailView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("entry-detail.expired-warning")
                 .listRowBackground(Theme.dangerSoft)
-            }
-        } else {
-            Section {
-                Label("This entry has expired", systemImage: "exclamationmark.triangle.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.State.danger)
-                    .padding(.vertical, 4)
-                    .accessibilityIdentifier("entry-detail.expired-warning")
-            }
         }
     }
 
@@ -457,12 +363,9 @@ struct EntryDetailView: View {
         isExpired ? Theme.danger : Theme.labelSecondary
     }
 
-    #if os(iOS)
     private var showsLockButton: Bool { horizontalSizeClass == .compact }
-    #endif
 
-    /// iOS: where the entry lives, its tags, dates and history in one card.
-    /// An expired entry's footer says how to clear the banner.
+    /// Where the entry lives, its tags, dates and history in one card.
     private func detailsCard(for entry: KPEntry) -> some View {
         let tags = viewModel.detailTags(forEntryID: entryID)
         return Section {
@@ -520,10 +423,6 @@ struct EntryDetailView: View {
                     Text("History")
                         .foregroundStyle(Color.primary)
                 }
-            }
-        } footer: {
-            if PlatformDesign.followsIOSDesign == false, entry.isExpired(), viewModel.isReadOnly == false {
-                Text("Set a new expiry date, or turn expiry off, under Edit.")
             }
         }
     }
@@ -588,52 +487,9 @@ struct EntryDetailView: View {
         .accessibilityValue(String(entry.history.count))
     }
 
-    /// The entry's own tags, then the ones it carries only because of where it
-    /// sits. Both come from `detailTags(forEntryID:)`, the same list the tag
-    /// index is built from, so browsing to a tag can never land on an entry
-    /// whose chips fail to explain the match.
-    ///
-    /// An inherited tag belongs to the group, not the entry, and is edited in
-    /// `GroupEditView`. Its outlined folder pill distinguishes it from an
-    /// entry-owned tag without adding a second caption above the strip.
-    @ViewBuilder
-    private var tagsSection: some View {
-        let tags = viewModel.detailTags(forEntryID: entryID)
-        if tags.own.isEmpty == false || tags.inherited.isEmpty == false {
-            Section("Tags") {
-                if tags.own.isEmpty == false {
-                    FlowLayout(spacing: 6) {
-                        // Enumerated for the identifier fallback index, which
-                        // is what gives an emoji-only tag — one that normalizes
-                        // to nothing — a usable identifier.
-                        ForEach(Array(tags.own.enumerated()), id: \.offset) { index, tag in
-                            tagChip(tag, fallbackIndex: index)
-                        }
-                    }
-                }
-
-                if tags.inherited.isEmpty == false {
-                    FlowLayout(spacing: 6) {
-                        ForEach(Array(tags.inherited.enumerated()), id: \.offset) { index, tag in
-                            inheritedTagChip(tag, fallbackIndex: index)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // Declared a container, like the editor's tag strips, so
-                    // the chips keep their own identifiers instead of
-                    // inheriting this one (see `AGENTS.md`).
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("entry-detail.inherited-tags")
-                }
-            }
-        }
-    }
-
     /// One tag capsule, a shortcut into that tag's filtered entry list. Follows
     /// the link-or-callback shape the row helpers elsewhere use, so the compact
-    /// stack pushes while the iPad and macOS shells route through their own
-    /// browsing surface.
-    @ViewBuilder
+    /// stack pushes while the iPad shell routes through its own browsing surface.
     /// A `Button` in every shell, never a `NavigationLink`, even where the chip
     /// does push. All the chips share one `List` row, and a row containing
     /// several `NavigationLink`s misbehaves badly: the row — not the chip —
@@ -680,643 +536,23 @@ struct EntryDetailView: View {
     }
 }
 
-/// The capsule label shared by both chip shapes here and by the entry editor's
-/// suggestion strip, so a tag looks the same wherever it is tappable.
-/// `systemImage` is nil on this screen, where a chip navigates to the tag, and
-/// `plus` in the editor, where it adds the tag to the field.
-struct TagCapsule: View {
-    let tag: String
-    var systemImage: String? = nil
-    /// Drawn after the name instead of before it. The editor's removable pills
-    /// use it so the affordance reads as "tag, then remove" rather than
-    /// "action, then tag" the way the leading `plus` suggestions do.
-    var trailingSystemImage: String? = nil
-    /// Outlines the capsule instead of filling it, for a chip that is not the
-    /// entry's own to change: the detail screen's inherited group tags.
-    var isOutlined: Bool = false
-
-    var body: some View {
-        HStack(spacing: 3) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.caption2)
-            }
-
-            Text(tag)
-                .lineLimit(1)
-                .truncationMode(.tail)
-
-            if let trailingSystemImage {
-                Image(systemName: trailingSystemImage)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .font(.caption)
-        .foregroundStyle(foreground)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background {
-            if isOutlined {
-                Capsule().strokeBorder(.tertiary)
-            } else if PlatformDesign.followsIOSDesign {
-                Capsule().fill(Theme.accentSoft)
-            } else {
-                Capsule().fill(.fill)
-            }
-        }
-    }
-
-    private var foreground: AnyShapeStyle {
-        if isOutlined {
-            return AnyShapeStyle(HierarchicalShapeStyle.secondary)
-        }
-        return PlatformDesign.followsIOSDesign ? AnyShapeStyle(.tint) : AnyShapeStyle(HierarchicalShapeStyle.primary)
-    }
-}
-
-#if os(iOS)
-struct SelectableNotesText: UIViewRepresentable {
-    let text: String
-
-    init(_ text: String) {
-        self.text = text
-    }
-
-    func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.isScrollEnabled = false
-        textView.backgroundColor = .clear
-        textView.textContainerInset = .zero
-        textView.textContainer.lineFragmentPadding = 0
-        textView.adjustsFontForContentSizeCategory = true
-        textView.font = .preferredFont(forTextStyle: .body)
-        textView.textColor = .label
-        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        return textView
-    }
-
-    func updateUIView(_ textView: UITextView, context: Context) {
-        textView.text = text
-        textView.font = .preferredFont(forTextStyle: .body)
-        textView.textColor = .label
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
-        guard let width = proposal.width else {
-            return nil
-        }
-
-        let fittingSize = CGSize(width: width, height: .greatestFiniteMagnitude)
-        let size = uiView.sizeThatFits(fittingSize)
-        return CGSize(width: width, height: size.height)
-    }
-}
-#else
-/// The macOS counterpart of the UIKit wrapper above: a non-editable, selectable
-/// `NSTextView` that reports a width-aware height and turns URLs and email
-/// addresses in a note into clickable links.
-struct SelectableNotesText: NSViewRepresentable {
-    let text: String
-
-    init(_ text: String) {
-        self.text = text
-    }
-
-    /// Holds the TextKit 1 stack's storage. `NSLayoutManager` does not keep its
-    /// text storage alive, so without this the storage would be deallocated the
-    /// moment `makeNSView` returned.
-    @MainActor
-    final class Coordinator {
-        let textStorage = NSTextStorage()
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeNSView(context: Context) -> NSTextView {
-        // Built explicitly rather than through `NSTextView(frame:)`, which
-        // opts into TextKit 2 — whose `layoutManager` is nil, and sizing below
-        // needs one.
-        let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
-        textContainer.widthTracksTextView = true
-        textContainer.lineFragmentPadding = 0
-        layoutManager.addTextContainer(textContainer)
-        context.coordinator.textStorage.addLayoutManager(layoutManager)
-
-        let textView = NSTextView(frame: .zero, textContainer: textContainer)
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.drawsBackground = false
-        textView.textContainerInset = .zero
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.linkTextAttributes = [
-            .foregroundColor: NSColor.linkColor,
-            .underlineStyle: NSUnderlineStyle.single.rawValue,
-            .cursor: NSCursor.pointingHand,
-        ]
-        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        return textView
-    }
-
-    func updateNSView(_ textView: NSTextView, context: Context) {
-        context.coordinator.textStorage.setAttributedString(Self.attributedNotes(text))
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextView, context: Context) -> CGSize? {
-        guard let width = proposal.width, width > 0, width < CGFloat.greatestFiniteMagnitude,
-              let textContainer = nsView.textContainer,
-              let layoutManager = nsView.layoutManager else {
-            return nil
-        }
-
-        textContainer.containerSize = CGSize(width: width, height: CGFloat.greatestFiniteMagnitude)
-        layoutManager.ensureLayout(for: textContainer)
-        return CGSize(width: width, height: ceil(layoutManager.usedRect(for: textContainer).height))
-    }
-
-    /// Plain body text with detected URLs and email addresses marked as links.
-    static func attributedNotes(_ text: String) -> NSAttributedString {
-        let attributed = NSMutableAttributedString(
-            string: text,
-            attributes: [
-                .font: NSFont.preferredFont(forTextStyle: .body),
-                .foregroundColor: NSColor.labelColor,
-            ]
-        )
-
-        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
-            return attributed
-        }
-
-        let range = NSRange(location: 0, length: (text as NSString).length)
-        for match in detector.matches(in: text, range: range) {
-            guard let url = match.url else { continue }
-            attributed.addAttribute(.link, value: url, range: match.range)
-        }
-        return attributed
-    }
-}
-#endif
-
-// MARK: - Field Rows
-
-/// iOS gathers an entry's fields into one card of label/value rows; on macOS
-/// each field is a section of its own.
-struct EntryFieldsCard<Content: View>: View {
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        if PlatformDesign.followsIOSDesign {
-            Section {
-                content
-            }
-        } else {
-            content
-        }
-    }
-}
-
-struct FieldRow: View {
-    let label: String
-    let value: String
-    let icon: String
-    // Locale-independent copy-button ID; defaults to the normalized label so
-    // user-defined custom field keys keep their existing identifiers.
-    var accessibilityKey: String?
-    /// Identifier namespace for the copy control, matching `PasswordFieldRow`.
-    var accessibilityPrefix: String = "entry"
-    /// Custom fields already sit inside a shared section. Keeping their label
-    /// in the row avoids nesting `Section` views, which gives SwiftUI
-    /// inconsistent separator insets.
-    var showsInlineLabel: Bool = false
-    /// A label/value row inside a card the caller supplies (iOS).
-    var isCardRow: Bool = false
-
-    @ViewBuilder
-    var body: some View {
-        if isCardRow {
-            LabeledContent {
-                HStack(spacing: 0) {
-                    Text(value)
-                        .foregroundStyle(Theme.labelSecondary)
-                        .textSelection(.enabled)
-                    CopyButton(text: value, accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)")
-                }
-            } label: {
-                Text(label)
-            }
-        } else if showsInlineLabel {
-            VStack(alignment: .leading, spacing: 6) {
-                inlineLabel
-                fieldContent
-            }
-        } else {
-            Section(label) {
-                fieldContent
-            }
-        }
-    }
-
-    private var inlineLabel: some View {
-        Text(label)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-    }
-
-    private var fieldContent: some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
-            Text(value)
-                .textSelection(.enabled)
-            Spacer()
-            CopyButton(text: value, accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)")
-        }
-    }
-
-    private var normalizedLabel: String {
-        accessibilityKey ?? label.lowercased().replacingOccurrences(of: " ", with: "_")
-    }
-}
-
-/// A field that is not protected itself shows and copies as a protected one
-/// when its `{REF:…}` reaches a password or protected field: concealed, and
-/// revealed or copied only behind the device-owner gate.
-struct ReferenceAwareFieldRow<Plain: View>: View {
-    let label: String
-    let raw: String
-    let viewModel: DatabaseViewModel
-    var accessibilityPrefix: String = "entry"
-    var showsInlineLabel: Bool = false
-    let isCurrent: @MainActor () -> Bool
-    @ViewBuilder let plain: (String) -> Plain
-
-    var body: some View {
-        switch viewModel.fieldReferenceResolution(of: raw) {
-        case .resolved(let value):
-            plain(value)
-        case .needsProtectedValue:
-            ProtectedFieldRow(
-                label: label,
-                value: raw,
-                secretAccess: viewModel.secretAccess,
-                resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
-                accessibilityPrefix: accessibilityPrefix,
-                showsInlineLabel: showsInlineLabel,
-                isCardRow: PlatformDesign.followsIOSDesign,
-                isCurrent: isCurrent
-            )
-        }
-    }
-}
-
-struct ProtectedFieldRow: View {
-    let label: String
-    let value: String
-    let secretAccess: SecretAccessGate
-    /// Applied when the value is revealed or copied, behind the gate, so a
-    /// `{REF:…}` shows and copies as what it points at.
-    var resolveReferences: (String) -> String = { $0 }
-    var accessibilityPrefix: String = "entry"
-    var showsInlineLabel: Bool = false
-    /// A label/value row inside a card the caller supplies (iOS).
-    var isCardRow: Bool = false
-    var isCurrent: @MainActor () -> Bool
-    @State private var revealed = false
-    @State private var secretAction = EntrySecretAction()
-
-    @ViewBuilder
-    var body: some View {
-        Group {
-            if isCardRow {
-                cardRow
-            } else if showsInlineLabel {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(label)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    fieldContent
-                }
-            } else {
-                Section(label) {
-                    fieldContent
-                }
-            }
-        }
-        .onChange(of: value) { invalidateReveal() }
-        .onDisappear { invalidateReveal() }
-    }
-
-    /// Concealed beside its label, revealed below it. One container for both,
-    /// so a reveal does not make the `List` swap rows (see `PasswordFieldRow`).
-    private var cardRow: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
-            if revealed {
-                Text(label)
-                    .font(Theme.Font.footnote)
-                    .foregroundStyle(Theme.labelSecondary)
-                HStack(spacing: 0) {
-                    Text(resolveReferences(value))
-                        .font(.body.monospaced())
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: Theme.Spacing.iconText)
-                    controls
-                }
-            } else {
-                LabeledContent {
-                    HStack(spacing: 0) {
-                        PasswordConcealedText(accessibilityLabel: String(localized: "Hidden protected field"))
-                        controls
-                    }
-                } label: {
-                    Text(label)
-                }
-            }
-        }
-    }
-
-    private var fieldContent: some View {
-        HStack {
-            Image(systemName: "lock.fill")
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
-
-            if revealed {
-                Text(resolveReferences(value))
-                    .font(.body.monospaced())
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                PasswordConcealedText(accessibilityLabel: String(localized: "Hidden protected field"))
-            }
-
-            Spacer(minLength: 12)
-
-            controls
-        }
-    }
-
-    @ViewBuilder
-    private var controls: some View {
-        Button(action: toggleReveal) {
-            Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
-                .font(.body)
-        }
-        .frame(width: 44, height: 44)
-        .contentShape(Rectangle())
-        .disabled(secretAction.isAuthenticating)
-        .accessibilityIdentifier("\(accessibilityPrefix).protected-field.\(normalizedLabel).reveal")
-        .macHelp(revealed ? String(localized: "Hide \(label)") : String(localized: "Show \(label)"))
-
-        CopyButton(
-            resolveText: { resolveReferences(value) },
-            secretAccess: secretAccess,
-            authenticationReason: String(localized: "Copy protected field"),
-            accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)",
-            secretAction: secretAction,
-            isCurrent: isCurrent
-        )
-    }
-
-    private var normalizedLabel: String {
-        label.lowercased().replacingOccurrences(of: " ", with: "_")
-    }
-
-    private func toggleReveal() {
-        if revealed {
-            HapticService.tap()
-            revealed = false
-            return
-        }
-
-        guard !secretAction.isAuthenticating, isCurrent() else { return }
-        if secretAccess.requiresAuthentication {
-            secretAction.perform(
-                authenticate: {
-                    try await secretAccess.authenticate(reason: String(localized: "View protected field"))
-                },
-                isCurrent: isCurrent,
-                disclose: {
-                    HapticService.success()
-                    revealed = true
-                }
-            )
-        } else {
-            HapticService.tap()
-            revealed = true
-        }
-    }
-
-    private func invalidateReveal() {
-        secretAction.invalidate()
-        revealed = false
-    }
-}
-
-struct PasswordFieldRow: View {
-    let password: EncryptedValue
-    let sessionKey: SymmetricKey
-    let secretAccess: SecretAccessGate
-    /// Applied to the decrypted plaintext before it is shown or copied, so a
-    /// `{REF:…}` password reads and copies as the value it points at.
-    var resolveReferences: (String) -> String = { $0 }
-    /// Identifier namespace for the reveal and copy controls. Defaults to the live
-    /// entry detail's long-standing `entry.*` ids; the history viewer passes its own
-    /// so the two screens never contribute the same identifier to one hierarchy.
-    var accessibilityPrefix: String = "entry"
-    var isCurrent: @MainActor () -> Bool
-    /// A label/value row inside a card the caller supplies (iOS).
-    var isCardRow: Bool = false
-    @State private var revealed = false
-    @State private var revealedText: String?
-    @State private var secretAction = EntrySecretAction()
-
-    var body: some View {
-        Group {
-            if isCardRow {
-                cardRow
-            } else {
-                Section("Password") {
-                    PasswordDisplayRow(revealedText: revealed ? revealedText : nil) {
-                        actions
-                    }
-                }
-            }
-        }
-        .onChange(of: password) {
-            secretAction.invalidate()
-            refreshRevealedPassword()
-        }
-        .onChange(of: sessionKey) { invalidateReveal() }
-        .onAppear { refreshRevealedPassword() }
-        .onDisappear {
-            secretAction.invalidate()
-            revealedText = nil
-        }
-    }
-
-    /// Concealed, the dots sit beside the label; revealed, the password takes
-    /// the full width below it, with its strength underneath. One container
-    /// for both: in a `List` a changed top-level view is a new row, whose
-    /// `onDisappear`/`onAppear` would clear and reload the reveal forever.
-    private var cardRow: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.iconText) {
-            if revealed, let revealedText {
-                Text("Password")
-                    .font(Theme.Font.footnote)
-                    .foregroundStyle(Theme.labelSecondary)
-                HStack(spacing: 0) {
-                    // No `.textSelection(.enabled)`: CopyButton is the only copy path.
-                    PasswordDisplayText(revealedText)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: Theme.Spacing.iconText)
-                    actions
-                }
-                PasswordStrengthIndicator(password: revealedText)
-            } else {
-                LabeledContent {
-                    HStack(spacing: 0) {
-                        PasswordConcealedText()
-                        actions
-                    }
-                } label: {
-                    Text("Password")
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var actions: some View {
-        Button(action: toggleReveal) {
-            Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
-                .font(.body)
-        }
-        .frame(width: 44, height: 44)
-        .contentShape(Rectangle())
-        #if os(iOS)
-        .buttonStyle(.borderless)
-        #endif
-        .disabled(secretAction.isAuthenticating)
-        .accessibilityLabel(revealTooltip)
-        .accessibilityIdentifier("\(accessibilityPrefix).password.reveal")
-        .macHelp(revealTooltip)
-
-        CopyButton(
-            resolveText: { plaintext(of: password) },
-            secretAccess: secretAccess,
-            accessibilityID: "\(accessibilityPrefix).copy.password",
-            secretAction: secretAction,
-            isCurrent: isCurrent
-        )
-    }
-
-    /// Reuses the parameterized Show/Hide strings the password input row uses.
-    private var revealTooltip: String {
-        let field = String(localized: "Password")
-        return revealed ? String(localized: "Hide \(field)") : String(localized: "Show \(field)")
-    }
-
-    private func plaintext(of value: EncryptedValue) -> String {
-        resolveReferences((try? value.decrypt(using: sessionKey)) ?? "")
-    }
-
-    private func toggleReveal() {
-        if revealed {
-            HapticService.tap()
-            revealed = false
-            revealedText = nil
-        } else {
-            authenticateAndReveal()
-        }
-    }
-
-    private func authenticateAndReveal() {
-        guard !secretAction.isAuthenticating, isCurrent() else { return }
-        // Gate on device-owner authentication (biometrics OR passcode/login
-        // password/Apple Watch), not on biometrics availability: a Mac
-        // without Touch ID or an iPhone without enrolled Face ID must still
-        // prompt for the login password/passcode instead of revealing with a
-        // single unauthenticated click. Auth is skipped only inside the
-        // authentication grace period, or when the device has no protection
-        // configured at all.
-        if secretAccess.requiresAuthentication {
-            secretAction.perform(
-                authenticate: {
-                    try await secretAccess.authenticate(reason: String(localized: "View password"))
-                },
-                isCurrent: isCurrent,
-                disclose: {
-                    HapticService.success()
-                    revealedText = plaintext(of: password)
-                    revealed = true
-                }
-            )
-        } else {
-            HapticService.tap()
-            revealedText = plaintext(of: password)
-            revealed = true
-        }
-    }
-
-    private func invalidateReveal() {
-        secretAction.invalidate()
-        revealed = false
-        revealedText = nil
-    }
-
-    private func refreshRevealedPassword() {
-        guard revealed, isCurrent() else {
-            revealedText = nil
-            return
-        }
-        revealedText = plaintext(of: password)
-    }
-}
-
+/// A stacked row inside the fields card: a URL rarely fits beside its label.
 struct URLFieldRow: View {
     let url: String
     var label: String = String(localized: "URL")
-    /// A stacked row inside a card the caller supplies (iOS): a URL rarely fits
-    /// beside its label.
-    var isCardRow: Bool = false
     @Environment(\.openURL) private var openURL
 
-    @ViewBuilder
     var body: some View {
-        if isCardRow {
-            VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
-                Text(label)
-                    .font(Theme.Font.footnote)
-                    .foregroundStyle(Theme.labelSecondary)
-                HStack(spacing: 0) {
-                    Text(url)
-                        .foregroundStyle(.tint)
-                        .textSelection(.enabled)
-                    Spacer(minLength: Theme.Spacing.iconText)
-                    actions
-                }
-            }
-        } else {
-            Section(label) {
-                HStack {
-                    Image(systemName: "globe")
-                        .foregroundStyle(.secondary)
-                        .frame(width: 24)
-                    Text(url)
-                        .textSelection(.enabled)
-                    Spacer()
-                    actions
-                }
+        VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+            Text(label)
+                .font(Theme.Font.footnote)
+                .foregroundStyle(Theme.labelSecondary)
+            HStack(spacing: 0) {
+                Text(url)
+                    .foregroundStyle(.tint)
+                    .textSelection(.enabled)
+                Spacer(minLength: Theme.Spacing.iconText)
+                actions
             }
         }
     }
@@ -1340,265 +576,4 @@ struct URLFieldRow: View {
         CopyButton(text: url, accessibilityID: "entry.copy.url")
     }
 }
-
-struct CopyButton: View {
-    private let resolveText: () -> String
-    /// Set for a protected value: the copy then waits on this gate.
-    var secretAccess: SecretAccessGate?
-    var authenticationReason: String = String(localized: "Copy password")
-    let accessibilityID: String
-    private let sharedSecretAction: EntrySecretAction?
-    private let isCurrent: @MainActor () -> Bool
-    @State private var localSecretAction = EntrySecretAction()
-    @State private var copied = false
-    @State private var copyFeedbackID = UUID()
-
-    private var secretAction: EntrySecretAction { sharedSecretAction ?? localSecretAction }
-
-    init(
-        text: String,
-        secretAccess: SecretAccessGate? = nil,
-        authenticationReason: String = String(localized: "Copy password"),
-        accessibilityID: String,
-        secretAction: EntrySecretAction? = nil,
-        isCurrent: @escaping @MainActor () -> Bool = { true }
-    ) {
-        self.init(
-            resolveText: { text },
-            secretAccess: secretAccess,
-            authenticationReason: authenticationReason,
-            accessibilityID: accessibilityID,
-            secretAction: secretAction,
-            isCurrent: isCurrent
-        )
-    }
-
-    init(
-        resolveText: @escaping () -> String,
-        secretAccess: SecretAccessGate? = nil,
-        authenticationReason: String = String(localized: "Copy password"),
-        accessibilityID: String,
-        secretAction: EntrySecretAction? = nil,
-        isCurrent: @escaping @MainActor () -> Bool = { true }
-    ) {
-        self.resolveText = resolveText
-        self.secretAccess = secretAccess
-        self.authenticationReason = authenticationReason
-        self.accessibilityID = accessibilityID
-        self.sharedSecretAction = secretAction
-        self.isCurrent = isCurrent
-    }
-
-    var body: some View {
-        Button {
-            // Same device-owner gate as password reveal: biometrics when
-            // available, passcode/login password/Apple Watch fallback
-            // otherwise. Skipped only inside the authentication grace period,
-            // or when the device has no protection.
-            guard isCurrent() else { return }
-            if let secretAccess, secretAccess.requiresAuthentication {
-                secretAction.perform(
-                    authenticate: {
-                        try await secretAccess.authenticate(reason: authenticationReason)
-                    },
-                    isCurrent: isCurrent,
-                    disclose: performCopy
-                )
-            } else {
-                performCopy()
-            }
-        } label: {
-            Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                .font(.body)
-                .foregroundStyle(copied ? Theme.State.success : Color.accentColor)
-        }
-        .frame(width: 44, height: 44)
-        .contentShape(Rectangle())
-        .buttonStyle(.borderless)
-        .disabled(secretAction.isAuthenticating)
-        .accessibilityIdentifier(accessibilityID)
-        .macHelp(String(localized: "Copy"))
-        .onDisappear {
-            secretAction.invalidate()
-            copied = false
-        }
-        .task(id: copyFeedbackID) {
-            guard copied else { return }
-            do {
-                try await Task.sleep(for: .seconds(1.5))
-            } catch {
-                return
-            }
-            copied = false
-        }
-    }
-
-    private func performCopy() {
-        ClipboardService.copy(resolveText())
-        copied = true
-        copyFeedbackID = UUID()
-        HapticService.success()
-    }
-}
-
-// MARK: - TOTP Section
-
-struct TOTPSection: View {
-    let config: TOTPConfig
-    let sessionKey: SymmetricKey
-    /// Identifier namespace, matching `FieldRow` / `PasswordFieldRow`.
-    var accessibilityPrefix: String = "entry"
-    /// A label/value row inside a card the caller supplies (iOS).
-    var isCardRow: Bool = false
-    @State private var totpVM: TOTPViewModel
-    @ScaledMetric(relativeTo: .title3) private var cardRingSize = Theme.Size.badge
-
-    init(config: TOTPConfig, sessionKey: SymmetricKey, accessibilityPrefix: String = "entry", isCardRow: Bool = false) {
-        self.config = config
-        self.sessionKey = sessionKey
-        self.accessibilityPrefix = accessibilityPrefix
-        self.isCardRow = isCardRow
-        self._totpVM = State(initialValue: TOTPViewModel(config: config, sessionKey: sessionKey))
-    }
-
-    var body: some View {
-        Group {
-            if isCardRow {
-                LabeledContent {
-                    HStack(spacing: Theme.Spacing.tileGap) {
-                        CountdownRing(progress: totpVM.progress, seconds: totpVM.secondsRemaining, showsSeconds: false)
-                            .frame(width: cardRingSize, height: cardRingSize)
-                            .accessibilityLabel(Text("\(totpVM.secondsRemaining) seconds remaining"))
-                        Text(totpVM.code)
-                            .font(Theme.Font.codeRow)
-                            .foregroundStyle(.tint)
-                            .contentTransition(.numericText())
-                            .accessibilityIdentifier("\(accessibilityPrefix).totp.code")
-                        CopyButton(text: totpVM.code, accessibilityID: "\(accessibilityPrefix).copy.totp")
-                    }
-                } label: {
-                    Text("One-Time Password")
-                }
-            } else {
-                Section("One-Time Password") {
-                    HStack {
-                        CountdownRing(progress: totpVM.progress, seconds: totpVM.secondsRemaining)
-                            .frame(width: 40, height: 40)
-
-                        Text(totpVM.code)
-                            .font(.title.monospaced().bold())
-                            .contentTransition(.numericText())
-                            .accessibilityIdentifier("\(accessibilityPrefix).totp.code")
-
-                        Spacer()
-
-                        CopyButton(text: totpVM.code, accessibilityID: "\(accessibilityPrefix).copy.totp")
-                    }
-                }
-            }
-        }
-        .onAppear {
-            updateTOTP()
-            totpVM.start()
-        }
-        .onChange(of: config.secret) { updateTOTP() }
-        .onChange(of: config.decodedSecret) { updateTOTP() }
-        .onChange(of: config.period) { updateTOTP() }
-        .onChange(of: config.digits) { updateTOTP() }
-        .onChange(of: config.algorithm) { updateTOTP() }
-        .onChange(of: sessionKey) { updateTOTP() }
-        .onDisappear { totpVM.stop() }
-    }
-
-    private func updateTOTP() {
-        totpVM.update(config: config, sessionKey: sessionKey)
-    }
-}
-
-struct CountdownRing: View {
-    let progress: Double
-    let seconds: Int
-    /// Off where the ring is too small to hold the number and the caller
-    /// prints it beside the ring instead.
-    var showsSeconds = true
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(lineWidth: 3)
-                .foregroundStyle(.quaternary)
-
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                .foregroundStyle(progress > 0.3 ? Theme.State.success : Theme.State.warning)
-                .rotationEffect(.degrees(-90))
-                .animation(.linear(duration: 1), value: progress)
-
-            if showsSeconds {
-                Text("\(seconds)")
-                    .font(.caption2.monospacedDigit())
-            }
-        }
-    }
-}
-
-// MARK: - Flow Layout
-
-struct FlowLayout: Layout {
-    let spacing: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = layout(proposal: proposal, subviews: subviews)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = layout(proposal: proposal, subviews: subviews)
-        for (index, offset) in result.offsets.enumerated() {
-            // The measured size, not `.unspecified`: a subview clamped to the
-            // row width has to be handed that width to render its truncation.
-            subviews[index].place(
-                at: CGPoint(x: bounds.minX + offset.x, y: bounds.minY + offset.y),
-                proposal: ProposedViewSize(result.sizes[index])
-            )
-        }
-    }
-
-    /// A subview wider than the row is clamped to the row rather than allowed
-    /// to overhang: wrapping cannot save it (it is alone on its line), so
-    /// without the clamp it reports a width past the proposal and drags the
-    /// whole container — in a `Form`, the enclosing row and its label — wider
-    /// than the layout it sits in. A long tag is the realistic case.
-    private func layout(proposal: ProposedViewSize, subviews: Subviews) -> (offsets: [CGPoint], sizes: [CGSize], size: CGSize) {
-        let maxWidth = proposal.width ?? .infinity
-        var offsets: [CGPoint] = []
-        var sizes: [CGSize] = []
-        var currentX: CGFloat = 0
-        var currentY: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        var maxX: CGFloat = 0
-
-        for subview in subviews {
-            var size = subview.sizeThatFits(.unspecified)
-            if size.width > maxWidth {
-                size = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
-                size.width = min(size.width, maxWidth)
-            }
-            if currentX + size.width > maxWidth, currentX > 0 {
-                currentX = 0
-                currentY += rowHeight + spacing
-                rowHeight = 0
-            }
-            offsets.append(CGPoint(x: currentX, y: currentY))
-            sizes.append(size)
-            rowHeight = max(rowHeight, size.height)
-            currentX += size.width + spacing
-            // `currentX` carries the trailing spacing for the next subview;
-            // the row's own right edge is that spacing back.
-            maxX = max(maxX, currentX - spacing)
-        }
-
-        return (offsets, sizes, CGSize(width: maxX, height: currentY + rowHeight))
-    }
-}
+#endif

@@ -94,7 +94,13 @@ orders the window or assigns first responder.
 
 The split's sidebar and entries items are AppKit controllers
 (`MacSidebarViewController`, `MacEntryListViewController`); the detail item hosts
-one SwiftUI column. The sidebar renders
+one SwiftUI column, which shows `MacEntryDetailView` (`KeeForge/Views/Entry/Mac/`)
+on `MacEntryDetailModel`: a header with Edit, cards of label/value rows and a
+footer with the History link. Attachment Quick Look and Share go through the
+window's `MacAttachmentPreviewController`, an `NSResponder` installed right after
+the window in its responder chain, so the shared `QLPreviewPanel` takes that
+window's `AttachmentPreviewSession` as its data source; Share opens an
+`NSSharingServicePicker` from the row's button. The sidebar renders
 `MacSidebarSnapshot` in a source-list `NSOutlineView` (Library, Groups, Tags and
 Recycle Bin headers, Tags keeping a caption row while there are none; the Recycle
 Bin section is a Deleted Entries row, which selects the bin group, then the
@@ -221,11 +227,11 @@ Column hosts never bridge.
 
 Each item's identifier is also its view's accessibility identifier. Tracking
 separators on the split's two dividers put the search field and New Entry (the
-read-only glasses instead in a read-only database) over the entry list and Edit
-over the detail; the window title is hidden while this toolbar is installed, as
+read-only glasses instead in a read-only database) over the entry list; Edit is
+in the detail's header, not the toolbar. The window title is hidden while this toolbar is installed, as
 the list header shows it. The database's name is a plain (`isBordered` off) item
 between flexible spaces that draws the name at the detail column's centre
-(`MacToolbarTitleView`), whatever Edit and the status items take. The status card's line (plain text, `isBordered` off), Database Settings, Sync Now
+(`MacToolbarTitleView`), whatever the status items take. The status card's line (plain text, `isBordered` off), Database Settings, Sync Now
 and Lock join the trailing end of the detail only while the sidebar is collapsed. Each item has a
 menu form for the overflow menu. Enablement comes from `DatabaseCommands` and
 `MacDatabaseStatus`, and the whole bar is disabled while saving.

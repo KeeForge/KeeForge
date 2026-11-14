@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+import CryptoKit
 import XCTest
 @testable import KeeForge
 
@@ -35,6 +36,34 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertFalse(window.isRestorable)
         XCTAssertNil(window.restorationClass, "AppKit state restoration stays inert; the restoration store owns the frame")
         XCTAssertEqual(window.contentRect(forFrameRect: window.frame).size, DatabaseWindow.defaultContentSize)
+        XCTAssertTrue(window.nextResponder === controller.attachmentPreview,
+                      "Quick Look finds the window's preview controller in its responder chain")
+        XCTAssertTrue(controller.attachmentPreview.nextResponder === controller)
+    }
+
+    func testClosingTheWindowEndsItsAttachmentPreviews() async throws {
+        let entry = KPEntry(title: "Files", attachments: [KPAttachment(name: "report.txt", ref: 0)])
+        let session = try await TestDatabaseSupport.makeUnlockedSession(
+            root: KPGroup(name: "Root", entries: [entry]), key: SymmetricKey(size: .bits256),
+            binaryPool: BinaryPool(rawFields: [Data([0]) + Data("report".utf8)]), bundle: Bundle(for: Self.self)
+        )
+        defer { session.lockRequest(force: true) }
+        let panel = RecordingPreviewPanel()
+        let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false, previewPanel: panel))
+        session.workspace.selectedEntryID = entry.id
+        await controller.attachmentPreview.preview(attachmentAt: 0, ofEntry: entry.id)?.value
+        let url = try XCTUnwrap(controller.attachmentPreview.previews.previewURL)
+
+        await settle()
+        XCTAssertEqual(panel.shown, 1)
+        let closes = panel.closed
+        try XCTUnwrap(controller.window).close()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertGreaterThan(panel.closed, closes, "Closing the window closes its Quick Look panel")
+        XCTAssertNil(controller.attachmentPreview.preview(attachmentAt: 0, ofEntry: entry.id),
+                     "A closed window writes no more preview files")
     }
 
     func testInitialContentSizeIsChosenByTheCoordinatorAndNeverBelowTheMinimum() throws {

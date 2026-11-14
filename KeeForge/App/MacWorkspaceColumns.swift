@@ -5,6 +5,9 @@ import SwiftUI
 struct MacWorkspaceDetailColumn: View {
     @Bindable var viewModel: DatabaseViewModel
     @Bindable var presentation: MacWorkspacePresentation
+    let attachmentPreview: MacAttachmentPreviewController
+    /// The window's session while it still owns the window, rechecked after authentication.
+    let currentSession: @MainActor () -> DatabaseViewModel?
 
     var body: some View {
         NavigationStack {
@@ -19,14 +22,11 @@ struct MacWorkspaceDetailColumn: View {
             if let summary = MacEntrySelectionSummary.make(session: viewModel) {
                 MacEntrySelectionSummaryView(summary: summary, viewModel: viewModel, presentation: presentation)
             } else if let selectedEntryID = viewModel.workspace.selectedEntryID {
-                EntryDetailView(
-                    entryID: selectedEntryID,
+                MacEntryDetailView(
+                    model: presentation.detailModel(for: selectedEntryID, in: viewModel, currentSession: currentSession),
                     viewModel: viewModel,
-                    onClose: {
-                        viewModel.workspace.selectedEntryID = nil
-                    },
-                    onSelectTag: { viewModel.workspace.selectedTag = $0 },
-                    popsOnClose: false
+                    presentation: presentation,
+                    attachmentPreview: attachmentPreview
                 )
                 .id(selectedEntryID)
             } else {

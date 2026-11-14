@@ -10,8 +10,15 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     let workspacePresentation = MacWorkspacePresentation()
     let splitAutosaveName: NSSplitView.AutosaveName?
     private let initialContentSize: NSSize
+    private(set) lazy var attachmentPreview = MacAttachmentPreviewController(
+        database: session,
+        previews: AttachmentPreviewSession(currentSession: { [weak self] in self?.currentSession() }),
+        panel: previewPanel
+    )
+    private let previewPanel: any MacPreviewPanelPresenting
     private lazy var workspace = MacWindowWorkspace(
         presentation: workspacePresentation,
+        attachmentPreview: attachmentPreview,
         splitAutosaveName: splitAutosaveName,
         currentSession: { [weak self] in self?.currentSession() }
     )
@@ -56,9 +63,11 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         persistsLayout: Bool = true,
         initialContentSize: NSSize = DatabaseWindow.defaultContentSize,
         passwordCopyAction: EntrySecretAction = EntrySecretAction(),
+        previewPanel: any MacPreviewPanelPresenting = MacSystemPreviewPanel(),
         requestClose: @escaping @MainActor (NSWindow) -> Void = { $0.performClose(nil) }
     ) {
         self.session = session
+        self.previewPanel = previewPanel
         self.windowRegistry = windowRegistry
         self.enrollment = enrollment
         self.passwordCopyAction = passwordCopyAction
@@ -100,11 +109,13 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             height: max(initialContentSize.height, DatabaseWindow.minimumContentSize.height)))
         window.center()
         self.window = window
+        attachmentPreview.install(in: window)
         closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: window, queue: nil
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                self.attachmentPreview.windowClosed()
                 self.onWillClose?(self)
             }
         }

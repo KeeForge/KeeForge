@@ -15,7 +15,6 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         static let databaseSettings = NSToolbarItem.Identifier("database-details.button")
         static let syncNow = NSToolbarItem.Identifier("database.cloud-sync-now")
         static let lock = NSToolbarItem.Identifier("lock.button")
-        static let edit = NSToolbarItem.Identifier("entry-detail.edit")
         static let search = NSToolbarItem.Identifier("workspace.search")
         static let title = NSToolbarItem.Identifier("workspace.database-title")
         static let sidebarSeparator = NSToolbarItem.Identifier("workspace.sidebar-separator")
@@ -24,13 +23,13 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 
     /// The boards' layout: the sidebar toggle over the sidebar, search and New
     /// Entry (the glasses in a read-only database) over the entry list, between
-    /// the split's tracking separators, the database's name centred over the
-    /// detail, and Edit. The status card's line and buttons join the detail
-    /// only while the sidebar is hidden.
+    /// the split's tracking separators, and the database's name centred over the
+    /// detail, whose header has Edit. The status card's line and buttons join the
+    /// detail only while the sidebar is hidden.
     static let itemIdentifiers: [NSToolbarItem.Identifier] = [
         Item.toggleSidebar, Item.sidebarSeparator, Item.search, Item.add, Item.readOnly, Item.listSeparator,
         .flexibleSpace, Item.title, .flexibleSpace,
-        Item.edit, Item.databaseStatus, Item.databaseSettings, Item.syncNow, Item.lock,
+        Item.databaseStatus, Item.databaseSettings, Item.syncNow, Item.lock,
     ]
     static let statusItemIdentifiers: [NSToolbarItem.Identifier] = [
         Item.databaseStatus, Item.databaseSettings, Item.syncNow, Item.lock,
@@ -115,23 +114,18 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         var status: MacDatabaseStatus
         var isSidebarCollapsed: Bool
         var canNewEntry: Bool
-        var showsEdit: Bool
-        var canEditEntry: Bool
         var searchText: String
         var databaseName: String
     }
 
     private func readState() -> State {
         let commands = DatabaseCommands(session: session)
-        let showsEdit = session.workspace.selectedEntryID.map { session.entry(withID: $0) != nil } ?? false
         return State(
             isSaving: session.isSaving,
             isReadOnly: session.isReadOnly,
             status: MacDatabaseStatus.make(session: session, presentation: presentation),
             isSidebarCollapsed: presentation.isSidebarCollapsed,
             canNewEntry: commands.canNewEntry,
-            showsEdit: showsEdit && session.isReadOnly == false,
-            canEditEntry: commands.canEditEntry,
             searchText: session.searchText,
             databaseName: session.databaseDisplayName
         )
@@ -141,7 +135,6 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         for control in controls { control.isEnabled = state.isSaving == false }
         searchItem.searchField.isEnabled = state.isSaving == false
         enable(Item.add, state.canNewEntry && state.isSaving == false)
-        enable(Item.edit, state.canEditEntry && state.isSaving == false)
         enable(Item.databaseSettings, state.status.canShowSettings)
         enable(Item.syncNow, state.status.canSyncNow)
         enable(Item.lock, state.status.canLock)
@@ -152,7 +145,6 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         statusLineView.update(state.status.line, short: true)
         items[Item.readOnly]?.isHidden = state.isReadOnly == false
         items[Item.add]?.isHidden = state.isReadOnly
-        items[Item.edit]?.isHidden = state.showsEdit == false
         titleView.titleField.stringValue = state.databaseName
         titleView.needsLayout = true
         let placeholder = Self.searchPlaceholder(databaseName: state.databaseName)
@@ -197,11 +189,6 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     @objc private func showDatabaseSettings(_ sender: Any?) { statusActions.showSettings() }
     @objc private func syncCloudNow(_ sender: Any?) { statusActions.syncNow() }
 
-    @objc private func editEntry(_ sender: Any?) {
-        guard let entryID = session.workspace.selectedEntryID else { return }
-        presentation.beginEntryEdit(entryID: entryID, in: session)
-    }
-
     @objc private func explainReadOnly(_ sender: Any?) { statusActions.explainReadOnly(from: toolbarWindow) }
 
     private var toolbarWindow: NSWindow? {
@@ -240,12 +227,6 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 
         addButton(Item.add, symbol: "plus", label: String(localized: "New Entry"),
                   target: self, action: #selector(newEntry(_:)))
-
-        let editLabel = String(localized: "Edit")
-        let edit = NSButton(title: editLabel, target: self, action: #selector(editEntry(_:)))
-        edit.bezelStyle = .toolbar
-        edit.setAccessibilityIdentifier(Item.edit.rawValue)
-        addItem(Item.edit, view: edit, label: editLabel, menuForm: menuItem(editLabel, action: #selector(editEntry(_:))))
 
         searchItem.label = String(localized: "Search")
         let detailPane = splitView.arrangedSubviews.count > 2 ? splitView.arrangedSubviews[2] : nil
@@ -310,16 +291,10 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         item.menuFormRepresentation = menuForm
         items[identifier] = item
     }
-
-    private func menuItem(_ title: String, action: Selector) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
-        item.target = self
-        return item
-    }
 }
 
-/// The database's name in the toolbar, between flexible spaces. Edit and the
-/// status items pull that centre off the detail column's, so the name is drawn
+/// The database's name in the toolbar, between flexible spaces. The status
+/// items pull that centre off the detail column's, so the name is drawn
 /// at the column's centre instead (Main and SidebarHidden boards), past the
 /// small view's bounds, which do not clip.
 final class MacToolbarTitleView: NSView {

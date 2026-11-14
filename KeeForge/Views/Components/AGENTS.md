@@ -15,6 +15,7 @@
 - `SettingsSummaryRow` is a label only. The caller wraps it in the `NavigationLink` and owns the identifier. Its `needsAttention` dot (iOS) never stands alone: the summary says what needs attention.
 - `EntryIconView` picks the custom icon, a favicon handed in, the chosen standard icon, or a monogram for KeePass's default key icon. It loads nothing; `FaviconEntryIconView` in `FaviconView.swift` adds the download for the app.
 - `tipBannerCard()` carries no identifier; a container identifier would replace the buttons' own.
+- `EntryFieldRows.swift`, `TagCapsule.swift` (with `FlowLayout`) and `SelectableNotesText.swift` are the entry rows the iOS detail, the history viewer and the editors share. Their non-card (`isCardRow == false`) branches serve only the Mac history viewer. The Mac detail draws its own rows (`../Entry/Mac/`) but uses `FlowLayout` and `SelectableNotesText`, whose Mac line limit reports truncation for Show More.
 - `ReadOnlyIndicator` appears in entry detail on iOS only. On macOS the detail toolbar merges into the window toolbar, which already shows it.
 
 ## Tests

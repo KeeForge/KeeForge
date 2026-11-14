@@ -399,6 +399,22 @@ enum MacEntryFormatting {
         return host + port + (path.removingPercentEncoding ?? path) + query
     }
 
+    /// The group path from longest to shortest: whole, then the first group with
+    /// fewer and fewer of the last ones ("Work › … › Frankfurt"), then "… › last".
+    static func pathCandidates(_ components: [String]) -> [String] {
+        guard let first = components.first, let last = components.last else { return [] }
+        var candidates = [components.joined(separator: " › ")]
+        if components.count >= 3 {
+            for kept in stride(from: components.count - 2, through: 1, by: -1) {
+                candidates.append(([first, "…"] + components.suffix(kept)).joined(separator: " › "))
+            }
+        }
+        if components.count >= 2 {
+            candidates.append("… › \(last)")
+        }
+        return candidates
+    }
+
     static func modified(_ date: Date, now: Date = .now) -> String {
         String(localized: "Modified \(relative(date, now: now))")
     }

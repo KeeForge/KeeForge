@@ -463,14 +463,25 @@ another user.
 ## Plaintext attachment files and disk encryption
 
 [AttachmentPreviewFileStore](../KeeForge/Services/AppSupport/AttachmentPreviewFileStore.swift)
-writes plaintext temporary files for preview/share, removes them on dismissal and
-completed lock of their owning session, and purges orphaned files at launch
-while no session has tracked previews. Quick Look or another
-receiving application may retain its own copies outside KeeForge's control.
+writes plaintext temporary files for preview/share, and purges orphaned files at
+launch while no session has tracked previews. On the Mac each database window
+owns one [AttachmentPreviewSession](../KeeForge/ViewModels/AttachmentPreviewSession.swift),
+driven by [MacAttachmentPreviewController](App/MacAttachmentPreviewController.swift).
+It writes a file only when the user asks for Quick Look (click, the eye or Space)
+or Share on an attachment row, holds at most one per window, and removes it when
+the Quick Look panel gives up control, when the share picker is cancelled or the
+chosen service reports success or failure, when the selected entry changes or
+that attachment changes, when the window closes, and on lock (the session's
+`clear(owner:)` stays as the backstop). A service that never reports back keeps
+its file until one of those triggers. Quick Look's Open with… and the share
+recipient may retain their own copies outside KeeForge's control.
 
-The preview consumer validates its request and session after asynchronous loading
-and before creating a plaintext file, so a completed lock or dismissed preview
-cannot be followed by a late file write from that request.
+The session validates its request after asynchronous loading and immediately
+before creating a plaintext file (same window session, unlocked, same lock cycle,
+the entry still selected, the attachment unchanged), so a completed lock or a
+closed preview cannot be followed by a late file write from that request.
+Attachments are not protected values, so neither action takes the device-owner
+gate.
 
 [PlatformCompat.atomicProtected](../KeeForge/Extensions/PlatformCompat.swift)
 uses atomic writes without iOS's per-file `.completeFileProtection` on macOS.

@@ -230,7 +230,8 @@ final class MacWorkspacePresentationTests: XCTestCase {
 
         let presentation = MacWorkspacePresentation()
         database.workspace.clearSelection()
-        _ = MacWorkspaceSplitViewController(session: database, presentation: presentation, currentSession: { nil })
+        _ = MacWorkspaceSplitViewController(session: database, presentation: presentation,
+            attachmentPreview: .unshown(database), currentSession: { nil })
         XCTAssertEqual(database.workspace.selectedGroupID, root.id, "The window opened on the Recycle Bin")
         XCTAssertEqual(MacWindowWorkspace.subtitle(for: database), "Root")
         XCTAssertEqual(database.restoreDestinationOptions(for: .entry(gone.id)).map(\.id), [root.id],

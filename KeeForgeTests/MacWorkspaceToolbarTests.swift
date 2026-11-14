@@ -12,7 +12,7 @@ final class MacWorkspaceToolbarTests: XCTestCase {
             "sidebar.left", "workspace.sidebar-separator", "workspace.search", "entry-list.add-entry",
             "database.read-only-indicator", "workspace.list-separator",
             NSToolbarItem.Identifier.flexibleSpace.rawValue, "workspace.database-title",
-            NSToolbarItem.Identifier.flexibleSpace.rawValue, "entry-detail.edit", "workspace.database-status",
+            NSToolbarItem.Identifier.flexibleSpace.rawValue, "workspace.database-status",
             "database-details.button", "database.cloud-sync-now", "lock.button",
         ])
         let statusInsets = toolbar.statusLineView.edgeInsets
@@ -24,11 +24,11 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         XCTAssertEqual(separators.map(\.dividerIndex), [0, 1], "Search and New Entry sit over the entry list")
         XCTAssertTrue(separators.allSatisfy { $0.splitView === splitView })
         XCTAssertNil(toolbar.items[NSToolbarItem.Identifier("sort.menu")], "Sort moved to the list header")
+        XCTAssertNil(toolbar.items[NSToolbarItem.Identifier("entry-detail.edit")], "Edit is in the detail header")
         let labels = [
             "sidebar.left": "Show Sidebar", "lock.button": "Lock Database",
             "database.read-only-indicator": "Read-only database", "entry-list.add-entry": "New Entry",
             "database-details.button": "Database Settings", "database.cloud-sync-now": "Sync Now",
-            "entry-detail.edit": "Edit",
         ]
         for (identifier, label) in labels {
             let item = try XCTUnwrap(toolbar.items[NSToolbarItem.Identifier(identifier)], identifier)
@@ -58,20 +58,16 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         XCTAssertEqual(field.stringValue, "Work")
     }
 
-    func testItemStateFollowsSelectionWritabilityAndDatabaseCommands() async throws {
+    func testItemStateFollowsWritabilityAndDatabaseCommands() async throws {
         for readOnly in [false, true] {
             let (toolbar, window) = try await makeToolbar(readOnly: readOnly)
             defer { window.close() }
             let session = toolbar.session
-            let edit = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.edit])
-            XCTAssertTrue(edit.isHidden)
             XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.add]?.isHidden, readOnly)
             XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.readOnly]?.isHidden, !readOnly)
             session.workspace.selectedEntryID = try XCTUnwrap(session.rootGroup?.allEntries.first).id
             await Task { @MainActor in }.value
             let commands = DatabaseCommands(session: session)
-            XCTAssertEqual(edit.isHidden, readOnly)
-            XCTAssertEqual((edit.view as? NSControl)?.isEnabled, commands.canEditEntry)
             XCTAssertEqual((toolbar.items[MacWorkspaceToolbar.Item.add]?.view as? NSControl)?.isEnabled, commands.canNewEntry)
         }
     }
