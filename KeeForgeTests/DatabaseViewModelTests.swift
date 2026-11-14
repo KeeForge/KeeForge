@@ -6850,6 +6850,11 @@ final class DatabaseViewModelTests: XCTestCase {
         let newKey = try KDBXCrypto.compositeKey(password: "association still pending", keyFileData: nil)
         XCTAssertEqual(vm.compositeKey, newKey)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(try Data(contentsOf: url)))
+        let pending = try XCTUnwrap(PendingLocalSaveStore.recovery(for: reference.id).admission)
+        guard case .masterKeyChange(let association?) = pending.purpose else { return XCTFail("Expected rekey ownership") }
+        XCTAssertEqual(vm.databaseReference.lastMasterKeyChangeAt, association.changedAt)
+        XCTAssertEqual(vm.databaseReference.keyFileBookmarkData, association.bookmarkData)
+        XCTAssertEqual(vm.databaseReference.keyFileFilename, association.filename)
         XCTAssertTrue(PendingLocalSaveStore.hasSaves(for: reference.id))
         try vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(vm.rootGroup)),
             draft: EntryDraftPayload(title: "Draft Behind Publication", password: "keep")))

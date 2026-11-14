@@ -2855,12 +2855,17 @@ final class DatabaseViewModel {
             // Preserve this session's known ciphertext even when registry publication is unavailable.
             if !databaseReference.isCloudBacked, let localCommit,
                localCommit.databaseID == databaseReference.id, localCommit.sha512 == newSHA512,
-               localCommit.encryptedSnapshot != nil, expectedLockCycleID == lockCycleID,
+               localCommit.encryptedSnapshot != nil,
+               case .masterKeyChange(let installedAssociation?) = localCommit.purpose,
+               installedAssociation == association, expectedLockCycleID == lockCycleID,
                keyCommitPublicationActionID == actionID, case .unlocked = state {
                 rememberCommittedCiphertext(localCommit)
                 self.compositeKey = newCompositeKey
                 sessionKeyFileData = newKeyFileData
                 self.openTimeSHA512 = newSHA512
+                databaseReference.keyFileBookmarkData = installedAssociation.bookmarkData
+                databaseReference.keyFileFilename = installedAssociation.filename
+                databaseReference.lastMasterKeyChangeAt = installedAssociation.changedAt
                 quickUnlockItemHoldsSessionKey = false
             }
             // Keychain and reference reflect the on-disk file, so they update
