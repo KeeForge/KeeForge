@@ -6,17 +6,14 @@ struct PasswordGeneratorSheet: View {
     let onUse: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var options = SettingsService.passwordGeneratorOptions
-    @State private var generatedPassword = PasswordGenerator.generate(
-        options: SettingsService.passwordGeneratorOptions
-    )
+    @State private var model = PasswordGeneratorModel()
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Suggested Password") {
                     // Deliberately not selectable: the system copy path would bypass ClipboardService.
-                    PasswordDisplayText(generatedPassword, isProminent: true)
+                    PasswordDisplayText(model.suggestion, isProminent: true)
                         .multilineTextAlignment(.center)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
@@ -38,7 +35,7 @@ struct PasswordGeneratorSheet: View {
                 }
 
                 Section {
-                    Picker("Generation Mode", selection: $options.mode) {
+                    Picker("Generation Mode", selection: $model.options.mode) {
                         Text("Password").tag(PasswordGenerator.Mode.characters)
                         Text("Passphrase").tag(PasswordGenerator.Mode.passphrase)
                     }
@@ -47,13 +44,13 @@ struct PasswordGeneratorSheet: View {
                     .accessibilityIdentifier("password-generator.mode")
                 }
 
-                if options.mode == .passphrase {
+                if model.options.mode == .passphrase {
                     Section("Passphrase Options") {
-                        Stepper("Words: \(options.wordCount)", value: $options.wordCount,
+                        Stepper("Words: \(model.options.wordCount)", value: $model.options.wordCount,
                                 in: PasswordGenerator.wordCountRange)
                             .accessibilityIdentifier("password-generator.word-count")
                         LabeledContent("Separator") {
-                            TextField("Separator", text: $options.separator)
+                            TextField("Separator", text: $model.options.separator)
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
                                 .macFormFieldStyle()
@@ -66,7 +63,7 @@ struct PasswordGeneratorSheet: View {
                     Section("Length") {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(alignment: .firstTextBaseline) {
-                                Text("\(options.length) characters")
+                                Text("\(model.options.length) characters")
                                     .font(.headline)
                                 Spacer(minLength: 8)
                                 Text(verbatim: "\(PasswordGenerator.lengthRange.lowerBound) – \(PasswordGenerator.lengthRange.upperBound)")
@@ -77,14 +74,14 @@ struct PasswordGeneratorSheet: View {
 
                             Slider(
                                 value: Binding(
-                                    get: { Double(options.length) },
-                                    set: { options.length = Int($0.rounded()) }
+                                    get: { Double(model.options.length) },
+                                    set: { model.options.length = Int($0.rounded()) }
                                 ),
                                 in: Double(PasswordGenerator.lengthRange.lowerBound)...Double(PasswordGenerator.lengthRange.upperBound),
                                 step: 1
                             )
                             .accessibilityLabel(Text("Length"))
-                            .accessibilityValue(Text("\(options.length) characters"))
+                            .accessibilityValue(Text("\(model.options.length) characters"))
                             .accessibilityIdentifier("password-generator.length-slider")
                         }
                         .padding(.vertical, 4)
@@ -99,7 +96,7 @@ struct PasswordGeneratorSheet: View {
                                       isOn: charsetBinding(\.includeDigits), id: "digits")
                         charsetToggle("Symbols", sample: "!#$&", sampleColor: PlatformDesign.followsIOSDesign ? Theme.symbol : .orange,
                                       isOn: charsetBinding(\.includeSymbols), id: "symbols")
-                        Toggle("Exclude Ambiguous Characters", isOn: $options.excludeAmbiguous)
+                        Toggle("Exclude Ambiguous Characters", isOn: $model.options.excludeAmbiguous)
                             .accessibilityIdentifier("password-generator.charset-toggle.ambiguous")
                     }
                 }
@@ -121,26 +118,25 @@ struct PasswordGeneratorSheet: View {
                     // "Use", not "Use Password": the longer label squeezes the
                     // inline title into "Password Genera…" on 375pt screens.
                     Button("Use") {
-                        onUse(generatedPassword)
+                        onUse(model.suggestion)
                         dismiss()
                     }
                     .accessibilityIdentifier("password-generator.use")
                 }
             }
             .onAppear {
-                regenerate()
+                model.regenerate()
             }
-            .onChange(of: options) { _, newOptions in
-                SettingsService.passwordGeneratorOptions = newOptions
-                regenerate()
+            .onDisappear {
+                model.close()
             }
         }
     }
 
     private var strengthIndicator: some View {
         PasswordStrengthIndicator(
-            password: generatedPassword,
-            maximumEntropyBits: PasswordGenerator.minimumEntropyBits(options: options),
+            password: model.suggestion,
+            maximumEntropyBits: model.maximumEntropyBits,
             caption: .rating
         )
     }
@@ -148,7 +144,7 @@ struct PasswordGeneratorSheet: View {
     private var suggestionActions: some View {
         HStack(spacing: 16) {
             Button {
-                regenerate()
+                model.regenerate()
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.clockwise")
@@ -164,7 +160,7 @@ struct PasswordGeneratorSheet: View {
 
             #if os(macOS)
             CopyButton(
-                text: generatedPassword,
+                text: model.suggestion,
                 accessibilityID: "password-generator.copy"
             )
             #endif
@@ -191,37 +187,10 @@ struct PasswordGeneratorSheet: View {
         .accessibilityIdentifier("password-generator.charset-toggle.\(id)")
     }
 
-    private func regenerate() {
-        generatedPassword = PasswordGenerator.generate(options: options)
-    }
-
-    private var enabledCharsetCount: Int {
-        [
-            options.includeUppercase,
-            options.includeLowercase,
-            options.includeDigits,
-            options.includeSymbols
-        ]
-        .filter { $0 }
-        .count
-    }
-
-    /// Binding for a character-set toggle that refuses to disable the last
-    /// enabled set. This keeps the UI in sync with `PasswordGenerator`, which
-    /// silently re-enables lowercase when every set is off — otherwise the
-    /// toggles would show all sets disabled while the password still contained
-    /// lowercase characters.
-    private func charsetBinding(
-        _ keyPath: WritableKeyPath<PasswordGenerator.Options, Bool>
-    ) -> Binding<Bool> {
+    private func charsetBinding(_ keyPath: PasswordGeneratorModel.Charset) -> Binding<Bool> {
         Binding(
-            get: { options[keyPath: keyPath] },
-            set: { newValue in
-                if newValue == false && enabledCharsetCount <= 1 {
-                    return
-                }
-                options[keyPath: keyPath] = newValue
-            }
+            get: { model.isEnabled(keyPath) },
+            set: { model.setEnabled(keyPath, $0) }
         )
     }
 }

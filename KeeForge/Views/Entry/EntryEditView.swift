@@ -1201,22 +1201,9 @@ private struct TOTPSetupLinkSheet: View {
 
     private func applyTapped() {
         if let error = onApply(linkText) {
-            errorMessage = Self.message(for: error)
+            errorMessage = EntryEditViewModel.setupLinkMessage(for: error)
         } else {
             dismiss()
-        }
-    }
-
-    static func message(for error: OTPAuthURIError) -> String {
-        switch error {
-        case .notAnOTPAuthURI:
-            String(localized: "This isn't an otpauth:// setup link.")
-        case .unsupportedType:
-            String(localized: "This setup link uses an unsupported code type. Only time-based (TOTP) codes are supported.")
-        case .missingOrInvalidSecret:
-            String(localized: "This setup link doesn't contain a valid secret.")
-        case .invalidParameter:
-            String(localized: "This setup link contains an invalid parameter.")
         }
     }
 }

@@ -69,7 +69,7 @@ final class EntryEditViewModel {
     ]).union(PasskeyCredential.allFieldKeys)
     /// The parser reads a `key=` value under these names as KeeOTP storage.
     private static let keeOTPCandidateKeys: Set<String> = ["OTP", "Otp"]
-    private static let additionalURLKeyPrefix = "KP2A_URL_"
+    nonisolated static let additionalURLKeyPrefix = "KP2A_URL_"
 
     enum Mode: Sendable, Equatable {
         case create(parentGroupID: UUID)
@@ -619,6 +619,38 @@ final class EntryEditViewModel {
         }
         applyOTPAuthURI(uri)
         return nil
+    }
+
+    /// The Mac "Set Up Verification Code" input: text with a URL scheme is a setup link and
+    /// returns its parse error, leaving the form untouched; any other text is a setup key, stored
+    /// canonical when it is Base32 and as typed otherwise, so the preview reports an invalid key.
+    /// Blank text changes nothing.
+    @discardableResult
+    func applySetupInput(_ text: String) -> OTPAuthURIError? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return nil }
+        if URLComponents(string: trimmed)?.scheme != nil {
+            return applySetupLink(trimmed)
+        }
+        let compact = String(trimmed.unicodeScalars.filter { CharacterSet.whitespacesAndNewlines.contains($0) == false })
+        var unpadded = compact
+        while unpadded.hasSuffix("=") { unpadded.removeLast() }
+        totpSecret = Base32.canonicalSecret(unpadded) ?? compact
+        enrolledOTPAuthURI = nil
+        return nil
+    }
+
+    static func setupLinkMessage(for error: OTPAuthURIError) -> String {
+        switch error {
+        case .notAnOTPAuthURI:
+            String(localized: "This isn't an otpauth:// setup link.")
+        case .unsupportedType:
+            String(localized: "This setup link uses an unsupported code type. Only time-based (TOTP) codes are supported.")
+        case .missingOrInvalidSecret:
+            String(localized: "This setup link doesn't contain a valid secret.")
+        case .invalidParameter:
+            String(localized: "This setup link contains an invalid parameter.")
+        }
     }
 
     func removeTOTP() {
