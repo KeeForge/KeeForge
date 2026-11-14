@@ -565,6 +565,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testUnlockFailsWhenLocalBookmarkCannotBeResolved() async throws {
         var reference = try makeReference()
         reference.bookmarkData = Data("invalid-bookmark".utf8)
+        DatabaseListStore.update(reference)
 
         try writeAtomicallyAndDurably(Data(contentsOf: fixtureURL()), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
@@ -2149,6 +2150,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testDownloadingAFaviconIntoAReadOnlyDatabaseFails() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
+        DatabaseListStore.update(reference)
         let vm = DatabaseViewModel(databaseReference: reference)
 
         await vm.unlock(password: fixturePassword)
@@ -2389,6 +2391,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testRestoringInAReadOnlyDatabaseNeverReachesDisk() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
+        DatabaseListStore.update(reference)
 
         let localSaverCalls = CallTracker()
         let vm = DatabaseViewModel(
@@ -3740,6 +3743,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testFileAccessErrorDoesNotIncrementFailedAttempts() async throws {
         var reference = try makeReference()
         reference.bookmarkData = Data("invalid-bookmark".utf8)
+        DatabaseListStore.update(reference)
 
         try writeAtomicallyAndDurably(Data(contentsOf: fixtureURL()), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
@@ -5451,6 +5455,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
         var reference = makeCloudReference(remoteRev: "rev-A")
         reference.isReadOnly = true
+        DatabaseListStore.update(reference)
         let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8))
         let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
 
@@ -5468,6 +5473,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
         var reference = makeCloudReference(remoteRev: "rev-A")
         reference.isReadOnly = true
+        DatabaseListStore.update(reference)
         let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8))
         let vm = try makePendingUploadViewModel(
             reference: reference,
@@ -5810,6 +5816,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testSaveWhenReadOnlyThrowsDatabaseIsReadOnlyDoesNotEncrypt() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
+        DatabaseListStore.update(reference)
 
         let localSaverCalls = CallTracker()
         let vm = DatabaseViewModel(
@@ -7027,7 +7034,7 @@ final class DatabaseViewModelTests: XCTestCase {
             catch { XCTAssertTrue(error is PendingLocalSaveStore.OwnershipError) }
             XCTAssertEqual(vm.state, .unlocked)
             XCTAssertEqual(vm.draft?.pendingEdits, draft.pendingEdits)
-            XCTAssertTrue(vm.rootGroup?.allEntries.contains { $0.title == "Retain Across Reload Read" } == true)
+            XCTAssertTrue(vm.currentRootGroup?.allEntries.contains { $0.title == "Retain Across Reload Read" } == true)
             XCTAssertTrue(vm.pendingUploadMergeFailure?.offersLocalRecovery == true)
             let recovery = try PendingLocalSaveStore.recovery(for: reference.id)
             XCTAssertTrue(recovery.needsRecovery)
@@ -7055,6 +7062,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 let live = LocalDatabaseSaver.Environment.live
                 let vm = try makeViewModel(reference: reference, localSaveOperation: { draft, ref, key, hash, reconciled, newKey, settings in
                     var environment = live
+                    environment.cacheDatabaseCopy = { try TestDatabaseSupport.cacheLocalSnapshotDiagnosingFailure($0, for: $1) }
                     environment.encryptDraft = { draft, key, header, policy in
                         effects.withLock { $0.crypto += 1 }; return try live.encryptDraft(draft, key, header, policy)
                     }
@@ -7157,7 +7165,9 @@ final class DatabaseViewModelTests: XCTestCase {
             let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
             XCTAssertNil(current.legacyKeychainFilename)
             try original.write(to: url, options: .atomic)
-            let restored = DatabaseViewModel(databaseReference: current, quickUnlockKeyPersistOperation: { keys, _, _ in
+            let restored = DatabaseViewModel(databaseReference: current, localPublicationFailure: { stage, error in
+                TestDatabaseSupport.reportLocalPublicationFailure(stage, error, reference: current)
+            }, quickUnlockKeyPersistOperation: { keys, _, _ in
                 stored.withLock { $0 = keys.storedKey }; return true
             })
             defer { restored.lock() }
@@ -7778,8 +7788,7 @@ final class DatabaseViewModelTests: XCTestCase {
             }
             XCTAssertTrue(DatabaseListStore.recentBackups(for: created.reference).isEmpty)
             let draft = try XCTUnwrap(vm.draft)
-            let expected = try CompatibilitySnapshot(rootGroup: draft.rootGroup, meta: draft.meta, sessionKey: draft.writerSessionKey,
-                binaryPool: BinaryPool(rawFields: draft.binaryPoolFields ?? []))
+            let expected = try recoveryExportSnapshot(of: draft)
             try FileManager.default.removeItem(at: cache)
             XCTAssertTrue(vm.canExportLocalRecoveryDraft)
             XCTAssertTrue(DatabaseDetailsView(reference: created.reference, sessionViewModel: vm).showsLocalDraftExport)
@@ -7884,8 +7893,7 @@ final class DatabaseViewModelTests: XCTestCase {
             XCTAssertEqual(counts.withLock { $0.crypto }, 1)
             XCTAssertEqual(counts.withLock { $0.replaces }, 1)
             let draft = try XCTUnwrap(vm.draft)
-            let expected = try CompatibilitySnapshot(rootGroup: draft.rootGroup, meta: draft.meta, sessionKey: draft.writerSessionKey,
-                binaryPool: BinaryPool(rawFields: draft.binaryPoolFields ?? []))
+            let expected = try recoveryExportSnapshot(of: draft)
             try FileManager.default.removeItem(at: url)
             try FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
             try FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
@@ -8000,6 +8008,16 @@ final class DatabaseViewModelTests: XCTestCase {
         let effects: OSAllocatedUnfairLock<(crypto: Int, replace: Int, exports: Int)>
     }
 
+    private func recoveryExportSnapshot(of draft: DatabaseDraft) throws -> CompatibilitySnapshot {
+        let document = try KDBXWriter.document(rootGroup: draft.rootGroup, meta: draft.meta, sessionKey: draft.writerSessionKey)
+        let key = Data(repeating: 0x59, count: 64)
+        let xml = try document.serialized(innerStream: .chaCha20, innerStreamKey: key)
+        let encoded = try KDBXDocument.read(xml: xml, innerStreamID: 3, innerStreamKey: key)
+        let model = KDBXParser.model(from: encoded, sessionKey: draft.writerSessionKey)
+        return try CompatibilitySnapshot(rootGroup: model.rootGroup, meta: model.meta, sessionKey: draft.writerSessionKey,
+            binaryPool: BinaryPool(rawFields: draft.binaryPoolFields ?? []))
+    }
+
     private func makeLocalInteropSetup(unconfirmed: Bool = false) async throws -> LocalInteropSetup {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -8022,6 +8040,9 @@ final class DatabaseViewModelTests: XCTestCase {
             environment.replaceFileAtomically = { bytes, target, baseline, authorization in
                 effects.withLock { $0.replace += 1 }
                 var io = LocalDatabaseSaver.ReplacementIO()
+                io.observedFailure = { stage, error in
+                    TestDatabaseSupport.reportLocalPublicationFailure("interop-replacement-" + stage, error, reference: ref)
+                }
                 if unconfirmed { io.synchronize = { _ in throw POSIXError(.EACCES) } }
                 return try LocalDatabaseSaver.replaceFileAtomically(bytes, at: target,
                     expectedSHA512: baseline, authorization: authorization, io: io)
@@ -8255,8 +8276,7 @@ final class DatabaseViewModelTests: XCTestCase {
         try vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(vm.rootGroup)),
             draft: EntryDraftPayload(title: "Only In This Session", password: "unsaved secret")))
         let draft = try XCTUnwrap(vm.draft)
-        let before = try CompatibilitySnapshot(rootGroup: draft.rootGroup, meta: draft.meta, sessionKey: draft.writerSessionKey,
-            binaryPool: BinaryPool(rawFields: draft.binaryPoolFields ?? []))
+        let before = try recoveryExportSnapshot(of: draft)
         try FileManager.default.removeItem(at: url)
         try FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
         try FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
@@ -8410,6 +8430,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyWhenReadOnlyThrowsWithoutSaving() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
+        DatabaseListStore.update(reference)
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
             reference: reference,
@@ -8881,6 +8902,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testImportEntriesRefusesAReadOnlyDatabaseWithoutTouchingTheDraft() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
+        DatabaseListStore.update(reference)
         let saved = SavedDraftCapture()
         let vm = try makeViewModel(
             reference: reference,
@@ -9169,6 +9191,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeEncryptionSettingsWhenReadOnlyThrowsWithoutSaving() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
+        DatabaseListStore.update(reference)
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
             reference: reference,

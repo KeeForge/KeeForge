@@ -94,15 +94,20 @@ final class DatabaseListStoreTests: XCTestCase {
         let identityStore = FakeCredentialIdentityStore()
         identityStore.onMutation = { XCTFail("Empty identities should need no mutation") }
         CredentialIdentityStoreManager.storeProviderOverride = identityStore
-        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "A.kdbx"))
-        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "B.kdbx"))
+        let firstSource = try makeTemporaryFileURL(name: "A.kdbx")
+        let first = try DatabaseListStore.add(url: firstSource)
+        let secondSource = try makeTemporaryFileURL(name: "B.kdbx")
+        let second = try DatabaseListStore.add(url: secondSource)
         let firstBytes = Data("encrypted A".utf8)
         let secondBytes = Data("encrypted B".utf8)
+        try firstBytes.write(to: firstSource)
+        try secondBytes.write(to: secondSource)
         try DatabaseListStore.cacheDatabaseCopy(firstBytes, for: first.id)
         try DatabaseListStore.cacheDatabaseCopy(secondBytes, for: second.id)
         let secondURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: second.id))
 
         let refreshed = Data("refreshed encrypted A".utf8)
+        try refreshed.write(to: firstSource)
         try DatabaseListStore.cacheDatabaseCopy(refreshed, for: first.id)
 
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: first.id))), refreshed)
@@ -115,11 +120,25 @@ final class DatabaseListStoreTests: XCTestCase {
         await CredentialIdentityStoreManager.waitForPendingMutations()
     }
 
+    func testCacheRejectsBytesThatDoNotBelongToTheCurrentSource() throws {
+        let bytes = Data("current encrypted source".utf8)
+        let url = try makeTemporaryFileURL(name: "exact-source.kdbx", contents: bytes)
+        let reference = try DatabaseListStore.add(url: url)
+        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
+        XCTAssertThrowsError(try DatabaseListStore.cacheDatabaseCopy(Data("foreign ciphertext".utf8), for: reference)) { error in
+            XCTAssertEqual(error as? PendingLocalSaveStore.OwnershipError, .targetChanged)
+        }
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+        XCTAssertEqual(DatabaseListStore.databases.first?.id, reference.id)
+    }
+
     func testCacheDatabaseCopyUsesPerDatabaseUUIDPath() throws {
         let url = try makeTemporaryFileURL(name: "work.kdbx", contents: Data("fixture".utf8))
         let reference = try DatabaseListStore.add(url: url)
         let cachedData = Data("cached".utf8)
 
+        try cachedData.write(to: url)
         try DatabaseListStore.cacheDatabaseCopy(cachedData, for: reference.id)
 
         let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference.id))
@@ -150,7 +169,7 @@ final class DatabaseListStoreTests: XCTestCase {
     }
 
     #if os(macOS)
-    func testRefreshStaleLockedKeyFileBookmarkPreservesLegacyAssociation() throws {
+    func testRefreshStaleLockedKeyFileBookmarkPreservesLegacyAssociation() async throws {
         let url = try makeTemporaryFileURL(name: "original.keyx")
         let movedURL = url.deletingLastPathComponent().appendingPathComponent("moved.keyx")
         defer {
@@ -166,7 +185,10 @@ final class DatabaseListStoreTests: XCTestCase {
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: movedURL.path)
         XCTAssertTrue(try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: legacyBookmark)).isStale)
 
-        let resolved = try XCTUnwrap(DatabaseListStore.resolveKeyFileURL(for: reference))
+        var renewal: Task<DatabaseListStore.KeyFilePreferenceOutcome, Never>?
+        let resolved = try XCTUnwrap(DatabaseListStore.resolveKeyFileURL(for: reference, onRenewal: { renewal = $0 }))
+        let completion = try XCTUnwrap(renewal)
+        _ = await completion.value
         XCTAssertEqual(try Data(contentsOf: resolved), try Data(contentsOf: movedURL))
         let stored = try XCTUnwrap(DatabaseListStore.databases.first)
         let refreshed = try XCTUnwrap(stored.keyFileBookmarkData)
@@ -206,7 +228,7 @@ final class DatabaseListStoreTests: XCTestCase {
 
     func testRemoveDeletesCachedCopy() throws {
         let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "remove-me.kdbx"))
-        try DatabaseListStore.cacheDatabaseCopy(Data("cached".utf8), for: reference.id)
+        try DatabaseListStore.cacheDatabaseCopy(Data(contentsOf: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: reference))), for: reference.id)
         XCTAssertNotNil(DatabaseListStore.cachedDatabaseURL(for: reference.id))
 
         DatabaseListStore.remove(id: reference.id)
@@ -959,7 +981,7 @@ final class DatabaseListStoreTests: XCTestCase {
         reference.bookmarkData = Data("stale-bookmark".utf8)
         DatabaseListStore.update(reference)
         // Stale the cache so the heal's reseed is observable.
-        try DatabaseListStore.cacheDatabaseCopy(Data("stale-cache".utf8), for: reference.id)
+        try writeAtomicallyAndDurably(Data("stale-cache".utf8), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
 
         let location = DatabaseListStore.locateDatabaseFile(for: reference)
         guard case .available(let url) = location else {
@@ -1127,7 +1149,7 @@ final class DatabaseListStoreTests: XCTestCase {
         )
         reference.bookmarkData = Data("unresolvable-bookmark".utf8)
         DatabaseListStore.update(reference)
-        try DatabaseListStore.cacheDatabaseCopy(Data("stale cache".utf8), for: reference.id)
+        try writeAtomicallyAndDurably(Data("stale cache".utf8), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         XCTAssertNil(DatabaseListStore.locateDatabaseFile(for: reference))
 
         let currentBytes = Data("current provider copy".utf8)

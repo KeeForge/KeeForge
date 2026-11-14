@@ -146,7 +146,7 @@ final class DatabaseListViewModelTests: XCTestCase {
                 let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == setup.reference.id })
                 XCTAssertEqual(stored.keyFileFilename, setup.secondKeyURL.lastPathComponent)
                 let restarted = DatabaseViewModel(databaseReference: stored, quickUnlockKeyPersistOperation: { _, _, _ in false })
-                await restarted.unlock(password: "preference epoch key")
+                await restarted.unlock(password: "preference epoch key", keyFileData: setup.keyFileData)
                 XCTAssertEqual(restarted.state, .unlocked)
                 restarted.lock()
                 XCTAssertEqual(DatabaseListStore.databases.first { $0.id == stored.id }?.keyFileFilename, setup.secondKeyURL.lastPathComponent)
@@ -276,7 +276,8 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertEqual(afterPreference.receipts, beforePreference.receipts)
         XCTAssertEqual(afterPreference.keyEvidence?.targetState, beforePreference.keyEvidence?.targetState)
         XCTAssertEqual(afterPreference.keyEvidence?.epochID, beforePreference.keyEvidence?.epochID)
-        XCTAssertEqual(PendingLocalSaveStore.saves(for: setup.reference.id).map(\.fileURL), [prepared.save.fileURL])
+        XCTAssertEqual(try PendingLocalSaveStore.saves(for: setup.reference.id).map { try PendingLocalSaveStore.targetIdentity(at: $0.fileURL) },
+            [try PendingLocalSaveStore.targetIdentity(at: prepared.save.fileURL)])
         XCTAssertEqual(try Data(contentsOf: prepared.save.fileURL), bytes)
         let admission = try PendingLocalSaveStore.admit([prepared.receipt], for: setup.reference.id,
             target: LocalDatabaseSaver.captureTarget(for: setup.reference), baseline: FileDigest.sha512(bytes),

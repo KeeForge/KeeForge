@@ -3,6 +3,21 @@ import XCTest
 @testable import KeeForge
 
 enum TestDatabaseSupport {
+    static func reportLocalPublicationFailure(_ stage: String, _ error: Error, reference: DatabaseReference,
+        file: StaticString = #filePath, line: UInt = #line) {
+        let current = DatabaseListStore.databases.first { $0.id == reference.id }
+        let cause = (error as? PendingLocalSaveStore.OwnershipError).map { String(describing: $0) }
+            ?? "\((error as NSError).domain):\((error as NSError).code)"
+        XCTFail("Local publication rejected stage=\(stage) cause=\(cause) registered=\(current != nil) bookmarkMatches=\(current?.bookmarkData == reference.bookmarkData) epochDateMatches=\(current?.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt) preferenceMatches=\(current.map { PendingLocalSaveStore.KeyFilePreference($0) == PendingLocalSaveStore.KeyFilePreference(reference) } == true)", file: file, line: line)
+    }
+
+    static func cacheLocalSnapshotDiagnosingFailure(_ data: Data, for reference: DatabaseReference,
+        file: StaticString = #filePath, line: UInt = #line) throws {
+        try LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, onFailure: { stage, error in
+            reportLocalPublicationFailure("save-cache-" + stage.rawValue, error, reference: reference, file: file, line: line)
+        })
+    }
+
     static func visibleRootGroupID(in rootGroup: KPGroup) -> UUID {
         if rootGroup.entries.isEmpty, rootGroup.groups.count == 1 {
             return rootGroup.groups[0].id

@@ -95,3 +95,5 @@
 - Successful reference removal and list clear delete quick-unlock master-entry dates only through the security owner’s process-wide leaf lock. Do not mutate its shared-defaults dictionary directly or acquire list/owner from that date lock. Shared UserDefaults still has no cross-process date transaction guarantee.
 
 - A healthy idle pending source is not an indeterminate commit: conflict Reload may read the original while sources and their shared ciphertext stay owned. Provisional/quarantined sources, admissions, missing payloads, owner errors and key uncertainty still require recovery. After durable merge retirement, refresh the shared cache from that exact installed receipt; a newly admitted source must still fence publication/invalidation.
+
+- Key-file bookmark renewal remains asynchronous; its returned task observation seam lets callers join that exact renewal without moving provider IO onto the caller. Cache publication/invalidation observers report failures after resource release and never authorize fallback writes or change mutation outcomes.

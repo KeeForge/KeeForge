@@ -1203,10 +1203,16 @@ enum DatabaseListStore {
         return relinked
     }
 
-    static func resolveKeyFileURL(for reference: DatabaseReference) -> URL? {
+    static func resolveKeyFileURL(
+        for reference: DatabaseReference,
+        onRenewal: (Task<KeyFilePreferenceOutcome, Never>) -> Void = { _ in }
+    ) -> URL? {
         guard let bookmark = reference.keyFileBookmarkData,
               let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmark) else { return nil }
-        if resolved.isStale { Task.detached(priority: .utility) { _ = renewKeyFileBookmark(for: reference) } }
+        if resolved.isStale {
+            let renewal = Task.detached(priority: .utility) { renewKeyFileBookmark(for: reference) }
+            onRenewal(renewal)
+        }
         return resolved.url
     }
 

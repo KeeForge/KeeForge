@@ -671,6 +671,7 @@ final class DatabaseViewModel {
     private let cloudConflictCopyOperation: CloudConflictCopyOperation
     private let reloadOperation: ReloadOperation
     private let biometricCompositeKeyOperation: BiometricCompositeKeyOperation
+    private let localPublicationFailure: @Sendable (String, Error) -> Void
     private let quickUnlockKeyPersistOperation: QuickUnlockKeyPersistOperation
     private let expressUnlockKeySaveOperation: ExpressUnlockKeySaveOperation
     private let pendingUploadMarkerCheck: PendingUploadMarkerCheck
@@ -707,6 +708,7 @@ final class DatabaseViewModel {
         localDatabaseReadOperation: @escaping LocalDatabaseReadOperation = { reference in
             try await DatabaseViewModel.readLocalDatabase(reference: reference)
         },
+        localPublicationFailure: @escaping @Sendable (String, Error) -> Void = { _, _ in },
         pendingLocalStorageIO: PendingLocalSaveStore.StorageIO = .init(),
         keyCommitPublicationIO: DatabaseListStore.KeyCommitPublicationIO = .init(),
         keyCommitPublicationTimeout: Duration = .seconds(10),
@@ -812,6 +814,7 @@ final class DatabaseViewModel {
         self.cloudSyncOperation = cloudSyncOperation
         self.cloudRefreshOperation = cloudRefreshOperation
         self.localDatabaseReadOperation = localDatabaseReadOperation
+        self.localPublicationFailure = localPublicationFailure
         self.localSaveOperation = localSaveOperation
         self.pendingLocalStorageIO = pendingLocalStorageIO
         self.keyCommitPublicationIO = keyCommitPublicationIO
@@ -4771,8 +4774,14 @@ final class DatabaseViewModel {
             mayPublish = true
             storedQuickUnlockKey = quickUnlockKeyPersistOperation(keys, databaseReference, masterKeyEntered)
         } else if let localRead {
-            let stored = try? DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: localRead) {
-                quickUnlockKeyPersistOperation(keys, databaseReference, masterKeyEntered)
+            let stored: Bool?
+            do {
+                stored = try DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: localRead) {
+                    quickUnlockKeyPersistOperation(keys, databaseReference, masterKeyEntered)
+                }
+            } catch {
+                localPublicationFailure("read-key", error)
+                stored = nil
             }
             mayPublish = stored != nil
             storedQuickUnlockKey = stored == true
@@ -5086,7 +5095,11 @@ final class DatabaseViewModel {
     private func cacheDatabaseCopyForLocalDatabase(_ data: Data, lease: PendingLocalSaveStore.CacheReadLease?) async {
         guard !databaseReference.isCloudBacked, let lease else { return }
         let reference = databaseReference
-        await Task.detached { try? LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, lease: lease) }.value
+        let failure = localPublicationFailure
+        await Task.detached {
+            try? LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, lease: lease,
+                onFailure: { stage, error in failure("read-cache-" + stage.rawValue, error) })
+        }.value
     }
 
     private func refreshCredentialStoreIfStillUnlocked(with root: KPGroup, expectedLockCycleID: Int) {

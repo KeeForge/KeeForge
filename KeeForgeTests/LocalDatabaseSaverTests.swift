@@ -752,11 +752,13 @@ final class LocalDatabaseSaverTests: XCTestCase {
             entryTitle: "Twofish Saved Entry"
         )
 
+        var environment = LocalDatabaseSaver.Environment.live
+        environment.cacheDatabaseCopy = { try TestDatabaseSupport.cacheLocalSnapshotDiagnosingFailure($0, for: $1) }
         _ = try await LocalDatabaseSaver.save(
             draft: context.draft,
             reference: reference,
             compositeKey: context.compositeKey,
-            openTimeSHA512: context.openTimeSHA512
+            openTimeSHA512: context.openTimeSHA512, environment: environment
         )
 
         let savedData = try Data(contentsOf: databaseURL)
@@ -933,10 +935,9 @@ final class LocalDatabaseSaverTests: XCTestCase {
         )
         let cacheWrites = WriteCounter()
         var environment = LocalDatabaseSaver.Environment.live
-        let liveCacheCopy = environment.cacheDatabaseCopy
         environment.cacheDatabaseCopy = { data, reference in
             cacheWrites.increment()
-            try liveCacheCopy(data, reference)
+            try TestDatabaseSupport.cacheLocalSnapshotDiagnosingFailure(data, for: reference)
         }
 
         _ = try await LocalDatabaseSaver.save(
@@ -967,6 +968,11 @@ final class LocalDatabaseSaverTests: XCTestCase {
             entryTitle: "Uncached Entry"
         )
         var environment = LocalDatabaseSaver.Environment.live
+        environment.localPublicationFailure = { stage, error in
+            if stage.hasPrefix("invalidate-") {
+                TestDatabaseSupport.reportLocalPublicationFailure(stage, error, reference: reference)
+            }
+        }
         environment.cacheDatabaseCopy = { _, _ in
             throw CocoaError(.fileWriteOutOfSpace)
         }
@@ -1097,10 +1103,9 @@ final class LocalDatabaseSaverTests: XCTestCase {
             }
             return try liveReplace(data, url, expectedSHA512, authorization)
         }
-        let liveCacheCopy = environment.cacheDatabaseCopy
         environment.cacheDatabaseCopy = { data, reference in
             cacheWrites.increment()
-            try liveCacheCopy(data, reference)
+            try TestDatabaseSupport.cacheLocalSnapshotDiagnosingFailure(data, for: reference)
         }
 
         let result = try await LocalDatabaseSaver.save(
@@ -1371,17 +1376,37 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
         if bypassesWriteDenial { throw XCTSkip("The independent directory-create control bypassed chmod write denial on this host") }
 
+        let observed = OSAllocatedUnfairLock(initialState: [String]())
+        let live = LocalDatabaseSaver.Environment.live
+        var environment = live
+        environment.replaceFileAtomically = { data, target, baseline, authorization in
+            var io = LocalDatabaseSaver.ReplacementIO()
+            io.observedFailure = { phase, error in
+                observed.withLock { $0.append("\(phase):\((error as NSError).domain):\((error as NSError).code)") }
+            }
+            return try LocalDatabaseSaver.replaceFileAtomically(data, at: target, expectedSHA512: baseline, authorization: authorization, io: io)
+        }
         do {
-            _ = try await LocalDatabaseSaver.save(
+            let outcome = try await LocalDatabaseSaver.save(
                 draft: context.draft,
                 reference: reference,
                 compositeKey: context.compositeKey,
-                openTimeSHA512: context.openTimeSHA512
+                openTimeSHA512: context.openTimeSHA512, environment: environment
             )
-            XCTFail("Expected save to fail on a read-only filesystem.")
+            let phase: String
+            switch outcome {
+            case .saved: phase = "saved"
+            case .conflict: phase = "conflict"
+            case .indeterminate: phase = "indeterminate"
+            case .committedWithoutConfirmedDurability: phase = "committedWithoutConfirmedDurability"
+            }
+            let retained = try PendingLocalSaveStore.recovery(for: reference.id).admission != nil
+            let unchanged = try Data(contentsOf: databaseURL) == originalData
+            XCTFail("Expected a thrown read-only failure; actual=\(phase) targetUnchanged=\(unchanged) admissionRetained=\(retained) observed=\(observed.withLock { $0 })")
         } catch {
             XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
         }
+        XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
     }
 
     func testExclusiveDurablePublicationNeverReplacesAnExistingDestination() throws {

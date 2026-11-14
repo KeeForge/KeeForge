@@ -3346,6 +3346,14 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             let original = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
             try seedDatabaseBytes(original, for: database)
             let (coordinator, presenter) = makeCoordinator()
+            let promptPresented = expectation(description: "unlock prompt presented")
+            presenter.onUnlockPromptPresented = { promptPresented.fulfill() }
+            coordinator.prepareCredentialList(for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)])
+            presenter.isPresentationActive = true
+            coordinator.presentationDidBecomeActive()
+            await fulfillment(of: [promptPresented], timeout: 15)
+            presenter.onUnlockPromptPresented = nil
+            let prompt = try XCTUnwrap(presenter.unlockPrompt)
             let parsedOldRead = expectation(description: "old snapshot reaches KDF")
             let resume = DispatchSemaphore(value: 0)
             defer { resume.signal() }
@@ -3361,8 +3369,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
                 latePublications += 1; stored.withLock { $0.composite = keys.storedKey; $0.express = keys.expressKey }
                 return true
             }
-            coordinator.prepareCredentialList(for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)])
-            try XCTUnwrap(presenter.unlockPrompt).onSubmitPassword("testpassword123")
+            prompt.onSubmitPassword("testpassword123")
             await fulfillment(of: [parsedOldRead], timeout: 60)
             let live = LocalDatabaseSaver.Environment.live
             let app = DatabaseViewModel(databaseReference: database, localSaveOperation: { draft, ref, key, hash, reconciled, newKey, settings in
