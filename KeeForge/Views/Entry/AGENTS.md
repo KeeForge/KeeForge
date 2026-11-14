@@ -5,12 +5,12 @@
 ## Ownership
 
 - `EntryEditViewModel` owns fields and payloads; `DatabaseEditorCoordinator` owns dirty registration, submission, completion, and Save and Lock (`../../ViewModels/AGENTS.md`). `EntryEditView` forwards appearance, dirty, and conflict changes and turns completion into dismissal. Every presenter closes through `onComplete`.
-- `RestoreRowAction` shares entry/group recovery across all shells through `PendingMove.restoreOrChooseDestination`, which the Mac sidebar menu also calls; `PendingMove.restore` hosts the fallback destination picker with a recovery title. Cancellation stages nothing.
-- `PendingRowActions.swift` is the one source of delete-confirmation wording and move state for the iOS group list, `EntryListView`, `MacEntriesList`, and the macOS workspace. The Mac menu-bar Delete builds the same `PendingDeletion`; no path deletes without it.
-- Entry-row context-menu gates and effects live in `EntryRowActions` (`../../ViewModels/`); `EntryRowCopyActions`, `EntryRowDuplicateAction`, `EntryRowMoveAction`, and `EntryRowSelectAction` are thin SwiftUI items over it. Add or change an item there, not per shell. They hand an editor or `PendingMove` back to the caller instead of presenting, because the host differs per shell.
-- A duplicate saved from the search results or tag browser opens like a new entry: iOS pushes or selects it once its sheet has dismissed, macOS selects it.
+- `RestoreRowAction` (iOS) shares entry/group recovery through `PendingMove.restoreOrChooseDestination`, which the Mac sidebar and entry list menus also call; `PendingMove.restore` hosts the fallback destination picker with a recovery title. Cancellation stages nothing.
+- `PendingRowActions.swift` is the one source of delete-confirmation wording and move state for the iOS group list, `EntryListView`, and the macOS workspace. The Mac menu-bar Delete builds the same `PendingDeletion`; no path deletes without it.
+- Entry-row context-menu gates and effects live in `EntryRowActions` (`../../ViewModels/`); `EntryRowCopyActions`, `EntryRowDuplicateAction`, `EntryRowMoveAction`, and `EntryRowSelectAction` are thin iOS SwiftUI items over it; the Mac entry table builds its AppKit menu from it directly. Add or change an item there, not per shell. They hand an editor or `PendingMove` back to the caller instead of presenting, because the host differs per shell.
+- A duplicate saved from the search results or tag browser opens like a new entry: iOS pushes or selects it once its sheet has dismissed, macOS selects it in place.
 - `EntryRowActions.canMove` (writable, not in the recycle bin) is the shared ordinary move/duplicate/select gate; Restore uses the session’s separate recovery eligibility. The group-row move keeps its own gate in `../Group/GroupListView.swift` on purpose.
-- Three entry lists: `EntryListView` (iOS search results and tag browser), `MacEntriesList` (the same two on macOS), and `MacGroupEntriesList` in the Mac workspace columns (the Mac group column). The Mac two share `MacEntryRow`.
+- `EntryListView` is the iOS search results and tag browser list. On macOS every list (group, collection, tag, search) is the AppKit `MacEntryListViewController` (`../../../KeeForgeMac/App/`).
 
 ## Invariants
 
@@ -30,13 +30,12 @@
 
 ### List rendering
 
-- `EntrySelectionRow` and the selection controls (`EntrySelectionChrome` in iPhone's bars, `EntrySelectionBar` elsewhere) share the session's bulk selection across group, search, and tag lists. Selecting a row toggles it without opening it or offering context/swipe actions; each screen uses its existing move picker. Keep a concrete row container around the selection/browse branch so `List` defers offscreen rows.
+- On iOS, `EntrySelectionRow` and the selection controls (`EntrySelectionChrome` in iPhone's bars, `EntrySelectionBar` elsewhere) share the session's bulk selection across group, search, and tag lists. Selecting a row toggles it without opening it or offering context/swipe actions; each screen uses its existing move picker. Keep a concrete row container around the selection/browse branch so `List` defers offscreen rows.
 - `EntryListView` keeps its selection/navigation branch inside a concrete row container so `List` can identify rows without constructing every match.
 
 ### Mac lists
 
-- `MacEntryRow` sets the selection in its tap handler, and the double-click is a `simultaneousGesture` attached after that tap. Two plain tap gestures compose exclusively and hold every single click for the system double-click interval before the detail pane updates.
-- Return and double-click go through `DatabaseViewModel.requestEntryEdit()` so they open the one editor the workspace hosts, not a second sheet.
+- The Mac entry table's Return and double-click go through `DatabaseViewModel.requestEntryEdit()` so they open the one editor the workspace hosts, not a second sheet.
 - The Mac history browser exists because pushing inside that sheet loses its toolbar. Its `init`-seeded selection and `.id(selection)` list are both load-bearing; the reasons are at the sites in `EntryHistoryView.swift`.
 
 ### Custom icons

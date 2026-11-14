@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// The Copy Username / Copy Password pair every entry row's context menu
@@ -32,3 +33,4 @@ struct EntryRowCopyActions: View {
         HapticService.success()
     }
 }
+#endif

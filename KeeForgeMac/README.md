@@ -72,8 +72,9 @@ keeps enrollment and its biometric observer mounted across lock/unlock. This
 embedding avoids replacing the window's presentation hierarchy; no content swap
 orders the window or assigns first responder.
 
-The split's sidebar item is `MacSidebarViewController`, an AppKit controller; the
-entries and detail items each host one SwiftUI column. It renders
+The split's sidebar and entries items are AppKit controllers
+(`MacSidebarViewController`, `MacEntryListViewController`); the detail item hosts
+one SwiftUI column. The sidebar renders
 `MacSidebarSnapshot` in a source-list `NSOutlineView` (Library, Groups and Tags
 headers; the Recycle Bin a top-level row) with the status card beneath. One
 `MacObservation` rebuilds the snapshot and applies it per parent with insert,
@@ -90,6 +91,18 @@ keyboard come from the outline as first responder; nothing routes focus to it.
 The outline scrolls the selected row into view only once it has a visible area,
 so a tall sidebar opens at its top. Each row's identifier sits on its title text,
 because XCUITest drops a table cell's own identifier.
+
+The entry list renders `MacEntryListSnapshot` in a view-based inset `NSTableView`
+(no header; icon, title, username, folder path across groups, and the expired,
+passkey and verification-code glyphs), with the empty state, the selection bar
+and, under `-ui-testing`, the `search.results.count` label. Its `MacObservation`
+applies edits as row inserts, removes and moves, reloading only when the list
+switches, and resolves usernames only for cells it draws. Selection follows
+`MacEntryListSelection` both ways: several rows are the workspace's
+`entrySelection`, which the bar and the row menu's Move to Group act on. Row menus
+come from `EntryRowActions`; Copy Password uses the menu-bar command's guarded
+path with this window's `isCurrent` recheck. Return and double-click open the
+editor through the workspace request; the table is disabled while saving.
 
 The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, and
 the detail takes the remaining width. `NSSplitView` autosave owns widths and
@@ -157,7 +170,7 @@ The search field and `DatabaseViewModel.searchText` are bound both ways through
 the toolbar's observation. Edit ▸ Find (`findEntry:`) calls
 `MacWorkspaceToolbar.focusSearch()`, which begins the search item's interaction.
 Title bridging is off; AppKit observation owns
-the database title and group/tag/search subtitle. The SwiftUI column roots apply saving
+the database title and group/tag/search subtitle. The SwiftUI detail root applies saving
 disablement and appearance explicitly across hosting boundaries.
 
 ## Status

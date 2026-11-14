@@ -630,8 +630,7 @@ final class MacSidebarCellView: NSTableCellView {
         }
     }
 
-    /// Standard icons keep `StandardIconView`'s palette, white on a selected row;
-    /// the recycle bin and missing custom images fall back as `GroupIconView` does.
+    /// The recycle bin and missing custom images fall back as `GroupIconView` does.
     static func image(for icon: MacSidebarIcon, emphasized: Bool) -> NSImage? {
         switch icon {
         case .symbol(let name):
@@ -639,24 +638,13 @@ final class MacSidebarCellView: NSTableCellView {
         case .standard(let iconID):
             return standardImage(iconID, emphasized: emphasized)
         case .custom(let data, let standardIconID):
-            guard let image = NSImage(data: data) else {
-                return standardImage(standardIconID, emphasized: emphasized)
-            }
-            image.size = NSSize(width: iconSize, height: iconSize)
-            return image
+            return MacIconImages.custom(data, size: iconSize) ?? standardImage(standardIconID, emphasized: emphasized)
         }
     }
 
     private static func standardImage(_ iconID: Int, emphasized: Bool) -> NSImage? {
-        let palette = StandardIconView.palette(for: iconID, fallback: .blue).colors
-        let colors: [NSColor] = emphasized
-            ? [.white, NSColor.white.withAlphaComponent(0.82)]
-            : [NSColor(palette.primary), NSColor(palette.secondary)]
-        let configuration = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-            .applying(NSImage.SymbolConfiguration(paletteColors: colors))
-        return NSImage(systemSymbolName: KPEntry.systemIconName(for: iconID, fallback: "folder.fill"),
-                       accessibilityDescription: nil)?
-            .withSymbolConfiguration(configuration)
+        MacIconImages.standard(iconID, fallbackSymbol: "folder.fill", fallbackPalette: .blue, pointSize: 14,
+                               emphasized: emphasized)
     }
 }
 

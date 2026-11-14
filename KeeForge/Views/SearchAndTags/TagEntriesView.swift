@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// The entries carrying one tag.
@@ -10,13 +11,13 @@ import SwiftUI
 struct TagEntriesView: View {
     let tag: String
     @Bindable var viewModel: DatabaseViewModel
-    /// Set by the shells that select an entry instead of pushing it (the iPad
-    /// workspace and macOS), matching `EntryListView`'s own contract.
+    /// Set by the shell that selects an entry instead of pushing it (the iPad
+    /// workspace), matching `EntryListView`'s own contract.
     var onSelectEntry: ((KPEntry) -> Void)? = nil
     /// Set by shells that render this screen inline inside a container which
-    /// already hosts a `PendingDeletion` — the macOS workspace content column.
-    /// The stack shells push this screen, so they leave it nil and the list
-    /// hosts its own. See `../Entry/PendingRowActions.swift`.
+    /// already hosts a `PendingDeletion`. The stack shells push this screen, so
+    /// they leave it nil and the list hosts its own. See
+    /// `../Entry/PendingRowActions.swift`.
     var onRequestDeletion: ((PendingDeletion) -> Void)? = nil
 
     var body: some View {
@@ -40,17 +41,11 @@ struct TagEntriesView: View {
                 .accessibilityIdentifier("tag-entries.list")
             }
         }
-        #if os(iOS)
         .navigationTitle(tag)
         .navigationBarTitleDisplayMode(.large)
-        #endif
     }
 }
 
-/// The tag's entries, per shell — the same split `SearchView` makes, and for
-/// the same reason: macOS selects an entry in the content column rather than
-/// pushing it, so the column needs the native `List(selection:)` that carries
-/// arrow keys and type-select.
 private struct TagEntriesList: View {
     let entries: [KPEntry]
     @Bindable var viewModel: DatabaseViewModel
@@ -58,19 +53,12 @@ private struct TagEntriesList: View {
     let onRequestDeletion: ((PendingDeletion) -> Void)?
 
     var body: some View {
-        #if os(macOS)
-        MacEntriesList(
-            viewModel: viewModel,
-            entries: entries,
-            onRequestDeletion: onRequestDeletion
-        )
-        #else
         EntryListView(
             entries: entries,
             viewModel: viewModel,
             onSelectEntry: onSelectEntry,
             onRequestDeletion: onRequestDeletion
         )
-        #endif
     }
 }
+#endif

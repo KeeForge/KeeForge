@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 struct SearchView: View {
@@ -42,10 +43,8 @@ struct SearchView: View {
                 .accessibilityIdentifier("search.results")
             }
         }
-        #if os(iOS)
         .navigationTitle("Search")
         .navigationBarTitleDisplayMode(.large)
-        #endif
         .overlay(alignment: .bottomTrailing) {
             if showsUITestResultsCount {
                 Text("results:\(viewModel.searchResults.count)")
@@ -59,24 +58,12 @@ struct SearchView: View {
     }
 }
 
-/// The results themselves, per shell. macOS renders them in the split view's
-/// content column, where selection — not a push — is how an entry is opened,
-/// so it uses the native `List(selection:)` that gives the column arrow keys
-/// and type-select; the button rows of the shared `EntryListView` would eat the
-/// click the list needs. iOS keeps the shared list.
 private struct SearchResultsList: View {
     @Bindable var viewModel: DatabaseViewModel
     let onSelectEntry: ((KPEntry) -> Void)?
     let onRequestDeletion: ((PendingDeletion) -> Void)?
 
     var body: some View {
-        #if os(macOS)
-        MacEntriesList(
-            viewModel: viewModel,
-            entries: viewModel.searchResults,
-            onRequestDeletion: onRequestDeletion
-        )
-        #else
         EntryListView(
             entries: viewModel.searchResults,
             viewModel: viewModel,
@@ -85,6 +72,6 @@ private struct SearchResultsList: View {
             header: String(localized: "Results: \(viewModel.searchResults.count)"),
             footer: String(localized: "Type to search by title, username, URL, notes, or tags.")
         )
-        #endif
     }
 }
+#endif

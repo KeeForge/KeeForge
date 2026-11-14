@@ -151,15 +151,14 @@ extension PendingDeletion {
     }
 }
 
+#if os(iOS)
 /// Hosts a list's own delete confirmation, and nothing when the list raises it
 /// to a host that already owns one.
 ///
 /// Two sibling `.alert(item:)` on one presentation context collide and SwiftUI
 /// silently drops one, so the second host never presents. An embedded entry
 /// list hits that whenever its container already hosts a `PendingDeletion`:
-/// the search results render inside `GroupListView`, and on macOS the search
-/// results and the tag browser render inside the workspace's content column.
-/// Those lists hand their confirmation to the container instead of adding a
+/// the search results render inside `GroupListView`. Those lists hand their confirmation to the container instead of adding a
 /// host; a list that is its own pushed screen keeps hosting it here.
 struct ListScopedDeletionAlert: ViewModifier {
     @Binding var pending: PendingDeletion?
@@ -174,6 +173,7 @@ struct ListScopedDeletionAlert: ViewModifier {
         }
     }
 }
+#endif
 
 /// Identifies the item whose Move-to-Group picker is showing, so
 /// `sheet(item:)` has an `Identifiable` to key on.
@@ -259,6 +259,7 @@ extension PendingMove {
     }
 }
 
+#if os(iOS)
 struct RestoreRowAction: View {
     let item: DatabaseViewModel.RecycleBinItem
     let viewModel: DatabaseViewModel
@@ -275,8 +276,9 @@ struct RestoreRowAction: View {
 
     private var identifier: String {
         switch item {
-        case .entry: "entry-row.restore-context"
+        case .entry: EntryRowActions.restoreIdentifier
         case .group: "group-row.restore-context"
         }
     }
 }
+#endif

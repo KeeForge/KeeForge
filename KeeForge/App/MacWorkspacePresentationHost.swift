@@ -52,7 +52,7 @@ struct MacWorkspacePresentationHost<Content: View>: View {
                         formViewModel: formViewModel,
                         databaseViewModel: viewModel
                     ) { completion in
-                        if case .created(let entryID) = completion { viewModel.revealEntry(entryID) }
+                        if case .created(let entryID) = completion { presentation.showCreatedEntry(entryID, in: viewModel) }
                         if case .edit(let entryID) = formViewModel.mode,
                            viewModel.workspace.selectedEntryID == entryID,
                            viewModel.entry(withID: entryID) == nil {

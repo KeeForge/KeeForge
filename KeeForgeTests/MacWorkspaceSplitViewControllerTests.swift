@@ -9,10 +9,11 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         let session = try makeSession()
         let autosaveName = MacWindowRestorationStore.splitViewAutosaveName(for: session.databaseReference.id)
         let named = MacWorkspaceSplitViewController(session: session, presentation: MacWorkspacePresentation(),
-            autosaveName: autosaveName)
+            autosaveName: autosaveName, currentSession: { nil })
         XCTAssertEqual(named.splitView.autosaveName, autosaveName)
         // Unnamed, so toggling below writes nothing into the host app's defaults.
-        let controller = MacWorkspaceSplitViewController(session: session, presentation: MacWorkspacePresentation())
+        let controller = MacWorkspaceSplitViewController(session: session, presentation: MacWorkspacePresentation(),
+            currentSession: { nil })
         XCTAssertEqual(controller.splitViewItems.count, 3)
         let sidebar = controller.splitViewItems[0]
         let entries = controller.splitViewItems[1]
@@ -25,6 +26,9 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         XCTAssertEqual(sidebar.minimumThickness, 200)
         XCTAssertEqual(sidebar.maximumThickness, 340)
         XCTAssertEqual(entries.behavior, .contentList)
+        let list = try XCTUnwrap(entries.viewController as? MacEntryListViewController)
+        XCTAssertTrue(list === controller.entryList)
+        XCTAssertTrue(list.session === session)
         XCTAssertEqual(entries.minimumThickness, 260)
         XCTAssertEqual(entries.maximumThickness, 460)
         XCTAssertNil(controller.splitView.autosaveName)
@@ -37,7 +41,7 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
     }
 
     func testWindowKeepsControllerUntilSessionChangesThenReleasesIt() throws {
-        let workspace = MacWindowWorkspace(presentation: MacWorkspacePresentation())
+        let workspace = MacWindowWorkspace(presentation: MacWorkspacePresentation(), currentSession: { nil })
         let first = try makeSession()
         let second = try makeSession()
         weak var original: MacWorkspaceSplitViewController?

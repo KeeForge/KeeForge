@@ -10,7 +10,11 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     let workspacePresentation = MacWorkspacePresentation()
     let splitAutosaveName: NSSplitView.AutosaveName?
     private let initialContentSize: NSSize
-    private lazy var workspace = MacWindowWorkspace(presentation: workspacePresentation, splitAutosaveName: splitAutosaveName)
+    private lazy var workspace = MacWindowWorkspace(
+        presentation: workspacePresentation,
+        splitAutosaveName: splitAutosaveName,
+        currentSession: { [weak self] in self?.currentSession() }
+    )
     private let titleObservation = MacObservation()
     private let windowRegistry: MacDatabaseWindowRegistry
     private let enrollment: TOTPEnrollmentCoordinator
@@ -157,10 +161,12 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     }
     @objc func copyUsername(_ sender: Any?) { commands.copyUsername() }
     @objc func copyPassword(_ sender: Any?) {
-        commands.copyPassword(currentSession: { [weak self] in
-            guard let self, self.isCurrent() else { return nil }
-            return self.session
-        })
+        commands.copyPassword(currentSession: { [weak self] in self?.currentSession() })
+    }
+
+    /// The session a password copy may still disclose into after authentication.
+    private func currentSession() -> DatabaseViewModel? {
+        isCurrent() ? session : nil
     }
     @objc func copyURL(_ sender: Any?) { commands.copyURL() }
     @objc func copyVerificationCode(_ sender: Any?) { commands.copyVerificationCode() }

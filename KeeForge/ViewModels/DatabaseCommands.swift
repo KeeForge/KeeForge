@@ -74,9 +74,16 @@ struct DatabaseCommands {
         guard let session, let entryID = commandEntryID else { return }
         Self.copyEntryPassword(entryID: entryID, in: session, action: passwordCopyAction, currentSession: currentSession)
     }
-    func copyPassword(entryID: UUID, currentSession: @escaping @MainActor () -> DatabaseViewModel?) {
-        guard let session, isUnlocked else { return }
-        Self.copyEntryPassword(entryID: entryID, in: session, action: passwordCopyAction, currentSession: currentSession)
+    @discardableResult
+    func copyPassword(
+        entryID: UUID,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    ) -> Task<Void, Never>? {
+        guard let session, isUnlocked else { return nil }
+        return Self.copyEntryPassword(entryID: entryID, in: session, action: passwordCopyAction,
+                                      currentSession: currentSession, authenticate: authenticate, copy: copy)
     }
     func copyURL() {
         guard let entryID = commandEntryID else { return }

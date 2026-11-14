@@ -66,6 +66,31 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertTrue(presentation.commandEditor === duplicate)
     }
 
+    func testADuplicateFromAListAcrossGroupsSelectsTheCopyInPlaceAndOthersRevealIt() async throws {
+        let entry = KPEntry(title: "Original")
+        let group = KPGroup(name: "Work", entries: [entry])
+        let database = try await makeDatabase(root: KPGroup(name: "Root", groups: [group]))
+        defer { database.lock() }
+        let presentation = MacWorkspacePresentation()
+        let duplicate = EntryEditViewModel(createIn: group.id)
+
+        database.workspace.selectedTag = "Shared"
+        presentation.beginEntryDuplicate(duplicate, selectingInPlace: true)
+        XCTAssertTrue(presentation.selectsCreatedEntryInPlace)
+        presentation.showCreatedEntry(entry.id, in: database)
+        XCTAssertEqual(database.workspace.selectedTag, "Shared", "The tag browser stays")
+        XCTAssertEqual(database.workspace.selectedEntryID, entry.id)
+        presentation.commandEditor = nil
+        XCTAssertFalse(presentation.selectsCreatedEntryInPlace, "The placement ends with its editor")
+
+        presentation.beginEntryDuplicate(duplicate)
+        XCTAssertFalse(presentation.selectsCreatedEntryInPlace)
+        presentation.showCreatedEntry(entry.id, in: database)
+        XCTAssertNil(database.workspace.selectedTag)
+        XCTAssertEqual(database.workspace.selectedGroupID, group.id, "A group-column duplicate is revealed")
+        XCTAssertEqual(database.workspace.selectedEntryID, entry.id)
+    }
+
     func testDeletionSnapshotsTheSelectedEntryOrGroupWithoutMutatingTheDraft() async throws {
         let entry = KPEntry(title: "Active")
         let recycledEntry = KPEntry(title: "Recycled")
@@ -160,7 +185,7 @@ final class MacWorkspacePresentationTests: XCTestCase {
 
         let presentation = MacWorkspacePresentation()
         database.workspace.clearSelection()
-        _ = MacWorkspaceSplitViewController(session: database, presentation: presentation)
+        _ = MacWorkspaceSplitViewController(session: database, presentation: presentation, currentSession: { nil })
         XCTAssertEqual(database.workspace.selectedGroupID, root.id, "The window opened on the Recycle Bin")
         XCTAssertEqual(MacWindowWorkspace.subtitle(for: database), "Root")
 

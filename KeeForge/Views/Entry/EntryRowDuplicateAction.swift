@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// The Duplicate item every entry row's context menu offers, next to the copy
@@ -20,3 +21,4 @@ struct EntryRowDuplicateAction: View {
         }
     }
 }
+#endif

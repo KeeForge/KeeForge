@@ -8,10 +8,17 @@ final class MacWindowWorkspace {
     private(set) var toolbar: MacWorkspaceToolbar?
     private let presentation: MacWorkspacePresentation
     private let splitAutosaveName: NSSplitView.AutosaveName?
+    private let currentSession: @MainActor () -> DatabaseViewModel?
 
-    init(presentation: MacWorkspacePresentation, splitAutosaveName: NSSplitView.AutosaveName? = nil) {
+    /// `currentSession` is the window's own session while it still owns that window.
+    init(
+        presentation: MacWorkspacePresentation,
+        splitAutosaveName: NSSplitView.AutosaveName? = nil,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?
+    ) {
         self.presentation = presentation
         self.splitAutosaveName = splitAutosaveName
+        self.currentSession = currentSession
     }
 
     static func subtitle(for session: DatabaseViewModel?) -> String {
@@ -26,7 +33,8 @@ final class MacWindowWorkspace {
     func show(_ session: DatabaseViewModel?) {
         guard splitViewController?.session !== session else { return }
         let controller = session.map {
-            MacWorkspaceSplitViewController(session: $0, presentation: presentation, autosaveName: splitAutosaveName)
+            MacWorkspaceSplitViewController(session: $0, presentation: presentation, autosaveName: splitAutosaveName,
+                                            currentSession: currentSession)
         }
         toolbar = controller.map { MacWorkspaceToolbar(session: $0.session, presentation: presentation) }
         splitViewController = controller
@@ -36,10 +44,17 @@ final class MacWindowWorkspace {
 @MainActor
 final class MacWorkspaceSplitViewController: NSSplitViewController {
     let session: DatabaseViewModel
+    let entryList: MacEntryListViewController
 
     /// Each database keeps its own widths and collapse state; nil keeps the layout unsaved.
-    init(session: DatabaseViewModel, presentation: MacWorkspacePresentation, autosaveName: NSSplitView.AutosaveName? = nil) {
+    init(
+        session: DatabaseViewModel,
+        presentation: MacWorkspacePresentation,
+        autosaveName: NSSplitView.AutosaveName? = nil,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?
+    ) {
         self.session = session
+        entryList = MacEntryListViewController(session: session, presentation: presentation, currentSession: currentSession)
         super.init(nibName: nil, bundle: nil)
         splitView.isVertical = true
         splitView.dividerStyle = .thin
@@ -51,9 +66,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         sidebar.preferredThicknessFraction = 240.0 / 1080.0
         addSplitViewItem(sidebar)
 
-        let entries = NSSplitViewItem(contentListWithViewController: Self.host(session: session, presentation: presentation,
-            MacWorkspaceEntriesColumn(viewModel: session, presentation: presentation)
-        ))
+        let entries = NSSplitViewItem(contentListWithViewController: entryList)
         entries.minimumThickness = 260
         entries.maximumThickness = 460
         entries.preferredThicknessFraction = 320.0 / 1080.0

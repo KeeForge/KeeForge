@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// The Restore and Move to Group items every entry row's context menu offers,
@@ -20,3 +21,4 @@ struct EntryRowMoveAction: View {
         }
     }
 }
+#endif

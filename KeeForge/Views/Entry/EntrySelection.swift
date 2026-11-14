@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 // Selection mode for the entry lists: the context-menu item that starts it, the
@@ -146,7 +147,6 @@ struct EntrySelectionChrome: ViewModifier {
     @State private var pendingRecycle: Set<UUID>?
 
     func body(content: Content) -> some View {
-        #if os(iOS)
         if #available(iOS 26.0, *), usesToolbar {
             if let selection = viewModel.workspace.entrySelection {
                 content
@@ -212,9 +212,6 @@ struct EntrySelectionChrome: ViewModifier {
         } else {
             content.entrySelectionBar(viewModel: viewModel, onMove: onMove)
         }
-        #else
-        content.entrySelectionBar(viewModel: viewModel, onMove: onMove)
-        #endif
     }
 
     private var recycleTitle: String {
@@ -264,3 +261,4 @@ struct ListScopedSelectionBar: ViewModifier {
         }
     }
 }
+#endif

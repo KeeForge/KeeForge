@@ -9,7 +9,7 @@ Views compose state, collect input, and forward intent and lifecycle events. Wor
 - Preview iOS UI work with `scripts/render-views.sh` before building, installing, or driving a simulator: add or update the screen's states in `KeeForgeTests/ViewRenderTests`, render every shipped language, and review the PNGs. Fall back to a simulator or device only for what a render cannot show, such as navigation, keyboard and focus, animation, glass effects, and secure-field contents.
 - All three shells are first-class. A change to navigation, chrome, editing, or status UI has to be checked in each; prefer sharing the row/detail/editor view over forking per shell.
 - Compact pushes one session from the database list. iPad keeps the list visible and renders the session in a detail workspace. macOS always uses the regular layout (`usesRegularLayout` is hardcoded there).
-- macOS never mounts `Group/GroupListView.swift` or the compact stack: it browses through the AppKit sidebar (`../../KeeForgeMac/App/MacSidebarViewController.swift`) and the entries and detail column roots in `../App/MacWorkspaceColumns.swift`, composed by `MacDatabaseWorkspaceView`. Anything wired only into `GroupListView` is invisible on macOS and needs a counterpart there.
+- macOS never mounts `Group/GroupListView.swift` or the compact stack: it browses through the AppKit sidebar and entry list (`../../KeeForgeMac/App/MacSidebarViewController.swift`, `MacEntryListViewController.swift`) and the detail column root in `../App/MacWorkspaceColumns.swift`, composed by `MacDatabaseWorkspaceView`. Anything wired only into `GroupListView` is invisible on macOS and needs a counterpart there.
 - `EntryEditView` and `GroupEditView` carry no `NavigationStack`. The presenter supplies one: a push on iOS, a sheet on macOS, where pushes inside split-view columns misrender.
 - On iOS a vault editor is the workspace's (`workspace.present(_:)`), never a list's or detail's own `@State`: a layout switch (iPhone Duo open/close, iPad resize) rebuilds every view and would drop the draft. The host passes the editor `workspace.editorCoordinator(database:)` for the same reason: a view-owned coordinator forgets a staged creation and a save in flight.
 
@@ -39,7 +39,6 @@ All of these shims live in `../Extensions/PlatformCompat.swift`.
 - A `ForEach` with `.onMove` produces one concrete row type. An `if`/`else` in its body gives the list two types to reconcile and a drag reorder repaints the old order; move the branch into a `ViewModifier` (`DatabaseRowChrome`).
 - A `List` row holds at most one `NavigationLink`. With several, the row owns the link and a tap opens the wrong destination; a `Button` nested in a link's label gets no taps. Use sibling `Button`s that select or append to `workspace.navigationPath` (tag chips, `VerificationCodeRow`).
 - Entry rows render `DatabaseViewModel.entry(withID:)`, not the entry they were handed. `KPEntry` compares equal by ID, so a caller's array looks unchanged after an edit and the row would show the pre-edit entry.
-- On macOS, a `List(selection:)` row with a tap gesture sets the selection itself instead of relying on the list to still select under the gesture (it does on macOS 27.0; earlier releases are unverified). Details in `Entry/AGENTS.md`.
 
 ### Design
 
@@ -57,7 +56,7 @@ All of these shims live in `../Extensions/PlatformCompat.swift`.
 ### Accessibility identifiers
 
 - `KeeForgeUITests` and `KeeForgeMacUITests` share one identifier surface. Keep identifiers stable or update both suites in the same change, including identifiers no test references yet. A new flow adds identifiers with the feature instead of leaving tests to match visible labels.
-- Identifier stability is not element-type stability. macOS group rows are `NSOutlineView` cells and entry rows `List(selection:)` cells, so `group.navlink` / `entry.navlink` are not buttons there: Mac tests query with `descendants(matching: .any)` (`MacUITestCase.rowQuery`), never `app.buttons`.
+- Identifier stability is not element-type stability. macOS group rows are `NSOutlineView` cells and entry rows `NSTableView` cells, with the identifier on the row's title text, so `group.navlink` / `entry.navlink` are not buttons there: Mac tests query with `descendants(matching: .any)` (`MacUITestCase.rowQuery`), never `app.buttons`.
 - An identifier on a container replaces the identifiers of the controls inside it. Put it on a leaf, or declare the container `.accessibilityElement(children: .contain)` (the tag strips do). This is why the tip cards and the quick-search root carry none.
 - iOS 27 drops identifiers from buttons inside a `Section` of a SwiftUI `Menu` (labels survive). Tests reach those items with `KeeForgeUITestCase.menuButton(identifier:label:)`; keep both the identifier and a stable label.
 - Expose a count or state a test reads as the element's accessibility value, not inside a locale-formatted label.

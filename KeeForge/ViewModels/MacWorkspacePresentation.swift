@@ -4,7 +4,12 @@ import Observation
 
 @MainActor @Observable
 final class MacWorkspacePresentation {
-    var commandEditor: EntryEditViewModel?
+    var commandEditor: EntryEditViewModel? {
+        didSet { if commandEditor == nil { selectsCreatedEntryInPlace = false } }
+    }
+    /// A duplicate made from search results or a tag selects the copy where the
+    /// list is, instead of revealing it in its group.
+    private(set) var selectsCreatedEntryInPlace = false
     var groupEditor: GroupEditViewModel?
     var isShowingNewGroupSheet = false
     var newGroupName = ""
@@ -46,9 +51,19 @@ final class MacWorkspacePresentation {
         beginEntryEdit(entryID: entryID, in: database)
     }
 
-    func beginEntryDuplicate(_ editor: EntryEditViewModel) {
+    func beginEntryDuplicate(_ editor: EntryEditViewModel, selectingInPlace: Bool = false) {
         guard commandEditor == nil else { return }
         commandEditor = editor
+        selectsCreatedEntryInPlace = selectingInPlace
+    }
+
+    /// Where a saved New Entry or Duplicate lands once the editor sheet completes.
+    func showCreatedEntry(_ entryID: UUID, in database: DatabaseViewModel) {
+        if selectsCreatedEntryInPlace {
+            database.workspace.selectedEntryID = entryID
+        } else {
+            database.revealEntry(entryID)
+        }
     }
 
     func beginGroupEdit(groupID: UUID, in database: DatabaseViewModel) {

@@ -9,6 +9,7 @@ struct EntryRowActions {
     static let copyUsernameIdentifier = "entry-row.copy-username-context"
     static let copyPasswordIdentifier = "entry-row.copy-password-context"
     static let duplicateIdentifier = "entry-row.duplicate-context"
+    static let restoreIdentifier = "entry-row.restore-context"
     static let moveIdentifier = "entry-row.move-context"
     static let selectIdentifier = "entry-row.select-context"
     static let deleteIdentifier = "entry-row.delete-context"
