@@ -106,6 +106,12 @@ so expansion and selection survive edits. Selection writes the workspace and
 follows it back (unfolding ancestors); expansion is the presentation's
 `collapsedGroupIDs`, kept for the window's life. Group-row menus come from
 `MacSidebarGroupActions` and set the same presentation state the host presents.
+Entry rows dragged from the list drop onto a group row (native drop-on-row
+highlighting and drag image) and move through `MacEntryDrop`, which applies Move
+to Group…'s gates and `PendingMove`, save included; Library, tags, headers,
+Deleted Entries and deleted groups refuse the drop. The drag pasteboard holds only
+entry UUIDs under a private type tagged with the database and window, so another
+window or app refuses or ignores it. Groups do not drag.
 The status card is always shown for an unlocked database: its name (with the
 Read-Only badge), Database Settings, Sync Now (cloud only) and Lock, the
 storage and state line from `MacDatabaseStatus`, and the state's one recovery

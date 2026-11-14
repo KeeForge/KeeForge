@@ -90,6 +90,8 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         outlineView.setAccessibilityIdentifier(Self.outlineIdentifier)
         outlineView.dataSource = self
         outlineView.delegate = self
+        outlineView.registerForDraggedTypes([Self.entryDragType])
+        outlineView.draggingDestinationFeedbackStyle = .sourceList
         let menu = NSMenu()
         menu.delegate = self
         outlineView.menu = menu
@@ -443,6 +445,37 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
 
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
         (item as? MacSidebarOutlineItem)?.children.isEmpty == false
+    }
+
+    // MARK: - Entry drops
+
+    static let entryDragType = NSPasteboard.PasteboardType(MacEntryDrop.pasteboardType)
+
+    /// Only onto a row: a drop between rows has no group to land in.
+    func outlineView(
+        _ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int
+    ) -> NSDragOperation {
+        guard case let (entryIDs, target)? = entryDrop(info, item: item, childIndex: index),
+              MacEntryDrop(session: session, presentation: presentation).canDrop(entryIDs, onto: target) else { return [] }
+        return .move
+    }
+
+    func outlineView(
+        _ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int
+    ) -> Bool {
+        guard case let (entryIDs, target)? = entryDrop(info, item: item, childIndex: index) else { return false }
+        return MacEntryDrop(session: session, presentation: presentation).drop(entryIDs, onto: target)
+    }
+
+    private func entryDrop(_ info: NSDraggingInfo, item: Any?, childIndex: Int) -> (Set<UUID>, MacSidebarItemID)? {
+        guard childIndex == NSOutlineViewDropOnItemIndex, let target = (item as? MacSidebarOutlineItem)?.id else {
+            return nil
+        }
+        let items = (info.draggingPasteboard.pasteboardItems ?? []).map { $0.data(forType: Self.entryDragType) ?? Data() }
+        guard let entryIDs = MacEntryDrop(session: session, presentation: presentation).entryIDs(from: items) else {
+            return nil
+        }
+        return (entryIDs, target)
     }
 
     // MARK: - NSOutlineViewDelegate

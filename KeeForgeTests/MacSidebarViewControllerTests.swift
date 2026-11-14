@@ -639,6 +639,96 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         }.tiffRepresentation.flatMap { NSBitmapImageRep(data: $0)?.representation(using: .png, properties: [:]) })
     }
 
+    // MARK: - Entry drops
+
+    func testEntriesDropOnlyOntoGroupRowsAndMoveWithASave() async throws {
+        let tree = Tree()
+        let saves = SaveCallCounter()
+        let (controller, session, presentation) = try await makeController(tree, save: { _, _, _, hash, _, _, _ in
+            await saves.increment()
+            return .saved(newSHA512: hash)
+        })
+        let outline = controller.outlineView
+        XCTAssertEqual(outline.registeredDraggedTypes, [MacSidebarViewController.entryDragType])
+        XCTAssertEqual(outline.draggingDestinationFeedbackStyle, .sourceList)
+        let drag = try dragging([tree.ssh.id], session: session, presentation: presentation)
+        defer { drag.draggingPasteboard.releaseGlobally() }
+        func validate(_ id: MacSidebarItemID, _ index: Int = NSOutlineViewDropOnItemIndex) -> NSDragOperation {
+            controller.outlineView(outline, validateDrop: drag, proposedItem: controller.item(for: id),
+                                   proposedChildIndex: index)
+        }
+
+        XCTAssertEqual(validate(.group(tree.family.id)), .move)
+        XCTAssertEqual(validate(.group(tree.family.id), 0), [], "Between rows there is no group to land in")
+        XCTAssertEqual(validate(.group(tree.servers.id)), [], "Already there")
+        XCTAssertEqual(validate(.group(tree.recycleBin.id)), [], "Deleted Entries is no drop target")
+        XCTAssertEqual(validate(.group(tree.old.id)), [])
+        for id: MacSidebarItemID in [.collection(.allEntries), .tag("Work"), .section(.groups)] {
+            XCTAssertEqual(validate(id), [], "\(id)")
+        }
+        XCTAssertEqual(controller.outlineView(outline, validateDrop: drag, proposedItem: nil,
+                                              proposedChildIndex: NSOutlineViewDropOnItemIndex), [])
+
+        XCTAssertFalse(controller.outlineView(outline, acceptDrop: drag, item: controller.item(for: .group(tree.recycleBin.id)),
+                                              childIndex: NSOutlineViewDropOnItemIndex))
+        XCTAssertTrue(controller.outlineView(outline, acceptDrop: drag, item: controller.item(for: .group(tree.family.id)),
+                                             childIndex: NSOutlineViewDropOnItemIndex))
+        XCTAssertEqual(session.parentGroupID(forEntryID: tree.ssh.id), tree.family.id)
+        for _ in 0..<200 where session.isDirty || session.isSaving {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let saveCount = await saves.value
+        XCTAssertEqual(saveCount, 1)
+        XCTAssertFalse(session.isDirty)
+    }
+
+    func testDropsFromAnotherWindowOrWhileSavingAreRefused() async throws {
+        let tree = Tree()
+        let gate = SaveGate()
+        let (controller, session, presentation) = try await makeController(tree, save: { _, _, _, hash, _, _, _ in
+            await gate.signalStarted()
+            await gate.waitUntilOpen()
+            return .saved(newSHA512: hash)
+        })
+        let outline = controller.outlineView
+        let family = controller.item(for: .group(tree.family.id))
+        let foreign = try dragging([tree.ssh.id], session: session, presentation: MacWorkspacePresentation())
+        defer { foreign.draggingPasteboard.releaseGlobally() }
+        XCTAssertEqual(controller.outlineView(outline, validateDrop: foreign, proposedItem: family,
+                                              proposedChildIndex: NSOutlineViewDropOnItemIndex), [])
+        XCTAssertFalse(controller.outlineView(outline, acceptDrop: foreign, item: family,
+                                              childIndex: NSOutlineViewDropOnItemIndex))
+
+        let drag = try dragging([tree.ssh.id], session: session, presentation: presentation)
+        defer { drag.draggingPasteboard.releaseGlobally() }
+        try session.createGroup(named: "Draft", in: tree.work.id)
+        let save = try XCTUnwrap(DatabaseCommands(session: session).save())
+        await gate.waitUntilStarted()
+        XCTAssertTrue(session.isSaving)
+        XCTAssertEqual(controller.outlineView(outline, validateDrop: drag, proposedItem: family,
+                                              proposedChildIndex: NSOutlineViewDropOnItemIndex), [])
+        await gate.open()
+        await save.value
+        XCTAssertEqual(session.parentGroupID(forEntryID: tree.ssh.id), tree.servers.id)
+    }
+
+    /// A drag pasteboard holding what the entry list writes for `entryIDs`.
+    private func dragging(
+        _ entryIDs: [UUID], session: DatabaseViewModel, presentation: MacWorkspacePresentation
+    ) throws -> FakeDraggingInfo {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("KeeForgeTests.drag.\(UUID().uuidString)"))
+        let drop = MacEntryDrop(session: session, presentation: presentation)
+        let items = try entryIDs.map { entryID in
+            let item = NSPasteboardItem()
+            item.setData(try XCTUnwrap(drop.pasteboardData(forEntryID: entryID)),
+                         forType: MacSidebarViewController.entryDragType)
+            return item
+        }
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.writeObjects(items))
+        return FakeDraggingInfo(pasteboard: pasteboard)
+    }
+
     // MARK: - Helpers
 
     private func makeController(
@@ -736,5 +826,35 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         guard row >= 0 else { return nil }
         return outline.view(atColumn: 0, row: row, makeIfNecessary: true) as? NSTableCellView
     }
+}
+
+/// Just enough of a drag for the outline's drop methods: they read only the pasteboard.
+nonisolated private final class FakeDraggingInfo: NSObject, NSDraggingInfo {
+    let draggingPasteboard: NSPasteboard
+    var draggingFormation: NSDraggingFormation = .default
+    var animatesToDestination = false
+    var numberOfValidItemsForDrop = 0
+
+    init(pasteboard: NSPasteboard) {
+        draggingPasteboard = pasteboard
+    }
+
+    var draggingDestinationWindow: NSWindow? { nil }
+    var draggingSourceOperationMask: NSDragOperation { .move }
+    var draggingLocation: NSPoint { .zero }
+    var draggedImageLocation: NSPoint { .zero }
+    var draggedImage: NSImage? { nil }
+    var draggingSource: Any? { nil }
+    var draggingSequenceNumber: Int { 0 }
+    var springLoadingHighlight: NSSpringLoadingHighlight { .none }
+    func slideDraggedImage(to screenPoint: NSPoint) {}
+    func resetSpringLoading() {}
+    func enumerateDraggingItems(
+        options enumOpts: NSDraggingItemEnumerationOptions = [],
+        for view: NSView?,
+        classes classArray: [AnyClass],
+        searchOptions: [NSPasteboard.ReadingOptionKey: Any] = [:],
+        using block: (NSDraggingItem, Int, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {}
 }
 #endif

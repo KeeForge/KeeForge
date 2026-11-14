@@ -288,4 +288,77 @@ struct MacSidebarGroupActions: Equatable {
         canAddSubgroup || canEdit || canRestore || canMove || canDelete
     }
 }
+
+/// Dragging list entries onto a sidebar group: what the drag pasteboard
+/// carries, and whether a drop moves the entries. A drop is a Move to Group…
+/// through `PendingMove`, save included; the Recycle Bin is no destination.
+@MainActor
+struct MacEntryDrop {
+    /// Private, so other apps find nothing they read; each item is one entry.
+    static let pasteboardType = "com.keeforge.mac.entry-drag"
+
+    let session: DatabaseViewModel
+    /// The window presentation's lifetime, which a lock renews.
+    let windowID: UUID
+
+    init(session: DatabaseViewModel, presentation: MacWorkspacePresentation) {
+        self.session = session
+        windowID = presentation.lifetimeID
+    }
+
+    private var isWritable: Bool {
+        session.state == .unlocked && session.isSaving == false && session.isReadOnly == false
+    }
+
+    private func isMovable(_ entryID: UUID) -> Bool {
+        session.entry(withID: entryID) != nil && EntryRowActions(entryID: entryID, session: session).canMove
+    }
+
+    /// Nil for an entry that cannot move, so its row starts no drag.
+    func pasteboardData(forEntryID entryID: UUID) -> Data? {
+        guard isWritable, isMovable(entryID) else { return nil }
+        return Self.bytes(session.databaseReference.id) + Self.bytes(windowID) + Self.bytes(entryID)
+    }
+
+    /// A UUID's 16 raw bytes; an item is the database, window and entry IDs back to back.
+    private static func bytes(_ id: UUID) -> Data {
+        withUnsafeBytes(of: id.uuid) { Data($0) }
+    }
+
+    /// Nil when any item is unreadable or comes from another window or database.
+    func entryIDs(from items: [Data]) -> Set<UUID>? {
+        guard items.isEmpty == false else { return nil }
+        let source = Self.bytes(session.databaseReference.id) + Self.bytes(windowID)
+        var entryIDs: Set<UUID> = []
+        for data in items {
+            guard data.count == source.count + 16, data.prefix(source.count) == source else { return nil }
+            let entry = Data(data.suffix(16))
+            entryIDs.insert(entry.withUnsafeBytes { UUID(uuid: $0.loadUnaligned(as: uuid_t.self)) })
+        }
+        return entryIDs
+    }
+
+    /// Move to Group…'s gates: a writable database, movable entries, a group the
+    /// picker offers, and at least one entry not already there.
+    func canDrop(_ entryIDs: Set<UUID>, onto target: MacSidebarItemID) -> Bool {
+        guard isWritable, case .group(let groupID) = target, entryIDs.isEmpty == false,
+              entryIDs.allSatisfy(isMovable),
+              session.moveDestinationOptions(forEntryIDs: entryIDs).contains(where: { $0.id == groupID }) else {
+            return false
+        }
+        return entryIDs.contains { session.parentGroupID(forEntryID: $0) != groupID }
+    }
+
+    @discardableResult
+    func drop(_ entryIDs: Set<UUID>, onto target: MacSidebarItemID) -> Bool {
+        guard canDrop(entryIDs, onto: target), case .group(let groupID) = target else { return false }
+        let move: PendingMove = if entryIDs.count == 1, let entryID = entryIDs.first {
+            .entry(entryID)
+        } else {
+            .entries(entryIDs)
+        }
+        move.apply(destinationGroupID: groupID, viewModel: session)
+        return true
+    }
+}
 #endif

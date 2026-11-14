@@ -98,6 +98,9 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         tableView.doubleAction = #selector(openClickedRow(_:))
         tableView.onOpen = { [weak self] in self?.openSelectedEntry() ?? false }
         tableView.onCancel = { [weak self] in self?.cancelSelection() ?? false }
+        // Rows drag only onto this window's sidebar; other apps are offered nothing.
+        tableView.setDraggingSourceOperationMask(.move, forLocal: true)
+        tableView.setDraggingSourceOperationMask([], forLocal: false)
         let menu = NSMenu()
         menu.delegate = self
         tableView.menu = menu
@@ -464,6 +467,16 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
 
     func numberOfRows(in tableView: NSTableView) -> Int {
         rows.count
+    }
+
+    /// The row's entry UUID under `MacEntryDrop`'s private type; a row that cannot move starts no drag.
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
+        guard rows.indices.contains(row),
+              let data = MacEntryDrop(session: session, presentation: presentation)
+                  .pasteboardData(forEntryID: rows[row].id) else { return nil }
+        let item = NSPasteboardItem()
+        item.setData(data, forType: MacSidebarViewController.entryDragType)
+        return item
     }
 
     // MARK: - NSTableViewDelegate

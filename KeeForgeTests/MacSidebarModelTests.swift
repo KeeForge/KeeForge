@@ -459,6 +459,124 @@ final class MacSidebarGroupActionsTests: MacSidebarSessionTestCase {
 }
 
 @MainActor
+final class MacEntryDropTests: MacSidebarSessionTestCase {
+    /// Root ▸ Work (Alpha, Beta), Root ▸ Home (Gamma), and a Recycle Bin holding Gone and the group Old.
+    private struct Tree {
+        let alpha = KPEntry(title: "Alpha", username: "alpha-user")
+        let beta = KPEntry(title: "Beta", username: "beta-user")
+        let gamma = KPEntry(title: "Gamma")
+        let gone = KPEntry(title: "Gone")
+        let work: KPGroup
+        let home: KPGroup
+        let old = KPGroup(name: "Old")
+        let recycleBin: KPGroup
+        let root: KPGroup
+
+        init() {
+            work = KPGroup(name: "Work", entries: [alpha, beta])
+            home = KPGroup(name: "Home", entries: [gamma])
+            recycleBin = KPGroup(name: "Recycle Bin", entries: [gone], groups: [old])
+            root = KPGroup(name: "Root", groups: [work, home, recycleBin], recycleBinUUID: recycleBin.id)
+        }
+    }
+
+    private func make() async throws -> (Tree, DatabaseViewModel, MacWorkspacePresentation) {
+        let tree = Tree()
+        let session = try await makeSidebarSession(root: tree.root)
+        XCTAssertEqual(session.state, .unlocked)
+        return (tree, session, MacWorkspacePresentation())
+    }
+
+    func testThePasteboardCarriesOnlyTheEntryWindowAndDatabaseIDs() async throws {
+        let (tree, session, presentation) = try await make()
+        let drop = MacEntryDrop(session: session, presentation: presentation)
+
+        let data = try XCTUnwrap(drop.pasteboardData(forEntryID: tree.alpha.id))
+
+        func bytes(_ id: UUID) -> Data { withUnsafeBytes(of: id.uuid) { Data($0) } }
+        XCTAssertEqual(data, bytes(session.databaseReference.id) + bytes(presentation.lifetimeID) + bytes(tree.alpha.id),
+                       "Three UUIDs and nothing else")
+        XCTAssertEqual(MacEntryDrop.pasteboardType, "com.keeforge.mac.entry-drag")
+        XCTAssertNil(drop.pasteboardData(forEntryID: tree.gone.id), "A recycled entry restores, it does not drag")
+        XCTAssertNil(drop.pasteboardData(forEntryID: UUID()))
+
+        session.setReadOnly(true)
+        XCTAssertNil(drop.pasteboardData(forEntryID: tree.alpha.id))
+    }
+
+    func testDraggedItemsReadBackOnlyInTheirOwnWindowAndDatabase() async throws {
+        let (tree, session, presentation) = try await make()
+        let drop = MacEntryDrop(session: session, presentation: presentation)
+        let items = try [tree.alpha.id, tree.gamma.id].map { try XCTUnwrap(drop.pasteboardData(forEntryID: $0)) }
+
+        XCTAssertEqual(drop.entryIDs(from: items), [tree.alpha.id, tree.gamma.id])
+        XCTAssertNil(drop.entryIDs(from: []))
+        XCTAssertNil(drop.entryIDs(from: items + [Data("Alpha".utf8)]), "One unreadable item refuses the drag")
+        XCTAssertNil(drop.entryIDs(from: [items[0] + Data([0])]))
+
+        let otherWindow = MacEntryDrop(session: session, presentation: MacWorkspacePresentation())
+        XCTAssertNil(otherWindow.entryIDs(from: items))
+        let otherSession = DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(
+            for: TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        ))
+        XCTAssertNotEqual(otherSession.databaseReference.id, session.databaseReference.id)
+        XCTAssertNil(MacEntryDrop(session: otherSession, presentation: presentation).entryIDs(from: items))
+        let foreign = try XCTUnwrap(otherWindow.pasteboardData(forEntryID: tree.beta.id))
+        XCTAssertNil(drop.entryIDs(from: items + [foreign]), "A drag mixing windows is refused whole")
+
+        presentation.reset()
+        XCTAssertNil(MacEntryDrop(session: session, presentation: presentation).entryIDs(from: items),
+                     "A lock renews the window's identity")
+    }
+
+    func testADropMovesOneOrSeveralEntriesThroughTheMovePath() async throws {
+        let (tree, session, presentation) = try await make()
+        let drop = MacEntryDrop(session: session, presentation: presentation)
+
+        XCTAssertTrue(drop.canDrop([tree.alpha.id], onto: .group(tree.home.id)))
+        XCTAssertTrue(drop.drop([tree.alpha.id], onto: .group(tree.home.id)))
+        XCTAssertEqual(session.parentGroupID(forEntryID: tree.alpha.id), tree.home.id)
+
+        session.workspace.setEntrySelection([tree.alpha.id, tree.beta.id])
+        XCTAssertTrue(drop.canDrop([tree.alpha.id, tree.beta.id], onto: .group(tree.home.id)),
+                      "One of them still has to move")
+        XCTAssertTrue(drop.drop([tree.alpha.id, tree.beta.id], onto: .group(tree.home.id)))
+        XCTAssertEqual(session.parentGroupID(forEntryID: tree.beta.id), tree.home.id)
+        XCTAssertNil(session.workspace.entrySelection, "Moving the picks ends the selection, as Move to Group… does")
+
+        XCTAssertFalse(drop.canDrop([tree.alpha.id, tree.beta.id], onto: .group(tree.home.id)))
+        XCTAssertTrue(drop.canDrop([tree.alpha.id, tree.beta.id], onto: .group(tree.root.id)))
+    }
+
+    func testDropsAreRefusedWhereMoveToGroupRefuses() async throws {
+        let (tree, session, presentation) = try await make()
+        let drop = MacEntryDrop(session: session, presentation: presentation)
+        let alpha: Set<UUID> = [tree.alpha.id]
+
+        XCTAssertFalse(drop.canDrop(alpha, onto: .group(tree.work.id)), "Already in that group")
+        XCTAssertFalse(drop.canDrop(alpha, onto: .group(tree.recycleBin.id)), "No board draws a drop on Deleted Entries")
+        XCTAssertFalse(drop.canDrop(alpha, onto: .group(tree.old.id)), "A deleted group is no destination")
+        XCTAssertFalse(drop.canDrop(alpha, onto: .group(UUID())))
+        for target: MacSidebarItemID in [.collection(.allEntries), .collection(.passkeys), .tag("Work"),
+                                         .section(.groups), .caption(.tags)] {
+            XCTAssertFalse(drop.canDrop(alpha, onto: target), "\(target)")
+        }
+        XCTAssertFalse(drop.canDrop([tree.gone.id], onto: .group(tree.home.id)), "Recycled entries come back by Restore")
+        XCTAssertFalse(drop.canDrop([tree.alpha.id, tree.gone.id], onto: .group(tree.home.id)))
+        XCTAssertFalse(drop.canDrop([], onto: .group(tree.home.id)))
+        XCTAssertFalse(drop.canDrop([UUID()], onto: .group(tree.home.id)))
+
+        XCTAssertFalse(drop.drop(alpha, onto: .group(tree.recycleBin.id)))
+        XCTAssertEqual(session.parentGroupID(forEntryID: tree.alpha.id), tree.work.id)
+
+        session.setReadOnly(true)
+        XCTAssertFalse(drop.canDrop(alpha, onto: .group(tree.home.id)))
+        XCTAssertFalse(drop.drop([tree.alpha.id, tree.beta.id], onto: .group(tree.home.id)))
+        XCTAssertEqual(session.parentGroupID(forEntryID: tree.beta.id), tree.work.id)
+    }
+}
+
+@MainActor
 final class MacDatabaseStatusTests: MacSidebarSessionTestCase {
     private func make(_ session: DatabaseViewModel) -> MacDatabaseStatus {
         MacDatabaseStatus.make(session: session, presentation: MacWorkspacePresentation())

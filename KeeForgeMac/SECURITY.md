@@ -312,6 +312,12 @@ database locks.
 Custom-field drag reordering uses a native list of field names. Field values
 are not displayed in that list or its drag previews.
 
+Dragging entries onto a sidebar group puts only entry UUIDs on the drag
+pasteboard, under a private type tagged with the database and window UUIDs; no
+title, username or secret is written, the general pasteboard is not touched,
+and drags outside the app are offered no operation. The drag image is the row
+as drawn on screen, nothing more.
+
 [ScreenProtectionService](../KeeForge/Services/Security/ScreenProtectionService.swift)
 places a blur cover over all app windows, including Settings, when the app
 resigns active and removes it on activation. The SSH Agent tab also removes

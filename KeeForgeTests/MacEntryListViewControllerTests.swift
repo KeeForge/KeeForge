@@ -286,6 +286,33 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertNil(session.workspace.entrySelection)
     }
 
+    // MARK: - Dragging
+
+    func testMovableRowsDragTheirEntryIDUnderThePrivateTypeOnly() async throws {
+        let (controller, session, presentation, tree) = try await makeController()
+        let table = controller.tableView
+        let generalChangeCount = NSPasteboard.general.changeCount
+        let entry = tree.work.entries[1]
+        let row = try XCTUnwrap(rowIndex(controller, entryID: entry.id))
+
+        let item = try XCTUnwrap(controller.tableView(table, pasteboardWriterForRow: row) as? NSPasteboardItem)
+
+        XCTAssertEqual(item.types, [MacSidebarViewController.entryDragType])
+        let data = try XCTUnwrap(item.data(forType: MacSidebarViewController.entryDragType))
+        XCTAssertEqual(MacEntryDrop(session: session, presentation: presentation).entryIDs(from: [data]), [entry.id])
+        XCTAssertEqual(data, MacEntryDrop(session: session, presentation: presentation).pasteboardData(forEntryID: entry.id))
+        XCTAssertEqual(NSPasteboard.general.changeCount, generalChangeCount, "The general pasteboard is untouched")
+        XCTAssertNil(controller.tableView(table, pasteboardWriterForRow: table.numberOfRows))
+
+        session.workspace.selectedGroupID = tree.recycleBin.id
+        await settle()
+        XCTAssertEqual(titles(controller), ["Gone"])
+        XCTAssertNil(controller.tableView(table, pasteboardWriterForRow: 0), "A recycled entry restores, it does not drag")
+
+        let (readOnly, _, _, _) = try await makeController(readOnly: true)
+        XCTAssertNil(readOnly.tableView(readOnly.tableView, pasteboardWriterForRow: 0))
+    }
+
     // MARK: - Context menu
 
     func testMenusFollowTheWritableReadOnlyAndRecycleBinGates() async throws {
