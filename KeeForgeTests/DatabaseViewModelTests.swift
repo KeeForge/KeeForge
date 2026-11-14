@@ -7809,40 +7809,74 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testRekeyDuringLocalReadPublicationDoesNotRestoreTheOldUnlockFactor() async throws {
-        let setup = try await makeLocalInteropSetup()
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let setup = try await makeLocalInteropSetup(trace: trace)
         let reference = setup.vm.databaseReference
         setup.vm.lock()
         let entered = expectation(description: "old unlock publication paused before coordination")
         let joined = expectation(description: "old unlock worker finished")
+        let cleanupJoined = expectation(description: "cleanup observes old worker completion")
+        let cleanupOpeningFinished = expectation(description: "cleanup observes complete original unlock task")
         let release = DispatchSemaphore(value: 0)
         defer { release.signal() }
         let effects = OSAllocatedUnfairLock(initialState: 0)
         let live = DatabaseListStore.KeyCommitPublicationIO()
+        let coordinateCalls = OSAllocatedUnfairLock(initialState: 0)
         var io = live
         io.coordinate = { target, registry, accessor in
-            entered.fulfill()
-            guard release.wait(timeout: .now() + 30) == .success else { throw CancellationError() }
+            let first = coordinateCalls.withLock { $0 += 1; return $0 == 1 }
+            if first {
+                entered.fulfill()
+                guard release.wait(timeout: .now() + 30) == .success else { throw CancellationError() }
+            }
             try live.coordinate(target, registry, accessor)
         }
-        io.didFinish = { joined.fulfill() }
-        let vm = DatabaseViewModel(databaseReference: reference, localReadPublicationIO: io,
+        io.didFinish = { joined.fulfill(); cleanupJoined.fulfill() }
+        let vm = DatabaseViewModel(databaseReference: reference, localDatabaseReadOperation: { ref in
+            let read = try await DatabaseViewModel.readLocalDatabase(reference: ref, resolveBookmark: { bookmark in
+                guard let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmark) else { return nil }
+                return (resolved.url, true)
+            })
+            XCTAssertNotNil(read.bookmarkRenewal, "The same-VM action must encounter its own actual durable renewal")
+            trace.recordObservation("first-read renewalReceipt=\(read.bookmarkRenewal != nil) targetProof=\(read.sourceIdentity != nil)")
+            return read
+        }, localPublicationFailure: { trace.record($0, $1) }, localReadPublicationIO: io,
             localReadPublicationTimeout: .seconds(30), localReadKeyPersistOperation: { _, _, _ in
                 effects.withLock { $0 += 1 }; return true
             })
         defer { vm.lock() }
-        let opening = Task { await vm.unlock(password: "interop epoch key", keyFileData: Data(repeating: 0x4A, count: 32)) }
+        let openingFinished = expectation(description: "complete original unlock task")
+        let opening = Task {
+            defer { openingFinished.fulfill(); cleanupOpeningFinished.fulfill() }
+            await vm.unlock(password: "interop epoch key", keyFileData: Data(repeating: 0x4A, count: 32))
+        }
+        var openingCompleted = false
         await fulfillment(of: [entered], timeout: 30)
+        var phase = "rekey-after-old-read-entry"
         do {
             XCTAssertEqual(vm.state, .unlocked)
             XCTAssertEqual(vm.sessionKeyFileData, Data(repeating: 0x4A, count: 32))
             try await vm.changeMasterKey(newPassword: "factor removed", newKeyFileData: nil,
                 newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+            phase = "old-read-release-and-join"
             let newReference = vm.databaseReference
             let newKey = vm.compositeKey
             let newSHA = vm.openTimeSHA512
             XCTAssertNil(vm.sessionKeyFileData)
             release.signal()
-            await fulfillment(of: [joined], timeout: 7)
+            let completion = await XCTWaiter.fulfillment(of: [joined, openingFinished], timeout: 7)
+            guard completion == .completed else {
+                vm.lock(); opening.cancel(); release.signal()
+                let cleanup = await XCTWaiter.fulfillment(of: [cleanupJoined, cleanupOpeningFinished], timeout: 7)
+                guard cleanup == .completed else {
+                    XCTFail("Original read task did not quiesce after lock/cancel/release; phase=normal-join timeout=7")
+                    // Never tear down the shared store while this test's worker can still access it.
+                    fatalError("Unquiesced original unlock test task")
+                }
+                await opening.value
+                return XCTFail("Original worker/task completion missed the normal join deadline")
+            }
+            openingCompleted = true
             await opening.value
             XCTAssertEqual(vm.databaseReference, newReference)
             XCTAssertEqual(vm.compositeKey, newKey)
@@ -7861,17 +7895,30 @@ final class DatabaseViewModelTests: XCTestCase {
             XCTAssertFalse(form.hasEffectiveKeyFile)
             form.newPassword = "next form password"
             form.confirmPassword = "next form password"
+            phase = "next-master-key-form"
             let changed = await form.performChange()
             XCTAssertTrue(changed)
+            phase = "reopen-new-password"
             let reopened = DatabaseViewModel(databaseReference: vm.databaseReference, localReadKeyPersistOperation: { _, _, _ in false })
             await reopened.unlock(password: "next form password")
             XCTAssertEqual(reopened.state, .unlocked)
             XCTAssertNil(reopened.sessionKeyFileData)
             reopened.lock()
         } catch {
+            let diagnostic = trace.failure(error, at: phase)
+            XCTFail(diagnostic)
+            vm.lock()
+            opening.cancel()
             release.signal()
-            await fulfillment(of: [joined], timeout: 7)
-            await opening.value
+            if !openingCompleted {
+                let cleanup = await XCTWaiter.fulfillment(of: [cleanupJoined, cleanupOpeningFinished], timeout: 7)
+                guard cleanup == .completed else {
+                    XCTFail("Original read task did not quiesce after lock/cancel/release; phase=error-join timeout=7")
+                    // Never tear down the shared store while this test's worker can still access it.
+                    fatalError("Unquiesced original unlock test task")
+                }
+                await opening.value
+            }
             throw error
         }
     }

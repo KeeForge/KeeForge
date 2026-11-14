@@ -499,7 +499,7 @@ enum LocalDatabaseSaver {
                 // An opaque adapter error after entering replacement is not proof of no effect.
                 return .indeterminate(scope: scope)
             }
-            let localCommit: PendingLocalSaveStore.CommitReceipt?
+            var localCommit: PendingLocalSaveStore.CommitReceipt?
             var unconfirmed: Bool
             var warningScope = scope
             switch replaceOutcome {
@@ -513,9 +513,33 @@ enum LocalDatabaseSaver {
             case .replacedWithUnconfirmedBookkeeping(let receipt):
                 localCommit = receipt; unconfirmed = true; warningScope = .recoveryRecord
             }
+            if !unconfirmed, var committed = localCommit, committed.purpose == .merge {
+                var renewal: DatabaseListStore.DatabaseBookmarkRenewal?
+                do {
+                    if reference.bookmarkData != nil {
+                        renewal = try DatabaseListStore.publishInstalledMergeBookmark(for: reference,
+                            commit: committed, grantedTarget: location.url)
+                    }
+                    let refreshed = renewal?.after ?? reference
+                    let completion = $scopedOriginalLocation.withValue(location) {
+                        completePendingMerge(committed, reference: refreshed, io: environment.pendingLocalStorageIO,
+                            onFailure: environment.localPublicationFailure)
+                    }
+                    committed.mergeCompletion = .init(bookmark: renewal, resolution: completion)
+                    localCommit = committed
+                    if completion != .resolved { unconfirmed = true; warningScope = .recoveryRecord }
+                } catch {
+                    environment.localPublicationFailure("merge-bookmark-publication", error)
+                    committed.mergeCompletion = .init(bookmark: renewal, resolution: .retainedForRecovery)
+                    localCommit = committed
+                    unconfirmed = true
+                    warningScope = .recoveryRecord
+                }
+            }
             if ordinaryToken != nil, !unconfirmed {
                 let completion = $scopedOriginalLocation.withValue(location) {
-                    localCommit.map { completePendingMerge($0, reference: reference, io: environment.pendingLocalStorageIO) }
+                    localCommit.map { completePendingMerge($0, reference: reference, io: environment.pendingLocalStorageIO,
+                        onFailure: environment.localPublicationFailure) }
                         ?? .retainedForRecovery
                 }
                 if completion != .resolved { unconfirmed = true; warningScope = .recoveryRecord }
@@ -544,13 +568,14 @@ enum LocalDatabaseSaver {
             // A pending local save keeps the shared copy too: that copy holds an
             // AutoFill save these bytes may not contain, and AutoFill reads it.
             // Whoever merges the pending saves refreshes the copy afterwards.
-            let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+            let cacheReference = localCommit?.mergeCompletion?.bookmark?.after ?? reference
+            let cacheURL = DatabaseListStore.cacheLocation(for: cacheReference)
             if canonicalPath(of: location.url) != canonicalPath(of: cacheURL),
                newCompositeKey != nil || localCommit?.purpose == .ordinarySave || environment.hasPendingLocalSaves(reference) == false {
                 $scopedOriginalLocation.withValue(location) {
                     PendingLocalSaveStore.$cacheCommit.withValue(localCommit) {
                         do {
-                            try environment.cacheDatabaseCopy(newData, reference)
+                            try environment.cacheDatabaseCopy(newData, cacheReference)
                         } catch {
                             // The file is already replaced, so the save has succeeded. An
                             // older copy must not keep answering AutoFill for it; with
@@ -833,14 +858,19 @@ enum LocalDatabaseSaver {
 
     static func completePendingMerge(
         _ receipt: PendingLocalSaveStore.CommitReceipt, reference: DatabaseReference,
-        io: PendingLocalSaveStore.StorageIO = .init(), scopeIO: SecurityScopeIO = .init()
+        io: PendingLocalSaveStore.StorageIO = .init(), scopeIO: SecurityScopeIO = .init(),
+        onFailure: @Sendable (String, Error) -> Void = { _, _ in }
     ) -> PendingLocalSaveStore.ResolutionOutcome {
+        var phase = "complete-original-scope"
+        var failure: (String, Error)?
+        defer { if let failure { onFailure(failure.0, failure.1) } }
         do {
             return try withOriginalScope(reference, scopeIO: scopeIO) { location in
+                phase = "complete-original-observation"
                 let completion = try observeOriginal(at: location.url) { url in
                     PendingLocalSaveStore.complete(receipt, observeTarget: {
                         (try PendingLocalSaveStore.targetIdentity(at: url), FileDigest.sha512(try Data(contentsOf: url)))
-                    }, io: io)
+                    }, io: io, onFailure: { failure = ($0, $1) })
                 }
                 guard completion == .resolved else { return completion }
                 return $scopedOriginalLocation.withValue(location) {
@@ -851,10 +881,11 @@ enum LocalDatabaseSaver {
                             catch { invalidateOlderLocalCache(for: reference, installedSHA512: receipt.sha512, scopeIO: scopeIO) }
                         }
                     }
+                    phase = "complete-key-witness-retirement"
                     return retireSettledKeyWitness(for: reference, io: io)
                 }
             }
-        } catch { return .retainedForRecovery }
+        } catch { if failure == nil { failure = (phase, error) }; return .retainedForRecovery }
     }
 
     static func settleInstalledKeyChange(

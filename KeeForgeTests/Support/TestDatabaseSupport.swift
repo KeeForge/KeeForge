@@ -11,6 +11,10 @@ enum TestDatabaseSupport {
             lock.lock(); defer { lock.unlock() }
             observations.append(value)
         }
+        func recordObservation(_ observation: String) {
+            lock.lock(); defer { lock.unlock() }
+            observations.append(observation)
+        }
         var summary: String { lock.lock(); defer { lock.unlock() }; return observations.joined(separator: ",") }
         func failure(_ error: Error, at phase: String) -> String {
             let escaped = Self.describe(error, phase: phase)

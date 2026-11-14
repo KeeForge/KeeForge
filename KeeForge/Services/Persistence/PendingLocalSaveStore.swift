@@ -103,6 +103,7 @@ enum PendingLocalSaveStore {
         let sha512: Data
         var targetCommit: TargetCommit?
         var encryptedSnapshot: Data?
+        var mergeCompletion: MergeCompletion?
         var targetDurabilityConfirmed: Bool { targetCommit?.isConfirmed == true }
         var installedTarget: TargetIdentity? { targetCommit?.snapshot.target }
         let ownerVersion = 1
@@ -114,6 +115,11 @@ enum PendingLocalSaveStore {
             self.sha512 = sha512
             self.operationID = admission?.operationID ?? operationID ?? UUID()
         }
+    }
+
+    struct MergeCompletion: Sendable, Equatable {
+        let bookmark: DatabaseListStore.DatabaseBookmarkRenewal?
+        let resolution: ResolutionOutcome
     }
 
     struct KeyFilePreference: Codable, Sendable, Equatable {
@@ -676,19 +682,26 @@ enum PendingLocalSaveStore {
         } catch { return .retainedForRecovery }
     }
 
-    static func complete(_ commit: CommitReceipt, observeTarget: () throws -> (TargetIdentity, Data), io: StorageIO = .init()) -> ResolutionOutcome {
+    static func complete(_ commit: CommitReceipt, observeTarget: () throws -> (TargetIdentity, Data), io: StorageIO = .init(),
+        onFailure: (String, Error) -> Void = { _, _ in }
+    ) -> ResolutionOutcome {
+        var phase = "complete-owner-load"
         do {
             return try withLock(for: commit.databaseID) {
                 try requireNotRemoved(commit.databaseID)
                 var state = try loadState(commit.databaseID) ?? OwnerState(version: 1, removed: false)
+                phase = "complete-owner-receipt"
                 guard commit.targetDurabilityConfirmed, state.version == commit.ownerVersion,
                       case .recoveryRequired(let admission) = state.operation, admission == commit.admission,
                       admission.intendedSHA512 == commit.sha512, (admission.purpose == .merge || admission.purpose == .ordinarySave),
                       let installed = commit.installedTarget else { throw OwnershipError.sourceChanged }
+                phase = "complete-owner-target"
                 let (target, sha) = try observeTarget()
                 guard target == installed, sha == commit.sha512, target.canonicalPath == admission.target.canonicalPath,
                       target.parent == admission.target.parent else { throw OwnershipError.targetChanged }
+                phase = "complete-owner-source-validation"
                 for receipt in admission.sources { try validate(receipt, databaseID: commit.databaseID) }
+                phase = "complete-owner-source-retirement"
                 for receipt in admission.sources {
                     try removeDurably(receipt.relativePath, databaseID: commit.databaseID, io: io)
                 }
@@ -696,9 +709,10 @@ enum PendingLocalSaveStore {
                 state.sources.removeAll { consumed.contains($0.relativePath) }
                 // All admitted namespaces are confirmed removed before idle can become visible.
                 state.operation = .idle
+                phase = "complete-owner-publication"
                 return try resolution(publish(state, databaseID: commit.databaseID, io: io))
             }
-        } catch { return .retainedForRecovery }
+        } catch { onFailure(phase, error); return .retainedForRecovery }
     }
 
     struct CacheReadLease: Sendable {
@@ -774,6 +788,25 @@ enum PendingLocalSaveStore {
                 try validateKeyTarget(evidence, target: read.target, sha512: read.sha512, sharedCopy: read.sharedCopy, state: state)
             }
             return try publish()
+        }
+    }
+
+    static func withMergeBookmarkPublication<T>(
+        _ commit: CommitReceipt, target: TargetIdentity, sha512: Data, _ publish: (UUID?) throws -> T
+    ) throws -> T {
+        try withLock(for: commit.databaseID) {
+            try requireNotRemoved(commit.databaseID)
+            let state = try loadState(commit.databaseID) ?? OwnerState(version: 1, removed: false)
+            guard commit.targetDurabilityConfirmed, state.version == commit.ownerVersion,
+                  case .recoveryRequired(let admission) = state.operation, admission == commit.admission,
+                  admission.purpose == .merge, admission.intendedSHA512 == commit.sha512,
+                  target == commit.installedTarget, sha512 == commit.sha512,
+                  target.canonicalPath == admission.target.canonicalPath, target.parent == admission.target.parent,
+                  state.retirementID == nil,
+                  state.keyEvidence?.pending == nil else { throw OwnershipError.sourceChanged }
+            if case .known(let date, _) = state.epoch, date != admission.observedMasterKeyChangeAt { throw OwnershipError.sourceChanged }
+            for receipt in admission.sources { try validate(receipt, databaseID: commit.databaseID) }
+            return try publish(state.epoch.id)
         }
     }
 

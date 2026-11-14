@@ -446,3 +446,18 @@ installed commit receipt. Neither the old renewal target nor this observation gr
 a write, cache refresh or source consumption. If proof fails or times out, sources
 remain owned and local recovery is presented; no merge is attempted with the stale
 reference. The pre-renewal empty-source gate and final read-key/cache guards remain.
+
+A merge’s original resolved grant remains active through durable field-specific
+publication of a bookmark for the exact installed target, source retirement and
+cache refresh. The publication validates the actual new commit, current reference,
+owner admission and target identity/SHA; a read renewal is not a replacement grant.
+Failure before durable bookmark publication retains the source admission. The
+nonpersistent commit receipt carries the observed completion, and the VM applies
+only its own bookmark field instead of resolving the replaced inode again.
+
+If a user starts a mutation while the same unlocked action’s durable read renewal
+is still awaiting key publication, that action first closes the old pending permit
+and revalidates its own authenticated bookmark transition. It cannot adopt another
+reference, epoch or factor. Only the current observation is retained with the
+session ciphertext lifecycle, and lock/new session/reload/known replacement clears
+it. Timeout, supersession or failed proof requires recovery without new crypto.

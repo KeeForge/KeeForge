@@ -1266,6 +1266,42 @@ enum DatabaseListStore {
         return .available(url)
     }
 
+    static func publishInstalledMergeBookmark(
+        for expected: DatabaseReference, commit: PendingLocalSaveStore.CommitReceipt, grantedTarget: URL,
+        io: DurableFileWriteIO = .init()
+    ) throws -> DatabaseBookmarkRenewal {
+        guard expected.bookmarkData != nil, !expected.isCloudBacked, commit.databaseID == expected.id,
+              let anchor = AppGroupContainer.resolvedURL else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
+        var coordinationError: NSError?
+        var result: Result<DatabaseBookmarkRenewal, Error>?
+        NSFileCoordinator().coordinate(readingItemAt: grantedTarget, options: [], writingItemAt: databaseListURL,
+            options: .forReplacing, error: &coordinationError) { target, registry in
+            result = Result {
+                let identity = try PendingLocalSaveStore.targetIdentity(at: target)
+                let sha = FileDigest.sha512(try Data(contentsOf: target))
+                let bookmark = try SecurityScopedBookmarkManager.makeBookmarkData(for: target)
+                guard stateLock.try() else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+                defer { stateLock.unlock() }
+                var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                guard let index = references.firstIndex(where: { $0.id == expected.id }),
+                      PendingLocalSaveStore.PreferenceObservation(expected).matches(references[index]),
+                      expected.hardwareKey == references[index].hardwareKey else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
+                return try PendingLocalSaveStore.withMergeBookmarkPublication(commit, target: identity, sha512: sha) { epoch in
+                    let before = references[index]
+                    references[index].bookmarkData = bookmark
+                    switch writeWithDurabilityOutcome(try JSONEncoder().encode(references), to: registry, directoryAnchor: anchor, io: io) {
+                    case .durable:
+                        return DatabaseBookmarkRenewal(before: before, after: references[index], epochID: epoch, target: identity)
+                    case .notPublished(let error), .publishedWithoutConfirmedDurability(let error): throw error
+                    }
+                }
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result else { throw CocoaError(.fileWriteUnknown) }
+        return try result.get()
+    }
+
     private static func renewDatabaseBookmark(
         _ bookmark: Data, expected: DatabaseReference, lease: PendingLocalSaveStore.CacheReadLease,
         targetURL: URL, io: DurableFileWriteIO

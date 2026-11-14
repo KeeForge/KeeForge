@@ -305,3 +305,11 @@ durable transition after exact authenticated target/reference/epoch checks, acce
 only verified eligible sources. Session action/cycle checks prevent late RAM promotion;
 merge obtains new ownership and a new installed receipt. Failed proof retains sources
 for explicit recovery and never adopts another actor’s current factors or epoch.
+
+A local merge keeps its actual bookmark grant through installed-target bookmark
+publication, exact source retirement and cache refresh. The field publisher is
+coordinated with the new target and owner admission; a receipt’s canonical path is
+never access authority. Its RAM-only completion prevents a late VM callback from
+repeating retirement. An explicit same-session mutation can reconcile only its
+own authenticated pending renewal after revoking the old read-key permission;
+current target/reference/epoch checks and session lifecycle guards still apply.
