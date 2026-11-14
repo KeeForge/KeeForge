@@ -40,7 +40,7 @@ struct TagEntriesView: View {
                 .accessibilityIdentifier("tag-entries.list")
             }
         }
-        .modifier(TagEntriesTitle(tag: tag))
+        .modifier(TagEntriesTitle(tag: tag, entryCount: entries.count, viewModel: viewModel))
     }
 }
 
@@ -73,12 +73,18 @@ private struct TagEntriesList: View {
 }
 
 /// Titles the tag-filtered list per shell: iOS pushes it, so the tag becomes the
-/// navigation title (standard truncation for long names); macOS renders it in
-/// the split view's content column, where the window title belongs to the
-/// database, so the tag becomes the subtitle the way the group name does in
-/// `MacEntriesColumn`.
+/// navigation title (standard truncation for long names) with the entry count
+/// under it and Lock in the bar, as on the other vault screens; macOS renders
+/// it in the split view's content column, where the window title belongs to
+/// the database and Lock to the sidebar, so the tag becomes the subtitle the
+/// way the group name does in `MacEntriesColumn`.
 private struct TagEntriesTitle: ViewModifier {
     let tag: String
+    let entryCount: Int
+    let viewModel: DatabaseViewModel
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
 
     func body(content: Content) -> some View {
         #if os(macOS)
@@ -87,6 +93,27 @@ private struct TagEntriesTitle: ViewModifier {
         content
             .navigationTitle(tag)
             .navigationBarTitleDisplayMode(.large)
+            .modifier(EntryCountSubtitle(entryCount: entryCount))
+            .toolbar {
+                ToolbarItem(placement: .databaseActions) {
+                    DatabaseLockButton(viewModel: viewModel, isCompact: horizontalSizeClass == .compact)
+                }
+            }
         #endif
     }
 }
+
+#if os(iOS)
+/// The count under the large title from iOS 26, like the group screens.
+private struct EntryCountSubtitle: ViewModifier {
+    let entryCount: Int
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.navigationSubtitle(Text("\(entryCount) entries"))
+        } else {
+            content
+        }
+    }
+}
+#endif

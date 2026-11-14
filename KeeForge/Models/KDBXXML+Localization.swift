@@ -10,6 +10,8 @@ extension KDBXDocument.ReadError: @retroactive LocalizedError {
             String(localized: "Failed to parse database XML")
         case .invalidProtectedValue:
             String(localized: "The database contains a protected value that could not be decoded.")
+        case .nestingTooDeep:
+            String(localized: "The database nests its groups or data too deeply to open.")
         }
     }
 }
@@ -34,8 +36,12 @@ struct DocumentWriteFailure: LocalizedError, Equatable {
     let ownerName: String?
 
     var errorDescription: String? {
-        let (scalar, location): (Unicode.Scalar, KDBXDocument.WriteError.Location) = switch error {
-        case .invalidXMLCharacter(let scalar, let location): (scalar, location)
+        let (scalar, location): (Unicode.Scalar, KDBXDocument.WriteError.Location)
+        switch error {
+        case .invalidXMLCharacter(let invalidScalar, let invalidLocation):
+            (scalar, location) = (invalidScalar, invalidLocation)
+        case .nestingTooDeep(let owner):
+            return Self.nestingDescription(owner: owner, ownerName: ownerName)
         }
         let character = scalar.codePointText
         guard let part = location.part.displayName else {
@@ -67,12 +73,30 @@ struct DocumentWriteFailure: LocalizedError, Equatable {
 }
 
 extension DocumentWriteFailure {
+    private static func nestingDescription(owner: KDBXDocument.WriteError.Location.Owner, ownerName: String?) -> String {
+        switch (owner, ownerName) {
+        case (.group, let name?):
+            String(
+                format: String(localized: "The group “%@” is nested too deeply, so the database can’t be saved. Move it closer to the top."),
+                name
+            )
+        case (.entry, let name?), (.historyEntry, let name?):
+            String(
+                format: String(localized: "The entry “%@” is in a group nested too deeply, so the database can’t be saved. Move it closer to the top."),
+                name
+            )
+        default:
+            String(localized: "The database nests its groups or data too deeply, so it can’t be saved.")
+        }
+    }
+
     init(_ error: KDBXDocument.WriteError, in document: KDBXDocument) {
         self.error = error
-        let location = switch error {
-        case .invalidXMLCharacter(_, let location): location
+        let owner = switch error {
+        case .invalidXMLCharacter(_, let location): location.owner
+        case .nestingTooDeep(let owner): owner
         }
-        let name: String? = switch location.owner {
+        let name: String? = switch owner {
         case .document, .meta, .root: nil
         case .group(let uuid): document.root.allGroups.last { $0.uuid == uuid }?.name
         case .entry(let uuid), .historyEntry(let uuid):

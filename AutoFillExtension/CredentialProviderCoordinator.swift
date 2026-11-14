@@ -170,10 +170,11 @@ protocol CredentialProviderPresenting: AnyObject {
 
     // MARK: "Ask this question"
 
-    /// Prompt for the master password (with an optional biometric action).
-    /// `onSubmitPassword` receives the raw text field contents; the coordinator
-    /// decides what to do with empty input.
+    /// Prompt for the master password of `database` (with an optional
+    /// biometric action). `onSubmitPassword` receives the raw text field
+    /// contents; the coordinator decides what to do with empty input.
     func presentUnlockPrompt(
+        database: DatabaseReference,
         biometricOptionTitle: String?,
         onSubmitPassword: @escaping (String?) -> Void,
         onChooseBiometrics: @escaping () -> Void,
@@ -944,6 +945,7 @@ final class CredentialProviderCoordinator {
         AutoFillDiagnostics.log("presenting unlock prompt biometricOption=\(canUseBiometrics(for: databaseReference))")
 
         presenter?.presentUnlockPrompt(
+            database: databaseReference,
             biometricOptionTitle: canUseBiometrics(for: databaseReference) ? biometricActionTitle : nil,
             onSubmitPassword: { [weak self] password in
                 guard let self, let password, !password.isEmpty else {

@@ -1836,7 +1836,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.prepareInterfaceToProvideCredential(for: makePasswordIdentity(recordIdentifier: identifier))
         coordinator.presentationDidBecomeActive()
 
-        XCTAssertNotNil(presenter.unlockPrompt, "The owning database's unlock prompt must be requested")
+        let prompt = try XCTUnwrap(presenter.unlockPrompt, "The owning database's unlock prompt must be requested")
+        XCTAssertEqual(prompt.databaseID, databaseB.id, "The prompt must name the database it unlocks")
         XCTAssertEqual(
             coordinator.activeDatabaseReference?.id,
             databaseB.id,

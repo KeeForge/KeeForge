@@ -48,6 +48,13 @@ public struct KDBXDocument: Sendable, Hashable {
         }
     }
 
+    /// The deepest element nesting a read accepts, `<KeePassFile>` counting
+    /// as 1. Reading, writing, and releasing a document recurse once per
+    /// level, so an unbounded file would overflow a background thread's
+    /// stack. A write refuses anything deeper, so it never produces a file
+    /// it cannot open again.
+    public static let maxElementDepth = 256
+
     public enum ReadError: Error, Equatable, Sendable {
         /// The payload is not well-formed XML. Position is 1-based.
         case malformedXML(line: Int, column: Int)
@@ -56,6 +63,8 @@ public struct KDBXDocument: Sendable, Hashable {
         /// A protected value is not base64, so the inner stream position of
         /// every later value is unknown.
         case invalidProtectedValue
+        /// Elements nest deeper than `maxElementDepth`.
+        case nestingTooDeep
     }
 
     public enum TextError: Error, Equatable, Sendable {
@@ -65,6 +74,8 @@ public struct KDBXDocument: Sendable, Hashable {
     public enum WriteError: Error, Equatable, Sendable {
         /// Text XML 1.0 cannot carry, found before any output was built.
         case invalidXMLCharacter(Unicode.Scalar, at: Location)
+        /// The owner's elements would nest deeper than `maxElementDepth`.
+        case nestingTooDeep(at: Location.Owner)
 
         /// The element that holds the character, and the group or entry it
         /// belongs to.
