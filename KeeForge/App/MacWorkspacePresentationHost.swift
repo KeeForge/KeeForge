@@ -1,7 +1,5 @@
 #if os(macOS)
-import AuthenticationServices
 import SwiftUI
-import AppKit
 
 /// Column revisions must never replace the host while a sheet is dismissing.
 struct MacWorkspacePresentationHost<Content: View>: View {
@@ -152,27 +150,6 @@ struct MacWorkspacePresentationHost<Content: View>: View {
         content
             .background(Color(.systemBackground))
             .accessibilityIdentifier("regular-workspace.root")
-            .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 8) {
-                    if viewModel.saveError?.isWriteScopeRequired == true {
-                        CloudReauthBanner(
-                            providerName: viewModel.databaseReference.cloudProviderKind?.displayName ?? "cloud",
-                            isReconnectInFlight: presentation.isCloudReconnectInFlight,
-                            onReconnect: beginCloudReconnect
-                        )
-                    }
-
-                    if viewModel.isDirty && viewModel.isSaving == false {
-                        UnsavedChangesBanner(viewModel: viewModel)
-                    }
-
-                    if viewModel.hasPendingUploadConflict && viewModel.isSaving == false {
-                        PendingUploadConflictBanner(viewModel: viewModel)
-                    }
-                }
-                // The lists scroll under this inset, and the banners are only tinted.
-                .background(Color(.systemBackground), ignoresSafeAreaEdges: [])
-            }
             .disabled(viewModel.isSaving)
             .overlay {
                 if viewModel.isSaving {
@@ -180,28 +157,6 @@ struct MacWorkspacePresentationHost<Content: View>: View {
                 }
             }
             .saveConflictAlert(viewModel: viewModel)
-    }
-
-    @MainActor
-    private func beginCloudReconnect() {
-        guard presentation.isCloudReconnectInFlight == false else { return }
-        guard let providerID = viewModel.databaseReference.cloudSyncMetadata?.provider,
-              let provider = CloudProviderRegistry.provider(for: providerID) else {
-            viewModel.presentSaveError(CloudProviderError.invalidConfiguration)
-            return
-        }
-
-        presentation.reconnectCloud(in: viewModel) {
-            _ = try await provider.authenticate(from: presentationAnchor())
-        }
-    }
-
-    @MainActor
-    private func presentationAnchor() -> ASPresentationAnchor {
-        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first {
-            return window
-        }
-        return ASPresentationAnchor()
     }
 }
 #endif

@@ -115,6 +115,30 @@ final class DatabaseWindowControllerTests: XCTestCase {
         second.lockRequest(force: true)
     }
 
+    func testTheUnlockScreenKeepsTheSafeAreaAndTheBridgedToolbarAcrossAnUnlock() async throws {
+        let session = try makeSession()
+        let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false))
+        let window = try XCTUnwrap(controller.window)
+        let root = try XCTUnwrap(window.contentViewController)
+        window.contentView?.layoutSubtreeIfNeeded()
+        let lockedInsets = root.view.safeAreaInsets
+        let lockedFrame = root.view.frame
+        XCTAssertGreaterThan(lockedInsets.top, 0, "The unlock screen lays out below the titlebar")
+        XCTAssertNotEqual(window.toolbar?.identifier, MacWorkspaceToolbar.identifier)
+
+        await session.unlock(password: "testpassword123")
+        await settle()
+        XCTAssertTrue(window.toolbar === controller.workspaceToolbar?.toolbar)
+        session.lockRequest(force: true)
+        await settle()
+        window.contentView?.layoutSubtreeIfNeeded()
+        XCTAssertTrue(window.contentViewController === root)
+        XCTAssertEqual(root.view.safeAreaInsets.top, lockedInsets.top, "Locking restores the unlock screen's layout")
+        XCTAssertEqual(root.view.frame, lockedFrame)
+        XCTAssertNotEqual(window.toolbar?.identifier, MacWorkspaceToolbar.identifier, "The root's bridged toolbar returns")
+    }
+
     func testCommandsActOnlyWhileTheControllerIsTheCommandTarget() async throws {
         let session = try makeSession()
         let action = EntrySecretAction()

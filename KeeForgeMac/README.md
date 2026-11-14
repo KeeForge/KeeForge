@@ -65,7 +65,8 @@ and selection changes keep the same controller and hosting roots.
 
 One outer `MacWorkspacePresentationHost` remains in `MacDatabaseWorkspaceView`,
 around the native split representable, inside the always-mounted root host.
-It owns workspace sheets, dialogs, alerts, banners, and the saving overlay.
+It owns workspace sheets, dialogs, alerts, and the saving overlay; the banners
+sit at the top of the detail column.
 Column revisions never replace it. It resets presentation state on workspace
 disappearance and rejects old cloud reconnect completions. `MacDatabaseRootView`
 keeps enrollment and its biometric observer mounted across lock/unlock. This
@@ -113,12 +114,13 @@ The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, a
 the detail takes the remaining width. `NSSplitView` autosave owns widths and
 collapse state under `MacWindowRestorationStore.splitViewAutosaveName(for:)`, one
 name per database, including across lock/unlock. View → Show Sidebar is forwarded
-to the target window's native split controller. The split sits below the
-titlebar inside the root host, and each item keeps `allowsFullHeightLayout`: with
-it off, a sidebar collapsed while one of its rows was first responder never
-shows again. An empty content column therefore still shows a toolbar-height band
-with a rule above it (open defect; `titlebarSeparatorStyle = .none` does not
-remove it).
+to the target window's native split controller. The split ignores the root
+host's top safe area, so it runs under the titlebar, and each item keeps
+`allowsFullHeightLayout`: with it off, a sidebar collapsed while one of its rows
+was first responder never shows again. The sidebar runs full height; the entries
+and detail columns take their top inset from their own safe area (the table's
+scroll view adjusts its content insets, the detail host passes it to SwiftUI).
+The unlock, opening and error screens keep the root's safe area.
 
 ## Commands and closing
 
