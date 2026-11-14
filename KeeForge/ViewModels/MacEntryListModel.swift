@@ -34,6 +34,7 @@ struct MacEntryListSnapshot: Equatable {
         let title: String
         /// Field references stay unresolved; the cell resolves only the rows it draws.
         let rawUsername: String
+        /// The groups' path from the Groups root, joined by `folderPathSeparator`; only when the list spans groups.
         let folderPath: String?
         let icon: MacEntryIcon
         /// Set when website icons are on and the entry has no custom icon.
@@ -51,6 +52,7 @@ struct MacEntryListSnapshot: Equatable {
         case noVerificationCodes
         case noDatabaseEntries
         case noGroupEntries
+        case recycleBinEmpty
         case noGroupSelected
 
         var title: String {
@@ -59,6 +61,7 @@ struct MacEntryListSnapshot: Equatable {
             case .noResults: String(localized: "No Results")
             case .noTagEntries, .noDatabaseEntries, .noGroupEntries: String(localized: "No Entries")
             case .noVerificationCodes: String(localized: "No Verification Codes")
+            case .recycleBinEmpty: String(localized: "Recycle Bin Is Empty")
             case .noGroupSelected: String(localized: "Select a Group")
             }
         }
@@ -71,6 +74,7 @@ struct MacEntryListSnapshot: Equatable {
             case .noVerificationCodes: String(localized: "Entries with a verification code appear here.")
             case .noDatabaseEntries: String(localized: "This database has no entries.")
             case .noGroupEntries: String(localized: "This group has no entries.")
+            case .recycleBinEmpty: String(localized: "Deleted entries and groups appear here.")
             case .noGroupSelected: String(localized: "Choose a group to view its entries.")
             }
         }
@@ -82,6 +86,7 @@ struct MacEntryListSnapshot: Equatable {
             case .noTagEntries: "tag.slash"
             case .noVerificationCodes: DatabaseCollection.verificationCodes.systemImage
             case .noDatabaseEntries, .noGroupEntries: "tray"
+            case .recycleBinEmpty: "trash"
             case .noGroupSelected: "folder"
             }
         }
@@ -90,6 +95,8 @@ struct MacEntryListSnapshot: Equatable {
             if case .noResults = self { "search.no-results" } else { nil }
         }
     }
+
+    static let folderPathSeparator = " › "
 
     let mode: Mode
     let rows: [Row]
@@ -127,35 +134,50 @@ struct MacEntryListSnapshot: Equatable {
         return .group(groupID)
     }
 
+    /// The entries `mode` lists, in display order.
+    @MainActor
+    static func entries(for mode: Mode, session: DatabaseViewModel) -> [KPEntry] {
+        switch mode {
+        case .search: session.isSearchQueryEmpty ? [] : session.searchResults
+        case .tag(let tag): session.entries(for: .tag(tag))
+        case .collection(let collection): session.entries(for: .collection(collection))
+        case .group(let groupID): session.entries(for: .group(groupID))
+        case .none: []
+        }
+    }
+
+    /// Whether the current list has no rows, for controls that dim with it (Sort).
+    @MainActor
+    static func listIsEmpty(session: DatabaseViewModel) -> Bool {
+        entries(for: mode(session: session), session: session).isEmpty
+    }
+
     @MainActor
     static func make(
         session: DatabaseViewModel,
         showsWebsiteIcons: Bool = SettingsService.showWebsiteIcons,
         now: Date = .now
     ) -> MacEntryListSnapshot {
-        let mode = mode(session: session)
-        let entries: [KPEntry]
+        let mode = Self.mode(session: session)
+        let entries = Self.entries(for: mode, session: session)
         let emptyState: EmptyState?
         var resultCount: Int?
         switch mode {
         case .search(let query):
-            entries = session.isSearchQueryEmpty ? [] : session.searchResults
             resultCount = session.searchResults.count
             emptyState = session.isSearchQueryEmpty ? .searchPrompt : (entries.isEmpty ? .noResults(query: query) : nil)
-        case .tag(let tag):
-            entries = session.entries(for: .tag(tag))
+        case .tag:
             emptyState = entries.isEmpty ? .noTagEntries : nil
         case .collection(let collection):
-            entries = session.entries(for: .collection(collection))
             let empty: EmptyState = collection == .verificationCodes ? .noVerificationCodes : .noDatabaseEntries
             emptyState = entries.isEmpty ? empty : nil
         case .group(let groupID):
-            entries = session.entries(for: .group(groupID))
-            emptyState = entries.isEmpty ? .noGroupEntries : nil
+            let isRecycleBin = groupID == session.currentRootGroup?.recycleBinUUID
+            emptyState = entries.isEmpty ? (isRecycleBin ? .recycleBinEmpty : .noGroupEntries) : nil
         case .none:
-            entries = []
             emptyState = .noGroupSelected
         }
+        let folderPaths = mode.spansGroups ? Self.folderPaths(session: session) : [:]
 
         let customIcons = session.currentMeta?.customIcons ?? [:]
         let rows = entries.map { entry in
@@ -164,7 +186,7 @@ struct MacEntryListSnapshot: Equatable {
                 id: entry.id,
                 title: entry.title.isEmpty ? String(localized: "(untitled)") : entry.title,
                 rawUsername: entry.username,
-                folderPath: mode.spansGroups ? session.folderPath(forEntryID: entry.id) : nil,
+                folderPath: folderPaths[entry.id],
                 icon: customIcon.map { .custom($0, standardIconID: entry.iconID) } ?? .standard(entry.iconID),
                 faviconDomain: customIcon == nil && showsWebsiteIcons ? FaviconService.extractDomain(from: entry.url) : nil,
                 isExpired: entry.isExpired(at: now),
@@ -180,6 +202,21 @@ struct MacEntryListSnapshot: Equatable {
             showsVerificationCodes: mode == .collection(.verificationCodes) && session.sessionKey != nil,
             resultCount: resultCount
         )
+    }
+
+    /// Each entry's path from the sidebar's Groups root, root name included
+    /// ("Personal › Work"). The shared `folderPath` leaves the root out and
+    /// joins with " / " for iOS, so the Mac formats its own.
+    @MainActor
+    static func folderPaths(session: DatabaseViewModel) -> [UUID: String] {
+        guard let rootID = session.workspaceRootGroupID, let root = session.group(withID: rootID) else { return [:] }
+        var paths: [UUID: String] = [:]
+        func visit(_ group: KPGroup, path: String) {
+            for entry in group.entries { paths[entry.id] = path }
+            for child in group.groups { visit(child, path: path + folderPathSeparator + child.name) }
+        }
+        visit(root, path: root.name)
+        return paths
     }
 }
 

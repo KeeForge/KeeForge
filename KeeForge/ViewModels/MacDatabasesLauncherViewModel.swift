@@ -27,7 +27,8 @@ final class MacDatabasesLauncherViewModel {
 
     struct ConnectRequest: Equatable {
         let id: Int
-        let provider: CloudProviderKind
+        /// Nil asks the window to offer the server types first.
+        let provider: CloudProviderKind?
     }
 
     @ObservationIgnored private let references: @MainActor () -> [DatabaseReference]
@@ -116,9 +117,21 @@ final class MacDatabasesLauncherViewModel {
         removeDatabase(reference)
     }
 
-    func requestConnect(_ provider: CloudProviderKind) {
-        guard connectProviders.contains(provider) else { return }
-        connectRequest = ConnectRequest(id: (connectRequest?.id ?? 0) + 1, provider: provider)
+    var canConnect: Bool { connectProviders.isEmpty == false }
+
+    /// Without a provider (File ▸ Connect to Server…), the only server type
+    /// goes straight to its sign-in; several are offered first.
+    func requestConnect(_ provider: CloudProviderKind? = nil) {
+        let providers = connectProviders
+        let resolved: CloudProviderKind?
+        if let provider {
+            guard providers.contains(provider) else { return }
+            resolved = provider
+        } else {
+            guard providers.isEmpty == false else { return }
+            resolved = providers.count == 1 ? providers.first : nil
+        }
+        connectRequest = ConnectRequest(id: (connectRequest?.id ?? 0) + 1, provider: resolved)
     }
 
     var enrollmentCandidates: [DatabaseReference] { databases }

@@ -32,22 +32,13 @@ struct MacWorkspaceDetailColumn: View {
                     popsOnClose: false
                 )
                 .id(selectedEntryID)
-            } else if viewModel.searchText.isEmpty || viewModel.searchResults.isEmpty {
-                // With no matches the sidebar already says "No Results"; the
-                // detail must not contradict it with "select a matching entry".
+            } else {
                 ContentUnavailableView(
                     "Select an Entry",
                     systemImage: "key.horizontal",
                     description: Text("Choose an entry to view or edit its details.")
                 )
                 .accessibilityIdentifier("regular-workspace.select-entry-placeholder")
-            } else {
-                ContentUnavailableView(
-                    "Search Results",
-                    systemImage: "magnifyingglass",
-                    description: Text("Select a matching entry to view its details.")
-                )
-                .accessibilityIdentifier("regular-workspace.search-results-placeholder")
             }
         }
     }

@@ -103,7 +103,9 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         var canEditEntry: Bool
         var sortOrder: DatabaseViewModel.SortOrder
         var sortAscending: Bool
+        var canSort: Bool
         var searchText: String
+        var databaseName: String
     }
 
     private func readState() -> State {
@@ -120,7 +122,9 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
             canEditEntry: commands.canEditEntry,
             sortOrder: session.sortOrder,
             sortAscending: session.sortAscending,
-            searchText: session.searchText
+            canSort: MacEntryListSnapshot.listIsEmpty(session: session) == false,
+            searchText: session.searchText,
+            databaseName: session.databaseDisplayName
         )
     }
 
@@ -130,6 +134,7 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         enable(Item.lock, state.canLock && state.isSaving == false)
         enable(Item.add, (state.canNewEntry || state.canNewGroup) && state.isSaving == false)
         enable(Item.edit, state.canEditEntry && state.isSaving == false)
+        enable(Item.sort, state.canSort && state.isSaving == false)
         items[Item.cloudSync]?.isHidden = state.showsCloudSync == false
         items[Item.readOnly]?.isHidden = state.isReadOnly == false
         items[Item.add]?.isHidden = state.isReadOnly
@@ -142,9 +147,17 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         for item in sortDirectionMenuItems {
             item.state = item.representedObject as? Bool == state.sortAscending ? .on : .off
         }
+        let placeholder = Self.searchPlaceholder(databaseName: state.databaseName)
+        if searchItem.searchField.placeholderString != placeholder {
+            searchItem.searchField.placeholderString = placeholder
+        }
         if searchItem.searchField.stringValue != state.searchText {
             searchItem.searchField.stringValue = state.searchText
         }
+    }
+
+    static func searchPlaceholder(databaseName: String) -> String {
+        String(localized: "Search \(databaseName)")
     }
 
     private func enable(_ identifier: NSToolbarItem.Identifier, _ isEnabled: Bool) {
@@ -224,22 +237,20 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
             menu.addItem(group)
         }
         addMenu(Item.sort, symbol: "arrow.up.arrow.down", label: String(localized: "Sort")) { menu in
-            let orders = NSMenu()
+            menu.addItem(.sectionHeader(title: String(localized: "Sort By")))
             for order in DatabaseViewModel.SortOrder.allCases {
                 let item = menuItem(order.title, action: #selector(selectSortOrder(_:)))
                 item.representedObject = order.rawValue
                 sortOrderMenuItems.append(item)
-                orders.addItem(item)
+                menu.addItem(item)
             }
-            let directions = NSMenu()
+            menu.addItem(.separator())
             for (title, ascending) in [(String(localized: "Ascending"), true), (String(localized: "Descending"), false)] {
                 let item = menuItem(title, action: #selector(selectSortDirection(_:)))
                 item.representedObject = ascending
                 sortDirectionMenuItems.append(item)
-                directions.addItem(item)
+                menu.addItem(item)
             }
-            menu.addItem(submenuItem(String(localized: "Sort By"), orders))
-            menu.addItem(submenuItem(String(localized: "Sort Direction"), directions))
         }
         addButton(Item.details, symbol: "info.circle", label: String(localized: "Database Details"),
                   target: self, action: #selector(showDatabaseDetails(_:)))
@@ -255,7 +266,7 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         for identifier in Self.navigationalItems { items[identifier]?.isNavigational = true }
 
         searchItem.label = String(localized: "Search")
-        searchItem.searchField.placeholderString = String(localized: "Search entries")
+        searchItem.searchField.placeholderString = Self.searchPlaceholder(databaseName: session.databaseDisplayName)
         searchItem.searchField.delegate = self
         searchItem.searchField.target = self
         searchItem.searchField.action = #selector(searchFieldDidChange(_:))

@@ -225,7 +225,9 @@ final class DatabaseWindowControllerTests: XCTestCase {
 
         let selectors = ["copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "newEntry:",
                          "newGroup:", "saveDatabase:", "closeDatabase:", "editEntry:", "deleteSelection:",
-                         "findEntry:", "lockDatabase:"]
+                         "findEntry:", "lockDatabase:", "duplicateSelectedEntry:", "moveSelectedEntries:",
+                         "showAllEntries:", "showVerificationCodes:", "chooseSortOrder:", "chooseSortDirection:",
+                         "expandAllGroups:", "collapseAllGroups:", "syncNow:", "showDatabaseSettings:"]
         for name in selectors {
             let item = NSMenuItem(title: "", action: NSSelectorFromString(name), keyEquivalent: "")
             let target = try XCTUnwrap(Self.actionTarget(for: NSSelectorFromString(name), in: window), name)
@@ -233,7 +235,7 @@ final class DatabaseWindowControllerTests: XCTestCase {
             XCTAssertEqual((target as? NSMenuItemValidation)?.validateMenuItem(item), controller.validateMenuItem(item),
                            name)
         }
-        for name in ["copyUsername:", "copyPassword:", "copyURL:"] {
+        for name in ["copyUsername:", "copyPassword:", "copyURL:", "duplicateSelectedEntry:", "moveSelectedEntries:"] {
             let item = NSMenuItem(title: "", action: NSSelectorFromString(name), keyEquivalent: "")
             XCTAssertEqual(Self.validate(item, in: window), true, "\(name) is enabled with the table focused")
         }

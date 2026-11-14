@@ -77,7 +77,8 @@ The split's sidebar and entries items are AppKit controllers
 (`MacSidebarViewController`, `MacEntryListViewController`); the detail item hosts
 one SwiftUI column. The sidebar renders
 `MacSidebarSnapshot` in a source-list `NSOutlineView` (Library, Groups and Tags
-headers; the Recycle Bin a top-level row) with the status card beneath. One
+headers, Tags keeping a caption row while there are none; the Recycle Bin a
+top-level row) with the status card beneath. One
 `MacObservation` rebuilds the snapshot and applies it per parent with insert,
 remove and move on row objects cached by `MacSidebarItemID`, never a full reload,
 so expansion and selection survive edits. Selection writes the workspace and
@@ -94,15 +95,18 @@ so a tall sidebar opens at its top. Each row's identifier sits on its title text
 because XCUITest drops a table cell's own identifier.
 
 The entry list renders `MacEntryListSnapshot` in a view-based inset `NSTableView`
-(no header; icon, title, username, folder path across groups, and the expired,
-passkey and verification-code glyphs), with the empty state, the selection bar
+(no header; icon, title, username, the "Personal › Work" path across groups,
+and the EXPIRED pill and passkey and verification-code badges), with the empty state, the selection bar
 and, under `-ui-testing`, the `search.results.count` label. Its `MacObservation`
 applies edits as row inserts, removes and moves, reloading only when the list
 switches, and resolves usernames only for cells it draws. Selection follows
 `MacEntryListSelection` both ways: several rows are the workspace's
 `entrySelection`, which the bar and the row menu's Move to Group act on. Row menus
 come from `EntryRowActions`; Copy Password uses the menu-bar command's guarded
-path with this window's `isCurrent` recheck. Return and double-click open the
+path with this window's `isCurrent` recheck. Row-menu shortcuts are display
+only: the main menu answers the key first, and row and sidebar menu selectors
+never match a main-menu selector, or the controller in the responder chain
+would catch the nil-targeted command. Return and double-click open the
 editor through the workspace request; the table is disabled while saving.
 In Verification Codes each row shows the live code, its countdown and a copy
 button (the per-entry command, no prompt), with username and folder on one line.
@@ -129,8 +133,12 @@ the key database window (or the one a key sheet belongs to); with Settings or a
 panel key, the main database window; with the Databases window key, or no
 database window, none, so database commands are disabled. Validation and dispatch
 both ask it when they run, through `AppDelegate.supplementalTarget` and each
-controller's `isCommandTarget` gate. File ▸ New Database, Open Database and
-Connect to Server are launcher operations and ignore every session's state.
+controller's `isCommandTarget` gate. Commands that also need the window's
+presentation (Duplicate, Move to Group, the View menu's Library, Sort and
+Expand/Collapse items, Sync Now, Database Settings) go through
+`MacWorkspaceCommands`. File ▸ New Database, Open Database File and Connect to
+Server are launcher operations and ignore every session's state; Connect to
+Server offers the server types first when there is more than one.
 Window ▸ Databases shows the Databases window, which AppKit's own window list
 leaves out; that list names each open database window, adding the unlocked
 window's subtitle in parentheses. Settings is an auxiliary window that cannot become main

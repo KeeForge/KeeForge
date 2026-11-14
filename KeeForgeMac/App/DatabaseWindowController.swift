@@ -43,6 +43,10 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         DatabaseCommands(session: isCommandTarget() ? session : nil, passwordCopyAction: passwordCopyAction)
     }
 
+    private var workspaceCommands: MacWorkspaceCommands {
+        MacWorkspaceCommands(session: isCommandTarget() ? session : nil, presentation: workspacePresentation)
+    }
+
     /// `persistsLayout` off keeps tests from writing split geometry into the host app's defaults.
     /// The window's frame belongs to `MacWindowRestorationStore`, never to AppKit autosave.
     init(
@@ -181,6 +185,24 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         workspace.toolbar?.focusSearch()
     }
     @objc func lockDatabase(_ sender: Any?) { commands.lock() }
+    @objc func duplicateSelectedEntry(_ sender: Any?) { workspaceCommands.duplicate() }
+    @objc func moveSelectedEntries(_ sender: Any?) { workspaceCommands.moveToGroup() }
+    @objc func showAllEntries(_ sender: Any?) { workspaceCommands.show(.allEntries) }
+    @objc func showVerificationCodes(_ sender: Any?) { workspaceCommands.show(.verificationCodes) }
+    @objc func chooseSortOrder(_ sender: NSMenuItem) {
+        guard let order = (sender.representedObject as? String).flatMap(DatabaseViewModel.SortOrder.init(rawValue:)) else {
+            return
+        }
+        workspaceCommands.setSortOrder(order)
+    }
+    @objc func chooseSortDirection(_ sender: NSMenuItem) {
+        guard let ascending = sender.representedObject as? Bool else { return }
+        workspaceCommands.setSortAscending(ascending)
+    }
+    @objc func expandAllGroups(_ sender: Any?) { workspaceCommands.expandAllGroups() }
+    @objc func collapseAllGroups(_ sender: Any?) { workspaceCommands.collapseAllGroups() }
+    @objc func syncNow(_ sender: Any?) { workspaceCommands.syncNow() }
+    @objc func showDatabaseSettings(_ sender: Any?) { workspaceCommands.showDatabaseSettings() }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
@@ -199,6 +221,24 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             return commands.canDelete
         case #selector(findEntry): return commands.canFind
         case #selector(lockDatabase): return commands.canLock
+        case #selector(duplicateSelectedEntry): return workspaceCommands.canDuplicate
+        case #selector(moveSelectedEntries): return workspaceCommands.canMoveToGroup
+        case #selector(showAllEntries):
+            item.state = workspaceCommands.isShowing(.allEntries) ? .on : .off
+            return workspaceCommands.canShowCollection
+        case #selector(showVerificationCodes):
+            item.state = workspaceCommands.isShowing(.verificationCodes) ? .on : .off
+            return workspaceCommands.canShowCollection
+        case #selector(chooseSortOrder):
+            item.state = isCommandTarget() && item.representedObject as? String == session.sortOrder.rawValue ? .on : .off
+            return workspaceCommands.canSort
+        case #selector(chooseSortDirection):
+            item.state = isCommandTarget() && item.representedObject as? Bool == session.sortAscending ? .on : .off
+            return workspaceCommands.canSort
+        case #selector(expandAllGroups): return workspaceCommands.canExpandAllGroups
+        case #selector(collapseAllGroups): return workspaceCommands.canCollapseAllGroups
+        case #selector(syncNow): return workspaceCommands.canSyncNow
+        case #selector(showDatabaseSettings): return workspaceCommands.canShowDatabaseSettings
         default: return false
         }
     }

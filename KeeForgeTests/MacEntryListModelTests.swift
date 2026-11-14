@@ -33,6 +33,7 @@ final class MacEntryListModelTests: XCTestCase {
 
         workspace.selectedGroupID = fixture.work.id
         XCTAssertEqual(MacEntryListSnapshot.mode(session: session), .group(fixture.work.id))
+        XCTAssertFalse(MacEntryListSnapshot.listIsEmpty(session: session))
         workspace.selectedCollection = .verificationCodes
         XCTAssertEqual(MacEntryListSnapshot.mode(session: session), .collection(.verificationCodes))
         workspace.selectedTag = "Shared"
@@ -49,6 +50,7 @@ final class MacEntryListModelTests: XCTestCase {
         let none = MacEntryListSnapshot.make(session: session)
         XCTAssertEqual(none.rows, [])
         XCTAssertEqual(none.emptyState, .noGroupSelected)
+        XCTAssertTrue(MacEntryListSnapshot.listIsEmpty(session: session))
     }
 
     func testRowsCarryIconsGlyphsAndRawFieldsWithoutSecrets() async throws {
@@ -110,13 +112,33 @@ final class MacEntryListModelTests: XCTestCase {
 
         workspace.selectedCollection = .allEntries
         let collectionRows = MacEntryListSnapshot.make(session: session).rows
-        XCTAssertEqual(Set(collectionRows.map(\.folderPath)), ["Work", "Home"])
+        XCTAssertEqual(Set(collectionRows.map(\.folderPath)), ["Root › Work", "Root › Home"])
 
         workspace.selectedTag = "Shared"
-        XCTAssertEqual(MacEntryListSnapshot.make(session: session).rows.map(\.folderPath), ["Work", "Home"])
+        XCTAssertEqual(MacEntryListSnapshot.make(session: session).rows.map(\.folderPath), ["Root › Work", "Root › Home"])
 
         session.searchText = "account"
-        XCTAssertEqual(MacEntryListSnapshot.make(session: session).rows.map(\.folderPath), ["Work", "Work", "Work", "Home"])
+        XCTAssertEqual(MacEntryListSnapshot.make(session: session).rows.map(\.folderPath),
+                       ["Root › Work", "Root › Work", "Root › Work", "Root › Home"])
+        XCTAssertEqual(session.folderPath(forEntryID: fixture.work.entries[0].id), "Work",
+                       "The shared path iOS shows keeps its format")
+    }
+
+    func testFolderPathsStartAtTheGroupsRootAndNameEveryLevel() async throws {
+        let deep = KPEntry(title: "Deep")
+        let loose = KPEntry(title: "Loose")
+        let development = KPGroup(name: "Development", entries: [deep])
+        let work = KPGroup(name: "Work", groups: [development])
+        let personal = KPGroup(name: "Personal", entries: [loose], groups: [work])
+        let session = try await makeSession(root: KPGroup(name: "Wrapper", groups: [personal]))
+
+        let paths = MacEntryListSnapshot.folderPaths(session: session)
+
+        XCTAssertEqual(paths[deep.id], "Personal › Work › Development", "A one-child wrapper is skipped")
+        XCTAssertEqual(paths[loose.id], "Personal", "An entry at the root shows the root's name")
+        session.workspace.selectedCollection = .allEntries
+        XCTAssertEqual(Set(MacEntryListSnapshot.make(session: session).rows.compactMap(\.folderPath)),
+                       ["Personal", "Personal › Work › Development"])
     }
 
     func testSortFollowsSortOrderWhileSearchKeepsTreeOrder() async throws {
@@ -166,6 +188,16 @@ final class MacEntryListModelTests: XCTestCase {
         session.searchText = "nothing"
         XCTAssertEqual(MacEntryListSnapshot.make(session: session).emptyState, .noResults(query: "nothing"))
 
+        session.searchText = ""
+        let recycleBin = KPGroup(name: "Recycle Bin")
+        session.draft = DatabaseDraft(
+            rootGroup: KPGroup(name: "Root", groups: [emptyGroup.deepCopy(), recycleBin], recycleBinUUID: recycleBin.id),
+            meta: KPMeta(recycleBin: .group(recycleBin.id)),
+            sessionKey: try XCTUnwrap(session.sessionKey)
+        )
+        workspace.selectedGroupID = recycleBin.id
+        XCTAssertEqual(MacEntryListSnapshot.make(session: session).emptyState, .recycleBinEmpty)
+
         let expected: [(MacEntryListSnapshot.EmptyState, String, String, String, String?)] = [
             (.searchPrompt, "Search Entries", "Type to search by title, username, URL, notes, or tags.",
              "magnifyingglass", nil),
@@ -176,6 +208,7 @@ final class MacEntryListModelTests: XCTestCase {
              DatabaseCollection.verificationCodes.systemImage, nil),
             (.noDatabaseEntries, "No Entries", "This database has no entries.", "tray", nil),
             (.noGroupEntries, "No Entries", "This group has no entries.", "tray", nil),
+            (.recycleBinEmpty, "Recycle Bin Is Empty", "Deleted entries and groups appear here.", "trash", nil),
             (.noGroupSelected, "Select a Group", "Choose a group to view its entries.", "folder", nil),
         ]
         for (state, title, message, symbol, identifier) in expected {

@@ -25,6 +25,10 @@ final class MacSidebarOutlineItem: NSObject {
         if case .section = id { true } else { false }
     }
 
+    var isCaption: Bool {
+        if case .caption = id { true } else { false }
+    }
+
     func isDescendant(of ancestor: MacSidebarOutlineItem) -> Bool {
         var current = parent
         while let item = current {
@@ -42,6 +46,7 @@ final class MacSidebarOutlineItem: NSObject {
 final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate,
     NSMenuDelegate, NSMenuItemValidation {
     static let outlineIdentifier = "sidebar.outline"
+    static let captionRowHeight: CGFloat = 40
 
     let session: DatabaseViewModel
     let outlineView = NSOutlineView()
@@ -383,8 +388,13 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
     }
 
     func outlineView(_ outlineView: NSOutlineView, typeSelectStringFor tableColumn: NSTableColumn?, item: Any) -> String? {
-        guard let item = item as? MacSidebarOutlineItem, item.isHeader == false else { return nil }
+        guard let item = item as? MacSidebarOutlineItem, item.isHeader == false, item.isCaption == false else { return nil }
         return item.content.title
+    }
+
+    /// The caption wraps to two lines; every other row keeps the source list's own height.
+    func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+        (item as? MacSidebarOutlineItem)?.isCaption == true ? Self.captionRowHeight : outlineView.rowHeight
     }
 
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
@@ -393,6 +403,12 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
             let cell = outlineView.makeView(withIdentifier: MacSidebarHeaderCellView.reuseIdentifier, owner: self)
                 as? MacSidebarHeaderCellView ?? MacSidebarHeaderCellView()
             cell.textField?.stringValue = item.content.title
+            return cell
+        }
+        if item.isCaption {
+            let cell = outlineView.makeView(withIdentifier: MacSidebarCaptionCellView.reuseIdentifier, owner: self)
+                as? MacSidebarCaptionCellView ?? MacSidebarCaptionCellView()
+            cell.configure(item.content)
             return cell
         }
         let cell = outlineView.makeView(withIdentifier: MacSidebarCellView.reuseIdentifier, owner: self)
@@ -454,28 +470,27 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
     func contextMenuItems(forGroupID groupID: UUID) -> [NSMenuItem] {
         let actions = MacSidebarGroupActions(groupID: groupID, session: session)
         var menuItems: [NSMenuItem] = []
-        func add(_ title: String, _ identifier: String, _ action: Selector, symbol: String? = nil) {
+        func add(_ title: String, _ identifier: String, _ action: Selector) {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
             item.target = self
             item.identifier = NSUserInterfaceItemIdentifier(identifier)
             item.representedObject = groupID
-            item.image = symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }
             menuItems.append(item)
         }
         if actions.canAddSubgroup {
-            add(String(localized: "New Subgroup"), MacSidebarGroupActions.newSubgroupIdentifier, #selector(newSubgroup(_:)))
+            add(String(localized: "New Subgroup…"), MacSidebarGroupActions.newSubgroupIdentifier, #selector(newSubgroup(_:)))
         }
         if actions.canEdit {
-            add(String(localized: "Edit Group"), MacSidebarGroupActions.editIdentifier, #selector(editGroup(_:)))
+            add(String(localized: "Edit Group…"), MacSidebarGroupActions.editIdentifier, #selector(editGroup(_:)))
         }
         if actions.canRestore {
-            add(String(localized: "Restore"), MacSidebarGroupActions.restoreIdentifier, #selector(restoreGroup(_:)),
-                symbol: "arrow.uturn.backward")
+            add(String(localized: "Restore"), MacSidebarGroupActions.restoreIdentifier, #selector(restoreGroup(_:)))
         }
         if actions.canMove {
-            add(String(localized: "Move to Group"), MacSidebarGroupActions.moveIdentifier, #selector(moveGroup(_:)))
+            add(String(localized: "Move to Group…"), MacSidebarGroupActions.moveIdentifier, #selector(moveGroup(_:)))
         }
         if actions.canDelete {
+            if menuItems.isEmpty == false { menuItems.append(.separator()) }
             add(actions.deleteTitle, actions.deleteAccessibilityIdentifier, #selector(deleteGroup(_:)))
         }
         return menuItems
@@ -564,6 +579,39 @@ final class MacSidebarHeaderCellView: NSTableCellView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
 
+/// A section's explanatory line, such as the Tags section's while there are no tags.
+final class MacSidebarCaptionCellView: NSTableCellView {
+    static let reuseIdentifier = NSUserInterfaceItemIdentifier("sidebar.caption")
+
+    init() {
+        super.init(frame: .zero)
+        identifier = Self.reuseIdentifier
+        let field = NSTextField(wrappingLabelWithString: "")
+        field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        field.textColor = .secondaryLabelColor
+        field.maximumNumberOfLines = 2
+        field.lineBreakMode = .byTruncatingTail
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        field.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(field)
+        textField = field
+        NSLayoutConstraint.activate([
+            field.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            field.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            field.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    func configure(_ content: MacSidebarOutlineItem.Content) {
+        textField?.stringValue = content.title
+        textField?.setAccessibilityIdentifier(content.accessibilityIdentifier)
+        toolTip = content.title
+    }
+}
+
 final class MacSidebarCellView: NSTableCellView {
     static let reuseIdentifier = NSUserInterfaceItemIdentifier("sidebar.row")
     static let iconSize: CGFloat = 18
@@ -635,6 +683,8 @@ final class MacSidebarCellView: NSTableCellView {
         switch icon {
         case .symbol(let name):
             return NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        case .tag:
+            return tagImage(emphasized: emphasized)
         case .standard(let iconID):
             return standardImage(iconID, emphasized: emphasized)
         case .custom(let data, let standardIconID):
@@ -645,6 +695,21 @@ final class MacSidebarCellView: NSTableCellView {
     private static func standardImage(_ iconID: Int, emphasized: Bool) -> NSImage? {
         MacIconImages.standard(iconID, fallbackSymbol: "folder.fill", fallbackPalette: .blue, pointSize: 14,
                                emphasized: emphasized)
+    }
+
+    /// A semibold "#" in the accent colour, drawn when shown so it follows appearance and accent changes.
+    private static func tagImage(emphasized: Bool) -> NSImage {
+        let image = NSImage(size: NSSize(width: iconSize, height: iconSize), flipped: false) { rect in
+            let text = NSAttributedString(string: "#", attributes: [
+                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .semibold),
+                .foregroundColor: emphasized ? NSColor.white : NSColor.controlAccentColor,
+            ])
+            let size = text.size()
+            text.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2))
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 }
 

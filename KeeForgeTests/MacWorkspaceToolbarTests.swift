@@ -27,7 +27,9 @@ final class MacWorkspaceToolbarTests: XCTestCase {
             XCTAssertEqual(item.menuFormRepresentation?.title, localized(label), identifier)
             XCTAssertEqual(item.isNavigational, identifier != "entry-detail.edit", identifier)
         }
-        XCTAssertEqual(toolbar.searchItem.searchField.placeholderString, localized("Search entries"))
+        XCTAssertEqual(toolbar.searchItem.searchField.placeholderString,
+                       String(localized: "Search \(toolbar.session.databaseDisplayName)"))
+        XCTAssertNotEqual(toolbar.session.databaseDisplayName, "")
         XCTAssertFalse(toolbar.toolbar.allowsUserCustomization)
     }
 
@@ -63,6 +65,39 @@ final class MacWorkspaceToolbarTests: XCTestCase {
             XCTAssertEqual((toolbar.items[MacWorkspaceToolbar.Item.lock]?.view as? NSControl)?.isEnabled, commands.canLock)
             XCTAssertEqual((toolbar.items[MacWorkspaceToolbar.Item.add]?.view as? NSControl)?.isEnabled, commands.canNewEntry)
         }
+    }
+
+    func testTheSortMenuIsFlatAndDimsWhileTheListIsEmpty() async throws {
+        let savedSort = ["KeeForge.sortOrder", "KeeForge.sortAscending"].map { ($0, UserDefaults.standard.object(forKey: $0)) }
+        addTeardownBlock { for (key, value) in savedSort { UserDefaults.standard.set(value, forKey: key) } }
+        let (toolbar, window) = try await makeToolbar()
+        defer { window.close() }
+        let session = toolbar.session
+        let item = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.sort])
+        let popUp = try XCTUnwrap(item.view as? NSPopUpButton)
+        let items = try XCTUnwrap(popUp.menu?.items.dropFirst(), "The first item is the pull-down's face")
+        XCTAssertTrue(items.allSatisfy { $0.submenu == nil }, "No submenus")
+        XCTAssertEqual(items.map(\.title), [localized("Sort By")] + DatabaseViewModel.SortOrder.allCases.map(\.title)
+            + ["", localized("Ascending"), localized("Descending")])
+        XCTAssertTrue(try XCTUnwrap(items.first).isSectionHeader)
+        XCTAssertTrue(items[items.startIndex + 4].isSeparatorItem)
+        XCTAssertEqual(item.menuFormRepresentation?.submenu?.items.map(\.title), items.map(\.title))
+
+        session.workspace.selectedCollection = .allEntries
+        session.sortOrder = .modifiedDate
+        session.sortAscending = false
+        await Task { @MainActor in }.value
+        let states = items.filter { $0.representedObject != nil }.map { $0.state == .on }
+        XCTAssertEqual(states, DatabaseViewModel.SortOrder.allCases.map { $0 == .modifiedDate } + [false, true])
+        XCTAssertTrue(popUp.isEnabled)
+
+        session.searchText = "no entry matches this"
+        await Task { @MainActor in }.value
+        XCTAssertFalse(popUp.isEnabled, "Sort is dimmed while the list is empty")
+        XCTAssertEqual(item.menuFormRepresentation?.isEnabled, false)
+        session.searchText = ""
+        await Task { @MainActor in }.value
+        XCTAssertTrue(popUp.isEnabled)
     }
 
     private func makeToolbar(readOnly: Bool = false) async throws -> (MacWorkspaceToolbar, NSWindow) {

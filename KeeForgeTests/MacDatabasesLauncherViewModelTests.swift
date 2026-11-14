@@ -39,6 +39,13 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         let firstRequest = launcher.connectRequest?.id
         launcher.requestConnect(.ftp)
         XCTAssertNotEqual(launcher.connectRequest?.id, firstRequest, "A repeated request is a new request")
+
+        XCTAssertTrue(launcher.canConnect)
+        let secondRequest = launcher.connectRequest?.id
+        launcher.requestConnect()
+        XCTAssertNotEqual(launcher.connectRequest?.id, secondRequest)
+        XCTAssertNotNil(launcher.connectRequest, "File ▸ Connect to Server… asks for a request")
+        XCTAssertNil(launcher.connectRequest?.provider, "With two server types the window offers them first")
     }
 
     func testOpenOpensOrFrontsTheRowAndFollowsSelection() throws {

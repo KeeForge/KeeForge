@@ -21,11 +21,11 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         let recycleBin: KPGroup
         let root: KPGroup
 
-        init() {
-            let ssh = KPEntry(title: "SSH", tags: ["Work"])
+        init(tagged: Bool = true) {
+            let ssh = KPEntry(title: "SSH", tags: tagged ? ["Work"] : [])
             let servers = KPGroup(name: "Servers", entries: [ssh])
             let work = KPGroup(name: "Work", groups: [servers])
-            let family = KPGroup(name: "Family", entries: [KPEntry(title: "Bank", tags: ["Home"])])
+            let family = KPGroup(name: "Family", entries: [KPEntry(title: "Bank", tags: tagged ? ["Home"] : [])])
             let personal = KPGroup(name: "Personal", groups: [family])
             let old = KPGroup(name: "Old")
             let recycleBin = KPGroup(name: "Recycle Bin", groups: [old])
@@ -271,15 +271,18 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
             "group-row.new-subgroup", "group-row.edit-context", "group-row.move-context", "group-row.delete-context",
         ])
         XCTAssertEqual(controller.contextMenuItems(forGroupID: tree.work.id).map(\.title), [
-            String(localized: "New Subgroup"), String(localized: "Edit Group"),
-            String(localized: "Move to Group"), String(localized: "Delete"),
+            String(localized: "New Subgroup…"), String(localized: "Edit Group…"),
+            String(localized: "Move to Group…"), "", String(localized: "Delete"),
         ])
+        XCTAssertTrue(controller.contextMenuItems(forGroupID: tree.work.id)[3].isSeparatorItem, "Delete stands apart")
         XCTAssertEqual(identifiers(tree.root.id), ["group-row.new-subgroup"], "The wrapper's fields are not saved")
         XCTAssertEqual(identifiers(tree.recycleBin.id), [])
         XCTAssertEqual(identifiers(tree.old.id), ["group-row.restore-context", "group-row.delete-permanent"])
-        XCTAssertEqual(controller.contextMenuItems(forGroupID: tree.old.id).last?.title,
-                       String(localized: "Delete Permanently"))
-        for item in controller.contextMenuItems(forGroupID: tree.work.id) + controller.contextMenuItems(forGroupID: tree.old.id) {
+        XCTAssertEqual(controller.contextMenuItems(forGroupID: tree.old.id).map(\.title),
+                       [String(localized: "Restore"), "", String(localized: "Delete Permanently")])
+        XCTAssertTrue(controller.contextMenuItems(forGroupID: tree.old.id).allSatisfy { $0.image == nil })
+        let items = controller.contextMenuItems(forGroupID: tree.work.id) + controller.contextMenuItems(forGroupID: tree.old.id)
+        for item in items where item.isSeparatorItem == false {
             XCTAssertTrue(controller.validateMenuItem(item), item.title)
         }
 
@@ -394,7 +397,7 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         for row in 0..<outline.numberOfRows {
             let item = try XCTUnwrap(outline.item(atRow: row) as? MacSidebarOutlineItem)
             let typeSelect = controller.outlineView(outline, typeSelectStringFor: nil, item: item)
-            guard let node = nodes[item.id] else {
+            guard let node = nodes[item.id], item.isCaption == false else {
                 XCTAssertTrue(item.isHeader)
                 XCTAssertNil(typeSelect)
                 XCTAssertEqual(cell(outline, item)?.textField?.accessibilityIdentifier() ?? "", "")
@@ -429,6 +432,42 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertNotNil(MacSidebarCellView.image(for: .standard(43), emphasized: false))
         XCTAssertNotNil(MacSidebarCellView.image(for: .standard(-1), emphasized: true))
         XCTAssertEqual(MacSidebarCellView.image(for: .symbol("tag"), emphasized: false)?.isTemplate, true)
+        let tag = try XCTUnwrap(MacSidebarCellView.image(for: .tag, emphasized: false))
+        XCTAssertEqual(tag.size, NSSize(width: MacSidebarCellView.iconSize, height: MacSidebarCellView.iconSize))
+        XCTAssertFalse(tag.isTemplate, "The \"#\" keeps the accent colour")
+        XCTAssertNotNil(tag.cgImage(forProposedRect: nil, context: nil, hints: nil), "The \"#\" draws")
+    }
+
+    func testWithoutTagsTheTagsHeaderKeepsACaptionThatCannotBeSelected() async throws {
+        let tree = Tree(tagged: false)
+        let (controller, session, _) = try await makeController(tree)
+        let outline = controller.outlineView
+
+        XCTAssertEqual(visibleRowIDs(outline), expectedVisibleIDs(session, collapsed: []))
+        let caption = try XCTUnwrap(controller.item(for: .caption(.tags)))
+        XCTAssertTrue(caption.parent === controller.item(for: .section(.tags)))
+        XCTAssertFalse(controller.outlineView(outline, shouldSelectItem: caption))
+        XCTAssertFalse(controller.outlineView(outline, isGroupItem: caption))
+        XCTAssertNil(controller.outlineView(outline, typeSelectStringFor: nil, item: caption))
+        let view = try XCTUnwrap(cell(outline, caption) as? MacSidebarCaptionCellView)
+        XCTAssertEqual(view.textField?.stringValue, String(localized: "No tags yet. Tags you add to entries appear here."))
+        XCTAssertEqual(view.textField?.accessibilityIdentifier(), "sidebar.tags.empty")
+        let groupRow = outline.row(forItem: controller.item(for: .group(tree.work.id)))
+        let captionHeight = outline.rect(ofRow: outline.row(forItem: caption)).height
+        let groupHeight = outline.rect(ofRow: groupRow).height
+        XCTAssertGreaterThanOrEqual(groupHeight, 22, "Other rows keep the source list's height")
+        XCTAssertGreaterThan(captionHeight, groupHeight, "The caption has room for two lines")
+
+        outline.selectRowIndexes(IndexSet(integer: outline.row(forItem: caption)), byExtendingSelection: false)
+        XCTAssertEqual(selectedID(outline), .group(try XCTUnwrap(session.visibleRootGroupID)))
+    }
+
+    func testTagRowsDrawTheHashGlyph() async throws {
+        let (controller, _, _) = try await makeController(Tree())
+        let view = try XCTUnwrap(cell(controller.outlineView, controller.item(for: .tag("Work"))) as? MacSidebarCellView)
+        XCTAssertEqual(view.imageView?.image?.isTemplate, false)
+        XCTAssertEqual(view.imageView?.image?.size,
+                       NSSize(width: MacSidebarCellView.iconSize, height: MacSidebarCellView.iconSize))
     }
 
     func testAMergedReplacementImageUnderTheSameUUIDRedrawsTheCell() async throws {

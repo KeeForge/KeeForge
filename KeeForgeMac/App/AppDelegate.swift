@@ -124,10 +124,9 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     }
 
     @objc func connectToServer(_ sender: Any?) {
-        guard let rawValue = (sender as? NSMenuItem)?.representedObject as? String,
-              let provider = CloudProviderKind(rawValue: rawValue) else { return }
+        guard windowCoordinator.launcher.canConnect else { return }
         windowCoordinator.showDatabasesWindow()
-        windowCoordinator.launcher.requestConnect(provider)
+        windowCoordinator.launcher.requestConnect()
     }
 
     @objc func showHelp(_ sender: Any?) { open("https://github.com/KeeForge/KeeForge#readme") }
@@ -139,9 +138,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
-        case #selector(connectToServer):
-            let rawValue = item.representedObject as? String
-            return windowCoordinator.launcher.connectProviders.contains { $0.rawValue == rawValue }
+        case #selector(connectToServer): return windowCoordinator.launcher.canConnect
         #if KEEFORGE_DIRECT_DOWNLOAD
         case #selector(checkForUpdates): return SoftwareUpdateService.shared.canCheckForUpdates
         #endif

@@ -283,11 +283,21 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
             EntryRowActions.copyUsernameIdentifier, EntryRowActions.copyPasswordIdentifier,
             EntryRowActions.duplicateIdentifier, EntryRowActions.moveIdentifier, EntryRowActions.deleteIdentifier,
         ])
-        XCTAssertEqual(controller.contextMenuItems(forEntryID: entry.id).map(\.title), [
-            String(localized: "Copy Username"), String(localized: "Copy Password"), String(localized: "Duplicate"),
-            String(localized: "Move to Group"), String(localized: "Delete"),
+        let items = controller.contextMenuItems(forEntryID: entry.id)
+        XCTAssertEqual(items.map(\.title), [
+            String(localized: "Copy Username"), String(localized: "Copy Password"), "", String(localized: "Duplicate"),
+            String(localized: "Move to Group…"), "", String(localized: "Delete"),
         ])
-        XCTAssertTrue(controller.contextMenuItems(forEntryID: entry.id).allSatisfy { controller.validateMenuItem($0) })
+        XCTAssertEqual(items.map(\.isSeparatorItem), [false, false, true, false, false, true, false])
+        let command: NSEvent.ModifierFlags = .command
+        let shift: NSEvent.ModifierFlags = [.command, .shift]
+        let commandItems = items.filter { $0.isSeparatorItem == false }
+        XCTAssertEqual(commandItems.map(\.keyEquivalent), ["b", "c", "d", "", "\u{8}"])
+        XCTAssertEqual(commandItems.map(\.keyEquivalentModifierMask), [shift, shift, command, [], command],
+                       "The menu bar's shortcuts, shown in the row menu")
+        XCTAssertTrue(items.filter { $0.isSeparatorItem == false }.allSatisfy {
+            controller.validateMenuItem($0) && $0.target === controller && $0.image == nil
+        })
         XCTAssertFalse(identifiers(controller.contextMenuItems(forEntryID: entry.id))
             .contains(EntryRowActions.selectIdentifier), "Native multi-select replaces Select Entries")
 
@@ -295,8 +305,11 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
             EntryRowActions.copyUsernameIdentifier, EntryRowActions.copyPasswordIdentifier,
             EntryRowActions.restoreIdentifier, EntryRowActions.deletePermanentlyIdentifier,
         ])
-        XCTAssertEqual(controller.contextMenuItems(forEntryID: tree.gone.id).last?.title,
-                       String(localized: "Delete Permanently"))
+        XCTAssertEqual(controller.contextMenuItems(forEntryID: tree.gone.id).map(\.title), [
+            String(localized: "Copy Username"), String(localized: "Copy Password"), "", String(localized: "Restore"), "",
+            String(localized: "Delete Permanently"),
+        ])
+        XCTAssertEqual(controller.contextMenuItems(forEntryID: tree.gone.id).last?.keyEquivalent, "\u{8}")
 
         let (readOnly, _, _, readOnlyTree) = try await makeController(readOnly: true)
         XCTAssertEqual(identifiers(readOnly.contextMenuItems(forEntryID: readOnlyTree.work.entries[0].id)), [
@@ -315,7 +328,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
 
         let bulk = controller.contextMenuItems(forRow: 0)
         XCTAssertEqual(identifiers(bulk), [EntryRowActions.moveIdentifier])
-        XCTAssertEqual(bulk.first?.title, String(localized: "Move to Group"))
+        XCTAssertEqual(bulk.first?.title, String(localized: "Move to Group…"))
         XCTAssertTrue(bulk.allSatisfy { controller.validateMenuItem($0) })
         XCTAssertEqual(identifiers(controller.contextMenuItems(forRow: 2)).first, EntryRowActions.copyUsernameIdentifier,
                        "A row outside the selection offers its own items")
@@ -474,7 +487,14 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertNotNil(first.imageView?.image)
         XCTAssertTrue(first.expiredGlyph.isHidden && first.passkeyGlyph.isHidden && first.verificationCodeGlyph.isHidden)
         XCTAssertFalse(second.expiredGlyph.isHidden || second.passkeyGlyph.isHidden || second.verificationCodeGlyph.isHidden)
-        let glyphs: [NSImageView] = [second.expiredGlyph, second.passkeyGlyph, second.verificationCodeGlyph]
+        let glyphs = [second.expiredGlyph, second.passkeyGlyph, second.verificationCodeGlyph]
+        XCTAssertEqual(glyphs.map(\.style), [.expired, .symbol("person.fill"), .symbol("timer")])
+        XCTAssertEqual(second.expiredGlyph.intrinsicContentSize.height < MacEntryBadgeView.diameter, true,
+                       "The EXPIRED pill is a short text capsule")
+        XCTAssertGreaterThan(second.expiredGlyph.intrinsicContentSize.width, MacEntryBadgeView.diameter)
+        XCTAssertEqual(second.passkeyGlyph.intrinsicContentSize,
+                       NSSize(width: MacEntryBadgeView.diameter, height: MacEntryBadgeView.diameter))
+        XCTAssertTrue(glyphs.allSatisfy { $0.isAccessibilityElement() && $0.accessibilityRole() == .image })
         XCTAssertEqual(glyphs.map { $0.accessibilityIdentifier() }, ["entry-row.expired", "entry-row.passkey", "entry-row.totp"])
         XCTAssertEqual(glyphs.map { $0.accessibilityLabel() ?? "" },
                        [String(localized: "Expired"), String(localized: "Has a passkey"),
@@ -488,7 +508,8 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         let found = try XCTUnwrap(cell(controller, entryID: tree.work.entries[0].id))
         XCTAssertEqual(found.textField?.accessibilityIdentifier(), "search.entry.navlink")
         XCTAssertFalse(found.folderField.isHiddenOrHasHiddenAncestor)
-        XCTAssertEqual(found.folderField.stringValue, session.folderPath(forEntryID: tree.work.entries[0].id))
+        XCTAssertEqual(found.folderField.stringValue, "Root › Work", "The root's name and the board's separator")
+        XCTAssertEqual(found.folderRow.arrangedSubviews, [found.folderField], "No folder glyph")
         XCTAssertEqual(controller.tableView.accessibilityIdentifier(), "search.results")
 
         session.searchText = ""
@@ -601,9 +622,8 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         let first = try XCTUnwrap(cell(controller, entryID: tree.work.entries[0].id) as? MacVerificationCodeCellView)
         let second = try XCTUnwrap(cell(controller, entryID: tree.work.entries[2].id) as? MacVerificationCodeCellView)
         XCTAssertEqual(first.codeField.stringValue, "123 456", "Grouped as the iOS code rows group it")
-        XCTAssertEqual(first.usernameField.stringValue,
-                       "user0 · \(try XCTUnwrap(session.folderPath(forEntryID: tree.work.entries[0].id)))")
-        XCTAssertEqual(second.usernameField.stringValue, session.folderPath(forEntryID: tree.work.entries[2].id))
+        XCTAssertEqual(first.usernameField.stringValue, "user0 · Root › Work")
+        XCTAssertEqual(second.usernameField.stringValue, "Root › Work")
         XCTAssertTrue(first.folderRow.isHidden)
         XCTAssertTrue(first.verificationCodeGlyph.isHidden, "The code replaces the glyph")
         XCTAssertEqual(first.textField?.accessibilityIdentifier(), "entry.navlink")

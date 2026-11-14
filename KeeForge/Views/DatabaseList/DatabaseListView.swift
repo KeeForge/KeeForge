@@ -66,6 +66,8 @@ struct DatabaseListView: View {
     @Environment(\.openURL) private var openURL
     #if os(iOS)
     @State private var editMode: EditMode = .inactive
+    #else
+    @State private var isChoosingServer = false
     #endif
 
     var body: some View {
@@ -197,7 +199,19 @@ struct DatabaseListView: View {
             isDatabaseCreationPresented = true
         }
         .onChange(of: launcher.connectRequest) { _, request in
-            if let request { activeCloudProvider = request.provider }
+            guard let request else { return }
+            if let provider = request.provider {
+                activeCloudProvider = provider
+            } else {
+                isChoosingServer = true
+            }
+        }
+        .confirmationDialog("Connect to Server", isPresented: $isChoosingServer) {
+            ForEach(launcher.connectProviders) { providerKind in
+                Button(providerKind.displayName) {
+                    activeCloudProvider = providerKind
+                }
+            }
         }
         #endif
         .databaseExporter(request: $exportRequest)
@@ -557,7 +571,7 @@ struct DatabaseListView: View {
             if launcher.emptyState == .noneAvailable {
                 Text("None of your databases can be opened on this Mac.")
             } else {
-                Text("Create a new KeePass database or import an existing .kdbx file.")
+                Text("Create a database, open a .kdbx file or connect to a server to get started.")
             }
         } actions: {
             VStack(spacing: 12) {

@@ -49,14 +49,16 @@ extension DatabaseViewModel {
 /// keep expansion and selection while the tree changes underneath it.
 enum MacSidebarItemID: Hashable {
     case section(MacSidebarSnapshot.SectionKind)
+    /// A section's explanatory line when it has no rows, never selected.
+    case caption(MacSidebarSnapshot.SectionKind)
     case collection(DatabaseCollection)
     case group(UUID)
     case tag(String)
 
-    /// `nil` for a section header, which is never selected.
+    /// `nil` for a section header or caption, which are never selected.
     var selection: MacSidebarSelection? {
         switch self {
-        case .section: nil
+        case .section, .caption: nil
         case .collection(let collection): .collection(collection)
         case .group(let groupID): .group(groupID)
         case .tag(let tag): .tag(tag)
@@ -72,10 +74,13 @@ enum MacSidebarIcon: Hashable {
     /// does not decode.
     case custom(Data, standardIconID: Int)
     case symbol(String)
+    /// The "#" a tag row shows.
+    case tag
 }
 
 /// The Mac sidebar's rows, built from one session: Library, the group tree,
-/// tags, and the Recycle Bin as a top-level row with its subtree.
+/// tags (or a caption while there are none), and the Recycle Bin as a
+/// top-level row with its subtree.
 struct MacSidebarSnapshot: Equatable {
     enum SectionKind: Hashable, CaseIterable {
         case library
@@ -100,7 +105,7 @@ struct MacSidebarSnapshot: Equatable {
     struct Node: Equatable, Identifiable {
         let id: MacSidebarItemID
         let title: String
-        let icon: MacSidebarIcon
+        let icon: MacSidebarIcon?
         let count: Int?
         let children: [Node]
         let accessibilityIdentifier: String
@@ -120,6 +125,19 @@ struct MacSidebarSnapshot: Equatable {
 
     func section(_ kind: SectionKind) -> Section? {
         sections.first { $0.kind == kind }
+    }
+
+    /// Every group row that has subgroups, for Expand and Collapse All Groups.
+    var collapsibleGroupIDs: Set<UUID> {
+        var ids: Set<UUID> = []
+        func visit(_ nodes: [Node]) {
+            for node in nodes {
+                if case .group(let groupID) = node.id, node.children.isEmpty == false { ids.insert(groupID) }
+                visit(node.children)
+            }
+        }
+        visit(sections.flatMap(\.nodes))
+        return ids
     }
 
     @MainActor
@@ -166,19 +184,27 @@ struct MacSidebarSnapshot: Equatable {
         sections.append(Section(kind: .groups, nodes: groupsRoot.map { [node(for: $0)] } ?? []))
 
         let tags = session.tagsInDisplayOrder
-        if tags.isEmpty == false {
-            sections.append(Section(kind: .tags, nodes: tags.enumerated().map { index, tag in
-                Node(
-                    id: .tag(tag),
-                    title: tag,
-                    icon: .symbol("tag"),
-                    count: session.entryCount(forTag: tag),
-                    children: [],
-                    accessibilityIdentifier:
-                        "tag-list.row.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: index))"
-                )
-            }))
+        let tagNodes = tags.enumerated().map { index, tag in
+            Node(
+                id: .tag(tag),
+                title: tag,
+                icon: .tag,
+                count: session.entryCount(forTag: tag),
+                children: [],
+                accessibilityIdentifier:
+                    "tag-list.row.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: index))"
+            )
         }
+        sections.append(Section(kind: .tags, nodes: tagNodes.isEmpty ? [
+            Node(
+                id: .caption(.tags),
+                title: String(localized: "No tags yet. Tags you add to entries appear here."),
+                icon: nil,
+                count: nil,
+                children: [],
+                accessibilityIdentifier: "sidebar.tags.empty"
+            ),
+        ] : tagNodes))
 
         if let recycleBin = session.recycleBinGroup {
             sections.append(Section(kind: .recycleBin, nodes: [node(for: recycleBin)]))

@@ -465,42 +465,53 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
 
     private func bulkMenuItems() -> [NSMenuItem] {
         guard session.isReadOnly == false else { return [] }
-        let item = NSMenuItem(title: String(localized: "Move to Group"), action: #selector(moveSelection(_:)),
+        let item = NSMenuItem(title: String(localized: "Move to Group…"), action: #selector(moveSelection(_:)),
                               keyEquivalent: "")
         item.target = self
         item.identifier = NSUserInterfaceItemIdentifier(EntryRowActions.moveIdentifier)
         return [item]
     }
 
+    /// Copies, then the edits, then Delete, each group after a separator. The
+    /// shortcuts are the menu bar's, shown for reference: the main menu answers
+    /// a key before this menu could, and these selectors are not the main menu's.
     func contextMenuItems(forEntryID entryID: UUID) -> [NSMenuItem] {
         let actions = EntryRowActions(entryID: entryID, session: session)
-        var menuItems: [NSMenuItem] = []
-        func add(_ title: String, _ identifier: String, _ action: Selector, symbol: String? = nil) {
-            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        var groups: [[NSMenuItem]] = [[], [], []]
+        func add(_ group: Int, _ title: String, _ identifier: String, _ action: Selector,
+                 key: String = "", modifiers: NSEvent.ModifierFlags = .command) {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            item.keyEquivalentModifierMask = key.isEmpty ? [] : modifiers
             item.target = self
             item.identifier = NSUserInterfaceItemIdentifier(identifier)
             item.representedObject = entryID
-            item.image = symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }
-            menuItems.append(item)
+            groups[group].append(item)
         }
         if actions.canCopyUsername {
-            add(String(localized: "Copy Username"), EntryRowActions.copyUsernameIdentifier, #selector(copyRowUsername(_:)))
+            add(0, String(localized: "Copy Username"), EntryRowActions.copyUsernameIdentifier, #selector(copyRowUsername(_:)),
+                key: "b", modifiers: [.command, .shift])
         }
         if actions.canCopyPassword {
-            add(String(localized: "Copy Password"), EntryRowActions.copyPasswordIdentifier, #selector(copyRowPassword(_:)))
+            add(0, String(localized: "Copy Password"), EntryRowActions.copyPasswordIdentifier, #selector(copyRowPassword(_:)),
+                key: "c", modifiers: [.command, .shift])
         }
         if actions.canDuplicate {
-            add(String(localized: "Duplicate"), EntryRowActions.duplicateIdentifier, #selector(duplicateEntry(_:)))
+            add(1, String(localized: "Duplicate"), EntryRowActions.duplicateIdentifier, #selector(duplicateEntry(_:)),
+                key: "d")
         }
         if actions.canRestore {
-            add(String(localized: "Restore"), EntryRowActions.restoreIdentifier, #selector(restoreEntry(_:)),
-                symbol: "arrow.uturn.backward")
+            add(1, String(localized: "Restore"), EntryRowActions.restoreIdentifier, #selector(restoreEntry(_:)))
         }
         if actions.canMove {
-            add(String(localized: "Move to Group"), EntryRowActions.moveIdentifier, #selector(moveEntry(_:)))
+            add(1, String(localized: "Move to Group…"), EntryRowActions.moveIdentifier, #selector(moveEntry(_:)))
         }
         if actions.canDelete {
-            add(actions.deleteTitle, actions.deleteAccessibilityIdentifier, #selector(deleteEntry(_:)))
+            add(2, actions.deleteTitle, actions.deleteAccessibilityIdentifier, #selector(deleteEntry(_:)), key: "\u{8}")
+        }
+        var menuItems: [NSMenuItem] = []
+        for group in groups where group.isEmpty == false {
+            if menuItems.isEmpty == false { menuItems.append(.separator()) }
+            menuItems += group
         }
         return menuItems
     }
@@ -627,9 +638,12 @@ class MacEntryCellView: NSTableCellView {
 
     let usernameField = NSTextField(labelWithString: "")
     let folderField = NSTextField(labelWithString: "")
-    let expiredGlyph = NSImageView()
-    let passkeyGlyph = NSImageView()
-    let verificationCodeGlyph = NSImageView()
+    let expiredGlyph = MacEntryBadgeView(.expired, label: String(localized: "Expired"),
+                                         identifier: "entry-row.expired")
+    let passkeyGlyph = MacEntryBadgeView(.symbol("person.fill"), label: String(localized: "Has a passkey"),
+                                         identifier: "entry-row.passkey")
+    let verificationCodeGlyph = MacEntryBadgeView(.symbol("timer"), label: String(localized: "Has a verification code"),
+                                                  identifier: "entry-row.totp")
     let folderRow: NSStackView
     /// Title, username and folder, top to bottom.
     let textStack: NSStackView
@@ -642,12 +656,7 @@ class MacEntryCellView: NSTableCellView {
 
     init(loadFavicon: @escaping @MainActor (String) async -> PlatformImage?) {
         faviconLoader = FaviconLoadModel(loadImage: loadFavicon)
-        let folderSymbol = NSImageView(image: NSImage(systemSymbolName: "folder", accessibilityDescription: nil) ?? NSImage())
-        folderSymbol.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: NSFont.smallSystemFontSize - 1, weight: .regular)
-        folderSymbol.contentTintColor = .secondaryLabelColor
-        folderSymbol.setAccessibilityElement(false)
-        folderSymbol.setContentHuggingPriority(.required, for: .horizontal)
-        folderRow = NSStackView(views: [folderSymbol, folderField])
+        folderRow = NSStackView(views: [folderField])
         let title = NSTextField(labelWithString: "")
         textStack = NSStackView(views: [title, usernameField, folderRow])
         accessoryStack = NSStackView(views: [expiredGlyph, passkeyGlyph, verificationCodeGlyph])
@@ -660,9 +669,9 @@ class MacEntryCellView: NSTableCellView {
         for field in [usernameField, folderField] {
             field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
             field.textColor = .secondaryLabelColor
+            field.lineBreakMode = .byTruncatingTail
         }
-        usernameField.lineBreakMode = .byTruncatingTail
-        folderField.lineBreakMode = .byTruncatingHead
+        folderField.font = .systemFont(ofSize: NSFont.smallSystemFontSize - 1)
         folderField.setAccessibilityIdentifier("entry-row.folder")
         folderRow.orientation = .horizontal
         folderRow.spacing = 4
@@ -676,12 +685,6 @@ class MacEntryCellView: NSTableCellView {
         text.spacing = 1
         text.detachesHiddenViews = true
 
-        configureGlyph(expiredGlyph, symbol: "exclamationmark.triangle.fill", label: String(localized: "Expired"),
-                       identifier: "entry-row.expired")
-        configureGlyph(passkeyGlyph, symbol: "person.badge.key.fill", label: String(localized: "Has a passkey"),
-                       identifier: "entry-row.passkey")
-        configureGlyph(verificationCodeGlyph, symbol: "clock", label: String(localized: "Has a verification code"),
-                       identifier: "entry-row.totp")
         let glyphs = accessoryStack
         glyphs.orientation = .horizontal
         glyphs.spacing = 4
@@ -710,15 +713,6 @@ class MacEntryCellView: NSTableCellView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    private func configureGlyph(_ glyph: NSImageView, symbol: String, label: String, identifier: String) {
-        glyph.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
-        glyph.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: NSFont.smallSystemFontSize, weight: .regular)
-        glyph.setAccessibilityElement(true)
-        glyph.setAccessibilityRole(.image)
-        glyph.setAccessibilityLabel(label)
-        glyph.setAccessibilityIdentifier(identifier)
-    }
 
     override var backgroundStyle: NSView.BackgroundStyle {
         didSet { refreshAppearance() }
@@ -767,9 +761,7 @@ class MacEntryCellView: NSTableCellView {
     func refreshAppearance() {
         let emphasized = backgroundStyle == .emphasized
         imageView?.image = image(emphasized: emphasized)
-        expiredGlyph.contentTintColor = emphasized ? .white : .systemRed
-        passkeyGlyph.contentTintColor = emphasized ? .white : .systemPurple
-        verificationCodeGlyph.contentTintColor = emphasized ? .white : .systemGreen
+        for badge in [expiredGlyph, passkeyGlyph, verificationCodeGlyph] { badge.isEmphasized = emphasized }
     }
 
     private func image(emphasized: Bool) -> NSImage? {
@@ -789,6 +781,101 @@ class MacEntryCellView: NSTableCellView {
     private func standardImage(_ iconID: Int, emphasized: Bool) -> NSImage? {
         MacIconImages.standard(iconID, fallbackSymbol: "key.fill", fallbackPalette: .gold, pointSize: 18,
                                emphasized: emphasized)
+    }
+}
+
+// MARK: - Badges
+
+/// A row's trailing badge: the red "EXPIRED" pill, or a symbol in a tinted round badge.
+final class MacEntryBadgeView: NSView {
+    enum Style: Equatable {
+        case expired
+        case symbol(String)
+    }
+
+    static let diameter: CGFloat = 18
+
+    let style: Style
+    private let imageView = NSImageView()
+    private let textField = NSTextField(labelWithString: "")
+    var isEmphasized = false {
+        didSet {
+            guard isEmphasized != oldValue else { return }
+            refreshColors()
+        }
+    }
+
+    init(_ style: Style, label: String, identifier: String) {
+        self.style = style
+        super.init(frame: .zero)
+        wantsLayer = true
+        let content: NSView
+        switch style {
+        case .expired:
+            textField.stringValue = label.localizedUppercase
+            textField.font = .systemFont(ofSize: 10, weight: .bold)
+            textField.setAccessibilityElement(false)
+            content = textField
+        case .symbol(let name):
+            imageView.image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+            imageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 9, weight: .bold)
+            imageView.setAccessibilityElement(false)
+            content = imageView
+        }
+        content.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(content)
+        NSLayoutConstraint.activate([
+            content.centerXAnchor.constraint(equalTo: centerXAnchor),
+            content.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.image)
+        setAccessibilityLabel(label)
+        setAccessibilityIdentifier(identifier)
+        refreshColors()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var intrinsicContentSize: NSSize {
+        switch style {
+        case .expired:
+            let text = textField.intrinsicContentSize
+            return NSSize(width: ceil(text.width) + 12, height: ceil(text.height) + 2)
+        case .symbol:
+            return NSSize(width: Self.diameter, height: Self.diameter)
+        }
+    }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    /// Layer colours resolve here, so they follow appearance changes.
+    override func updateLayer() {
+        layer?.cornerRadius = bounds.height / 2
+        layer?.backgroundColor = fillColor.cgColor
+    }
+
+    override func layout() {
+        super.layout()
+        needsDisplay = true
+    }
+
+    private var tintColor: NSColor {
+        if isEmphasized { return .white }
+        return style == .expired ? .systemRed : .controlAccentColor
+    }
+
+    private var fillColor: NSColor {
+        tintColor.withAlphaComponent(isEmphasized ? 0.22 : (style == .expired ? 0.12 : 0.14))
+    }
+
+    private func refreshColors() {
+        textField.textColor = tintColor
+        imageView.contentTintColor = tintColor
+        needsDisplay = true
     }
 }
 

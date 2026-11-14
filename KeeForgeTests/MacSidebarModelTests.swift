@@ -94,7 +94,7 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
         XCTAssertEqual(tags.map(\.count), [1, 2], "Recycled entries are not counted")
         XCTAssertEqual(tags.map(\.selection), [.tag("Home"), .tag("Work")])
         XCTAssertEqual(tags.map(\.accessibilityIdentifier), ["tag-list.row.home", "tag-list.row.work"])
-        XCTAssertEqual(tags.map(\.icon), [.symbol("tag"), .symbol("tag")])
+        XCTAssertEqual(tags.map(\.icon), [.tag, .tag])
 
         let bin = try XCTUnwrap(snapshot.section(.recycleBin)).nodes
         XCTAssertEqual(bin.map(\.id), [.group(recycleBin.id)])
@@ -130,14 +130,35 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
         XCTAssertEqual(groups[0].children.map(\.id), [.group(only.id)])
     }
 
-    func testNoTagsAndNoBinLeaveOnlyLibraryAndGroups() async throws {
+    func testNoTagsKeepTheTagsSectionWithACaptionAndNoBinLeavesNoBinRow() async throws {
         let root = KPGroup(name: "Root", entries: [KPEntry(title: "Untagged")], groups: [KPGroup(name: "Child")])
         let session = try await makeSidebarSession(root: root)
 
         let snapshot = MacSidebarSnapshot.make(session: session)
 
-        XCTAssertEqual(snapshot.sections.map(\.kind), [.library, .groups])
+        XCTAssertEqual(snapshot.sections.map(\.kind), [.library, .groups, .tags])
         XCTAssertEqual(snapshot.section(.library)?.nodes.map(\.count), [1, 0])
+        let caption = try XCTUnwrap(snapshot.section(.tags)?.nodes.first)
+        XCTAssertEqual(snapshot.section(.tags)?.nodes.count, 1)
+        XCTAssertEqual(caption.id, .caption(.tags))
+        XCTAssertEqual(caption.title, String(localized: "No tags yet. Tags you add to entries appear here."))
+        XCTAssertNil(caption.icon)
+        XCTAssertNil(caption.count)
+        XCTAssertNil(caption.selection)
+        XCTAssertFalse(caption.isSelectable)
+        XCTAssertEqual(caption.accessibilityIdentifier, "sidebar.tags.empty")
+    }
+
+    func testCollapsibleGroupsAreTheGroupRowsWithSubgroups() async throws {
+        let servers = KPGroup(name: "Servers")
+        let work = KPGroup(name: "Work", groups: [servers])
+        let old = KPGroup(name: "Old", groups: [KPGroup(name: "Older")])
+        let recycleBin = KPGroup(name: "Recycle Bin", groups: [old])
+        let root = KPGroup(name: "Root", groups: [work, KPGroup(name: "Leaf"), recycleBin], recycleBinUUID: recycleBin.id)
+        let session = try await makeSidebarSession(root: root)
+
+        XCTAssertEqual(MacSidebarSnapshot.make(session: session).collapsibleGroupIDs,
+                       [root.id, work.id, recycleBin.id, old.id])
     }
 
     func testABinNestedDeeperIsLiftedOutOfGroups() async throws {
@@ -228,6 +249,7 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
 
     func testItemIDsMapSectionsToNoSelection() {
         XCTAssertNil(MacSidebarItemID.section(.groups).selection)
+        XCTAssertNil(MacSidebarItemID.caption(.tags).selection)
         let groupID = UUID()
         XCTAssertEqual(MacSidebarItemID.group(groupID).selection, .group(groupID))
         XCTAssertEqual(MacSidebarItemID.tag("Work").selection, .tag("Work"))
