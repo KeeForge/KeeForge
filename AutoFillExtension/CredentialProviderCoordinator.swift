@@ -716,7 +716,11 @@ final class CredentialProviderCoordinator {
 
                 if let recordIdentifier,
                    let entry = self.entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
-                    guard !self.mustEscalateToInteractiveFill(for: entry) else {
+                    guard self.suggestedEntry(
+                        recordIdentifier: recordIdentifier,
+                        for: [credentialIdentity.serviceIdentifier],
+                        in: [entry]
+                    ) != nil, !self.mustEscalateToInteractiveFill(for: entry) else {
                         self.cancelRequest(code: .userInteractionRequired)
                         return
                     }
@@ -1642,7 +1646,7 @@ final class CredentialProviderCoordinator {
         let passwordEntries = allPasswordEntries.filter { !$0.isExpired() }
 
         if let recordIdentifier = targetRecordIdentifier {
-            if let entry = entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
+            if let entry = suggestedEntry(recordIdentifier: recordIdentifier, for: serviceIdentifiers, in: passwordEntries) {
                 completeRequest(with: entry)
                 return
             }
@@ -1659,7 +1663,7 @@ final class CredentialProviderCoordinator {
         // Nothing that reaches this point names a credential the user chose,
         // so nothing is filled on its own — not even a lone strict match.
         // Three callers arrive here: the key icon's `prepareCredentialList`,
-        // a suggestion whose entry or database turned out to be stale (the
+        // a suggestion whose entry, site, or database turned out to be stale (the
         // fall-through above, and `resolveInteractiveRequestDatabase`'s
         // `.stale` case, which clears the target), and `presentPasskeyList`'s
         // no-passkey fallback. The by-identity branch above still fills.
@@ -1830,6 +1834,19 @@ final class CredentialProviderCoordinator {
     private func entryMatching(recordIdentifier: String, in entries: [KPEntry]) -> KPEntry? {
         guard let entryID = CredentialRecordIdentifier.parse(recordIdentifier).entryID else { return nil }
         return entries.first { $0.id == entryID }
+    }
+
+    /// The entry a tapped suggestion names, only while that entry still lists
+    /// the suggestion's site: a suggestion published before its entry's URL
+    /// changed must not fill the new credential into the old site.
+    private func suggestedEntry(
+        recordIdentifier: String,
+        for serviceIdentifiers: [ASCredentialServiceIdentifier],
+        in entries: [KPEntry]
+    ) -> KPEntry? {
+        guard let entry = entryMatching(recordIdentifier: recordIdentifier, in: entries) else { return nil }
+        guard CredentialMatcher.hasWebHost(serviceIdentifiers) else { return entry }
+        return CredentialMatcher.listsRequestedSite(entry, for: serviceIdentifiers) ? entry : nil
     }
 
     private func findEntry(byRecordIdentifier recordIdentifier: String) -> KPEntry? {
@@ -2501,6 +2518,14 @@ final class CredentialProviderCoordinator {
                     let totpEntries = self.parsedEntries.filter { $0.hasTOTP && !$0.isExpired() }
                     if let recordIdentifier,
                        let entry = self.entryMatching(recordIdentifier: recordIdentifier, in: totpEntries) {
+                        guard self.suggestedEntry(
+                            recordIdentifier: recordIdentifier,
+                            for: [credentialRequest.credentialIdentity.serviceIdentifier],
+                            in: [entry]
+                        ) != nil else {
+                            self.cancelRequest(code: .userInteractionRequired)
+                            return
+                        }
                         self.completeOTCRequest(with: entry)
                     } else {
                         self.removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
@@ -2524,7 +2549,7 @@ final class CredentialProviderCoordinator {
 
         let totpEntries = parsedEntries.filter(\.hasTOTP)
         if let recordIdentifier = targetRecordIdentifier,
-           let entry = entryMatching(recordIdentifier: recordIdentifier, in: totpEntries) {
+           let entry = suggestedEntry(recordIdentifier: recordIdentifier, for: serviceIdentifiers, in: totpEntries) {
             if entry.isExpired() {
                 presentSearchView(entries: [entry]) { [weak self] selectedEntry in
                     self?.completeOTCRequest(with: selectedEntry)
