@@ -305,6 +305,21 @@ and content revision after device-owner authentication. Detail and editor action
 also reject changed navigation, selection, or inputs; changing the selected entry
 conceals its fields. A successful prompt does not authorize a later session.
 
+Large Type (the detail's Show in Large Type button and View ▸ Show in Large
+Type) shows the selected entry's password in a floating panel, one numbered tile
+per character. It takes the same device-owner gate and rechecks as reveal
+(`DatabaseCommands.showEntryPasswordInLargeType`, reason "View password"), and
+the panel ([MacLargeTypePanelController](App/MacLargeTypePanelController.swift))
+receives the plaintext only after them. The app has one such panel; opening
+another replaces it. It holds the password only while open and drops it, with
+its hosted view, when it closes: on any key, key equivalent or click, Escape, on
+losing key status, and on lock, a content change, another or a multiple
+selection, its database window closing, or the app resigning active. Because it
+closes on resign active, the blur cover, which skips this untitled panel, never
+has to cover it. It applies Block Screen Capture to itself when it is created,
+before it is first shown, since the key-window sweep would only reach it once
+it is key; the same best-effort limits apply.
+
 The Verification Codes list shows each entry's live code; only the codes on
 screen are kept, and that cache is cleared when the list stops showing or the
 database locks.

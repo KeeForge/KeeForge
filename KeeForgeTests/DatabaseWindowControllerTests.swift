@@ -220,6 +220,44 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertEqual(NSPasteboard.general.string(forType: .string), entry.username)
     }
 
+    func testShowInLargeTypeTakesTheGateThenShowsOverThisWindowUntilItCloses() async throws {
+        let harness = SecretAccessGateHarness(gracePeriod: .alwaysAsk)
+        let key = SymmetricKey(size: .bits256)
+        let entry = KPEntry(title: "GitHub", password: try EncryptedValue.encrypt("Vx7$", using: key))
+        let session = try await TestDatabaseSupport.makeUnlockedSession(
+            root: KPGroup(name: "Root", entries: [entry]), key: key, secretAccess: harness.gate, bundle: Bundle(for: Self.self)
+        )
+        defer { session.lockRequest(force: true) }
+        var presented: [NSPanel] = []
+        let largeType = MacLargeTypePanelController(present: { presented.append($0) }, windowLookup: { _ in nil })
+        let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false, largeType: largeType))
+        let window = try XCTUnwrap(controller.window)
+        XCTAssertFalse(controller.validateMenuItem(item("showInLargeType:")), "No entry selected")
+        session.workspace.selectedEntryID = entry.id
+        XCTAssertTrue(controller.validateMenuItem(item("showInLargeType:")))
+
+        harness.promptSucceeds = false
+        controller.showInLargeType(nil)
+        await waitUntil { harness.promptReasons.count == 1 }
+        await settle()
+        XCTAssertNil(largeType.panel, "A declined prompt shows nothing")
+
+        harness.promptSucceeds = true
+        controller.showInLargeType(nil)
+        await waitUntil { largeType.panel != nil }
+        XCTAssertEqual(harness.promptReasons, [String(localized: "View password"), String(localized: "View password")])
+        XCTAssertEqual(largeType.model, LargeTypeModel(title: "GitHub", fieldName: String(localized: "Password"), value: "Vx7$"))
+        XCTAssertEqual(presented.count, 1)
+        XCTAssertFalse(window.isVisible)
+        let panel = try XCTUnwrap(largeType.panel)
+        XCTAssertEqual(panel.frame.midX, window.frame.midX, accuracy: 0.5)
+
+        window.close()
+        XCTAssertNil(largeType.panel, "Closing the window closes its Large Type panel")
+        XCTAssertNil(largeType.model)
+    }
+
     /// View ▸ Hide Sidebar reads Show Sidebar while the sidebar is collapsed.
     func testSidebarMenuTitleFollowsTheCollapsedSidebar() throws {
         let controller = DatabaseWindowController(session: try makeSession(), windowRegistry: registry(),
@@ -293,7 +331,7 @@ final class DatabaseWindowControllerTests: XCTestCase {
             $0.hasPassword && $0.username.isEmpty == false && $0.url.isEmpty == false
         }).id
 
-        let selectors = ["copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "newEntry:",
+        let selectors = ["copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "showInLargeType:", "newEntry:",
                          "newGroup:", "saveDatabase:", "closeDatabase:", "editEntry:", "deleteSelection:",
                          "findEntry:", "lockDatabase:", "duplicateSelectedEntry:", "moveSelectedEntries:",
                          "showAllEntries:", "showVerificationCodes:", "showPasskeys:", "chooseSortOrder:", "chooseSortDirection:",
@@ -305,7 +343,8 @@ final class DatabaseWindowControllerTests: XCTestCase {
             XCTAssertEqual((target as? NSMenuItemValidation)?.validateMenuItem(item), controller.validateMenuItem(item),
                            name)
         }
-        for name in ["copyUsername:", "copyPassword:", "copyURL:", "duplicateSelectedEntry:", "moveSelectedEntries:"] {
+        for name in ["copyUsername:", "copyPassword:", "copyURL:", "showInLargeType:", "duplicateSelectedEntry:",
+                     "moveSelectedEntries:"] {
             let item = NSMenuItem(title: "", action: NSSelectorFromString(name), keyEquivalent: "")
             XCTAssertEqual(Self.validate(item, in: window), true, "\(name) is enabled with the table focused")
         }
@@ -375,6 +414,7 @@ final class DatabaseWindowControllerTests: XCTestCase {
             ("saveDatabase:", commands.canSave), ("closeDatabase:", commands.canCloseDatabase),
             ("copyUsername:", commands.canCopyUsername), ("copyPassword:", commands.canCopyPassword),
             ("copyURL:", commands.canCopyURL), ("copyVerificationCode:", commands.canCopyVerificationCode),
+            ("showInLargeType:", commands.canShowPasswordInLargeType),
             ("editEntry:", commands.canEditEntry), ("deleteSelection:", commands.canDelete),
             ("findEntry:", commands.canFind), ("lockDatabase:", commands.canLock),
         ]

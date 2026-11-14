@@ -16,9 +16,11 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         panel: previewPanel
     )
     private let previewPanel: any MacPreviewPanelPresenting
+    let largeType: MacLargeTypePanelController
     private lazy var workspace = MacWindowWorkspace(
         presentation: workspacePresentation,
         attachmentPreview: attachmentPreview,
+        largeType: largeType,
         splitAutosaveName: splitAutosaveName,
         currentSession: { [weak self] in self?.currentSession() }
     )
@@ -64,10 +66,12 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         initialContentSize: NSSize = DatabaseWindow.defaultContentSize,
         passwordCopyAction: EntrySecretAction = EntrySecretAction(),
         previewPanel: any MacPreviewPanelPresenting = MacSystemPreviewPanel(),
+        largeType: MacLargeTypePanelController = .shared,
         requestClose: @escaping @MainActor (NSWindow) -> Void = { $0.performClose(nil) }
     ) {
         self.session = session
         self.previewPanel = previewPanel
+        self.largeType = largeType
         self.windowRegistry = windowRegistry
         self.enrollment = enrollment
         self.passwordCopyAction = passwordCopyAction
@@ -207,6 +211,15 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         guard let entryID = commandEntryID else { return }
         commands.copyVerificationCode(entryID: entryID, copy: copyFeedback.recording(.verificationCode, for: entryID))
     }
+    /// The password through the reveal gate and its rechecks, then the app's Large Type panel over this window.
+    @objc func showInLargeType(_ sender: Any?) {
+        guard let entryID = commandEntryID else { return }
+        commands.showPasswordInLargeType(entryID: entryID, currentSession: { [weak self] in self?.currentSession() },
+                                         present: { [weak self] password in
+            guard let self, let window = self.window else { return }
+            self.largeType.showPassword(password, ofEntry: entryID, in: self.session, over: window)
+        })
+    }
     @objc func editEntry(_ sender: Any?) { commands.editEntry() }
     @objc func deleteSelection(_ sender: Any?) { commands.deleteSelection() }
     @objc func findEntry(_ sender: Any?) {
@@ -247,6 +260,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         case #selector(copyPassword): return commands.canCopyPassword
         case #selector(copyURL): return commands.canCopyURL
         case #selector(copyVerificationCode): return commands.canCopyVerificationCode
+        case #selector(showInLargeType): return commands.canShowPasswordInLargeType
         case #selector(editEntry): return commands.canEditEntry
         case #selector(deleteSelection):
             item.title = commands.deletesPermanently ? String(localized: "Delete Permanently") : String(localized: "Delete")

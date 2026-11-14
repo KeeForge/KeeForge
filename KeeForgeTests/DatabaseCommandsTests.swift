@@ -69,15 +69,18 @@ final class DatabaseCommandsTests: XCTestCase {
                 XCTAssertEqual(commands.canCopyPassword, index == 2)
                 XCTAssertEqual(commands.canCopyURL, index == 3)
                 XCTAssertEqual(commands.canCopyVerificationCode, index == 4)
+                XCTAssertEqual(commands.canShowPasswordInLargeType, index == 2, "Large Type needs only a password")
             }
             session.workspace.selectedEntryID = entries[2].id
             let task = try XCTUnwrap(action.perform(authenticate: {}, isCurrent: { true }, disclose: {}))
             XCTAssertFalse(commands.canCopyPassword)
+            XCTAssertFalse(commands.canShowPasswordInLargeType)
             await task.value
             XCTAssertTrue(commands.canCopyPassword)
             session.workspace.beginEntrySelection(with: entries[2].id)
             XCTAssertFalse(commands.canCopyUsername)
             XCTAssertFalse(commands.canCopyPassword)
+            XCTAssertFalse(commands.canShowPasswordInLargeType)
             XCTAssertFalse(commands.canCopyURL)
             XCTAssertFalse(commands.canCopyVerificationCode)
             XCTAssertFalse(commands.canEditEntry)
@@ -420,6 +423,7 @@ final class DatabaseCommandsTests: XCTestCase {
         XCTAssertFalse(commands.canCopyPassword, file: file, line: line)
         XCTAssertFalse(commands.canCopyURL, file: file, line: line)
         XCTAssertFalse(commands.canCopyVerificationCode, file: file, line: line)
+        XCTAssertFalse(commands.canShowPasswordInLargeType, file: file, line: line)
         XCTAssertFalse(commands.canEditEntry, file: file, line: line)
         XCTAssertFalse(commands.canDelete, file: file, line: line)
         XCTAssertEqual(commands.canFind, unlocked, file: file, line: line)

@@ -100,7 +100,14 @@ footer with the History link. Attachment Quick Look and Share go through the
 window's `MacAttachmentPreviewController`, an `NSResponder` installed right after
 the window in its responder chain, so the shared `QLPreviewPanel` takes that
 window's `AttachmentPreviewSession` as its data source; Share opens an
-`NSSharingServicePicker` from the row's button. The sidebar renders
+`NSSharingServicePicker` from the row's button. Show in Large Type (the password
+row's button and View ▸ Show in Large Type, validated by
+`DatabaseCommands.canShowPasswordInLargeType`) goes through the reveal gate, then
+hands the password to the app's one `MacLargeTypePanelController`: a borderless
+key `NSPanel` centred over the window, hosting `MacLargeTypeView`. Opening
+another replaces it, and it closes on any key, click or loss of key status and
+on lock, content or selection changes, its window closing and resign active;
+the reasons are in `SECURITY.md`. The sidebar renders
 `MacSidebarSnapshot` in a source-list `NSOutlineView` (Library, Groups, Tags and
 Recycle Bin headers, Tags keeping a caption row while there are none; the Recycle
 Bin section is a Deleted Entries row, which selects the bin group, then the

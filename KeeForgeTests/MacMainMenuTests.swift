@@ -68,6 +68,7 @@ final class MacMainMenuTests: XCTestCase {
             ("Descending", "", [], "chooseSortDirection:"),
             ("Expand All Groups", MainMenu.rightArrowKey, control, "expandAllGroups:"),
             ("Collapse All Groups", MainMenu.leftArrowKey, control, "collapseAllGroups:"),
+            ("Show in Large Type", "", [], "showInLargeType:"),
             ("Enter Full Screen", "f", control, "toggleFullScreen:"),
         ], [
             ("Lock", "l", command, "lockDatabase:"),
@@ -80,7 +81,7 @@ final class MacMainMenuTests: XCTestCase {
             ("Databases", "0", shift, "showDatabasesWindow:"),
             ("Bring All to Front", "", [], "arrangeInFront:"),
         ], [("KeeForge Help", "", [], "showHelp:"), ("Report a Bug", "", [], "reportBug:")]]
-        let databaseActions: Set<String> = ["newEntry:", "newGroup:", "saveDatabase:", "closeDatabase:", "copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "editEntry:", "duplicateSelectedEntry:", "moveSelectedEntries:", "deleteSelection:", "findEntry:", "showAllEntries:", "showVerificationCodes:", "showPasskeys:", "chooseSortOrder:", "chooseSortDirection:", "expandAllGroups:", "collapseAllGroups:", "lockDatabase:", "syncNow:", "showDatabaseSettings:"]
+        let databaseActions: Set<String> = ["newEntry:", "newGroup:", "saveDatabase:", "closeDatabase:", "copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "editEntry:", "duplicateSelectedEntry:", "moveSelectedEntries:", "deleteSelection:", "findEntry:", "showAllEntries:", "showVerificationCodes:", "showPasskeys:", "chooseSortOrder:", "chooseSortDirection:", "expandAllGroups:", "collapseAllGroups:", "showInLargeType:", "lockDatabase:", "syncNow:", "showDatabaseSettings:"]
         let appActions: Set<String> = ["showAboutPanel:", "showSettings:", "newDatabase:", "openDatabase:", "showHelp:", "reportBug:", "checkForUpdates:", "showDatabasesWindow:", "connectToServer:", "lockAllDatabases:"]
         for (top, contracts) in zip(menu.items, expected) {
             let submenu = try XCTUnwrap(top.submenu)
@@ -114,7 +115,7 @@ final class MacMainMenuTests: XCTestCase {
              DatabaseCollection.passkeys.title],
             [localized("Sort By")] + DatabaseViewModel.SortOrder.allCases.map(\.title),
             ["Ascending", "Descending"].map(localized), ["Expand All Groups", "Collapse All Groups"].map(localized),
-            [localized("Enter Full Screen")],
+            [localized("Show in Large Type")], [localized("Enter Full Screen")],
         ])
         let sortHeader = try XCTUnwrap(menu.items[3].submenu?.items.first { $0.title == localized("Sort By") })
         XCTAssertTrue(sortHeader.isSectionHeader)

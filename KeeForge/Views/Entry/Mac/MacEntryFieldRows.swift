@@ -218,6 +218,7 @@ struct MacEntryFieldRow: View {
     let model: MacEntryDetailModel
     let isFirst: Bool
     @Environment(\.openURL) private var openURL
+    @Environment(MacLargeTypePanelController.self) private var largeType: MacLargeTypePanelController?
 
     var body: some View {
         switch field.display {
@@ -306,6 +307,9 @@ struct MacEntryFieldRow: View {
             .disabled(model.isAuthenticating)
             .accessibilityIdentifier(revealIdentifier)
         }
+        if field.canShowInLargeType {
+            largeTypeButton
+        }
         if field.kind.isWebsite {
             MacCopiedTick(kind: field.kind, model: model)
             if let link = field.openableURL {
@@ -317,6 +321,24 @@ struct MacEntryFieldRow: View {
         } else if field.canCopy {
             copyButton
         }
+    }
+
+    /// Pressed while the app's Large Type panel shows this entry; clicking it then only closes the panel.
+    private var largeTypeButton: some View {
+        let entryID = model.source.entryID
+        let session = model.session
+        return MacDetailIconButton(
+            systemImage: "textformat.size",
+            label: String(localized: "Show in Large Type"),
+            isOn: largeType?.isShowing(entryID: entryID, in: session) == true
+        ) {
+            guard let largeType, largeType.closedJustNow(entryID: entryID, in: session) == false else { return }
+            model.showPasswordInLargeType { password in
+                largeType.showPassword(password, ofEntry: entryID, in: session)
+            }
+        }
+        .disabled(model.isAuthenticating || largeType == nil)
+        .accessibilityIdentifier("entry.password.large-type")
     }
 
     private var copyButton: some View {

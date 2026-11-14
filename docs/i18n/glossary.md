@@ -32,6 +32,7 @@ Apple renames some of these, and KeeForge follows Apple:
 | Touch ID | zh-Hans `触控 ID`, zh-Hant `觸控 ID` |
 | AirDrop | zh-Hans `隔空投送` |
 | Quick Look | de `Übersicht`, fr `Coup d'œil`, es `Vista rápida`, it `Visualizzazione rapida`, ru `Быстрый просмотр`, ja `クイックルック`, zh-Hans and zh-Hant `快速查看` |
+| Large Type (Contacts' name for it) | de `große Schrift`, fr `gros caractères`, es `letra grande`, it `caratteri grandi`, ru `крупный шрифт`, ja `大きな文字`, zh-Hans `大字体`, zh-Hant `大字體` |
 | Apple's apps | Use the localized app name in the locale's quotes: Files → de `Dateien-App`, fr `l'app Fichiers`, es `la app Archivos`, it `l'app File`, ru `приложение «Файлы»`, ja `「ファイル」App`, zh-Hans `“文件”App`, zh-Hant `「檔案」App`. Passwords → `Passwörter`, `Mots de passe`, `Contraseñas`, `Password`, `«Пароли»`, `「パスワード」`, `“密码”`, `「密碼」` |
 | Keychain | de `Schlüsselbund`, fr `trousseau`, es `llavero`, it `portachiavi`, ru `связка ключей`, ja `キーチェーン`, zh-Hans `钥匙串`, zh-Hant `鑰匙圈` |
 

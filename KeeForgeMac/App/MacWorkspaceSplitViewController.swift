@@ -8,6 +8,7 @@ final class MacWindowWorkspace {
     private(set) var toolbar: MacWorkspaceToolbar?
     private let presentation: MacWorkspacePresentation
     private let attachmentPreview: MacAttachmentPreviewController
+    private let largeType: MacLargeTypePanelController
     private var sidebarCollapseObservation: NSKeyValueObservation?
     private let splitAutosaveName: NSSplitView.AutosaveName?
     private let currentSession: @MainActor () -> DatabaseViewModel?
@@ -16,11 +17,13 @@ final class MacWindowWorkspace {
     init(
         presentation: MacWorkspacePresentation,
         attachmentPreview: MacAttachmentPreviewController,
+        largeType: MacLargeTypePanelController = .shared,
         splitAutosaveName: NSSplitView.AutosaveName? = nil,
         currentSession: @escaping @MainActor () -> DatabaseViewModel?
     ) {
         self.presentation = presentation
         self.attachmentPreview = attachmentPreview
+        self.largeType = largeType
         self.splitAutosaveName = splitAutosaveName
         self.currentSession = currentSession
     }
@@ -39,7 +42,8 @@ final class MacWindowWorkspace {
         guard splitViewController?.session !== session else { return }
         let controller = session.map {
             MacWorkspaceSplitViewController(session: $0, presentation: presentation,
-                                            attachmentPreview: attachmentPreview, autosaveName: splitAutosaveName,
+                                            attachmentPreview: attachmentPreview, largeType: largeType,
+                                            autosaveName: splitAutosaveName,
                                             currentSession: currentSession)
         }
         toolbar = controller.map {
@@ -66,6 +70,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         session: DatabaseViewModel,
         presentation: MacWorkspacePresentation,
         attachmentPreview: MacAttachmentPreviewController,
+        largeType: MacLargeTypePanelController = .shared,
         autosaveName: NSSplitView.AutosaveName? = nil,
         currentSession: @escaping @MainActor () -> DatabaseViewModel?
     ) {
@@ -93,6 +98,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         addSplitViewItem(entries)
 
         let detail = NSSplitViewItem(viewController: Self.host(session: session, presentation: presentation,
+            largeType: largeType,
             MacWorkspaceDetailColumn(viewModel: session, presentation: presentation,
                                      attachmentPreview: attachmentPreview, currentSession: currentSession)
         ))
@@ -137,8 +143,12 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         if presentation.isSidebarCollapsed != isCollapsed { presentation.isSidebarCollapsed = isCollapsed }
     }
 
-    private static func host<Content: View>(session: DatabaseViewModel, presentation: MacWorkspacePresentation, _ content: Content) -> NSViewController {
-        let hosting = NSHostingController(rootView: MacWorkspaceHostedColumn(session: session, presentation: presentation, content: content))
+    private static func host<Content: View>(
+        session: DatabaseViewModel, presentation: MacWorkspacePresentation,
+        largeType: MacLargeTypePanelController, _ content: Content
+    ) -> NSViewController {
+        let hosting = NSHostingController(rootView: MacWorkspaceHostedColumn(session: session, presentation: presentation,
+                                                                             largeType: largeType, content: content))
         hosting.sizingOptions = []
         hosting.sceneBridgingOptions = []
         return hosting
@@ -155,11 +165,13 @@ struct MacWorkspaceSplitView: NSViewControllerRepresentable {
 private struct MacWorkspaceHostedColumn<Content: View>: View {
     let session: DatabaseViewModel
     let presentation: MacWorkspacePresentation
+    let largeType: MacLargeTypePanelController
     let content: Content
 
     var body: some View {
         content
             .environment(presentation)
+            .environment(largeType)
             .disabled(session.isSaving)
             .modifier(MacHostingAppearance())
     }

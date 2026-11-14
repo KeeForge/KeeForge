@@ -79,6 +79,8 @@ enum MainMenu {
         add(String(localized: "Collapse All Groups"), #selector(DatabaseWindowController.collapseAllGroups),
             key: leftArrowKey, modifiers: [.command, .control], to: view)
         view.addItem(.separator())
+        add(String(localized: "Show in Large Type"), #selector(DatabaseWindowController.showInLargeType), to: view)
+        view.addItem(.separator())
         add(String(localized: "Enter Full Screen"), #selector(NSWindow.toggleFullScreen(_:)), key: "f", modifiers: [.command, .control], to: view)
 
         let database = submenu(String(localized: "Database"), in: menu)
