@@ -115,12 +115,12 @@ final class DatabaseCommandsTests: XCTestCase {
         XCTAssertFalse(commands.canCopyUsername(entryID: UUID()))
 
         var copied: [String] = []
-        commands.copyUsername(entryID: target.id) { copied.append($0) }
-        commands.copyURL(entryID: target.id) { copied.append($0) }
+        commands.copyUsername(entryID: target.id, currentSession: { session }, copy: { copied.append($0) })
+        commands.copyURL(entryID: target.id, currentSession: { session }, copy: { copied.append($0) })
         let before = TOTPGenerator.generateCode(config: config, sessionKey: try XCTUnwrap(session.sessionKey))
         commands.copyVerificationCode(entryID: target.id) { copied.append($0) }
         let after = TOTPGenerator.generateCode(config: config, sessionKey: try XCTUnwrap(session.sessionKey))
-        commands.copyUsername(entryID: UUID()) { copied.append($0) }
+        commands.copyUsername(entryID: UUID(), currentSession: { session }, copy: { copied.append($0) })
         XCTAssertEqual(Array(copied.prefix(2)), ["alice", "https://example.com"])
         XCTAssertEqual(copied.count, 3)
         XCTAssertTrue([before, after].contains(copied[2]))
@@ -131,12 +131,90 @@ final class DatabaseCommandsTests: XCTestCase {
         XCTAssertFalse(locked.canCopyPassword(entryID: target.id))
         XCTAssertFalse(locked.canCopyURL(entryID: target.id))
         XCTAssertFalse(locked.canCopyVerificationCode(entryID: target.id))
-        locked.copyUsername(entryID: target.id) { copied.append($0) }
-        locked.copyURL(entryID: target.id) { copied.append($0) }
+        locked.copyUsername(entryID: target.id, currentSession: { session }, copy: { copied.append($0) })
+        locked.copyURL(entryID: target.id, currentSession: { session }, copy: { copied.append($0) })
         locked.copyVerificationCode(entryID: target.id) { copied.append($0) }
         locked.copyPassword(entryID: target.id, currentSession: { session })
         XCTAssertEqual(copied.count, 3)
         XCTAssertFalse(locked.passwordCopyAction.isAuthenticating)
+    }
+
+    func testAUsernameOrURLReachingAPasswordCopiesOnlyThroughTheGate() async throws {
+        let key = SymmetricKey(size: .bits256)
+        let source = KPEntry(title: "Source", username: "plain", password: try EncryptedValue.encrypt("hunter2", using: key))
+        let alias = KPEntry(title: "Alias", username: "{REF:P@I:\(source.id.kdbxHexString)}",
+                            url: "https://example.com/{REF:P@T:Source}")
+        let session = try makeSession(root: KPGroup(name: "Root", entries: [source, alias]), key: key)
+        await session.unlock(password: "testpassword123")
+        try await session.reloadDiscardingDraft()
+        defer { session.lockRequest(force: true) }
+        let action = EntrySecretAction()
+        let commands = DatabaseCommands(session: session, passwordCopyAction: action)
+        var copied: [String] = []
+
+        XCTAssertNil(commands.copyUsername(entryID: source.id, currentSession: { session }, copy: { copied.append($0) }),
+                     "A plain username copies at once")
+        XCTAssertEqual(copied, ["plain"])
+
+        let username = try XCTUnwrap(commands.copyUsername(entryID: alias.id, currentSession: { session },
+                                                           authenticate: {}, copy: { copied.append($0) }))
+        XCTAssertEqual(copied, ["plain"], "Nothing before authentication")
+        await username.value
+        let url = try XCTUnwrap(commands.copyURL(entryID: alias.id, currentSession: { session },
+                                                 authenticate: {}, copy: { copied.append($0) }))
+        await url.value
+        XCTAssertEqual(copied, ["plain", "hunter2", "https://example.com/hunter2"])
+
+        let declined = try XCTUnwrap(commands.copyUsername(entryID: alias.id, currentSession: { session },
+                                                           authenticate: { throw CancellationError() },
+                                                           copy: { copied.append($0) }))
+        await declined.value
+        XCTAssertNil(commands.copyUsername(entryID: alias.id, currentSession: { nil }, authenticate: {},
+                                           copy: { copied.append($0) }), "A window that lost its session starts no prompt")
+        XCTAssertEqual(copied.count, 3, "A declined prompt or a window that lost its session copies nothing")
+    }
+
+    func testTheSharedRowActionGatesAUsernameReachingAPassword() async throws {
+        let harness = SecretAccessGateHarness(gracePeriod: .alwaysAsk)
+        let key = SymmetricKey(size: .bits256)
+        let source = KPEntry(title: "Source", username: "plain", password: try EncryptedValue.encrypt("hunter2", using: key))
+        let alias = KPEntry(title: "Alias", username: "{REF:P@I:\(source.id.kdbxHexString)}")
+        let session = try makeSession(root: KPGroup(name: "Root", entries: [source, alias]), key: key,
+                                      secretAccess: harness.gate)
+        await session.unlock(password: "testpassword123")
+        try await session.reloadDiscardingDraft()
+        defer { session.lockRequest(force: true) }
+        let action = EntrySecretAction()
+        var copied: [String] = []
+
+        EntryRowActions(entryID: source.id, session: session).copyUsername(using: action) { copied.append($0) }
+        XCTAssertEqual(copied, ["plain"])
+        XCTAssertTrue(harness.promptReasons.isEmpty, "A plain username needs no prompt")
+
+        harness.promptSucceeds = false
+        EntryRowActions(entryID: alias.id, session: session).copyUsername(using: action) { copied.append($0) }
+        await waitUntilIdle(action)
+        XCTAssertEqual(harness.promptReasons, [String(localized: "Copy protected field")])
+        XCTAssertEqual(copied, ["plain"], "A declined prompt copies nothing")
+
+        harness.promptSucceeds = true
+        harness.duringPrompt = { session.lockRequest(force: true) }
+        EntryRowActions(entryID: alias.id, session: session).copyUsername(using: action) { copied.append($0) }
+        await waitUntilIdle(action)
+        XCTAssertEqual(copied, ["plain"], "A lock during the prompt discloses nothing")
+
+        harness.duringPrompt = nil
+        await session.unlock(password: "testpassword123")
+        try await session.reloadDiscardingDraft()
+        EntryRowActions(entryID: alias.id, session: session).copyUsername(using: action) { copied.append($0) }
+        await waitUntilIdle(action)
+        XCTAssertEqual(copied, ["plain", "hunter2"])
+    }
+
+    private func waitUntilIdle(_ action: EntrySecretAction) async {
+        for _ in 0..<50 where action.isAuthenticating {
+            await Task { @MainActor in }.value
+        }
     }
 
     func testDeleteVariantForActiveAndRecycledEntriesAndGroups() async throws {
@@ -263,6 +341,7 @@ final class DatabaseCommandsTests: XCTestCase {
         readOnly: Bool = false,
         root: KPGroup = KPGroup(name: "Root"),
         key: SymmetricKey = SymmetricKey(size: .bits256),
+        secretAccess: SecretAccessGate = SecretAccessGate(),
         save: @escaping DatabaseViewModel.LocalSaveOperation = { _, _, _, hash, _, _, _ in .saved(newSHA512: hash) }
     ) throws -> DatabaseViewModel {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
@@ -280,7 +359,8 @@ final class DatabaseCommandsTests: XCTestCase {
                 )
             },
             quickUnlockKeyPersistOperation: { _, _, _ in false },
-            storedKeyPresenceCheck: { _ in false }
+            storedKeyPresenceCheck: { _ in false },
+            secretAccess: secretAccess
         )
     }
 

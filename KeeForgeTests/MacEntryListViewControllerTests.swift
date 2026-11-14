@@ -414,6 +414,37 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(copied, ["secret2"], "A lock during the prompt discloses nothing")
     }
 
+    func testAUsernameReferencingAPasswordIsMaskedAndCopiesOnlyAfterAuthentication() async throws {
+        var current: DatabaseViewModel?
+        let (controller, session, _, tree) = try await makeController(currentSession: { current }, configure: { _, entries in
+            entries[1].username = "{REF:P@I:\(entries[0].id.kdbxHexString)}"
+        })
+        current = session
+        var copied: [String] = []
+        controller.copyToClipboard = { copied.append($0) }
+        let authentication = SuspendedAuthentication()
+        controller.authenticatePassword = authentication.authenticate
+        let alias = tree.work.entries[1]
+
+        let row = try XCTUnwrap(cell(controller, entryID: alias.id))
+        XCTAssertEqual(row.usernameField.stringValue, String(repeating: "\u{2022}", count: 12))
+        XCTAssertFalse(row.usernameField.stringValue.contains("secret0"))
+
+        let task = try XCTUnwrap(controller.copyUsername(entryID: alias.id))
+        await authentication.waitUntilRequested()
+        XCTAssertTrue(copied.isEmpty, "Nothing reaches the clipboard before the prompt answers")
+        authentication.complete()
+        await task.value
+        XCTAssertEqual(copied, ["secret0"])
+
+        let locked = try XCTUnwrap(controller.copyUsername(entryID: alias.id))
+        await authentication.waitUntilRequested()
+        session.lockRequest(force: true)
+        authentication.complete()
+        await locked.value
+        XCTAssertEqual(copied, ["secret0"], "A lock during the prompt discloses nothing")
+    }
+
     // MARK: - Cells
 
     func testCellsCarryIdentifiersLabelsGlyphsAndResolvedUsernames() async throws {
@@ -614,6 +645,16 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         let timer = try XCTUnwrap(controller.verificationCodeTimer)
         XCTAssertTrue(timer.isValid)
         XCTAssertGreaterThan(clock.cachedCodeCount, 0)
+        func codeCell() throws -> MacVerificationCodeCellView {
+            try XCTUnwrap(cell(controller, entryID: tree.work.entries[0].id) as? MacVerificationCodeCellView)
+        }
+        func assertBlank(_ cell: MacVerificationCodeCellView, _ message: String) {
+            XCTAssertNil(cell.display, message)
+            XCTAssertEqual(cell.codeField.stringValue, "", message)
+            XCTAssertNil(cell.accessibilityValue(), message)
+        }
+        let shown = try codeCell()
+        XCTAssertEqual(shown.codeField.stringValue, "123 456")
         try replaceWork(in: session, tree: tree) { entries in
             for index in entries.indices { entries[index].totpConfig = Self.fakeTOTP }
             entries[0].title = "Account 00 renamed"
@@ -627,6 +668,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertNil(controller.verificationCodeTimer)
         XCTAssertFalse(timer.isValid, "Leaving the codes stops the timer")
         XCTAssertEqual(clock.cachedCodeCount, 0)
+        assertBlank(shown, "Leaving the codes blanks the cells, reusable ones included")
 
         session.workspace.selectedCollection = .verificationCodes
         await settle()
@@ -638,11 +680,18 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
 
         controller.viewDidAppear()
         let beforeLock = try XCTUnwrap(controller.verificationCodeTimer)
+        let lockedCell = try codeCell()
+        XCTAssertEqual(lockedCell.codeField.stringValue, "123 456")
+        lockedCell.prepareForReuse()
+        assertBlank(lockedCell, "Reuse blanks the cell")
+        controller.tickVerificationCodes()
+        XCTAssertEqual(lockedCell.codeField.stringValue, "123 456")
         session.lockRequest(force: true)
         await settle()
         XCTAssertNil(controller.verificationCodeTimer)
         XCTAssertFalse(beforeLock.isValid, "Lock stops the timer")
         XCTAssertEqual(clock.cachedCodeCount, 0, "Lock clears the codes shown")
+        assertBlank(lockedCell, "Lock blanks the cells")
         controller.tickVerificationCodes()
         XCTAssertEqual(clock.cachedCodeCount, 0)
     }
@@ -707,6 +756,14 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         let after = try XCTUnwrap(cell(controller, entryID: firstEntry) as? MacVerificationCodeCellView)
         XCTAssertNotEqual(after.codeField.stringValue, before)
         XCTAssertEqual(after.countdown.seconds, 15)
+
+        table.scrollRowToVisible(59)
+        controller.view.layoutSubtreeIfNeeded()
+        controller.tickVerificationCodes()
+        var available = 0
+        table.enumerateAvailableRowViews { _, _ in available += 1 }
+        XCTAssertLessThanOrEqual(clock.cachedCodeCount, available, "Rows scrolled away forget their codes")
+        XCTAssertLessThan(clock.cachedCodeCount, 60)
     }
 
     func testTheCopyButtonCopiesTheCodeThroughTheCommand() async throws {

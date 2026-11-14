@@ -240,35 +240,43 @@ private struct EntryHistoryVersionFields: View {
                     )
                 }
                 if !version.username.isEmpty {
-                    FieldRow(
-                        label: String(localized: "Username"),
-                        value: viewModel.resolvingFieldReferences(version.username),
-                        icon: "person",
-                        accessibilityKey: "username",
-                        accessibilityPrefix: "entry-history",
-                        isCardRow: PlatformDesign.followsIOSDesign
-                    )
+                    ReferenceAwareFieldRow(label: String(localized: "Username"), raw: version.username,
+                                           viewModel: viewModel, accessibilityPrefix: "entry-history",
+                                           isCurrent: secretActionIsCurrent) { username in
+                        FieldRow(
+                            label: String(localized: "Username"),
+                            value: username,
+                            icon: "person",
+                            accessibilityKey: "username",
+                            accessibilityPrefix: "entry-history",
+                            isCardRow: PlatformDesign.followsIOSDesign
+                        )
+                    }
                 }
                 if version.hasPassword {
                     PasswordFieldRow(
                         password: version.password,
                         sessionKey: sessionKey,
                         secretAccess: viewModel.secretAccess,
-                        resolveReferences: viewModel.resolvingFieldReferences,
+                        resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
                         accessibilityPrefix: "entry-history",
                         isCurrent: secretActionIsCurrent,
                         isCardRow: PlatformDesign.followsIOSDesign
                     )
                 }
                 if !version.url.isEmpty {
-                    FieldRow(
-                        label: String(localized: "URL"),
-                        value: viewModel.resolvingFieldReferences(version.url),
-                        icon: "link",
-                        accessibilityKey: "url",
-                        accessibilityPrefix: "entry-history",
-                        isCardRow: PlatformDesign.followsIOSDesign
-                    )
+                    ReferenceAwareFieldRow(label: String(localized: "URL"), raw: version.url,
+                                           viewModel: viewModel, accessibilityPrefix: "entry-history",
+                                           isCurrent: secretActionIsCurrent) { url in
+                        FieldRow(
+                            label: String(localized: "URL"),
+                            value: url,
+                            icon: "link",
+                            accessibilityKey: "url",
+                            accessibilityPrefix: "entry-history",
+                            isCardRow: PlatformDesign.followsIOSDesign
+                        )
+                    }
                 }
                 if let totpConfig = version.totpConfig {
                     TOTPSection(
@@ -280,8 +288,12 @@ private struct EntryHistoryVersionFields: View {
                 }
             }
             if !version.notes.isEmpty {
-                Section("Notes") {
-                    SelectableNotesText(viewModel.resolvingFieldReferences(version.notes))
+                ReferenceAwareFieldRow(label: String(localized: "Notes"), raw: version.notes,
+                                       viewModel: viewModel, accessibilityPrefix: "entry-history",
+                                       isCurrent: secretActionIsCurrent) { notes in
+                    Section("Notes") {
+                        SelectableNotesText(notes)
+                    }
                 }
             }
             let customFields = version.displayCustomFields
@@ -296,22 +308,27 @@ private struct EntryHistoryVersionFields: View {
                         if version.protectedStringKeys.contains(key) {
                             ProtectedFieldRow(
                                 label: key,
-                                value: viewModel.resolvingFieldReferences(value),
+                                value: value,
                                 secretAccess: viewModel.secretAccess,
+                                resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
                                 accessibilityPrefix: "entry-history",
                                 showsInlineLabel: true,
                                 isCardRow: PlatformDesign.followsIOSDesign,
                                 isCurrent: secretActionIsCurrent
                             )
                         } else {
-                            FieldRow(
-                                label: key,
-                                value: viewModel.resolvingFieldReferences(value),
-                                icon: "text.justify.left",
-                                accessibilityPrefix: "entry-history",
-                                showsInlineLabel: true,
-                                isCardRow: PlatformDesign.followsIOSDesign
-                            )
+                            ReferenceAwareFieldRow(label: key, raw: value, viewModel: viewModel,
+                                                   accessibilityPrefix: "entry-history", showsInlineLabel: true,
+                                                   isCurrent: secretActionIsCurrent) { value in
+                                FieldRow(
+                                    label: key,
+                                    value: value,
+                                    icon: "text.justify.left",
+                                    accessibilityPrefix: "entry-history",
+                                    showsInlineLabel: true,
+                                    isCardRow: PlatformDesign.followsIOSDesign
+                                )
+                            }
                         }
                     }
                 }

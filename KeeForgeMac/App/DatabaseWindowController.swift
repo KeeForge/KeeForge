@@ -159,16 +159,20 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         guard commands.canCloseDatabase else { return }
         requestGuardedClose()
     }
-    @objc func copyUsername(_ sender: Any?) { commands.copyUsername() }
+    @objc func copyUsername(_ sender: Any?) {
+        commands.copyUsername(currentSession: { [weak self] in self?.currentSession() })
+    }
     @objc func copyPassword(_ sender: Any?) {
         commands.copyPassword(currentSession: { [weak self] in self?.currentSession() })
     }
 
-    /// The session a password copy may still disclose into after authentication.
+    /// The session a gated copy may still disclose into after authentication.
     private func currentSession() -> DatabaseViewModel? {
         isCurrent() ? session : nil
     }
-    @objc func copyURL(_ sender: Any?) { commands.copyURL() }
+    @objc func copyURL(_ sender: Any?) {
+        commands.copyURL(currentSession: { [weak self] in self?.currentSession() })
+    }
     @objc func copyVerificationCode(_ sender: Any?) { commands.copyVerificationCode() }
     @objc func editEntry(_ sender: Any?) { commands.editEntry() }
     @objc func deleteSelection(_ sender: Any?) { commands.deleteSelection() }

@@ -426,6 +426,31 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         XCTAssertTrue([codeBefore, codeAfter].contains(try XCTUnwrap(copied.last)))
     }
 
+    func testAUsernameReferencingAPasswordShowsMaskedAndCopiesOnlyAfterAuthentication() async throws {
+        let session = open(try await makeUnlockedSession())
+        let entries = try XCTUnwrap(session.rootGroup?.allEntries)
+        let discordEntry = try XCTUnwrap(entries.first { $0.title == "Discord" })
+        let twitterEntry = try XCTUnwrap(entries.first { $0.title == "Twitter" })
+        let form = EntryEditViewModel(editing: discordEntry, sessionKey: try XCTUnwrap(session.sessionKey))
+        form.username = "{REF:P@I:\(twitterEntry.id.kdbxHexString)}"
+        try session.applyEntryEdit(.updateEntry(entryID: discordEntry.id, draft: form.entryDraftPayload))
+        let model = makeModel()
+        let discord = try entry(titled: "Discord", in: model)
+
+        XCTAssertEqual(model.username(for: discord), String(repeating: "\u{2022}", count: 12))
+        authenticationResult = false
+        let declined = await model.copy(.username, from: discord)
+        XCTAssertFalse(declined)
+        XCTAssertTrue(copied.isEmpty)
+        XCTAssertEqual(authenticationRequests, 1)
+
+        authenticationResult = true
+        let didCopy = await model.copy(.username, from: discord)
+        XCTAssertTrue(didCopy)
+        XCTAssertEqual(authenticationRequests, 2)
+        XCTAssertEqual(copied, ["twitterpass123"])
+    }
+
     func testFieldsAnEntryDoesNotHaveCannotBeCopied() async throws {
         open(try await makeUnlockedSession())
         let model = makeModel()

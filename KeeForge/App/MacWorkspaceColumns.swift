@@ -11,6 +11,8 @@ struct MacWorkspaceDetailColumn: View {
         NavigationStack {
             selectionDetail
         }
+        // The placeholders size to their content; filling keeps the banners at the column's top.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .safeAreaInset(edge: .top, spacing: 0) {
             MacWorkspaceBanners(viewModel: viewModel, presentation: presentation)
         }

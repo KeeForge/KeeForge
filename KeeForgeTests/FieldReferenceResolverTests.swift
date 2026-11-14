@@ -18,10 +18,16 @@ final class FieldReferenceResolverTests: XCTestCase {
         )
     }
 
-    private func makeResolver(_ extra: [KPEntry] = []) throws -> FieldReferenceResolver {
+    /// Full clearance, as a caller past the device-owner gate resolves.
+    private struct Cleared {
+        let resolver: FieldReferenceResolver
+        func resolve(_ value: String) -> String? { resolver.resolve(value, clearance: .protectedValues).value }
+    }
+
+    private func makeResolver(_ extra: [KPEntry] = []) throws -> Cleared {
         let decoy = KPEntry(title: "Decoy", username: "someone-else", url: "https://decoy.example.com")
         let target = try makeTarget()
-        return FieldReferenceResolver(entries: [decoy, target] + extra, sessionKey: sessionKey)
+        return Cleared(resolver: FieldReferenceResolver(entries: [decoy, target] + extra, sessionKey: sessionKey))
     }
 
     func testEveryWantedCodeResolvesAgainstUUIDLookup() throws {
@@ -88,13 +94,14 @@ final class FieldReferenceResolverTests: XCTestCase {
     }
 
     func testPasswordReferenceStaysLiteralWithoutSessionKey() throws {
-        let resolver = FieldReferenceResolver(entries: [try makeTarget()], sessionKey: nil)
+        let resolver = Cleared(resolver: FieldReferenceResolver(entries: [try makeTarget()], sessionKey: nil))
         XCTAssertEqual(resolver.resolve("{REF:P@T:Mail Server}"), "{REF:P@T:Mail Server}")
         XCTAssertEqual(resolver.resolve("{REF:U@T:Mail Server}"), "mailbox@example.com")
     }
 
     func testPasswordReferenceStaysLiteralWhenDecryptionFails() throws {
-        let resolver = FieldReferenceResolver(entries: [try makeTarget()], sessionKey: SymmetricKey(size: .bits256))
+        let resolver = Cleared(resolver: FieldReferenceResolver(entries: [try makeTarget()],
+                                                                sessionKey: SymmetricKey(size: .bits256)))
         XCTAssertEqual(resolver.resolve("{REF:P@T:Mail Server}"), "{REF:P@T:Mail Server}")
     }
 
@@ -104,11 +111,11 @@ final class FieldReferenceResolverTests: XCTestCase {
         XCTAssertEqual(resolver.resolve("{REF:U@T:Hop}"), "mailbox@example.com")
     }
 
-    func testCycleTerminates() {
+    func testCycleTerminates() throws {
         let a = KPEntry(title: "A", username: "{REF:U@T:B}")
         let b = KPEntry(title: "B", username: "{REF:U@T:A}")
         let resolver = FieldReferenceResolver(entries: [a, b], sessionKey: nil)
-        let resolved = resolver.resolve("{REF:U@T:A}")
+        let resolved = try XCTUnwrap(resolver.resolve("{REF:U@T:A}").value)
         XCTAssertTrue(resolved.hasPrefix("{REF:U@T:"), "A cycle must end in a literal reference, got \(resolved)")
     }
 
@@ -116,10 +123,61 @@ final class FieldReferenceResolverTests: XCTestCase {
         let child = KPGroup(name: "Child", entries: [try makeTarget()])
         let root = KPGroup(name: "Root", groups: [child])
         XCTAssertEqual(
-            FieldReferenceResolver.resolve("{REF:P@T:Mail Server}", in: root, sessionKey: sessionKey),
-            "s3cret!"
+            FieldReferenceResolver.resolve("{REF:P@T:Mail Server}", in: root, sessionKey: sessionKey,
+                                           clearance: .protectedValues),
+            .resolved("s3cret!")
         )
-        XCTAssertEqual(FieldReferenceResolver.resolve("plain", in: nil, sessionKey: nil), "plain")
+        XCTAssertEqual(FieldReferenceResolver.resolve("{REF:P@T:Mail Server}", in: root, sessionKey: sessionKey),
+                       .needsProtectedValue, "The default clearance is the safe one")
+        XCTAssertEqual(FieldReferenceResolver.resolve("plain", in: nil, sessionKey: nil), .resolved("plain"))
+    }
+
+    // MARK: - Clearance
+
+    func testWithoutClearanceProtectedTargetsAreFlaggedAndNothingProtectedIsRead() throws {
+        var target = try makeTarget()
+        target.customFields["PIN"] = "4321"
+        target.protectedStringKeys = ["PIN"]
+        let ref = "@I:46C9B1FFBD4ABC4BBB260BA1AB0A2E9F}"
+        let undecryptable = KPEntry(title: "Sealed", password: EncryptedValue(sealedData: Data([0]), hasValue: true))
+        let resolver = FieldReferenceResolver(entries: [undecryptable, target], sessionKey: sessionKey)
+
+        for flagged in [
+            "{REF:P" + ref,
+            "prefix {REF:U" + ref + " {REF:P" + ref,
+            "{REF:T@P:s3cret}",
+            "{REF:T@P:Sealed}",
+            "{REF:T@O:4321}",
+        ] {
+            XCTAssertEqual(resolver.resolve(flagged), .needsProtectedValue, flagged)
+        }
+        XCTAssertEqual(resolver.resolve("{REF:U" + ref), .resolved("mailbox@example.com"))
+        XCTAssertEqual(resolver.resolve("{REF:N" + ref), .resolved("IMAP on 993"))
+        XCTAssertEqual(resolver.resolve("{REF:T@O:imap.example}"), .resolved("Mail Server"),
+                       "An unprotected custom field still matches")
+        XCTAssertEqual(resolver.resolve("{REF:T@O:4321}", clearance: .protectedValues), .resolved("Mail Server"))
+        XCTAssertEqual(resolver.resolve("{REF:P" + ref, clearance: .protectedValues), .resolved("s3cret!"))
+    }
+
+    func testNestedReferencesThroughAProtectedValueAreFlagged() throws {
+        let target = try makeTarget()
+        let hop = KPEntry(title: "Hop", username: "{REF:P@T:Mail Server}")
+        let second = KPEntry(title: "Second", notes: "{REF:U@T:Hop}")
+        let resolver = FieldReferenceResolver(entries: [target, hop, second], sessionKey: sessionKey)
+        XCTAssertEqual(resolver.resolve("{REF:U@T:Hop}"), .needsProtectedValue)
+        XCTAssertEqual(resolver.resolve("{REF:N@T:Second}"), .needsProtectedValue)
+        XCTAssertEqual(resolver.resolve("{REF:N@T:Second}", clearance: .protectedValues), .resolved("s3cret!"))
+    }
+
+    func testProtectedStandardFieldsAndAnEmptyPassword() throws {
+        var target = try makeTarget()
+        target.protectedStringKeys = ["Notes", "UserName"]
+        let empty = KPEntry(title: "Empty")
+        let resolver = FieldReferenceResolver(entries: [target, empty], sessionKey: sessionKey)
+        XCTAssertEqual(resolver.resolve("{REF:N@T:Mail Server}"), .needsProtectedValue)
+        XCTAssertEqual(resolver.resolve("{REF:T@U:mailbox}"), .needsProtectedValue, "Matching a protected username")
+        XCTAssertEqual(resolver.resolve("{REF:A@T:Mail Server}"), .resolved("https://mail.example.com"))
+        XCTAssertEqual(resolver.resolve("{REF:P@T:Empty}"), .resolved(""), "No password, nothing protected")
     }
 
     func testUUIDHexRoundTrip() {

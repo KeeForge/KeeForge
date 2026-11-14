@@ -47,7 +47,8 @@ struct UnsavedChangesBanner: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            .background(Theme.State.warning.opacity(0.12))
+            // A style background would otherwise extend up into the toolbar's safe area.
+            .background(Theme.State.warning.opacity(0.12), ignoresSafeAreaEdges: [])
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("database.unsaved-indicator")
         }

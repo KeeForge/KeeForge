@@ -313,6 +313,10 @@ final class MacVerificationCodeClock {
         )
     }
 
+    func forget(_ entryID: UUID) {
+        codes[entryID] = nil
+    }
+
     func reset() {
         generation = nil
         codes.removeAll()

@@ -61,13 +61,21 @@ struct DatabaseCommands {
         guard let session else { return nil }
         return Task { await session.saveHandlingError() }
     }
-    func copyUsername() {
+    /// `currentSession` answers, after any authentication, which session the command's origin still shows.
+    func copyUsername(currentSession: @escaping @MainActor () -> DatabaseViewModel?) {
         guard let entryID = commandEntryID else { return }
-        copyUsername(entryID: entryID)
+        copyUsername(entryID: entryID, currentSession: currentSession)
     }
-    func copyUsername(entryID: UUID, copy: (String) -> Void = { ClipboardService.copy($0) }) {
-        guard let session, let entry = entry(withID: entryID) else { return }
-        copy(session.resolvingFieldReferences(entry.username))
+    @discardableResult
+    func copyUsername(
+        entryID: UUID,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    ) -> Task<Void, Never>? {
+        guard let session, entry(withID: entryID) != nil else { return nil }
+        return Self.copyEntryField(\.username, entryID: entryID, in: session, action: passwordCopyAction,
+                                   currentSession: currentSession, authenticate: authenticate, copy: copy)
     }
     /// `currentSession` answers, after authentication, which session the command's origin still shows.
     func copyPassword(currentSession: @escaping @MainActor () -> DatabaseViewModel?) {
@@ -85,13 +93,20 @@ struct DatabaseCommands {
         return Self.copyEntryPassword(entryID: entryID, in: session, action: passwordCopyAction,
                                       currentSession: currentSession, authenticate: authenticate, copy: copy)
     }
-    func copyURL() {
+    func copyURL(currentSession: @escaping @MainActor () -> DatabaseViewModel?) {
         guard let entryID = commandEntryID else { return }
-        copyURL(entryID: entryID)
+        copyURL(entryID: entryID, currentSession: currentSession)
     }
-    func copyURL(entryID: UUID, copy: (String) -> Void = { ClipboardService.copy($0) }) {
-        guard let session, let entry = entry(withID: entryID) else { return }
-        copy(session.resolvingFieldReferences(entry.url))
+    @discardableResult
+    func copyURL(
+        entryID: UUID,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    ) -> Task<Void, Never>? {
+        guard let session, entry(withID: entryID) != nil else { return nil }
+        return Self.copyEntryField(\.url, entryID: entryID, in: session, action: passwordCopyAction,
+                                   currentSession: currentSession, authenticate: authenticate, copy: copy)
     }
     func copyVerificationCode() {
         guard let entryID = commandEntryID else { return }
@@ -121,18 +136,60 @@ struct DatabaseCommands {
         copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
     ) -> Task<Void, Never>? {
         guard viewModel.entry(withID: entryID)?.hasPassword == true else { return nil }
+        return copyEntrySecret(entryID: entryID, in: viewModel, action: action, reason: String(localized: "Copy password"),
+                               currentSession: currentSession, authenticate: authenticate, copy: copy) { entry in
+            viewModel.resolvedPassword(for: entry)
+        }
+    }
+
+    /// A plain field copies at once; one whose field references reach a protected value
+    /// takes the password's gate and rechecks. Nil when nothing waits on authentication.
+    @discardableResult
+    static func copyEntryField(
+        _ field: KeyPath<KPEntry, String> & Sendable,
+        entryID: UUID,
+        in viewModel: DatabaseViewModel,
+        action: EntrySecretAction,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    ) -> Task<Void, Never>? {
+        guard let entry = viewModel.entry(withID: entryID) else { return nil }
+        switch viewModel.fieldReferenceResolution(of: entry[keyPath: field]) {
+        case .resolved(let value):
+            copy(value)
+            return nil
+        case .needsProtectedValue:
+            return copyEntrySecret(entryID: entryID, in: viewModel, action: action,
+                                   reason: String(localized: "Copy protected field"),
+                                   currentSession: currentSession, authenticate: authenticate, copy: copy) { entry in
+                viewModel.resolvingFieldReferencesIncludingProtectedValues(entry[keyPath: field])
+            }
+        }
+    }
+
+    private static func copyEntrySecret(
+        entryID: UUID,
+        in viewModel: DatabaseViewModel,
+        action: EntrySecretAction,
+        reason: String,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)?,
+        copy: @escaping @MainActor (String) -> Void,
+        value: @escaping @MainActor (KPEntry) -> String
+    ) -> Task<Void, Never>? {
         let isCurrentSession = EntrySecretAction.currentSession(viewModel)
         let secretAccess = viewModel.secretAccess
         return action.perform(
             authenticate: authenticate ?? {
                 if secretAccess.requiresAuthentication {
-                    try await secretAccess.authenticate(reason: String(localized: "Copy password"))
+                    try await secretAccess.authenticate(reason: reason)
                 }
             },
             isCurrent: { currentSession() === viewModel && isCurrentSession() },
             disclose: {
                 guard let entry = viewModel.entry(withID: entryID) else { return }
-                copy(viewModel.resolvedPassword(for: entry))
+                copy(value(entry))
             }
         )
     }

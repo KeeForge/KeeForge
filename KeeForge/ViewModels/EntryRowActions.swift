@@ -46,9 +46,19 @@ struct EntryRowActions {
         entry?.hasPassword == true && session.sessionKey != nil
     }
 
-    func copyUsername(copy: (String) -> Void) {
+    /// A username whose field references reach a protected value waits on the
+    /// same gate as Copy Password; any other copies at once.
+    func copyUsername(using action: EntrySecretAction, copy: @escaping @MainActor (String) -> Void) {
         guard let entry else { return }
-        copy(session.resolvingFieldReferences(entry.username))
+        let session = session
+        switch session.fieldReferenceResolution(of: entry.username) {
+        case .resolved(let username):
+            copy(username)
+        case .needsProtectedValue:
+            copySecret(reason: String(localized: "Copy protected field"), using: action, copy: copy) {
+                session.resolvingFieldReferencesIncludingProtectedValues($0.username)
+            }
+        }
     }
 
     /// Same device-owner gate as the detail view's copy button and the macOS
@@ -56,12 +66,24 @@ struct EntryRowActions {
     /// when the device has no protection.
     func copyPassword(using action: EntrySecretAction, copy: @escaping @MainActor (String) -> Void) {
         let session = session
+        copySecret(reason: String(localized: "Copy password"), using: action, copy: copy) {
+            session.resolvedPassword(for: $0)
+        }
+    }
+
+    private func copySecret(
+        reason: String,
+        using action: EntrySecretAction,
+        copy: @escaping @MainActor (String) -> Void,
+        value: @escaping @MainActor (KPEntry) -> String
+    ) {
+        let session = session
         let entryID = entryID
         let isCurrent = EntrySecretAction.currentSession(session)
         guard isCurrent() else { return }
         let disclose: @MainActor () -> Void = {
             guard let currentEntry = session.entry(withID: entryID) else { return }
-            copy(session.resolvedPassword(for: currentEntry))
+            copy(value(currentEntry))
         }
         guard session.secretAccess.requiresAuthentication else {
             disclose()
@@ -69,7 +91,7 @@ struct EntryRowActions {
         }
         action.perform(
             authenticate: {
-                try await session.secretAccess.authenticate(reason: String(localized: "Copy password"))
+                try await session.secretAccess.authenticate(reason: reason)
             },
             isCurrent: isCurrent,
             disclose: disclose

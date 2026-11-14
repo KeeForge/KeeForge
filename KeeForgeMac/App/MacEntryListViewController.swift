@@ -35,6 +35,8 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     private let codeClock: MacVerificationCodeClock
     /// The one timer that redraws the visible codes while Verification Codes is on screen.
     private(set) var verificationCodeTimer: Timer?
+    /// Every code cell made, reuse queue included, so stopping can blank them all.
+    private let codeCells = NSHashTable<MacVerificationCodeCellView>.weakObjects()
     private var isOnScreen = false
     private var isUnlocked = false
     private(set) var snapshot: MacEntryListSnapshot?
@@ -281,6 +283,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             verificationCodeTimer?.invalidate()
             verificationCodeTimer = nil
             codeClock.reset()
+            for cell in codeCells.allObjects { cell.update(nil) }
             return
         }
         guard verificationCodeTimer == nil else { return }
@@ -392,6 +395,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             let codeCell = tableView.makeView(withIdentifier: MacVerificationCodeCellView.codeReuseIdentifier,
                                               owner: self) as? MacVerificationCodeCellView
                 ?? MacVerificationCodeCellView(loadFavicon: loadFavicon)
+            codeCells.add(codeCell)
             codeCell.onCopy = { [weak self] in self?.copyVerificationCode(entryID: $0) }
             cell = codeCell
         } else {
@@ -411,6 +415,13 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         } else {
             cell.configure(row, username: username, rowIdentifier: rowIdentifier)
         }
+    }
+
+    /// A row scrolled away or removed takes its code with it.
+    func tableView(_ tableView: NSTableView, didRemove rowView: NSTableRowView, forRow row: Int) {
+        guard let cell = rowView.view(atColumn: 0) as? MacVerificationCodeCellView else { return }
+        if let entryID = cell.entryID { codeClock.forget(entryID) }
+        cell.update(nil)
     }
 
     func tableView(_ tableView: NSTableView, typeSelectStringFor tableColumn: NSTableColumn?, row: Int) -> String? {
@@ -473,10 +484,10 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             menuItems.append(item)
         }
         if actions.canCopyUsername {
-            add(String(localized: "Copy Username"), EntryRowActions.copyUsernameIdentifier, #selector(copyUsername(_:)))
+            add(String(localized: "Copy Username"), EntryRowActions.copyUsernameIdentifier, #selector(copyRowUsername(_:)))
         }
         if actions.canCopyPassword {
-            add(String(localized: "Copy Password"), EntryRowActions.copyPasswordIdentifier, #selector(copyPassword(_:)))
+            add(String(localized: "Copy Password"), EntryRowActions.copyPasswordIdentifier, #selector(copyRowPassword(_:)))
         }
         if actions.canDuplicate {
             add(String(localized: "Duplicate"), EntryRowActions.duplicateIdentifier, #selector(duplicateEntry(_:)))
@@ -504,8 +515,8 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         }
         let actions = EntryRowActions(entryID: entryID, session: session)
         switch menuItem.action {
-        case #selector(copyUsername(_:)): return actions.canCopyUsername
-        case #selector(copyPassword(_:)): return actions.canCopyPassword && passwordCopyAction.isAuthenticating == false
+        case #selector(copyRowUsername(_:)): return actions.canCopyUsername
+        case #selector(copyRowPassword(_:)): return actions.canCopyPassword && passwordCopyAction.isAuthenticating == false
         case #selector(duplicateEntry(_:)): return actions.canDuplicate
         case #selector(restoreEntry(_:)): return actions.canRestore
         case #selector(moveEntry(_:)): return actions.canMove
@@ -519,14 +530,27 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         return sender.representedObject as? UUID
     }
 
-    @objc private func copyUsername(_ sender: NSMenuItem) {
+    // Not `copyUsername:` / `copyPassword:`: the main menu's nil-targeted commands would reach these first.
+    @objc private func copyRowUsername(_ sender: NSMenuItem) {
         guard let entryID = validatedEntryID(sender) else { return }
-        DatabaseCommands(session: session).copyUsername(entryID: entryID, copy: copyToClipboard)
+        copyUsername(entryID: entryID)
     }
 
-    @objc private func copyPassword(_ sender: NSMenuItem) {
+    @objc private func copyRowPassword(_ sender: NSMenuItem) {
         guard let entryID = validatedEntryID(sender) else { return }
         copyPassword(entryID: entryID)
+    }
+
+    /// Copies at once, unless the username's field references reach a protected
+    /// value: then it takes the password's prompt and rechecks.
+    @discardableResult
+    func copyUsername(entryID: UUID) -> Task<Void, Never>? {
+        DatabaseCommands(session: session, passwordCopyAction: passwordCopyAction).copyUsername(
+            entryID: entryID,
+            currentSession: currentSession,
+            authenticate: authenticatePassword,
+            copy: copyToClipboard
+        )
     }
 
     /// The menu-bar ⇧⌘C path for one row: device-owner prompt, then the window's session recheck.
@@ -813,6 +837,12 @@ final class MacVerificationCodeCellView: MacEntryCellView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        entryID = nil
+        update(nil)
+    }
 
     func configure(_ row: MacEntryListSnapshot.Row, detail: String, rowIdentifier: String,
                    display: MacVerificationCodeClock.Display?) {

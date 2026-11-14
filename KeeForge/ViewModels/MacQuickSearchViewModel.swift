@@ -202,7 +202,7 @@ final class MacQuickSearchViewModel {
         }
 
         let value: String?
-        if field == .password {
+        if Self.isGated(field, of: result.entry, in: source) {
             let lockCycleID = source.lockCycleID
             let contentRevision = source.contentRevision
             let presentationID = presentationID
@@ -212,10 +212,11 @@ final class MacQuickSearchViewModel {
             let sourceIsCurrent = sourceSession(for: result) === source
                 && source.lockCycleID == lockCycleID
                 && source.contentRevision == contentRevision
-            value = authenticated && sourceIsCurrent ? Self.currentValue(of: field, entryID: result.entry.id, in: source) : nil
+            value = authenticated && sourceIsCurrent
+                ? Self.currentValue(of: field, entryID: result.entry.id, in: source, isAuthorized: true) : nil
             if value == nil { onCopyAborted?() }
         } else {
-            value = Self.currentValue(of: field, entryID: result.entry.id, in: source)
+            value = Self.currentValue(of: field, entryID: result.entry.id, in: source, isAuthorized: false)
         }
         guard let value else { return false }
 
@@ -276,9 +277,21 @@ final class MacQuickSearchViewModel {
         }
     }
 
+    /// The password, and a username whose field references reach a protected value.
+    private static func isGated(_ field: CopyField, of entry: KPEntry, in session: DatabaseViewModel) -> Bool {
+        switch field {
+        case .password: true
+        case .username: session.fieldReferenceResolution(of: entry.username) == .needsProtectedValue
+        case .verificationCode: false
+        }
+    }
+
     /// The field as `session` has it now, or nil when it locked, the entry is
-    /// gone, or it no longer has a value for the field.
-    private static func currentValue(of field: CopyField, entryID: UUID, in session: DatabaseViewModel) -> String? {
+    /// gone, it no longer has a value for the field, or it needs the device-owner
+    /// gate `isAuthorized` says was not passed.
+    private static func currentValue(
+        of field: CopyField, entryID: UUID, in session: DatabaseViewModel, isAuthorized: Bool
+    ) -> String? {
         guard case .unlocked = session.state,
               let entry = session.entry(withID: entryID),
               canCopy(field, from: entry, in: session)
@@ -287,8 +300,14 @@ final class MacQuickSearchViewModel {
         let value: String
         switch field {
         case .username:
-            value = session.resolvingFieldReferences(entry.username)
+            if isAuthorized {
+                value = session.resolvingFieldReferencesIncludingProtectedValues(entry.username)
+            } else {
+                guard let username = session.fieldReferenceResolution(of: entry.username).value else { return nil }
+                value = username
+            }
         case .password:
+            guard isAuthorized else { return nil }
             value = session.resolvedPassword(for: entry)
         case .verificationCode:
             guard let config = entry.totpConfig, let sessionKey = session.sessionKey else { return nil }

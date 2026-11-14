@@ -2674,7 +2674,7 @@ final class DatabaseViewModelTests: XCTestCase {
                       "a row's own entry value drives the copy gates")
 
         var copied: [String] = []
-        live.copyUsername { copied.append($0) }
+        live.copyUsername(using: EntrySecretAction()) { copied.append($0) }
         XCTAssertEqual(copied, ["user"])
 
         try vm.deleteEntry(target.id, sendToRecycleBin: true)

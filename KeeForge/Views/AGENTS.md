@@ -52,6 +52,7 @@ All of these shims live in `../Extensions/PlatformCompat.swift`.
 - Every reveal and authenticated copy goes through `EntrySecretAction` and the session's `secretAccess` gate. Controls invalidate it on disappearance and when their source value or session key changes.
 - No `.textSelection(.enabled)` on a revealed secret: the system copy path bypasses `ClipboardService` (no expiry, no concealed type, no clear on lock). `CopyButton` is the only copy path.
 - Displayed and copied field values pass through `DatabaseViewModel.resolvingFieldReferences(_:)` so `{REF:...}` shows as its target. Editors seed from the raw entry so a save keeps the reference.
+- A reference that reaches a password or protected field never resolves on an ungated path: list rows show the concealed mask, the detail and history views show the field as a `ProtectedFieldRow` (`ReferenceAwareFieldRow`), and copies take the device-owner gate. Only gated reveal and copy use `resolvingFieldReferencesIncludingProtectedValues(_:)`.
 
 ### Accessibility identifiers
 

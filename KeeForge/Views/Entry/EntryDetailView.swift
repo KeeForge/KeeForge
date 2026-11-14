@@ -157,13 +157,16 @@ struct EntryDetailView: View {
 
                     EntryFieldsCard {
                         if !entry.username.isEmpty {
-                            FieldRow(
-                                label: String(localized: "Username"),
-                                value: viewModel.resolvingFieldReferences(entry.username),
-                                icon: "person.fill",
-                                accessibilityKey: "username",
-                                isCardRow: PlatformDesign.followsIOSDesign
-                            )
+                            ReferenceAwareFieldRow(label: String(localized: "Username"), raw: entry.username,
+                                                   viewModel: viewModel, isCurrent: secretActionIsCurrent) { username in
+                                FieldRow(
+                                    label: String(localized: "Username"),
+                                    value: username,
+                                    icon: "person.fill",
+                                    accessibilityKey: "username",
+                                    isCardRow: PlatformDesign.followsIOSDesign
+                                )
+                            }
                         }
 
                         if entry.hasPassword {
@@ -171,25 +174,28 @@ struct EntryDetailView: View {
                                 password: entry.password,
                                 sessionKey: sessionKey,
                                 secretAccess: viewModel.secretAccess,
-                                resolveReferences: viewModel.resolvingFieldReferences,
+                                resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
                                 isCurrent: secretActionIsCurrent,
                                 isCardRow: PlatformDesign.followsIOSDesign
                             )
                         }
 
                         if !entry.url.isEmpty {
-                            URLFieldRow(
-                                url: viewModel.resolvingFieldReferences(entry.url),
-                                isCardRow: PlatformDesign.followsIOSDesign
-                            )
+                            ReferenceAwareFieldRow(label: String(localized: "URL"), raw: entry.url,
+                                                   viewModel: viewModel, isCurrent: secretActionIsCurrent) { url in
+                                URLFieldRow(url: url, isCardRow: PlatformDesign.followsIOSDesign)
+                            }
                         }
 
                         ForEach(Array(entry.additionalURLs.enumerated()), id: \.offset) { index, url in
-                            URLFieldRow(
-                                url: viewModel.resolvingFieldReferences(url),
-                                label: String(localized: "URL \(index + 2)"),
-                                isCardRow: PlatformDesign.followsIOSDesign
-                            )
+                            ReferenceAwareFieldRow(label: String(localized: "URL \(index + 2)"), raw: url,
+                                                   viewModel: viewModel, isCurrent: secretActionIsCurrent) { url in
+                                URLFieldRow(
+                                    url: url,
+                                    label: String(localized: "URL \(index + 2)"),
+                                    isCardRow: PlatformDesign.followsIOSDesign
+                                )
+                            }
                         }
 
                         if let totpConfig = entry.totpConfig {
@@ -202,9 +208,12 @@ struct EntryDetailView: View {
                     }
 
                     if !entry.notes.isEmpty {
-                        Section("Notes") {
-                            SelectableNotesText(viewModel.resolvingFieldReferences(entry.notes))
-                                .accessibilityIdentifier("entry.notes")
+                        ReferenceAwareFieldRow(label: String(localized: "Notes"), raw: entry.notes,
+                                               viewModel: viewModel, isCurrent: secretActionIsCurrent) { notes in
+                            Section("Notes") {
+                                SelectableNotesText(notes)
+                                    .accessibilityIdentifier("entry.notes")
+                            }
                         }
                     }
 
@@ -222,20 +231,25 @@ struct EntryDetailView: View {
                                 if entry.protectedStringKeys.contains(key) {
                                     ProtectedFieldRow(
                                         label: key,
-                                        value: viewModel.resolvingFieldReferences(value),
+                                        value: value,
                                         secretAccess: viewModel.secretAccess,
+                                        resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
                                         showsInlineLabel: true,
                                         isCardRow: PlatformDesign.followsIOSDesign,
                                         isCurrent: secretActionIsCurrent
                                     )
                                 } else {
-                                    FieldRow(
-                                        label: key,
-                                        value: viewModel.resolvingFieldReferences(value),
-                                        icon: "text.justify.left",
-                                        showsInlineLabel: true,
-                                        isCardRow: PlatformDesign.followsIOSDesign
-                                    )
+                                    ReferenceAwareFieldRow(label: key, raw: value, viewModel: viewModel,
+                                                           showsInlineLabel: true,
+                                                           isCurrent: secretActionIsCurrent) { value in
+                                        FieldRow(
+                                            label: key,
+                                            value: value,
+                                            icon: "text.justify.left",
+                                            showsInlineLabel: true,
+                                            isCardRow: PlatformDesign.followsIOSDesign
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -932,10 +946,44 @@ struct FieldRow: View {
     }
 }
 
+/// A field that is not protected itself shows and copies as a protected one
+/// when its `{REF:…}` reaches a password or protected field: concealed, and
+/// revealed or copied only behind the device-owner gate.
+struct ReferenceAwareFieldRow<Plain: View>: View {
+    let label: String
+    let raw: String
+    let viewModel: DatabaseViewModel
+    var accessibilityPrefix: String = "entry"
+    var showsInlineLabel: Bool = false
+    let isCurrent: @MainActor () -> Bool
+    @ViewBuilder let plain: (String) -> Plain
+
+    var body: some View {
+        switch viewModel.fieldReferenceResolution(of: raw) {
+        case .resolved(let value):
+            plain(value)
+        case .needsProtectedValue:
+            ProtectedFieldRow(
+                label: label,
+                value: raw,
+                secretAccess: viewModel.secretAccess,
+                resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
+                accessibilityPrefix: accessibilityPrefix,
+                showsInlineLabel: showsInlineLabel,
+                isCardRow: PlatformDesign.followsIOSDesign,
+                isCurrent: isCurrent
+            )
+        }
+    }
+}
+
 struct ProtectedFieldRow: View {
     let label: String
     let value: String
     let secretAccess: SecretAccessGate
+    /// Applied when the value is revealed or copied, behind the gate, so a
+    /// `{REF:…}` shows and copies as what it points at.
+    var resolveReferences: (String) -> String = { $0 }
     var accessibilityPrefix: String = "entry"
     var showsInlineLabel: Bool = false
     /// A label/value row inside a card the caller supplies (iOS).
@@ -975,7 +1023,7 @@ struct ProtectedFieldRow: View {
                     .font(Theme.Font.footnote)
                     .foregroundStyle(Theme.labelSecondary)
                 HStack(spacing: 0) {
-                    Text(value)
+                    Text(resolveReferences(value))
                         .font(.body.monospaced())
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1002,7 +1050,7 @@ struct ProtectedFieldRow: View {
                 .frame(width: 24)
 
             if revealed {
-                Text(value)
+                Text(resolveReferences(value))
                     .font(.body.monospaced())
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1029,7 +1077,7 @@ struct ProtectedFieldRow: View {
         .macHelp(revealed ? String(localized: "Hide \(label)") : String(localized: "Show \(label)"))
 
         CopyButton(
-            text: value,
+            resolveText: { resolveReferences(value) },
             secretAccess: secretAccess,
             authenticationReason: String(localized: "Copy protected field"),
             accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)",

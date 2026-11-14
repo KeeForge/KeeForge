@@ -215,7 +215,13 @@ panels are not registered database hosts.
 
 Revealing or copying a password or protected field asks for device-owner
 authentication through the session's
-[SecretAccessGate](../KeeForge/Services/Security/SecretAccessGate.swift). With
+[SecretAccessGate](../KeeForge/Services/Security/SecretAccessGate.swift). The
+same holds for a field whose KeePass `{REF:…}` reference reaches a password or
+protected field, directly or through other references: the entry list and quick
+search show it as the concealed mask, the detail view shows it as a protected
+field, and Copy Username or Copy URL waits on the same prompt and rechecks as
+Copy Password. Ungated paths resolve only unprotected targets
+([FieldReferenceResolver](../KeeForge/Models/FieldReferenceResolver.swift)). With
 the Authentication Grace Period setting at its default, Always Ask, every such
 action prompts. A longer setting (at most five minutes) skips the prompt for that
 long after an unlock or a successful authentication. The grant is held in memory
@@ -362,7 +368,8 @@ file) is never selected in the wrong one.
 Copying follows the database window's rules: the password waits on the same
 device-owner prompt as ⇧⌘C, skipped only inside the session's authentication
 grace period, and is re-checked against the session after it,
-while the user name and verification code copy without a prompt. Copies go
+while the user name and verification code copy without a prompt, unless the
+user name's field references reach a protected value. Copies go
 through `ClipboardService`, with its concealed marker, clear timer, and
 clear-on-lock.
 

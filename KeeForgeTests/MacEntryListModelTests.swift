@@ -367,21 +367,26 @@ final class MacEntryListModelTests: XCTestCase {
         XCTAssertNil(clock.display(for: UUID(), session: session))
         XCTAssertEqual(clock.cachedCodeCount, 1)
 
+        clock.forget(entry.id)
+        XCTAssertEqual(clock.cachedCodeCount, 0, "a row scrolled away forgets its code")
+        _ = clock.display(for: entry.id, session: session)
+        XCTAssertEqual(generated.count, 3)
+
         clock.reset()
         XCTAssertEqual(clock.cachedCodeCount, 0)
         _ = clock.display(for: entry.id, session: session)
-        XCTAssertEqual(generated.count, 3)
+        XCTAssertEqual(generated.count, 4)
 
         let revision = session.contentRevision
         try session.deleteEntry(other.id, sendToRecycleBin: false)
         XCTAssertNotEqual(session.contentRevision, revision)
         _ = clock.display(for: entry.id, session: session)
-        XCTAssertEqual(generated.count, 4, "a content change drops the cache")
+        XCTAssertEqual(generated.count, 5, "a content change drops the cache")
 
         session.lockRequest(force: true)
         XCTAssertNil(clock.display(for: entry.id, session: session))
         XCTAssertEqual(clock.cachedCodeCount, 0, "lock clears the cache")
-        XCTAssertEqual(generated.count, 4)
+        XCTAssertEqual(generated.count, 5)
         session.workspace.selectedCollection = .verificationCodes
         XCTAssertFalse(MacEntryListSnapshot.make(session: session).showsVerificationCodes, "no session key, no codes")
     }

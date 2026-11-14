@@ -2636,14 +2636,17 @@ final class CredentialProviderCoordinator {
         }
         // Resolves against the whole tree, not `parsedEntries`: a `{REF:…}`
         // may point at a password-less entry or one in a non-searchable group.
+        // The fill follows AutoFill's own authentication, so protected targets resolve too.
         let resolver = FieldReferenceResolver(entries: parsedRootGroup?.allEntries ?? [], sessionKey: decryptionKey)
-        let user = resolver.resolve(entry.username.isEmpty ? entry.title : entry.username)
+        let user = resolver.resolve(entry.username.isEmpty ? entry.title : entry.username,
+                                    clearance: .protectedValues).value ?? ""
         guard !user.isEmpty else {
             cancelRequest(code: .failed)
             return
         }
 
-        let decryptedPassword = resolver.resolve((try? entry.password.decrypt(using: decryptionKey)) ?? "")
+        let decryptedPassword = resolver.resolve((try? entry.password.decrypt(using: decryptionKey)) ?? "",
+                                                 clearance: .protectedValues).value ?? ""
 
         #if os(iOS)
         // Opt-in convenience: many sites put the one-time code in a field iOS

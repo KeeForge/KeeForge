@@ -1,6 +1,6 @@
 import SwiftUI
 
-private enum PasswordVisualStyle {
+enum PasswordVisualStyle {
     static let bulletCount = 12
     static let concealedText = String(repeating: "\u{2022}", count: bulletCount)
     static let segmentCount = 4

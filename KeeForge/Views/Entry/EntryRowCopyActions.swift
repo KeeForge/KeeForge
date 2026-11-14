@@ -12,8 +12,9 @@ struct EntryRowCopyActions: View {
         let actions = EntryRowActions(entry: entry, session: viewModel)
         if actions.canCopyUsername {
             Button("Copy Username") {
-                actions.copyUsername(copy: copyWithFeedback)
+                actions.copyUsername(using: secretAction, copy: copyWithFeedback)
             }
+            .disabled(secretAction.isAuthenticating)
             .accessibilityIdentifier(EntryRowActions.copyUsernameIdentifier)
         }
 

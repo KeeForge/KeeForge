@@ -347,6 +347,10 @@ final class EntrySecretActionTests: XCTestCase {
             switch change {
             case .selection:
                 session.workspace.selectedEntryID = entry.id
+            case .nativeSelection:
+                let other = try XCTUnwrap(session.rootGroup?.allEntries.first { $0.id != entry.id })
+                session.workspace.setEntrySelection([entry.id, other.id])
+                XCTAssertNil(session.workspace.selectedEntryID, "Only the multiple selection changes")
             case .lock:
                 session.lockRequest(force: true)
             case .lockCycle:
@@ -378,7 +382,7 @@ final class EntrySecretActionTests: XCTestCase {
     }
 
     private enum EntryChange: CaseIterable {
-        case selection, lock, lockCycle, activeSession, removedEntry
+        case selection, nativeSelection, lock, lockCycle, activeSession, removedEntry
     }
 
     private enum AuthenticationError: Error {

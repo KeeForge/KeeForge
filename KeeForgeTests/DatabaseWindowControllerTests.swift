@@ -191,7 +191,10 @@ final class DatabaseWindowControllerTests: XCTestCase {
         let window = try XCTUnwrap(controller.window)
         await session.unlock(password: "testpassword123")
         addTeardownBlock { @MainActor in session.lockRequest(force: true) }
-        await settle()
+        await waitUntil {
+            (controller.workspaceSplitViewController?.splitViewItems.first?.viewController as? MacSidebarViewController)?
+                .outlineView.window === window
+        }
         let sidebar = try XCTUnwrap(controller.workspaceSplitViewController?.splitViewItems.first?.viewController
             as? MacSidebarViewController)
         XCTAssertTrue(sidebar.outlineView.window === window, "The outline is in the database window")
@@ -205,7 +208,60 @@ final class DatabaseWindowControllerTests: XCTestCase {
         }
     }
 
+    func testMainMenuCommandsReachTheWindowControllerWhileTheEntryTableIsFocused() async throws {
+        let session = try makeSession()
+        let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false))
+        let window = try XCTUnwrap(controller.window)
+        await session.unlock(password: "testpassword123")
+        addTeardownBlock { @MainActor in session.lockRequest(force: true) }
+        await waitUntil { controller.workspaceSplitViewController?.entryList.tableView.window === window }
+        let table = try XCTUnwrap(controller.workspaceSplitViewController?.entryList.tableView)
+        XCTAssertTrue(table.window === window)
+        XCTAssertTrue(window.makeFirstResponder(table))
+        session.workspace.selectedEntryID = try XCTUnwrap(session.rootGroup?.allEntries.first {
+            $0.hasPassword && $0.username.isEmpty == false && $0.url.isEmpty == false
+        }).id
+
+        let selectors = ["copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "newEntry:",
+                         "newGroup:", "saveDatabase:", "closeDatabase:", "editEntry:", "deleteSelection:",
+                         "findEntry:", "lockDatabase:"]
+        for name in selectors {
+            let item = NSMenuItem(title: "", action: NSSelectorFromString(name), keyEquivalent: "")
+            let target = try XCTUnwrap(Self.actionTarget(for: NSSelectorFromString(name), in: window), name)
+            XCTAssertTrue(target === controller, "\(name) resolves to \(type(of: target)), not the window controller")
+            XCTAssertEqual((target as? NSMenuItemValidation)?.validateMenuItem(item), controller.validateMenuItem(item),
+                           name)
+        }
+        for name in ["copyUsername:", "copyPassword:", "copyURL:"] {
+            let item = NSMenuItem(title: "", action: NSSelectorFromString(name), keyEquivalent: "")
+            XCTAssertEqual(Self.validate(item, in: window), true, "\(name) is enabled with the table focused")
+        }
+    }
+
     // MARK: - Helpers
+
+    /// What a nil-targeted action reaches in `window`, in AppKit's order: the
+    /// responder chain from the first responder, then the delegate and the
+    /// window controller. Spelled out because a window that is never shown is
+    /// not key, so `NSApp.target(forAction:)` would not search it.
+    private static func actionTarget(for action: Selector, in window: NSWindow) -> AnyObject? {
+        var responder: NSResponder? = window.firstResponder
+        while let current = responder {
+            if current.responds(to: action) { return current }
+            responder = current.nextResponder
+        }
+        if let delegate = window.delegate, delegate.responds(to: action) { return delegate }
+        if let windowController = window.windowController, windowController.responds(to: action) {
+            return windowController
+        }
+        return nil
+    }
+
+    private static func validate(_ item: NSMenuItem, in window: NSWindow) -> Bool? {
+        guard let action = item.action, let target = actionTarget(for: action, in: window) else { return nil }
+        return (target as? NSMenuItemValidation)?.validateMenuItem(item)
+    }
 
     private static func match(_ appearance: NSAppearance) -> NSAppearance.Name? {
         appearance.bestMatch(from: [.aqua, .darkAqua])

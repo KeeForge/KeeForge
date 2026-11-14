@@ -682,6 +682,26 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_completeRequest_resolvesAUsernameThatReferencesAPassword() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let source = KPEntry(title: "Token", password: try EncryptedValue.encrypt("token-value", using: sessionKey))
+        let alias = KPEntry(
+            title: "API",
+            username: "{REF:P@I:\(source.id.kdbxHexString)}",
+            password: try EncryptedValue.encrypt("api-secret", using: sessionKey),
+            url: "https://api.example.com"
+        )
+        seedUnlockedVaultState(coordinator, entries: [alias, source], sessionKey: sessionKey)
+        coordinator.parsedRootGroup = KPGroup(name: "Root", entries: [alias, source])
+
+        coordinator.completeRequest(with: alias)
+
+        let credential = try XCTUnwrap(presenter.completedCredential)
+        XCTAssertEqual(credential.user, "token-value", "AutoFill's own authentication clears protected targets")
+        XCTAssertEqual(credential.password, "api-secret")
+    }
+
     func test_terminalCompletionIsDeliveredExactlyOnce() throws {
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)

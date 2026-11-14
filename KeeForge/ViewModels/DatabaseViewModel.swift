@@ -1347,19 +1347,34 @@ final class DatabaseViewModel {
     }
 
     /// `raw` with every KeePass `{REF:…}` field reference replaced by the value
-    /// it points at in the current tree. Display, copy, and fill only — never
-    /// feed the result back into an edit or save.
-    func resolvingFieldReferences(_ raw: String) -> String {
+    /// it points at in the current tree, or `.needsProtectedValue` when one
+    /// reaches a password or protected field. Display, copy, and fill only —
+    /// never feed the result back into an edit or save.
+    func fieldReferenceResolution(of raw: String) -> FieldReferenceResolver.Resolution {
         _ = contentRevision
-        guard FieldReferenceResolver.containsReference(raw) else { return raw }
+        guard FieldReferenceResolver.containsReference(raw) else { return .resolved(raw) }
         return currentFieldReferenceResolver().resolve(raw)
     }
 
+    /// `fieldReferenceResolution(of:)` for an ungated display: a reference that
+    /// reaches a protected value shows as the concealed-field mask.
+    func resolvingFieldReferences(_ raw: String) -> String {
+        fieldReferenceResolution(of: raw).value ?? PasswordVisualStyle.concealedText
+    }
+
+    /// Resolves through protected values too. Only for a disclosure that has
+    /// passed the session's device-owner gate.
+    func resolvingFieldReferencesIncludingProtectedValues(_ raw: String) -> String {
+        _ = contentRevision
+        guard FieldReferenceResolver.containsReference(raw) else { return raw }
+        return currentFieldReferenceResolver().resolve(raw, clearance: .protectedValues).value ?? raw
+    }
+
     /// The entry's decrypted password with field references resolved; empty
-    /// when the database is locked.
+    /// when the database is locked. Only behind the device-owner gate.
     func resolvedPassword(for entry: KPEntry) -> String {
         guard let sessionKey, let plaintext = try? entry.password.decrypt(using: sessionKey) else { return "" }
-        return resolvingFieldReferences(plaintext)
+        return resolvingFieldReferencesIncludingProtectedValues(plaintext)
     }
 
     private func currentFieldReferenceResolver() -> FieldReferenceResolver {
