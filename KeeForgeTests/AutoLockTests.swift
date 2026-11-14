@@ -415,6 +415,148 @@ final class AutoLockTests: XCTestCase {
     }
 #endif
 
+    // MARK: - Lock cause
+
+    func testInactivityTimerRecordsTheInactivityCause() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        let vm = try await makeUnlockedViewModel()
+        XCTAssertNil(vm.lastLockCause)
+
+        try await fireInactivityTimer(of: vm)
+
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertEqual(vm.lastLockCause, .inactivity(.fiveMinutes))
+    }
+
+    func testManualLockRecordsTheManualCauseAndUnlockClearsIt() async throws {
+        let vm = try await makeUnlockedViewModel()
+
+        DatabaseCommands(session: vm).lock()
+
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertEqual(vm.lastLockCause, .manual)
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNil(vm.lastLockCause)
+    }
+
+    func testBackgroundLockRecordsTheBackgroundCause() async throws {
+        SettingsService.lockOnBackground = true
+        let vm = try await makeUnlockedViewModel()
+
+        vm.handleSceneDidEnterBackground()
+
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertEqual(vm.lastLockCause, .background)
+    }
+
+    func testOtherLocksRecordTheSystemCause() async throws {
+        let vm = try await makeUnlockedViewModel()
+
+        vm.lock()
+
+        XCTAssertEqual(vm.lastLockCause, .system)
+    }
+
+    func testDeferredInactivityLockKeepsItsCauseThroughSaveAndLock() async throws {
+        SettingsService.autoLockTimeout = .oneMinute
+        let vm = try await makeUnlockedViewModel(localSaveOperation: { _, _, _, _, _, _, _ in
+            .saved(newSHA512: Data("saved".utf8))
+        })
+        try makeDirty(vm)
+
+        try await fireInactivityTimer(of: vm, expectingLock: false)
+        XCTAssertEqual(vm.pendingLockRequest?.reason, .draft)
+        XCTAssertEqual(vm.pendingLockRequest?.cause, .inactivity(.oneMinute))
+        await vm.saveAndLockAfterLockRequest()
+
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertEqual(vm.lastLockCause, .inactivity(.oneMinute))
+    }
+
+    func testDeferredInactivityLockKeepsItsCauseThroughDiscardAndLock() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        let vm = try await makeUnlockedViewModel()
+        try makeDirty(vm)
+        try await fireInactivityTimer(of: vm, expectingLock: false)
+
+        // What the Lock and Discard button sends.
+        vm.lockRequest(force: true, manuallyTriggered: vm.pendingLockRequest?.manuallyTriggered ?? false)
+
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertEqual(vm.lastLockCause, .inactivity(.fiveMinutes))
+    }
+
+    func testInactivityLockHeldByAnEditorKeepsItsCauseWhenResumed() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        let vm = try await makeUnlockedViewModel()
+        let editorID = UUID()
+        vm.setEditorHasUnsavedChanges(true, editorID: editorID)
+        try await fireInactivityTimer(of: vm, expectingLock: false)
+        let request = try XCTUnwrap(vm.pendingLockRequest)
+        XCTAssertEqual(request.reason, .openEditor)
+
+        vm.setEditorHasUnsavedChanges(false, editorID: editorID)
+        vm.resumeLockRequest(request)
+
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertEqual(vm.lastLockCause, .inactivity(.fiveMinutes))
+    }
+
+    func testManualLockReplacesAPendingInactivityCause() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        let vm = try await makeUnlockedViewModel()
+        try makeDirty(vm)
+        try await fireInactivityTimer(of: vm, expectingLock: false)
+
+        DatabaseCommands(session: vm).lock()
+        XCTAssertEqual(vm.pendingLockRequest?.cause, .manual)
+        vm.lockRequest(force: true, manuallyTriggered: vm.pendingLockRequest?.manuallyTriggered ?? false)
+
+        XCTAssertEqual(vm.lastLockCause, .manual)
+    }
+
+    #if os(macOS)
+    func testMacActivationPastTheDeadlineRecordsTheInactivityCause() async throws {
+        SettingsService.autoLockTimeout = .oneMinute
+        let clock = MutableNowProvider(now: Date(timeIntervalSince1970: 1_000))
+        let vm = try await makeUnlockedViewModel(nowProvider: { clock.now })
+
+        clock.advance(by: 61)
+        vm.handleMacAppDidBecomeActive()
+
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertEqual(vm.lastLockCause, .inactivity(.oneMinute))
+    }
+    #endif
+
+    #if os(iOS)
+    func testIOSReturnPastTheDeadlineRecordsTheInactivityCause() async throws {
+        SettingsService.autoLockTimeout = .thirtySeconds
+        SettingsService.lockOnBackground = false
+        let clock = MutableNowProvider(now: Date(timeIntervalSince1970: 1_000))
+        let vm = try await makeUnlockedViewModel(nowProvider: { clock.now })
+
+        vm.handleSceneDidEnterBackground()
+        clock.advance(by: 31)
+        vm.handleSceneDidBecomeActive()
+
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertEqual(vm.lastLockCause, .inactivity(.thirtySeconds))
+    }
+    #endif
+
+    /// Fires the scheduled timer now; its block hops to the main actor.
+    private func fireInactivityTimer(of vm: DatabaseViewModel, expectingLock: Bool = true) async throws {
+        let timer = try XCTUnwrap(vm.inactivityTimer)
+        timer.fire()
+        for _ in 0..<100 {
+            if expectingLock ? vm.state == .locked : vm.pendingLockRequest != nil { return }
+            await Task.yield()
+        }
+        XCTFail("The inactivity timer did not reach the lock request")
+    }
+
     // MARK: - macOS trigger mapping (MacLockMonitor → lock paths)
 
     #if os(macOS)
@@ -795,14 +937,11 @@ final class AutoLockTests: XCTestCase {
     }
     #endif
 
-    private func makeUnlockedViewModel() async throws -> DatabaseViewModel {
-        try await makeUnlockedViewModel(nowProvider: { .now })
-    }
-
     private func makeUnlockedViewModel(
-        nowProvider: @escaping @Sendable () -> Date
+        nowProvider: @escaping @Sendable () -> Date = { .now },
+        localSaveOperation: DatabaseViewModel.LocalSaveOperation? = nil
     ) async throws -> DatabaseViewModel {
-        let vm = try makeViewModel(nowProvider: nowProvider)
+        let vm = try makeViewModel(nowProvider: nowProvider, localSaveOperation: localSaveOperation)
         await vm.unlock(password: fixturePassword)
         guard case .unlocked = vm.state else {
             XCTFail("Expected an unlocked test session, got \(vm.state): \(String(describing: vm.openFailure))")
@@ -812,12 +951,14 @@ final class AutoLockTests: XCTestCase {
     }
 
     private func makeViewModel(
-        nowProvider: @escaping @Sendable () -> Date = { .now }
+        nowProvider: @escaping @Sendable () -> Date = { .now },
+        localSaveOperation: DatabaseViewModel.LocalSaveOperation? = nil
     ) throws -> DatabaseViewModel {
-        DatabaseViewModel(
-            databaseReference: try TestDatabaseSupport.makeReference(for: fixtureURL()),
-            nowProvider: nowProvider
-        )
+        let reference = try TestDatabaseSupport.makeReference(for: fixtureURL())
+        guard let localSaveOperation else {
+            return DatabaseViewModel(databaseReference: reference, nowProvider: nowProvider)
+        }
+        return DatabaseViewModel(databaseReference: reference, localSaveOperation: localSaveOperation, nowProvider: nowProvider)
     }
 
     private func makeDirty(_ viewModel: DatabaseViewModel) throws {

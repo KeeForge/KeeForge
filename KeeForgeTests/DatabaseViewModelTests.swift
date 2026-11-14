@@ -176,6 +176,107 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.claimBiometricAutoUnlockAttempt())
     }
 
+    func testBiometricUnlockAvailabilityNeedsAStoredKeyThatIsNotDue() throws {
+        let savedInterval = SettingsService.quickUnlockPasswordInterval
+        defer { SettingsService.quickUnlockPasswordInterval = savedInterval }
+        let reference = try makeReference()
+        let matrix: [(stored: Bool, available: Bool, due: Bool, expected: DatabaseViewModel.BiometricUnlockAvailability)] = [
+            (true, true, false, .available),
+            (true, false, false, .unavailableWithStoredKey),
+            (false, true, false, .none),
+            (false, false, false, .none),
+            (true, true, true, .none),
+            (true, false, true, .none),
+        ]
+        for row in matrix {
+            SettingsService.quickUnlockPasswordInterval = row.due ? .always : .never
+            let vm = DatabaseViewModel(
+                databaseReference: reference,
+                storedKeyPresenceCheck: { _ in row.stored },
+                quickUnlockAvailabilityCheck: { row.available }
+            )
+
+            XCTAssertEqual(vm.biometricUnlockAvailability, row.expected, "\(row)")
+            XCTAssertEqual(vm.canUseBiometrics, row.expected == .available, "\(row)")
+        }
+    }
+
+    /// The read returns a correct key's database after Cancel: it must
+    /// neither unlock nor reach the KDF, and the cancel counts as a manual lock.
+    func testCancellingAnOpenDropsItsLateSuccess() async throws {
+        let url = try fixtureURL()
+        let data = try Data(contentsOf: url)
+        let gate = OpenGate()
+        let vm = DatabaseViewModel(
+            databaseReference: try makeReference(),
+            localDatabaseReadOperation: { _ in
+                await gate.hold()
+                return DatabaseViewModel.LocalDatabaseReadResult(url: url, data: data)
+            }
+        )
+        let unlock = Task { await vm.unlock(password: fixturePassword) }
+        await gate.waitUntilHeld()
+        XCTAssertState(vm.state, is: .unlocking)
+        let cycle = vm.lockCycleID
+
+        XCTAssertTrue(vm.cancelUnlockAttempt())
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertTrue(vm.didManuallyLock)
+        XCTAssertEqual(vm.lockCycleID, cycle + 1)
+        XCTAssertNil(vm.lastLockCause, "A session that never opened has no lock cause")
+        await gate.release()
+        await unlock.value
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.rootGroup)
+        XCTAssertNil(vm.compositeKey)
+        XCTAssertNil(vm.sessionKey)
+        XCTAssertNil(vm.openFailure)
+        XCTAssertEqual(vm.failedAttempts, 0)
+        XCTAssertEqual(vm.lockCycleID, cycle + 1)
+    }
+
+    func testCancelUnlockAttemptIsRefusedUnlessAnOpenIsRunning() async throws {
+        let vm = try makeViewModel()
+
+        XCTAssertFalse(vm.cancelUnlockAttempt())
+        XCTAssertFalse(vm.didManuallyLock)
+        XCTAssertEqual(vm.lockCycleID, 0)
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.cancelUnlockAttempt())
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertFalse(vm.didManuallyLock)
+
+        await vm.unlock(password: "wrong")
+        XCTAssertNotNil(vm.openFailure)
+        XCTAssertFalse(vm.cancelUnlockAttempt())
+        XCTAssertNotNil(vm.openFailure)
+    }
+
+    /// A biometric prompt answered after Cancel must not unlock either.
+    func testCancellingDuringTheBiometricPromptDropsItsLateAnswer() async throws {
+        let gate = OpenGate()
+        let vm = try makeViewModel(
+            biometricCompositeKeyOperation: { [fixturePassword] _, _ in
+                await gate.hold()
+                return QuickUnlockKeys(storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil))
+            }
+        )
+        let unlock = Task { await vm.unlockWithBiometrics() }
+        await gate.waitUntilHeld()
+
+        XCTAssertTrue(vm.cancelUnlockAttempt())
+        await gate.release()
+        let outcome = await unlock.value
+
+        XCTAssertEqual(outcome, .failed)
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.rootGroup)
+        XCTAssertNil(vm.openFailure)
+        XCTAssertTrue(vm.didManuallyLock)
+    }
+
     func testUnlockWithCorrectPasswordTransitionsToUnlocked() async throws {
         let vm = try makeViewModel()
 
@@ -4521,7 +4622,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertTrue(vm.isDirty)
         vm.lockRequest()
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft, cause: .system))
     }
 
     func testReloadFailingAfterLockStaysLockedWithoutAnError() async throws {
@@ -6359,7 +6460,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertNotNil(vm.draft)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .draft))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .draft, cause: .manual))
         XCTAssertFalse(vm.pendingLockRequest?.requiresAuthenticationToContinueEditing == true)
 
         vm.lockRequest(force: true)
@@ -6405,7 +6506,11 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertNotNil(vm.draft)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
+        #if os(iOS)
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft, cause: .inactivity(.thirtySeconds)))
+        #else
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft, cause: .background))
+        #endif
         XCTAssertTrue(vm.pendingLockRequest?.requiresAuthenticationToContinueEditing == true)
     }
 
@@ -6422,7 +6527,7 @@ final class DatabaseViewModelTests: XCTestCase {
         vm.lockRequest()
 
         XCTAssertState(vm.state, is: .unlocked)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .openEditor))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .openEditor, cause: .system))
     }
 
     func testForcedLockStillLocksWithAnUnsavedEditor() async throws {
@@ -6467,7 +6572,7 @@ final class DatabaseViewModelTests: XCTestCase {
         vm.resumeLockRequest(request)
 
         XCTAssertState(vm.state, is: .unlocked)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft, cause: .system))
     }
 
     func testSaveAndLockAfterLockRequestLocksWhenTheRetrySucceeds() async throws {
@@ -6525,7 +6630,7 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.saveAndLockAfterLockRequest()
 
         XCTAssertState(vm.state, is: .unlocked)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft, cause: .system))
         XCTAssertNotNil(vm.draft)
     }
 
@@ -6769,7 +6874,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.requestWindowClose(), .waitForEditorPrompt)
 
         XCTAssertState(vm.state, is: .unlocked)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .openEditor))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .openEditor, cause: .manual))
     }
 
     func testWindowCloseIsGrantedOnceTheEditorPromptEndsInALock() async throws {
@@ -6859,7 +6964,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertNotNil(vm.draft)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .draft))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .draft, cause: .manual))
         XCTAssertEqual(grantCount, 0)
 
         // Answering that prompt with Lock and Discard finishes the close.
@@ -8757,3 +8862,28 @@ private actor HeldQuickUnlockKeys {
     }
 }
 #endif
+
+/// Holds an injected operation until the test releases it, however the two race.
+private actor OpenGate {
+    private var isHeld = false
+    private var isReleased = false
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func hold() async {
+        isHeld = true
+        guard isReleased == false else { return }
+        await withCheckedContinuation { waiter = $0 }
+    }
+
+    func waitUntilHeld() async {
+        while isHeld == false {
+            await Task.yield()
+        }
+    }
+
+    func release() {
+        isReleased = true
+        waiter?.resume()
+        waiter = nil
+    }
+}

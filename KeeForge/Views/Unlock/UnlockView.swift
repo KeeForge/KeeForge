@@ -1022,49 +1022,6 @@ struct UnlockView: View {
     }
 }
 
-@MainActor @Observable
-final class UnlockKeyFileSelection {
-    private(set) var isLoading = false
-    private(set) var revision = UUID()
-    private let readData: @Sendable (URL) async throws -> Data
-
-    init(readData: @escaping @Sendable (URL) async throws -> Data = { url in
-        try await CoordinatedFileReader.performBlocking(timeout: .seconds(10)) {
-            let hasSecurityScope = url.startAccessingSecurityScopedResource()
-            defer {
-                if hasSecurityScope {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            }
-            return try CoordinatedFileReader.readData(from: url)
-        }
-    }) {
-        self.readData = readData
-    }
-
-    func read(url: URL) async -> Result<Data, Error>? {
-        guard !Task.isCancelled else { return nil }
-        let requestID = UUID()
-        revision = requestID
-        isLoading = true
-        let result: Result<Data, Error>
-        do {
-            result = .success(try await readData(url))
-        } catch {
-            result = .failure(error)
-        }
-        guard revision == requestID else { return nil }
-        isLoading = false
-        guard !Task.isCancelled else { return nil }
-        return result
-    }
-
-    func cancel() {
-        revision = UUID()
-        isLoading = false
-    }
-}
-
 private enum FilePickerTarget {
     case keyFile
     case databaseFile
@@ -1179,7 +1136,7 @@ struct DatabaseOpeningView: View {
                         if index > 0 {
                             Divider().padding(.leading, 44)
                         }
-                        OpeningStepRow(title: item.title, state: item.state, detail: item.detail)
+                        OpeningStepRow(step: item)
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.side)
@@ -1224,19 +1181,8 @@ struct DatabaseOpeningView: View {
         return line.isEmpty ? nil : line
     }
 
-    private var steps: [(title: String, state: OpeningStepRow.State, detail: String?)] {
-        var steps: [(title: String, state: OpeningStepRow.State, detail: String?)] = []
-        if isCloudBacked {
-            let providerName = provider?.displayName ?? String(localized: "cloud")
-            steps.append((
-                String(localized: "Sync with \(providerName)"),
-                step == .syncing ? .current : .done,
-                step == .syncing ? progress.map { $0.formatted(.percent.precision(.fractionLength(0))) } : nil
-            ))
-        }
-        steps.append((String(localized: "Decrypt Database"), step == .decrypting ? .current : .upcoming, nil))
-        steps.append((String(localized: "Open Database"), .upcoming, nil))
-        return steps
+    private var steps: [DatabaseOpeningSteps.Step] {
+        DatabaseOpeningSteps.make(step: step, isCloudBacked: isCloudBacked, provider: provider, progress: progress)
     }
 
     private var macBody: some View {
@@ -1302,25 +1248,17 @@ extension DatabaseOpeningView {
 
 /// One step of the opening screen: done, in progress, or still to come.
 private struct OpeningStepRow: View {
-    enum State {
-        case done
-        case current
-        case upcoming
-    }
-
-    let title: String
-    let state: State
-    let detail: String?
+    let step: DatabaseOpeningSteps.Step
 
     var body: some View {
         HStack(spacing: Theme.Spacing.iconText) {
             indicator
                 .frame(width: 28, height: 28)
-            Text(title)
+            Text(step.title)
                 .font(.body)
-                .foregroundStyle(state == .upcoming ? Theme.labelSecondary : Color.primary)
+                .foregroundStyle(step.state == .upcoming ? Theme.labelSecondary : Color.primary)
             Spacer(minLength: 0)
-            if let detail {
+            if let detail = step.detail {
                 Text(detail)
                     .font(Theme.Font.subhead.monospacedDigit())
                     .foregroundStyle(.tint)
@@ -1332,7 +1270,7 @@ private struct OpeningStepRow: View {
 
     @ViewBuilder
     private var indicator: some View {
-        switch state {
+        switch step.state {
         case .done:
             Image(systemName: "checkmark")
                 .font(.footnote.weight(.bold))

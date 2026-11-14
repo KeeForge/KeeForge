@@ -152,7 +152,7 @@ struct DatabaseCommands {
         guard isEditorClosed else { return }
         session?.requestDeleteSelection()
     }
-    func lock() { session?.lockRequest(manuallyTriggered: true) }
+    func lock() { session?.lockRequest(manuallyTriggered: true, cause: .manual) }
 
     /// Same device-owner gate as reveal/copy in the entry detail view, skipped only inside the
     /// session's authentication grace period or when the device has no protection at all. The

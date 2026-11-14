@@ -174,6 +174,25 @@ final class HardwareKeyUnlockTests: XCTestCase {
         XCTAssertFalse(failure.countsTowardFailedAttempts)
         XCTAssertEqual(vm.failedAttempts, 0)
         XCTAssertFalse(vm.isAwaitingHardwareKey)
+        XCTAssertFalse(vm.didManuallyLock, "The iOS Cancel ends only the YubiKey request, not the session")
+    }
+
+    /// The opening's own Cancel ends the whole attempt, YubiKey request included.
+    func testCancellingTheUnlockAttemptWhileWaitingForTheYubiKeyLocks() async throws {
+        let key = HeldYubiKey()
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC, respond: key.respond)
+
+        let unlock = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { key.isHolding }
+        XCTAssertTrue(vm.cancelUnlockAttempt())
+        key.answer()
+        await unlock.value
+
+        assertLocked(vm)
+        XCTAssertNil(vm.rootGroup)
+        XCTAssertNil(vm.openFailure)
+        XCTAssertFalse(vm.isAwaitingHardwareKey)
+        XCTAssertTrue(vm.didManuallyLock)
     }
 
     func testLockWhileWaitingForTheYubiKeyCancelsTheRequest() async throws {

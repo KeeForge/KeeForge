@@ -272,6 +272,7 @@ final class DatabaseViewModel {
 
         let manuallyTriggered: Bool
         let reason: Reason
+        let cause: LockCause
 
         var requiresAuthenticationToContinueEditing: Bool {
             manuallyTriggered == false
@@ -280,6 +281,26 @@ final class DatabaseViewModel {
         var id: String {
             "\(manuallyTriggered ? "manual" : "automatic").\(reason.rawValue)"
         }
+    }
+
+    /// Why an open session last locked, for the locked window. Not secret.
+    enum LockCause: Equatable, Sendable {
+        /// The user locked it: the Lock command, a database switch or a window close.
+        case manual
+        /// The auto-lock timeout ran out; carries the setting in force when it was asked for.
+        case inactivity(SettingsService.AutoLockTimeout)
+        /// The app went to the background on iOS, or `MacLockMonitor` saw the user leave.
+        case background
+        /// Anything else the app locks for itself, such as removal from the list.
+        case system
+    }
+
+    /// Whether the unlock form can offer the saved quick-unlock key.
+    enum BiometricUnlockAvailability: Equatable, Sendable {
+        case available
+        /// A saved key that is not due exists, but no biometric or Apple Watch can release it now.
+        case unavailableWithStoredKey
+        case none
     }
 
     struct GroupDeletionSummary: Equatable, Sendable {
@@ -436,6 +457,7 @@ final class DatabaseViewModel {
     typealias StoredKeyDeleteOperation = @Sendable (_ reference: DatabaseReference) -> Void
     /// Injected so tests can drive the no-authentication-available branch.
     typealias DeviceOwnerAuthAvailabilityCheck = @MainActor () -> Bool
+    typealias QuickUnlockAvailabilityCheck = @MainActor () -> Bool
     typealias HardwareKeyResponseOperation = @MainActor (
         _ challenge: Data,
         _ configuration: HardwareKeyConfiguration
@@ -475,6 +497,8 @@ final class DatabaseViewModel {
     /// attempt ends without unlocking.
     private var biometricAutoUnlockAttemptedLockCycle: Int?
     var didManuallyLock = false
+    /// Why the session last locked from open; nil before the first unlock and after each one.
+    private(set) var lastLockCause: LockCause?
     private(set) var rootGroup: KPGroup? {
         didSet { rebuildDerivedState() }
     }
@@ -651,6 +675,7 @@ final class DatabaseViewModel {
     private let storedKeyStoreOperation: StoredKeyStoreOperation
     private let storedKeyDeleteOperation: StoredKeyDeleteOperation
     private let deviceOwnerAuthAvailabilityCheck: DeviceOwnerAuthAvailabilityCheck
+    private let quickUnlockAvailabilityCheck: QuickUnlockAvailabilityCheck
     /// The device-owner gate for revealing and copying this session's
     /// protected values, with its recent-authentication grace period.
     let secretAccess: SecretAccessGate
@@ -760,6 +785,9 @@ final class DatabaseViewModel {
         deviceOwnerAuthAvailabilityCheck: @escaping DeviceOwnerAuthAvailabilityCheck = {
             BiometricService.canAuthenticateDeviceOwner
         },
+        quickUnlockAvailabilityCheck: @escaping QuickUnlockAvailabilityCheck = {
+            BiometricService.isQuickUnlockAvailable
+        },
         secretAccess: SecretAccessGate = SecretAccessGate(),
         hardwareKeyResponseOperation: @escaping HardwareKeyResponseOperation = { challenge, configuration in
             try await HardwareKeyService.response(to: challenge, using: configuration)
@@ -795,6 +823,7 @@ final class DatabaseViewModel {
         self.storedKeyStoreOperation = storedKeyStoreOperation
         self.storedKeyDeleteOperation = storedKeyDeleteOperation
         self.deviceOwnerAuthAvailabilityCheck = deviceOwnerAuthAvailabilityCheck
+        self.quickUnlockAvailabilityCheck = quickUnlockAvailabilityCheck
         self.secretAccess = secretAccess
         self.hardwareKeyResponseOperation = hardwareKeyResponseOperation
         self.hardwareKeyTransportsProvider = hardwareKeyTransportsProvider
@@ -882,6 +911,15 @@ final class DatabaseViewModel {
 
     func cancelHardwareKeyRequest() {
         hardwareKeyTask?.cancel()
+    }
+
+    /// Ends the open in progress (cloud read, KDF, biometric prompt or its
+    /// prefetch) as a manual lock; the attempt's late result is dropped.
+    @discardableResult
+    func cancelUnlockAttempt() -> Bool {
+        guard state == .unlocking, isReplacingOpenDatabase == false, activeUnlockAttempt != nil else { return false }
+        lock(manuallyTriggered: true)
+        return true
     }
 
     var isDirty: Bool {
@@ -1016,15 +1054,17 @@ final class DatabaseViewModel {
         return DatabaseListStore.isDocumentsFileMissing(for: databaseReference)
     }
 
-    /// Named for its iOS meaning; on the native Mac app the stored key also
-    /// opens with an authorized Apple Watch (`BiometricService.quickUnlockPolicy`).
+    /// On the native Mac app the stored key also opens with an authorized
+    /// Apple Watch (`BiometricService.quickUnlockPolicy`).
+    var biometricUnlockAvailability: BiometricUnlockAvailability {
+        guard QuickUnlockKeychain.isMasterKeyDue(for: databaseReference.id) == false,
+              storedKeyPresenceCheck(databaseReference) else { return .none }
+        return quickUnlockAvailabilityCheck() ? .available : .unavailableWithStoredKey
+    }
+
+    /// Named for its iOS meaning; see `biometricUnlockAvailability`.
     var canUseBiometrics: Bool {
-        guard BiometricService.isQuickUnlockAvailable,
-              QuickUnlockKeychain.isMasterKeyDue(for: databaseReference.id) == false else { return false }
-        return KeychainService.hasStoredKey(
-            for: databaseReference.id,
-            legacyFilename: databaseReference.legacyKeychainFilename
-        )
+        biometricUnlockAvailability == .available
     }
 
     /// Whether this session should open itself with biometrics instead of
@@ -1141,7 +1181,7 @@ final class DatabaseViewModel {
         var cloudSyncStatus: CloudSyncResolution.Status?
 
         do {
-            let readResult = try await readDatabaseData()
+            let readResult = try await readDatabaseData(attempt: attempt)
             let data = readResult.data
             encryptedData = data
             cloudSyncStatus = readResult.cloudSyncStatus
@@ -1226,11 +1266,14 @@ final class DatabaseViewModel {
                 prefetch.cancel()
                 throw error
             }
-            if activeUnlockAttempt == attempt {
-                visibleCloudSyncProgressID = prefetchProgressID
+            guard activeUnlockAttempt == attempt else {
+                prefetch.cancel()
+                throw CancellationError()
             }
+            visibleCloudSyncProgressID = prefetchProgressID
             let storedKey = quickUnlockKeys.storedKey
             let readResult = try await readDatabaseData(
+                attempt: attempt,
                 prefetchedCloudResolution: try await withTaskCancellationHandler {
                     try await prefetch.value
                 } onCancel: {
@@ -2338,7 +2381,13 @@ final class DatabaseViewModel {
         return nil
     }
 
-    func lock(manuallyTriggered: Bool = false, preservingClipboard: Bool = false) {
+    /// `cause` defaults to the deferred request's, else `.manual` or `.system`.
+    /// It is recorded only when an open session locks, so a cancelled or
+    /// failed attempt keeps the cause the window was already showing.
+    func lock(manuallyTriggered: Bool = false, preservingClipboard: Bool = false, cause: LockCause? = nil) {
+        if isSessionOpen {
+            lastLockCause = resolvedLockCause(cause, manuallyTriggered: manuallyTriggered)
+        }
         secretAccess.invalidate()
         cancelInactivityTimer()
         hardwareKeyTask?.cancel()
@@ -2401,43 +2450,51 @@ final class DatabaseViewModel {
         lockRequest(force: isSessionOpen == false, manuallyTriggered: true)
     }
 
+    /// With no `cause`, a request completing a deferred one (Lock and Discard,
+    /// a failed resume authentication) keeps that request's cause.
     func lockRequest(
         force: Bool = false,
         manuallyTriggered: Bool = false,
-        preservingClipboard: Bool = false
+        preservingClipboard: Bool = false,
+        cause: LockCause? = nil
     ) {
         // A lock that unsaved work defers still ends the grace period.
         secretAccess.invalidate()
+        let cause = resolvedLockCause(cause, manuallyTriggered: manuallyTriggered)
         guard isSessionOpen else {
             if force {
-                lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard)
+                lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard, cause: cause)
             }
             return
         }
 
         if force {
             discardDraft()
-            lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard)
+            lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard, cause: cause)
             return
         }
 
         // Only the editor can save or discard its own fields, so it goes first.
         if hasUnsavedEditor {
-            pendingLockRequest = PendingLockRequest(manuallyTriggered: manuallyTriggered, reason: .openEditor)
+            pendingLockRequest = PendingLockRequest(manuallyTriggered: manuallyTriggered, reason: .openEditor, cause: cause)
             return
         }
 
         // A reload in flight is already discarding the draft.
         if isDirty == false || isReplacingOpenDatabase {
             discardDraft()
-            lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard)
+            lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard, cause: cause)
             return
         }
 
         // A dirty draft defers the lock so the user can choose whether to lose
         // it. Automatic requests require device-owner authentication before
         // the unlocked session can resume.
-        pendingLockRequest = PendingLockRequest(manuallyTriggered: manuallyTriggered, reason: .draft)
+        pendingLockRequest = PendingLockRequest(manuallyTriggered: manuallyTriggered, reason: .draft, cause: cause)
+    }
+
+    private func resolvedLockCause(_ cause: LockCause?, manuallyTriggered: Bool) -> LockCause {
+        cause ?? pendingLockRequest?.cause ?? (manuallyTriggered ? .manual : .system)
     }
 
     var hasUnsavedEditor: Bool {
@@ -2462,7 +2519,7 @@ final class DatabaseViewModel {
     /// draft or discarded. Re-defers if that save failed and left it dirty.
     func resumeLockRequest(_ request: PendingLockRequest) {
         pendingLockRequest = nil
-        lockRequest(manuallyTriggered: request.manuallyTriggered)
+        lockRequest(manuallyTriggered: request.manuallyTriggered, cause: request.cause)
     }
 
     /// Workspace prompt action: retry the failed write, then lock. A second
@@ -2473,7 +2530,7 @@ final class DatabaseViewModel {
         isSavingBeforeLock = true
         defer { isSavingBeforeLock = false }
         await saveHandlingError()
-        lockRequest(manuallyTriggered: request.manuallyTriggered)
+        lockRequest(manuallyTriggered: request.manuallyTriggered, cause: request.cause)
     }
 
     /// A lock was asked for and has neither completed nor been cancelled: it
@@ -3839,12 +3896,12 @@ final class DatabaseViewModel {
             // KDF) would otherwise finish behind the lock asked for here.
             #if os(iOS)
             if SettingsService.lockOnBackground {
-                lock(preservingClipboard: true)
+                lock(preservingClipboard: true, cause: .background)
             } else {
                 unlockAttemptBackgroundedAt = nowProvider()
             }
             #else
-            lock()
+            lock(cause: .background)
             #endif
             return
         }
@@ -3855,7 +3912,7 @@ final class DatabaseViewModel {
             // Scene phase cannot tell an app switch from a device lock, so iOS
             // keeps the pasteboard (#34) and a copy can outlive a screen lock
             // by up to the clipboard-clear timeout.
-            lockRequest(preservingClipboard: true)
+            lockRequest(preservingClipboard: true, cause: .background)
             return
         }
 
@@ -3869,7 +3926,7 @@ final class DatabaseViewModel {
         // `lockOnBackground` — an iOS-only setting the Mac never renders and
         // cannot repair. The clipboard is scrubbed too: macOS has no expiring,
         // device-local copy (`KeeForgeMac/SECURITY.md`).
-        lockRequest()
+        lockRequest(cause: .background)
         #endif
     }
 
@@ -3882,7 +3939,7 @@ final class DatabaseViewModel {
             return
         case .thirtySeconds, .oneMinute, .fiveMinutes:
             if nowProvider() >= inactivityDeadline {
-                lockRequest()
+                lockRequest(cause: .inactivity(SettingsService.autoLockTimeout))
             } else {
                 scheduleInactivityTimer(until: inactivityDeadline)
             }
@@ -3908,7 +3965,7 @@ final class DatabaseViewModel {
         case .never:
             startInactivityTimer()
         case .immediately:
-            lockRequest()
+            lockRequest(cause: .inactivity(.immediately))
         case .thirtySeconds, .oneMinute, .fiveMinutes:
             guard let inactivityDeadline else {
                 startInactivityTimer()
@@ -3916,7 +3973,7 @@ final class DatabaseViewModel {
             }
 
             if nowProvider() >= inactivityDeadline {
-                lockRequest()
+                lockRequest(cause: .inactivity(SettingsService.autoLockTimeout))
             } else {
                 scheduleInactivityTimer(until: inactivityDeadline)
             }
@@ -3933,7 +3990,7 @@ final class DatabaseViewModel {
         inactivityTimerInterval = remaining
         inactivityTimer = Timer.scheduledTimer(withTimeInterval: remaining, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.lockRequest()
+                self?.lockRequest(cause: .inactivity(SettingsService.autoLockTimeout))
             }
         }
     }
@@ -4469,6 +4526,7 @@ final class DatabaseViewModel {
         self.saveError = nil
         self.saveConflict = nil
         self.pendingLockRequest = nil
+        self.lastLockCause = nil
         let followsFailedAttempt = failedAttempts > 0
         self.failedAttempts = 0
         self.lockoutUntil = nil
@@ -4702,7 +4760,10 @@ final class DatabaseViewModel {
         return try await syncCloudCopyForOpen(progressID: progressID)
     }
 
+    /// A sync that returns after `attempt` was superseded reaches neither the
+    /// session nor the stored reference.
     private func readDatabaseData(
+        attempt: UUID,
         prefetchedCloudResolution: CloudSyncResolution? = nil
     ) async throws -> (url: URL, data: Data, cloudSyncStatus: CloudSyncResolution.Status?) {
         if databaseReference.isCloudBacked {
@@ -4711,6 +4772,7 @@ final class DatabaseViewModel {
             } else {
                 try await syncCloudCopyForOpenShowingProgress()
             }
+            guard activeUnlockAttempt == attempt else { throw CancellationError() }
             visibleCloudSyncProgressID = nil
             cloudSyncProgress = nil
             cloudSyncBannerText = resolution.bannerMessage
@@ -4727,6 +4789,7 @@ final class DatabaseViewModel {
         unlockStatusMessage = Self.decryptingStatusMessage
 
         let result = try await localDatabaseReadOperation(databaseReference)
+        guard activeUnlockAttempt == attempt else { throw CancellationError() }
         return (result.url, result.data, nil)
     }
 
