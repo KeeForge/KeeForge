@@ -1390,7 +1390,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         }
         let result = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference,
             compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512, environment: environment)
-        guard case .saved(let sha, _, let receipt) = result else { return XCTFail("Expected a known durable save") }
+        guard case .saved(let sha, _, let receipt) = result else { return XCTFail("Expected a known durable save; actual=\(saveOutcomeDescription(result))") }
         let installed = try Data(contentsOf: moved)
         XCTAssertEqual(sha, FileDigest.sha512(installed))
         XCTAssertEqual(receipt?.encryptedSnapshot, installed)
@@ -1524,10 +1524,18 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testUnpublishedAndVisibleUnconfirmedBookmarkRenewalsNeverMintAReceipt() throws {
         for postPublication in [false, true] {
-            var io = DurableFileWriteIO()
-            if postPublication { io.synchronizeParent = { _ in throw POSIXError(.EIO) } }
-            else { io.write = { _, _, _ in 0 } }
+            let published = OSAllocatedUnfairLock(initialState: false)
+            let live = DurableFileWriteIO()
+            var io = live
+            io.afterPublication = { _ in published.withLock { $0 = true } }
+            if postPublication {
+                io.synchronizeParent = { directory in
+                    if published.withLock({ $0 }) { throw POSIXError(.EIO) }
+                    try live.synchronizeParent(directory)
+                }
+            } else { io.write = { _, _, _ in 0 } }
             let setup = try makeRenewedSnapshot(io: io)
+            XCTAssertEqual(published.withLock { $0 }, postPublication, "The post-publication fault must reach the actual rename")
             XCTAssertNil(setup.renewal)
             let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == setup.reference.id })
             if postPublication {
@@ -1548,6 +1556,8 @@ final class LocalDatabaseSaverTests: XCTestCase {
             entryTitle: "Read Only FS Entry"
         )
 
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        try DatabaseListStore.cacheDatabaseCopy(originalData, for: reference)
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directoryURL.path)
         defer {
             try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directoryURL.path)
@@ -1568,9 +1578,15 @@ final class LocalDatabaseSaverTests: XCTestCase {
         if bypassesWriteDenial { throw XCTSkip("The independent directory-create control bypassed chmod write denial on this host") }
 
         let observed = OSAllocatedUnfairLock(initialState: [String]())
+        let effects = OSAllocatedUnfairLock(initialState: (crypto: 0, replacement: 0))
         let live = LocalDatabaseSaver.Environment.live
         var environment = live
+        environment.encryptDraft = { draft, key, header, policy in
+            effects.withLock { $0.crypto += 1 }
+            return try live.encryptDraft(draft, key, header, policy)
+        }
         environment.replaceFileAtomically = { data, target, baseline, authorization in
+            effects.withLock { $0.replacement += 1 }
             var io = LocalDatabaseSaver.ReplacementIO()
             io.observedFailure = { phase, error in
                 observed.withLock { $0.append("\(phase):\((error as NSError).domain):\((error as NSError).code)") }
@@ -1578,26 +1594,42 @@ final class LocalDatabaseSaverTests: XCTestCase {
             return try LocalDatabaseSaver.replaceFileAtomically(data, at: target, expectedSHA512: baseline, authorization: authorization, io: io)
         }
         do {
-            let outcome = try await LocalDatabaseSaver.save(
-                draft: context.draft,
-                reference: reference,
-                compositeKey: context.compositeKey,
-                openTimeSHA512: context.openTimeSHA512, environment: environment
-            )
-            let phase: String
-            switch outcome {
-            case .saved: phase = "saved"
-            case .conflict: phase = "conflict"
-            case .indeterminate: phase = "indeterminate"
-            case .committedWithoutConfirmedDurability: phase = "committedWithoutConfirmedDurability"
+            let outcome = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference,
+                compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512, environment: environment)
+            guard case .indeterminate(let scope) = outcome else {
+                return XCTFail("Read-only replacement must not claim success/conflict: \(saveOutcomeDescription(outcome)); observed=\(observed.withLock { $0 })")
             }
-            let retained = try PendingLocalSaveStore.recovery(for: reference.id).admission != nil
-            let unchanged = try Data(contentsOf: databaseURL) == originalData
-            XCTFail("Expected a thrown read-only failure; actual=\(phase) targetUnchanged=\(unchanged) admissionRetained=\(retained) observed=\(observed.withLock { $0 })")
+            XCTAssertEqual(scope, .databaseFile)
+            let admission = try XCTUnwrap(PendingLocalSaveStore.recovery(for: reference.id).admission)
+            XCTAssertEqual(admission.purpose, .ordinarySave)
+            XCTAssertTrue(admission.sources.isEmpty)
+            XCTAssertNil(admission.knownTarget)
+            XCTAssertTrue(observed.withLock { $0.contains { $0.hasPrefix("replacement:") } }, "No-effect is not inferred from the permission error's type")
+            XCTAssertEqual(effects.withLock { $0.crypto }, 1)
+            XCTAssertEqual(effects.withLock { $0.replacement }, 1)
+            do {
+                _ = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference,
+                    compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512, environment: environment)
+                XCTFail("Uncertainty must reject a second invocation before encryption")
+            } catch { XCTAssertTrue(error is LocalSaveBeforeReplacementFailure) }
+            XCTAssertEqual(try PendingLocalSaveStore.recovery(for: reference.id).admission, admission)
+            XCTAssertEqual(effects.withLock { $0.crypto }, 1)
+            XCTAssertEqual(effects.withLock { $0.replacement }, 1)
         } catch {
-            XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
+            XCTAssertTrue(error is LocalSaveBeforeReplacementFailure,
+                "Only affirmative pre-replacement evidence may throw as retryable: \((error as NSError).domain):\((error as NSError).code)")
         }
         XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
+        XCTAssertEqual(try Data(contentsOf: cache), originalData)
+    }
+
+    private func saveOutcomeDescription(_ result: SaveResult) -> String {
+        switch result {
+        case .saved: "saved"
+        case .conflict: "conflict"
+        case .indeterminate(let scope): "indeterminate/\(scope)"
+        case .committedWithoutConfirmedDurability(_, _, _, let scope): "committedWithoutConfirmedDurability/\(scope)"
+        }
     }
 
     func testExclusiveDurablePublicationNeverReplacesAnExistingDestination() throws {

@@ -224,11 +224,24 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         viewModel.confirmPassword = "export password"
         _ = await viewModel.prepareForExport()
         XCTAssertNotNil(viewModel.preparedDatabase)
+        let prepared = try XCTUnwrap(viewModel.preparedDatabase)
         let destinationURL = try makeTemporaryFileURL(name: "Exported.kdbx", contents: Data())
+        XCTAssertThrowsError(try viewModel.completeExport(to: destinationURL)) { error in
+            XCTAssertEqual(error as? PendingLocalSaveStore.OwnershipError, .targetChanged)
+        }
+        XCTAssertNotNil(viewModel.preparedDatabase)
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: destinationURL), Data())
+        let unregistered = try TestDatabaseSupport.makeReference(for: destinationURL, id: prepared.id)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: DatabaseListStore.cacheLocation(for: unregistered).path))
+        try CoordinatedFileReader.writeData(prepared.encryptedBytes, to: destinationURL, options: .atomicProtected)
 
         let created = try viewModel.completeExport(to: destinationURL)
 
         XCTAssertEqual(created.reference.filename, "Exported.kdbx")
+        XCTAssertEqual(try Data(contentsOf: destinationURL), prepared.encryptedBytes)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: created.reference)), prepared.encryptedBytes)
+        XCTAssertEqual(created.openTimeSHA512, FileDigest.sha512(prepared.encryptedBytes))
         XCTAssertNil(viewModel.preparedDatabase)
         XCTAssertEqual(DatabaseListStore.databases.map(\.id), [created.reference.id])
     }
