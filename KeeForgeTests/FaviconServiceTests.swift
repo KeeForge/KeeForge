@@ -244,6 +244,20 @@ final class FaviconServiceTests: XCTestCase {
         SettingsService.showWebsiteIcons = false
         XCTAssertFalse(SettingsService.showWebsiteIcons)
     }
+
+    func testCacheDirectoryIsCreatedOutsideDeviceBackups() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("favicons", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory.deletingLastPathComponent()) }
+
+        FaviconService.prepareCacheDirectory(at: directory)
+        FaviconService.prepareCacheDirectory(at: directory)
+
+        let values = try directory.resourceValues(forKeys: [.isDirectoryKey, .isExcludedFromBackupKey])
+        XCTAssertEqual(values.isDirectory, true)
+        XCTAssertEqual(values.isExcludedFromBackup, true)
+    }
 }
 
 @MainActor

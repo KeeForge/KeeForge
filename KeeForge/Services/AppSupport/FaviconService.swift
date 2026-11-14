@@ -158,15 +158,35 @@ enum FaviconService: Sendable {
     // MARK: - Ensure Cache Directory
 
     private static func ensureCacheDirectory() {
+        prepareCacheDirectory(at: cacheDirectory)
+    }
+
+    /// Creates `directory` if needed and keeps it out of device backups: the
+    /// icons can be fetched again, and the file names are a per-domain
+    /// fingerprint of the vault's entries.
+    static func prepareCacheDirectory(at directory: URL) {
         let fm = FileManager.default
-        if !fm.fileExists(atPath: cacheDirectory.path) {
-            try? fm.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        if !fm.fileExists(atPath: directory.path) {
+            try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
         }
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var url = directory
+        try? url.setResourceValues(values)
     }
 
     // MARK: - Cached Image
 
+    /// A cache written before it was excluded from backups is served from
+    /// disk without ever being fetched into again, so the first read marks it.
+    private static let existingCacheExcludedFromBackup: Void = {
+        if FileManager.default.fileExists(atPath: cacheDirectory.path) {
+            prepareCacheDirectory(at: cacheDirectory)
+        }
+    }()
+
     static func cachedImage(for domain: String) -> PlatformImage? {
+        _ = existingCacheExcludedFromBackup
         let path = cachePath(for: domain)
         let fm = FileManager.default
 
