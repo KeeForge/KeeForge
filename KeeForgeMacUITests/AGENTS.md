@@ -22,6 +22,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - Passphrase generator copy and Use controls: the generator case in `MacSmokeUITests`. Generation and saved options are covered headlessly by `PasswordGeneratorTests` and `SettingsServiceTests`.
 - Custom-icon management: `MacCustomIconManagementUITests` exercises rename, cancelled deletion, and confirmed deletion from the entry picker.
 - Restore entry/group context actions and split-view refresh: the restore cases in `MacSmokeUITests`. Shared policy and persistence remain unit-tested.
+- Sidebar: `testSidebarShowsItsSectionsAndAllEntriesListsEveryGroup` (Library, Groups and Tags headers, the Recycle Bin as the last row with no header, All Entries listing several groups; it alone launches `kitchen-sink.kdbx`), `testDownArrowMovesTheSidebarGroupSelection` (arrows move the selection, Left and Right fold and unfold), and the restore cases (group-row menu items). Which rows appear, menu gates and selection sync stay in `MacSidebarSnapshotTests` and `MacSidebarViewControllerTests`. The app staying open after its last window closes is `MacMainMenuTests`.
 
 ## Invariants
 
@@ -45,7 +46,9 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - Database rows (`database.row`) are `List(selection:)` cells, not buttons, and SwiftUI copies the identifier onto their text. A single click selects; double-click, Return, the `databases.open` button or the row's Open item opens or fronts the database's window. `selectDatabaseRow(containing:)` selects, `openDatabase(named:)` selects and presses Open and returns the database window on its unlock screen. The Databases window's bottom bar holds `databases.create-new`, `databases.add-existing`, the `databases.connect-server` menu (items `database.add.webdav`, `database.add.ftp`) and `databases.open`; the empty state keeps `database.empty.create` and `database.empty.add`.
 - Escape or Choose Different File on a database window's unlock screen closes that window and shows the Databases window. Launch presentations (transition notice, What's New) and the verification-code destination prompt (`databases.enrollment-destination.row`, `databases.enrollment-destination.cancel`) appear on the Databases window. Database menu commands are disabled while the Databases window is key; with Settings key they act on the last focused database window.
 - Front a particular window with its Window-menu item (`chooseMenuItem(_:inMenu:)`, `showDatabasesWindow()`): cascaded windows overlap, so a click on the one behind can land on the one in front. Keyboard focus is app-wide, so `waitForKeyboardFocus` on a control also proves its window is key.
-- Vault rows are native `List(selection:)` cells, not buttons, although the same `group.navlink` / `entry.navlink` identifiers are buttons on iOS (`../KeeForge/Views/AGENTS.md`). Never query them through `app.buttons`. Use `MacUITestCase.openGroup`, `openEntry`, `clickFirstRow`, or `rowQuery(identifier:)`.
+- Vault rows are not buttons, although the same `group.navlink` / `entry.navlink` identifiers are buttons on iOS (`../KeeForge/Views/AGENTS.md`). Never query them through `app.buttons`. Use `MacUITestCase.openGroup`, `openEntry`, `clickFirstRow`, or `rowQuery(identifier:)`.
+- The sidebar is an AppKit outline, `window.outlines["sidebar.outline"]`. XCUITest drops a table cell's own identifier, so each row's identifier (`group.navlink`, `sidebar.collection.allEntries`, `sidebar.collection.verificationCodes`, `tag-list.row.*`) sits on its title `StaticText`, whose `value` is the title; the cell carries the title as its label. Section headers are plain `StaticText`s. Group-row menu items keep their `group-row.*` identifiers, which `NSMenuItem.identifier` exposes. A tall sidebar opens scrolled to the top.
+- `waitForVaultToUnlock` waits for a `group.navlink` row in the window (toolbar buttons can collapse into the overflow and prove nothing); `waitForLockedState` needs the unlock field with neither those rows nor the outline, which is meaningful only because unlock detection finds the same rows.
 - Most SwiftUI `Text` reports through the AppKit `value` attribute with an empty `label`. Read text with `displayText(of:)` and wait with `waitForDisplayText(_:identifier:)`, which re-queries every pass: reading a property from an element a rebuilding view has replaced fails the test.
 - SwiftUI copies row identifiers onto zero-sized wrappers and stale navigation layers. Click only a hittable match with a real height, as the row helpers do.
 - Match a context-menu item as an enabled, hittable `menuItems` element, never `firstMatch` on its title. The menu bar holds disabled items with the same titles; `firstMatch` picks one, clicks nothing, and leaves the context menu open and the window modal.
@@ -63,11 +66,12 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - Captures come from each window's own content through ScreenCaptureKit. `XCUIElement.screenshot()` and `XCUIApplication.screenshot()` capture the screen region and return whatever is in front.
 - The runner (`KeeForgeMacUITests-Runner`) needs Screen Recording permission, under System Settings > Privacy & Security > Screen & System Audio Recording.
 - A capture that cannot be taken is listed in the `00-skipped-captures` attachment instead of attaching the wrong pixels. A short export is a harness problem, not a missing screen.
-- Captures are forced light or dark through `-KeeForge.appearanceMode`; the host appearance does not decide. `UI_TEST_HIDE_SEARCH_RESULTS_COUNT=1` keeps the `results:N` test overlay out of them, while other suites still read `search.results.count`.
+- Captures are forced light or dark through `-KeeForge.appearanceMode`; the host appearance does not decide.
+- `testCaptureScreens` also captures a selected Library row (`03b`), a group's context menu (`08d`; ScreenCaptureKit finds no window record for the menu, so it is listed as skipped), the Recycle Bin its delete creates (`08e`), the hidden sidebar (`08f`), and relaunches read-only (`UI_TEST_DATABASE_READ_ONLY`) for `10-minimum-width`, so the sidebar's status card shows. `UI_TEST_HIDE_SEARCH_RESULTS_COUNT=1` keeps the `results:N` test overlay out of them, while other suites still read `search.results.count`.
 
 ## Fixtures
 
-The bundle holds only the shared `UITestFixtures` set listed in `../KeeForgeUITests/AGENTS.md`; override `databaseFixtures` to choose. `kitchen-sink.kdbx` is the only one whose sidebar has a Tags section.
+The bundle holds only the shared `UITestFixtures` set listed in `../KeeForgeUITests/AGENTS.md`; override `databaseFixtures` to choose. `kitchen-sink.kdbx` is the only one whose sidebar has a Tags section and, before any delete, a Recycle Bin.
 
 ## See also
 

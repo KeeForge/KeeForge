@@ -160,9 +160,7 @@ struct MacSidebarSnapshot: Equatable {
             }),
         ]
 
-        // A wrapper whose only child is the bin would otherwise make the bin the
-        // Groups root and leave nothing else to browse.
-        let groupsRootID = session.visibleRootGroupID.map { $0 == recycleBinID ? root.id : $0 }
+        let groupsRootID = session.workspaceRootGroupID
         let groupsRoot = groupsRootID == root.id ? root : groupsRootID.flatMap(session.group(withID:))
         sections.append(Section(kind: .groups, nodes: groupsRoot.map { [node(for: $0)] } ?? []))
 

@@ -280,18 +280,15 @@ class MacUITestCase: XCTestCase {
         line: UInt = #line
     ) -> Bool {
         let window = window ?? databaseWindow
-        // On macOS the custom toolbar buttons (including lock.button) can
-        // collapse into the "more toolbar items" overflow, so unlocked state
-        // is detected via vault content (the root group list) instead.
+        // The sidebar outline's group rows exist only in an unlocked workspace;
+        // toolbar buttons can collapse into the overflow, so they prove nothing.
         let groupLink = window.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
-        let entryLink = window.descendants(matching: .any).matching(identifier: "entry.navlink").firstMatch
-        let lockButton = window.buttons["lock.button"].firstMatch
         let errorLabel = window.staticTexts["unlock.error.label"]
         let deadline = Date().addingTimeInterval(timeout)
         var lastErrorMessage: String?
 
         repeat {
-            if groupLink.exists || entryLink.exists || lockButton.exists {
+            if groupLink.exists {
                 return true
             }
             if errorLabel.exists {
@@ -311,13 +308,15 @@ class MacUITestCase: XCTestCase {
         return false
     }
 
-    /// Whether `window` shows its database's unlock screen with no vault content.
+    /// Whether `window` shows its database's unlock screen with no sidebar.
+    /// `waitForVaultToUnlock` finds the same rows, so their absence means something.
     func waitForLockedState(in window: XCUIElement, timeout: TimeInterval = 15) -> Bool {
         let passwordField = window.secureTextFields["unlock.password.field"]
         let groupLink = window.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
+        let outline = window.outlines[Self.sidebarOutlineIdentifier]
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
-            if passwordField.exists, !groupLink.exists { return true }
+            if passwordField.exists, !groupLink.exists, !outline.exists { return true }
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         } while Date() < deadline
         return false
@@ -325,7 +324,9 @@ class MacUITestCase: XCTestCase {
 
     // MARK: - Navigation
 
-    /// Clicks into the named fixture group in the sidebar group list.
+    static let sidebarOutlineIdentifier = "sidebar.outline"
+
+    /// Clicks the named group's sidebar row, the Recycle Bin's included.
     func openGroup(named name: String, file: StaticString = #filePath, line: UInt = #line) {
         clickRow(identifier: "group.navlink", containing: name, rowKind: "Group", file: file, line: line)
     }
@@ -337,15 +338,12 @@ class MacUITestCase: XCTestCase {
 
     /// Clicks the first HITTABLE row matching the identifier and visible text.
     ///
-    /// Deliberately NOT restricted to `.button`: the macOS vault columns are
-    /// native `List(selection:)`, so their rows surface as `Outline`/`Table`
-    /// cells whose text is a `StaticText` descendant, not as buttons. That text
-    /// also lands in the AppKit `value` attribute rather than `label` for most
-    /// SwiftUI `Text`, so the predicate has to accept either. The hittability
-    /// and height filters stay — SwiftUI propagates row identifiers onto
-    /// zero-sized wrapper elements and keeps stale navigation layers in the
-    /// hierarchy, neither of which can be clicked (XCUITest fails with "Unable
-    /// to find hit point").
+    /// Not restricted to `.button`: a sidebar row's identifier sits on its title
+    /// text in the AppKit outline, because XCUITest drops a table cell's own
+    /// identifier, and the content columns are native `List(selection:)` whose
+    /// text lands in `value` rather than `label`, so the predicate accepts either. The hittability and height
+    /// filters skip the zero-sized wrappers and stale navigation layers SwiftUI
+    /// copies row identifiers onto (XCUITest fails with "Unable to find hit point").
     private func clickRow(
         identifier: String,
         containing name: String,

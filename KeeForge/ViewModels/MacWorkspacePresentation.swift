@@ -22,7 +22,7 @@ final class MacWorkspacePresentation {
 
     func beginNewEntry(in database: DatabaseViewModel) {
         guard commandEditor == nil, DatabaseCommands(session: database).canNewEntry,
-              let targetID = database.workspace.selectedGroupID ?? database.visibleRootGroupID,
+              let targetID = database.workspace.selectedGroupID ?? database.workspaceRootGroupID,
               database.group(withID: targetID) != nil else { return }
         commandEditor = EntryEditViewModel(
             createIn: targetID,
@@ -77,7 +77,7 @@ final class MacWorkspacePresentation {
     }
 
     func createGroup(named name: String, in database: DatabaseViewModel) {
-        guard let parentID = newGroupParentID ?? database.workspace.selectedGroupID ?? database.visibleRootGroupID else { return }
+        guard let parentID = newGroupParentID ?? database.workspace.selectedGroupID ?? database.workspaceRootGroupID else { return }
         do {
             try database.createGroup(named: name, in: parentID)
             dismissNewGroup()

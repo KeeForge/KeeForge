@@ -143,6 +143,21 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(selectedID(outline), .collection(.allEntries))
     }
 
+    func testATallOutlineOpensAtTheTopAndScrollsToALaterSelection() async throws {
+        let tree = Tree()
+        let (controller, session, _) = try await makeController(tree, height: 150)
+        let outline = controller.outlineView
+        XCTAssertGreaterThan(outline.visibleRect.height, 0)
+        XCTAssertGreaterThan(outline.bounds.height, outline.visibleRect.height, "The outline needs to scroll")
+        XCTAssertEqual(outline.visibleRect.minY, 0, "The Library section was scrolled away on open")
+
+        session.workspace.selectedGroupID = tree.old.id
+        await settle()
+        let rowRect = outline.rect(ofRow: outline.row(forItem: controller.item(for: .group(tree.old.id))))
+        XCTAssertGreaterThanOrEqual(rowRect.minY, outline.visibleRect.minY, "A later selection was not scrolled into view")
+        XCTAssertLessThanOrEqual(rowRect.maxY, outline.visibleRect.maxY, "A later selection was not scrolled into view")
+    }
+
     func testAnEmptyOrHeaderSelectionRestoresTheModelRow() async throws {
         let tree = Tree()
         let (controller, session, _) = try await makeController(tree)
@@ -382,11 +397,11 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
             guard let node = nodes[item.id] else {
                 XCTAssertTrue(item.isHeader)
                 XCTAssertNil(typeSelect)
-                XCTAssertEqual(cell(outline, item)?.accessibilityIdentifier() ?? "", "")
+                XCTAssertEqual(cell(outline, item)?.textField?.accessibilityIdentifier() ?? "", "")
                 continue
             }
             let view = try XCTUnwrap(cell(outline, item) as? MacSidebarCellView)
-            XCTAssertEqual(view.accessibilityIdentifier(), node.accessibilityIdentifier)
+            XCTAssertEqual(view.textField?.accessibilityIdentifier(), node.accessibilityIdentifier)
             XCTAssertEqual(view.accessibilityLabel(), node.title)
             XCTAssertEqual(view.textField?.stringValue, node.title)
             XCTAssertEqual(view.toolTip, node.title)
@@ -396,8 +411,9 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         }
         let work = try XCTUnwrap(cell(outline, controller.item(for: .tag("Work"))) as? MacSidebarCellView)
         XCTAssertEqual(work.countField.stringValue, 1.formatted())
-        XCTAssertEqual(cell(outline, controller.item(for: .group(tree.work.id)))?.accessibilityIdentifier(), "group.navlink")
-        XCTAssertEqual(cell(outline, controller.item(for: .group(tree.recycleBin.id)))?.accessibilityIdentifier(),
+        XCTAssertEqual(cell(outline, controller.item(for: .group(tree.work.id)))?.textField?.accessibilityIdentifier(),
+                       "group.navlink")
+        XCTAssertEqual(cell(outline, controller.item(for: .group(tree.recycleBin.id)))?.textField?.accessibilityIdentifier(),
                        "group.navlink")
     }
 
@@ -431,6 +447,7 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
     private func makeController(
         _ tree: Tree,
         readOnly: Bool = false,
+        height: CGFloat = 900,
         save: @escaping DatabaseViewModel.LocalSaveOperation = { _, _, _, hash, _, _, _ in .saved(newSHA512: hash) }
     ) async throws -> (MacSidebarViewController, DatabaseViewModel, MacWorkspacePresentation) {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
@@ -452,16 +469,20 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         )
         session.workspace.selectedGroupID = session.visibleRootGroupID
         let presentation = MacWorkspacePresentation()
-        return (await host(session, presentation), session, presentation)
+        return (await host(session, presentation, height: height), session, presentation)
     }
 
-    private func host(_ session: DatabaseViewModel, _ presentation: MacWorkspacePresentation) async -> MacSidebarViewController {
+    private func host(
+        _ session: DatabaseViewModel, _ presentation: MacWorkspacePresentation, height: CGFloat = 900
+    ) async -> MacSidebarViewController {
         let controller = MacSidebarViewController(session: session, presentation: presentation)
         // Never ordered in: the outline only needs a window to lay out its rows.
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 260, height: 900),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 260, height: height),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentViewController = controller
+        // Setting the controller sizes the window to the view's empty frame.
+        window.setContentSize(NSSize(width: 260, height: height))
         addTeardownBlock { @MainActor in window.close() }
         controller.view.layoutSubtreeIfNeeded()
         await settle()

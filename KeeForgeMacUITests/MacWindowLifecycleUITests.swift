@@ -1,9 +1,10 @@
 import XCTest
 
 /// Several database windows at once: key-window command routing, fronting an
-/// open window, the close guard on one window, the Window menu, the last
-/// window closing. Relaunch restoration and the routing decisions are
-/// unit-tested (`MacDatabaseCommandTargetResolverTests`, `MacWindowCoordinatorTests`);
+/// open window, the close guard on one window, the Window menu. Relaunch
+/// restoration, the routing decisions and staying open after the last window
+/// closes are unit-tested (`MacDatabaseCommandTargetResolverTests`,
+/// `MacWindowCoordinatorTests`, `MacMainMenuTests`);
 /// only the running app shows AppKit delivering key focus, menus and closes.
 @MainActor
 final class MacWindowLifecycleUITests: MacUITestCase {
@@ -138,22 +139,6 @@ final class MacWindowLifecycleUITests: MacUITestCase {
 
         showDatabasesWindow()
         XCTAssertTrue(databaseRow(containing: "Alpha").isHittable, "Window > Databases did not front the Databases window")
-    }
-
-    func testClosingTheLastDatabaseWindowKeepsTheAppRunning() {
-        let window = openDatabase(named: "Alpha")
-        showDatabasesWindow()
-        typeCommandShortcut("w")
-        XCTAssertTrue(databasesWindow.waitForNonExistence(timeout: 10), "⌘W did not close the Databases window")
-
-        makeKey("Alpha")
-        typeCommandShortcut("w")
-        XCTAssertTrue(window.waitForNonExistence(timeout: 10), "⌘W did not close the database window")
-        XCTAssertEqual(app.windows.count, 0)
-        XCTAssertEqual(app.state, .runningForeground, "Closing the last window quit the app")
-
-        showDatabasesWindow()
-        XCTAssertTrue(databaseRow(containing: "Alpha").waitForExistence(timeout: 10))
     }
 
     // MARK: - Helpers

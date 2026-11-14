@@ -149,6 +149,35 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertEqual(database.group(withID: child.id)?.groups.isEmpty, true)
     }
 
+    func testAWrapperHoldingOnlyTheRecycleBinStaysTheMacWorkspaceRoot() async throws {
+        let recycleBin = KPGroup(name: "Recycle Bin")
+        let root = KPGroup(name: "Root", groups: [recycleBin], recycleBinUUID: recycleBin.id)
+        let database = try await makeDatabase(root: root)
+        defer { database.lock() }
+        XCTAssertEqual(database.visibleRootGroupID, recycleBin.id, "The shared visible root is unchanged")
+        XCTAssertEqual(database.workspaceRootGroupID, root.id)
+        XCTAssertEqual(database.workspace.selectedGroupID, root.id)
+
+        let presentation = MacWorkspacePresentation()
+        database.workspace.clearSelection()
+        _ = MacWorkspaceSplitViewController(session: database, presentation: presentation)
+        XCTAssertEqual(database.workspace.selectedGroupID, root.id, "The window opened on the Recycle Bin")
+        XCTAssertEqual(MacWindowWorkspace.subtitle(for: database), "Root")
+
+        database.workspace.selectedCollection = .allEntries
+        presentation.beginNewGroup()
+        presentation.createGroup(named: "Fresh", in: database)
+        XCTAssertEqual(database.group(withID: root.id)?.groups.map(\.name).sorted(), ["Fresh", "Recycle Bin"])
+        XCTAssertEqual(database.group(withID: recycleBin.id)?.groups.isEmpty, true)
+        presentation.beginNewEntry(in: database)
+        XCTAssertEqual(presentation.commandEditor?.mode, .create(parentGroupID: root.id))
+
+        let fresh = try XCTUnwrap(database.group(withID: root.id)?.groups.first { $0.name == "Fresh" })
+        database.workspace.selectedGroupID = fresh.id
+        try database.deleteGroup(fresh.id, sendToRecycleBin: false)
+        XCTAssertEqual(database.workspace.selectedGroupID, root.id, "Deleting the selection fell back to the Recycle Bin")
+    }
+
     func testResetClearsSessionPresentationsWithoutTouchingAnotherWindow() async throws {
         let group = KPGroup(name: "Group")
         let database = try await makeDatabase(root: KPGroup(name: "Root", groups: [group]))

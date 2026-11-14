@@ -84,12 +84,20 @@ actions; Sync Now, Retry Save and Merge stay in the toolbar and banners. The
 outline is disabled while saving and takes its appearance from the window, which
 the root host's `preferredColorScheme` sets from the in-app setting. Focus and
 keyboard come from the outline as first responder; nothing routes focus to it.
+The outline scrolls the selected row into view only once it has a visible area,
+so a tall sidebar opens at its top. Each row's identifier sits on its title text,
+because XCUITest drops a table cell's own identifier.
 
 The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, and
 the detail takes the remaining width. `NSSplitView` autosave owns widths and
 collapse state under `MacWindowRestorationStore.splitViewAutosaveName(for:)`, one
 name per database, including across lock/unlock. View → Show Sidebar is forwarded
-to the target window's native split controller.
+to the target window's native split controller. The split sits below the
+titlebar inside the root host, and each item keeps `allowsFullHeightLayout`: with
+it off, a sidebar collapsed while one of its rows was first responder never
+shows again. An empty content column therefore still shows a toolbar-height band
+with a rule above it (open defect; `titlebarSeparatorStyle = .none` does not
+remove it).
 
 ## Commands and closing
 

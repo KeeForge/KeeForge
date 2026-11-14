@@ -11,6 +11,12 @@ import XCTest
 final class MacSmokeUITests: MacUITestCase {
     private let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
 
+    /// Only `kitchen-sink.kdbx` has tags and a Recycle Bin, which the sidebar case needs.
+    override var databaseFixtures: [DatabaseFixture] {
+        guard name.contains("testSidebarShowsItsSections") else { return super.databaseFixtures }
+        return [DatabaseFixture(resourceName: "kitchen-sink", injectedFilename: "kitchen-sink.kdbx")]
+    }
+
     func testPassphraseGeneratorCopiesAndUsesSuggestion() throws {
         unlockSuccessfully()
         openGroup(named: "Work")
@@ -156,18 +162,40 @@ final class MacSmokeUITests: MacUITestCase {
             .min { $0.frame.minX < $1.frame.minX }
     }
 
-    func testBrowseGroupsShowsFixtureGroups() {
+    // `MacSidebarSnapshotTests` owns which rows appear; only the running app
+    // shows the outline rendering them and the SwiftUI entries column
+    // following a Library row.
+    func testSidebarShowsItsSectionsAndAllEntriesListsEveryGroup() throws {
         unlockSuccessfully()
+        let outline = databaseWindow.outlines[Self.sidebarOutlineIdentifier]
+        XCTAssertTrue(outline.waitForExistence(timeout: 10), "The sidebar outline is missing")
 
-        for groupName in ["Social", "Work", "Empty"] {
-            let group = app.descendants(matching: .any).matching(
-                NSPredicate(
-                    format: "identifier == 'group.navlink' AND (label CONTAINS[c] %@ OR value CONTAINS[c] %@)",
-                    groupName, groupName
-                )
-            ).firstMatch
-            XCTAssertTrue(group.waitForExistence(timeout: 15), "Group '\(groupName)' missing from root group list")
+        for header in ["Library", "Groups", "Tags"] {
+            XCTAssertTrue(outline.staticTexts.matching(NSPredicate(format: "value == %@", header)).firstMatch.exists,
+                          "Section header '\(header)' is missing")
         }
+        for identifier in ["sidebar.collection.allEntries", "sidebar.collection.verificationCodes", "tag-list.row.shared"] {
+            XCTAssertTrue(outline.descendants(matching: .any)[identifier].exists, "Sidebar row '\(identifier)' is missing")
+        }
+        let groupRows = outline.descendants(matching: .any).matching(identifier: "group.navlink")
+        for group in ["Tagged", "Projects", "Client Work", "Recycle Bin"] {
+            XCTAssertTrue(groupRows.matching(NSPredicate(format: "value == %@", group)).firstMatch.exists,
+                          "Group row '\(group)' is missing")
+        }
+        // The bin is the last row, outside the Groups tree, with no header of its own.
+        let lastRow = try XCTUnwrap(groupRows.allElementsBoundByIndex.max { $0.frame.minY < $1.frame.minY })
+        XCTAssertEqual(displayText(of: lastRow), "Recycle Bin", "The Recycle Bin is not the last sidebar row")
+        XCTAssertFalse(outline.staticTexts.matching(NSPredicate(format: "value == 'Recycle Bin'"))
+            .allElementsBoundByIndex.contains { $0.frame.height > 1 && $0.frame.minY < lastRow.frame.minY - 1 },
+                       "The Recycle Bin has a section header")
+
+        clickFirstRow(identifier: "sidebar.collection.allEntries")
+        for entry in ["Alpha Login", "Beta Login", "Custom Badge"] {
+            XCTAssertTrue(waitForDisplayText(entry, identifier: "entry.navlink"), "All Entries did not list '\(entry)'")
+        }
+        XCTAssertFalse(rowQuery(identifier: "entry.navlink").allElementsBoundByIndex.contains {
+            displayText(of: $0) == "Trashed Login"
+        }, "All Entries listed a recycled entry")
     }
 
     func testEntryDetailShowsFieldsAndCopyUsernamePutsValueOnPasteboard() {
@@ -270,6 +298,15 @@ final class MacSmokeUITests: MacUITestCase {
             entryRow.waitForExistence(timeout: 10),
             "Arrow-key navigation did not move the sidebar selection to the next group"
         )
+
+        // Left and Right fold and unfold the selected group, as in any source list.
+        openGroup(named: "Work")
+        let nested = rowQuery(identifier: "group.navlink").matching(NSPredicate(format: "value == 'Internal'")).firstMatch
+        XCTAssertTrue(nested.waitForExistence(timeout: 5), "'Work' did not start expanded")
+        app.typeKey(XCUIKeyboardKey.leftArrow, modifierFlags: [])
+        XCTAssertTrue(nested.waitForNonExistence(timeout: 5), "Left arrow did not collapse 'Work'")
+        app.typeKey(XCUIKeyboardKey.rightArrow, modifierFlags: [])
+        XCTAssertTrue(nested.waitForExistence(timeout: 5), "Right arrow did not expand 'Work'")
     }
 
     // MARK: - Search (⌘F)
@@ -366,10 +403,12 @@ final class MacSmokeUITests: MacUITestCase {
         openEntry(named: "Discord")
         clickToolbarButton(identifier: "entry-detail.edit", overflowLabel: "Edit")
 
+        // The sidebar outline is the window's first scroll view; scroll the editor's.
+        let editor = databaseWindow.scrollViews.containing(.textField, identifier: "entry-edit.title-field").firstMatch
         func reach(_ element: XCUIElement) {
             for _ in 0..<18 {
                 if element.exists && element.isHittable { return }
-                databaseWindow.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250)
+                editor.scroll(byDeltaX: 0, deltaY: -250)
             }
             XCTAssertTrue(element.isHittable)
         }

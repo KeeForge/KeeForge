@@ -19,7 +19,7 @@ final class MacWindowWorkspace {
         if session.searchText.isEmpty == false { return String(localized: "Search") }
         if let tag = session.workspace.selectedTag { return tag }
         if let collection = session.workspace.selectedCollection { return collection.title }
-        guard let groupID = session.workspace.selectedGroupID ?? session.visibleRootGroupID else { return "" }
+        guard let groupID = session.workspace.selectedGroupID ?? session.workspaceRootGroupID else { return "" }
         return session.group(withID: groupID)?.name ?? ""
     }
 
@@ -68,7 +68,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         splitView.autosaveName = autosaveName
 
         if MacSidebarSelection(workspace: session.workspace) == nil {
-            session.workspace.selectedGroupID = session.visibleRootGroupID
+            session.workspace.selectedGroupID = session.workspaceRootGroupID
         }
     }
 

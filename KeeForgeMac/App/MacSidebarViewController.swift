@@ -112,6 +112,11 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         })
     }
 
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        if outlineView.selectedRow >= 0 { outlineView.scrollRowToVisible(outlineView.selectedRow) }
+    }
+
     func item(for id: MacSidebarItemID) -> MacSidebarOutlineItem? {
         items[id]
     }
@@ -335,7 +340,8 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         let row = outlineView.row(forItem: item)
         guard row >= 0, outlineView.selectedRowIndexes != IndexSet(integer: row) else { return }
         outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-        outlineView.scrollRowToVisible(row)
+        // Scrolling before the first layout would keep the top rows scrolled away.
+        if outlineView.visibleRect.isEmpty == false { outlineView.scrollRowToVisible(row) }
     }
 
     private func restoreModelSelection() {
@@ -613,7 +619,8 @@ final class MacSidebarCellView: NSTableCellView {
         countField.stringValue = content.count?.formatted() ?? ""
         countField.isHidden = content.count == nil
         toolTip = content.title
-        setAccessibilityIdentifier(content.accessibilityIdentifier)
+        // XCUITest drops a table cell's own identifier, so the title carries it.
+        textField?.setAccessibilityIdentifier(content.accessibilityIdentifier)
         setAccessibilityLabel(content.title)
         setAccessibilityValue(content.count?.formatted())
         refreshIcon()

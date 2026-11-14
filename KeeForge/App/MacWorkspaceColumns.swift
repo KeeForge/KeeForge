@@ -120,10 +120,10 @@ private struct MacGroupEntriesList: View {
     let onRequestDuplicate: (EntryEditViewModel) -> Void
     let onRequestDeletion: (PendingDeletion) -> Void
 
-    /// A selected collection, else the selected group, else the visible root.
+    /// A selected collection, else the selected group, else the workspace root.
     private var resolvedSelection: MacSidebarSelection? {
         if let collection = viewModel.workspace.selectedCollection { return .collection(collection) }
-        guard let groupID = viewModel.workspace.selectedGroupID ?? viewModel.visibleRootGroupID,
+        guard let groupID = viewModel.workspace.selectedGroupID ?? viewModel.workspaceRootGroupID,
               viewModel.group(withID: groupID) != nil else { return nil }
         return .group(groupID)
     }

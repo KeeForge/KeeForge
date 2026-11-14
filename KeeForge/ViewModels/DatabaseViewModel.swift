@@ -918,6 +918,18 @@ final class DatabaseViewModel {
         return root.id
     }
 
+    /// The group the workspace selects and creates in when nothing else is
+    /// chosen. The Mac sidebar shows the Recycle Bin as its own row, so there a
+    /// wrapper whose only child is the bin stays the root.
+    var workspaceRootGroupID: UUID? {
+        #if os(macOS)
+        guard let visibleRootGroupID, visibleRootGroupID == currentRootGroup?.recycleBinUUID else { return visibleRootGroupID }
+        return currentRootGroup?.id
+        #else
+        visibleRootGroupID
+        #endif
+    }
+
     var hasSavedFile: Bool {
         databaseReference.isCloudBacked ||
         databaseReference.bookmarkData != nil ||
@@ -1734,7 +1746,7 @@ final class DatabaseViewModel {
         try applyEntryEdit(.deleteGroup(groupID: groupID, sendToRecycleBin: sendToRecycleBin))
 
         if let selectedGroupID = workspace.selectedGroupID, affectedGroupIDs.contains(selectedGroupID) {
-            workspace.selectedGroupID = visibleRootGroupID
+            workspace.selectedGroupID = workspaceRootGroupID
         }
         // Deselect only an entry that still exists (recycled with its group);
         // a permanently deleted one is handled as in `synchronizeSelections()`.
@@ -4273,7 +4285,7 @@ final class DatabaseViewModel {
 
     private func synchronizeSelections() {
         workspace.reconcileSelection(
-            visibleRootGroupID: visibleRootGroupID,
+            visibleRootGroupID: workspaceRootGroupID,
             groupExists: { groupIndex[$0] != nil },
             tagExists: { tagEntryIDs[$0] != nil },
             entryIsSelectable: { entryIndex[$0] != nil && recycleBinEntryIDs.contains($0) == false }

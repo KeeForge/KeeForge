@@ -431,6 +431,11 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle()
         await snap("03-vault-root")
 
+        // 3b. A Library row selected in the sidebar's sections.
+        clickFirstRow(identifier: "sidebar.collection.allEntries")
+        settle()
+        await snap("03b-sidebar-all-entries")
+
         // 4. A group with an entry selected, so all three columns have content.
         openGroup(named: "Social")
         openEntry(named: "Discord")
@@ -583,11 +588,19 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip("08b-entry-history", reason: "the history row was not hittable")
         }
 
+        // 8d-8f. A group's context menu, the Recycle Bin its delete creates,
+        //        and the window with the sidebar hidden.
+        await captureSidebarStates()
+
         // 9. Back to the main window in a clean state.
+        openGroup(named: "Social")
+        openEntry(named: "Twitter")
+        settle()
         await snap("09-final-state")
 
         // 10. The three columns and native toolbar at the window's
-        //     minimum size (900x620), where crowding and truncation show up.
+        //     minimum size (900x620), where crowding and truncation show up,
+        //     with the sidebar's status card showing for a read-only database.
         shrinkMainWindowToMinimum()
         settle()
         await snap("10-minimum-width")
@@ -689,6 +702,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         ).size
         app.terminate()
+        app.launchEnvironment["UI_TEST_DATABASE_READ_ONLY"] = "1"
         if let index = app.launchArguments.firstIndex(of: Self.windowSizeArgument) {
             app.launchArguments[index + 1] = Self.sizeValue(content)
         }
@@ -699,6 +713,44 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         openEntry(named: "Twitter")
         XCTAssertEqual(personalWindow.frame.width, size.width, accuracy: 2)
         XCTAssertEqual(personalWindow.frame.height, size.height, accuracy: 2)
+    }
+
+    private func captureSidebarStates() async {
+        let menuName = "08d-group-context-menu"
+        let binName = "08e-recycle-bin-selected"
+        let emptyGroup = rowQuery(identifier: "group.navlink").matching(NSPredicate(format: "value == 'Empty'"))
+            .allElementsBoundByIndex.first { $0.isHittable && $0.frame.height > 1 }
+        if waitForStableForeground(), let emptyGroup {
+            emptyGroup.rightClick()
+            let delete = app.menuItems.matching(identifier: "group-row.delete-context").firstMatch
+            if delete.waitForExistence(timeout: 3) {
+                settle(0.4)
+                await snapWindow(app.menus.containing(.menuItem, identifier: "group-row.delete-context").firstMatch, menuName)
+                delete.click()
+                let confirm = personalWindow.buttons["Delete"].firstMatch
+                if confirm.waitForExistence(timeout: 5) {
+                    confirm.click()
+                    openGroup(named: "Recycle Bin")
+                    settle()
+                    await snap(binName)
+                } else {
+                    noteSkip(binName, reason: "the delete confirmation never appeared")
+                }
+            } else {
+                noteSkip(menuName, reason: "the group context menu never opened")
+                noteSkip(binName, reason: "no group was deleted")
+                app.typeKey(.escape, modifierFlags: [])
+            }
+        } else {
+            noteSkip(menuName, reason: "the app or the 'Empty' group row was not available")
+            noteSkip(binName, reason: "no group was deleted")
+        }
+
+        clickToolbarButton(identifier: "sidebar.left", overflowLabel: "Show Sidebar")
+        settle()
+        await snap("08f-sidebar-hidden")
+        clickToolbarButton(identifier: "sidebar.left", overflowLabel: "Show Sidebar")
+        settle()
     }
 
     /// Opens a sheet on the Databases window, snaps it, and closes it.
