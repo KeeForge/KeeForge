@@ -242,6 +242,21 @@ extension PendingMove {
             viewModel.presentSaveError(error)
         }
     }
+
+    /// Restores straight to the item's original parent when it still exists;
+    /// otherwise hands the destination picker to `choose`.
+    @MainActor
+    static func restoreOrChooseDestination(
+        _ item: DatabaseViewModel.RecycleBinItem,
+        viewModel: DatabaseViewModel,
+        choose: (PendingMove) -> Void
+    ) {
+        if let destinationID = viewModel.originalRestoreDestination(for: item) {
+            PendingMove.restore(item).apply(destinationGroupID: destinationID, viewModel: viewModel)
+        } else {
+            choose(.restore(item))
+        }
+    }
 }
 
 struct RestoreRowAction: View {
@@ -252,11 +267,7 @@ struct RestoreRowAction: View {
     var body: some View {
         if viewModel.canRestore(item) {
             Button("Restore", systemImage: "arrow.uturn.backward") {
-                if let destinationID = viewModel.originalRestoreDestination(for: item) {
-                    PendingMove.restore(item).apply(destinationGroupID: destinationID, viewModel: viewModel)
-                } else {
-                    onChooseDestination(.restore(item))
-                }
+                PendingMove.restoreOrChooseDestination(item, viewModel: viewModel, choose: onChooseDestination)
             }
             .accessibilityIdentifier(identifier)
         }

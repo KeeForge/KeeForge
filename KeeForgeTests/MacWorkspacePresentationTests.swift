@@ -184,7 +184,7 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertNil(presentation.groupCreationErrorMessage)
         XCTAssertNil(presentation.pendingMove)
         XCTAssertNil(presentation.pendingDeletion)
-        XCTAssertTrue(presentation.collapsedGroupIDs.isEmpty)
+        XCTAssertEqual(presentation.collapsedGroupIDs, [group.id], "Expansion lasts for the window's life")
         XCTAssertFalse(presentation.isShowingDatabaseDetails)
         XCTAssertNil(presentation.presentedSaveError)
         XCTAssertFalse(presentation.isCloudReconnectInFlight)

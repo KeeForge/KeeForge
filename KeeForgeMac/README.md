@@ -69,6 +69,17 @@ keeps enrollment and its biometric observer mounted across lock/unlock. This
 embedding avoids replacing the window's presentation hierarchy; no content swap
 orders the window or assigns first responder.
 
+`MacSidebarViewController` is the AppKit sidebar, built and unit-tested but not
+yet installed in the split (the SwiftUI column still is). It renders
+`MacSidebarSnapshot` in a source-list `NSOutlineView` (Library, Groups and Tags
+headers; the Recycle Bin a top-level row) with the status card beneath. One
+`MacObservation` rebuilds the snapshot and applies it per parent with insert,
+remove and move on row objects cached by `MacSidebarItemID`, never a full reload,
+so expansion and selection survive edits. Selection writes the workspace and
+follows it back (unfolding ancestors); expansion is the presentation's
+`collapsedGroupIDs`, kept for the window's life. Group-row menus come from
+`MacSidebarGroupActions` and set the same presentation state the host presents.
+
 The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, and
 the detail takes the remaining width. `NSSplitView` autosave owns widths and
 collapse state under `MacWindowRestorationStore.splitViewAutosaveName(for:)`, one

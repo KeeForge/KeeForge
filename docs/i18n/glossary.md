@@ -54,6 +54,7 @@ Apple renames some of these, and KeeForge follows Apple:
 | website | Website | site web | sitio web | sito web | сайт | Web サイト | 网站 | 網站 |
 | notes | Notizen | notes | notas | note | заметки | メモ | 备注 | 備註 |
 | tag | Tag | tag | etiqueta | tag | тег | タグ | 标签 | 標籤 |
+| Library (Mac sidebar section: All Entries, Verification Codes) | Bibliothek | Bibliothèque | Biblioteca | Libreria | Библиотека | ライブラリ | 资料库 | 總覽 (not 資料庫, which is database) |
 | attachment | Anhang | pièce jointe | archivo adjunto | allegato | вложение | 添付ファイル | 附件 | 附件 |
 | icon | Symbol | icône | icono | icona | значок | アイコン | 图标 | 圖示 |
 | custom icon | eigenes Symbol | icône personnalisée | icono personalizado | icona personalizzata | пользовательский значок | カスタムアイコン | 自定义图标 | 自訂圖示 |

@@ -12,6 +12,8 @@ final class MacWorkspacePresentation {
     var groupCreationErrorMessage: String?
     var pendingDeletion: PendingDeletion?
     var pendingMove: PendingMove?
+    /// Sidebar groups the user folded. `reset()` keeps it, so it lasts for the
+    /// window's life across lock and unlock; it is never written to disk.
     var collapsedGroupIDs: Set<UUID> = []
     var isShowingDatabaseDetails = false
     var presentedSaveError: DatabaseSaveError?
@@ -134,7 +136,6 @@ final class MacWorkspacePresentation {
         dismissNewGroup()
         pendingDeletion = nil
         pendingMove = nil
-        collapsedGroupIDs = []
         isShowingDatabaseDetails = false
         presentedSaveError = nil
         isCloudReconnectInFlight = false

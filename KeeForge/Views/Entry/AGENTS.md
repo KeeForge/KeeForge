@@ -5,7 +5,7 @@
 ## Ownership
 
 - `EntryEditViewModel` owns fields and payloads; `DatabaseEditorCoordinator` owns dirty registration, submission, completion, and Save and Lock (`../../ViewModels/AGENTS.md`). `EntryEditView` forwards appearance, dirty, and conflict changes and turns completion into dismissal. Every presenter closes through `onComplete`.
-- `RestoreRowAction` shares entry/group recovery across all shells; `PendingMove.restore` hosts the fallback destination picker with a recovery title. Cancellation stages nothing.
+- `RestoreRowAction` shares entry/group recovery across all shells through `PendingMove.restoreOrChooseDestination`, which the Mac sidebar menu also calls; `PendingMove.restore` hosts the fallback destination picker with a recovery title. Cancellation stages nothing.
 - `PendingRowActions.swift` is the one source of delete-confirmation wording and move state for the iOS group list, `EntryListView`, `MacEntriesList`, and the macOS workspace. The Mac menu-bar Delete builds the same `PendingDeletion`; no path deletes without it.
 - Entry-row context-menu items are the shared `EntryRowCopyActions`, `EntryRowDuplicateAction`, and `EntryRowMoveAction`. Add or change an item there, not per shell. They hand an editor or `PendingMove` back to the caller instead of presenting, because the host differs per shell.
 - A duplicate saved from the search results or tag browser opens like a new entry: iOS pushes or selects it once its sheet has dismissed, macOS selects it.
