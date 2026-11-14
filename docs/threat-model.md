@@ -292,3 +292,9 @@ readable; known Trash remains distinct from unavailable. The shipped default hea
 is retained without claiming a durable registry transaction or issuing a renewal
 receipt. Actual authenticated read renewal keeps its historical reference through
 the final fence and applies only the same action’s bookmark after authorization.
+
+A durable bookmark renewal cannot precede a source-restricted final publication:
+its owner admission requires no recorded or filesystem sources in addition to the
+existing idle/epoch/revocation checks. Deferral preserves valid file reading and
+leaves the reference unchanged; it neither authorizes stale keys nor releases
+source/admission barriers. Default heal remains the separately documented limit.

@@ -20,6 +20,165 @@ final class PendingLocalSaveTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testMovedPendingSourceDefersRenewalUntilMergeAndLeavesFutureSaveAndRekeyUsable() async throws {
+        let previousInterval = SettingsService.quickUnlockPasswordInterval
+        SettingsService.quickUnlockPasswordInterval = .always
+        defer { SettingsService.quickUnlockPasswordInterval = previousInterval }
+        let oldURL = try makeScratchDatabaseCopy()
+        let reference = try DatabaseListStore.add(url: oldURL)
+        let original = try Data(contentsOf: oldURL)
+        let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "Pending Before Renewal")) }
+        let source = try seedAcceptedSource(pending, for: reference.id)
+        let moved = oldURL.deletingLastPathComponent().appendingPathComponent("moved-with-pending.kdbx")
+        try FileManager.default.moveItem(at: oldURL, to: moved)
+        let encryptions = PendingEffectCounter()
+        let replacements = PendingEffectCounter()
+        let registryPublications = PendingEffectCounter()
+        let policyChecks = PendingEffectCounter()
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let live = LocalDatabaseSaver.Environment.live
+        let vm = DatabaseViewModel(databaseReference: reference, localDatabaseReadOperation: { ref in
+            var io = DurableFileWriteIO()
+            io.afterPublication = { _ in registryPublications.increment() }
+            let read = try await DatabaseViewModel.readLocalDatabase(reference: ref,
+                resolveBookmark: { _ in (moved, true) }, bookmarkRenewalIO: io)
+            XCTAssertNil(read.bookmarkRenewal, "A pending source must defer the actual registry CAS, not only its RAM application")
+            XCTAssertEqual(DatabaseListStore.databases.first { $0.id == ref.id }?.bookmarkData, reference.bookmarkData)
+            return read
+        }, localPublicationFailure: { trace.record($0, $1) }, localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+            var environment = live
+            environment.localPublicationFailure = { trace.record($0, $1) }
+            environment.encryptDraft = { draft, key, header, policy in
+                encryptions.increment()
+                return try live.encryptDraft(draft, key, header, policy)
+            }
+            environment.replaceFileAtomically = { bytes, url, baseline, authorization in
+                replacements.increment()
+                return try live.replaceFileAtomically(bytes, url, baseline, authorization)
+            }
+            return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+        }, localReadKeyPersistOperation: { keys, ref, entered in
+            policyChecks.increment()
+            let result = QuickUnlockKeychain.persistKeychainItems(keys, for: ref, masterKeyEntered: entered)
+            XCTAssertTrue(result == .notStored, "Always requires the password; the production policy must not store keys")
+            return result == .stored
+        })
+        defer { vm.lock() }
+        var phase = "unlock-and-pending-merge"
+        do {
+            await vm.unlock(password: fixturePassword)
+            XCTAssertEqual(vm.state, .unlocked, trace.summary)
+            XCTAssertNil(vm.pendingUploadMergeFailure, trace.summary)
+            XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: source.fileURL.path))
+            XCTAssertTrue(vm.rootGroup?.allEntries.contains { $0.title == "Pending Before Renewal" } == true)
+            XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), try Data(contentsOf: moved))
+            XCTAssertEqual(vm.databaseReference.bookmarkData, reference.bookmarkData)
+            XCTAssertEqual(registryPublications.count, 0)
+            XCTAssertEqual(encryptions.count, 1)
+            XCTAssertEqual(replacements.count, 1)
+            XCTAssertEqual(policyChecks.count, 1)
+            await vm.mergePendingLocalSaves()
+            XCTAssertEqual(encryptions.count, 1)
+            try vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(vm.rootGroup)),
+                draft: EntryDraftPayload(title: "Explicit After Deferred Renewal", password: "preserved")))
+            phase = "explicit-save"
+            try await vm.save()
+            phase = "explicit-rekey"
+            try await vm.changeMasterKey(newPassword: "new key after pending merge", newKeyFileData: nil,
+                newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+            XCTAssertEqual(encryptions.count, 3)
+            XCTAssertEqual(replacements.count, 3)
+            XCTAssertFalse(KeychainService.hasStoredKey(for: reference.id))
+            XCTAssertFalse(KeychainService.hasExpressUnlockKey(for: reference.id))
+            let current = vm.databaseReference
+            let installed = try Data(contentsOf: moved)
+            XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: current)), installed)
+            phase = "fresh-idle-read"
+            let fresh = try await DatabaseViewModel.readLocalDatabase(reference: current,
+                resolveBookmark: { _ in (moved, true) })
+            let renewal = try XCTUnwrap(fresh.bookmarkRenewal, "Idle fresh read may now mint its actual durable receipt")
+            XCTAssertEqual(renewal.before, current)
+            XCTAssertEqual(DatabaseListStore.databases.first { $0.id == current.id }, renewal.after)
+            let opened = try KDBXParser.parse(data: fresh.data, password: "new key after pending merge",
+                sessionKey: SymmetricKey(size: .bits256), kdfPolicy: .mainApp)
+            XCTAssertTrue(opened.allEntries.contains { $0.title == "Pending Before Renewal" })
+            XCTAssertTrue(opened.allEntries.contains { $0.title == "Explicit After Deferred Renewal" })
+            XCTAssertEqual(fresh.data, installed)
+            XCTAssertEqual(encryptions.count, 3)
+            XCTAssertEqual(replacements.count, 3)
+        } catch {
+            XCTFail(trace.failure(error, at: phase))
+            throw error
+        }
+    }
+
+    func testRenewalDefersForRecordedAndFilesystemSourcesAndUnresolvedOwnership() throws {
+        for mode in ["eligible", "provisional", "foreign-file", "source-at-CAS", "owner-read-failure", "admission", "retirement", "removal"] {
+            let old = try makeScratchDatabaseCopy()
+            let reference = try DatabaseListStore.add(url: old)
+            let bytes = try Data(contentsOf: old)
+            let moved = old.deletingLastPathComponent().appendingPathComponent("deferred-\(mode).kdbx")
+            try FileManager.default.moveItem(at: old, to: moved)
+            let owner = ownerRecordURL(for: reference.id)
+            let cache = DatabaseListStore.cacheLocation(for: reference)
+            switch mode {
+            case "eligible": _ = try seedAcceptedSource(bytes, for: reference.id)
+            case "provisional":
+                _ = try PendingLocalSaveStore.prepareSource(bytes, for: reference.id, masterKeyChangedAt: nil,
+                    baseCacheSHA512: FileDigest.sha512(bytes))
+                XCTAssertTrue(try PendingLocalSaveStore.recovery(for: reference.id).sourcePublicationPending)
+            case "foreign-file":
+                let directory = AppGroupContainer.url.appendingPathComponent("pending-local-saves/\(reference.id.uuidString)")
+                try createDurableDirectory(at: directory, anchor: AppGroupContainer.url)
+                try writeAtomicallyAndDurably(bytes, to: directory.appendingPathComponent("foreign.kdbx"), directoryAnchor: AppGroupContainer.url)
+            case "owner-read-failure":
+                try FileManager.default.createDirectory(at: owner, withIntermediateDirectories: false)
+                XCTAssertThrowsError(try Data(contentsOf: owner))
+                XCTAssertThrowsError(try PendingLocalSaveStore.captureCacheReadLease(for: reference))
+            case "admission", "source-at-CAS":
+                let token = try PendingLocalSaveStore.admit([], for: reference.id,
+                    target: PendingLocalSaveStore.targetIdentity(at: moved), baseline: FileDigest.sha512(bytes),
+                    masterKeyChangedAt: nil, purpose: .ordinarySave)
+                if mode == "source-at-CAS" { XCTAssertEqual(PendingLocalSaveStore.releaseAfterProvenNoReplacement(token), .resolved) }
+            case "retirement":
+                let writes = PendingEffectCounter()
+                var storage = PendingLocalSaveStore.StorageIO()
+                storage.fileIO = { _ in
+                    writes.increment()
+                    var writer = DurableFileWriteIO()
+                    if writes.count == 2 { writer.write = { _, _, _ in 0 } }
+                    return writer
+                }
+                XCTAssertEqual(try PendingLocalSaveStore.discard(PendingLocalSaveStore.recovery(for: reference.id), io: storage), .retainedForRecovery)
+                XCTAssertNotNil(try PendingLocalSaveStore.recovery(for: reference.id).retirementID)
+            default: DatabaseListStore.remove(id: reference.id)
+            }
+            let registry = AppGroupContainer.url.appendingPathComponent("Library/Application Support/database-list.json")
+            let registryBefore = try Data(contentsOf: registry)
+            let cacheBefore: Data?
+            if mode == "removal" {
+                XCTAssertFalse(FileManager.default.fileExists(atPath: cache.path))
+                cacheBefore = nil
+            } else { cacheBefore = try Data(contentsOf: cache) }
+            var receipt: DatabaseListStore.DatabaseBookmarkRenewal?
+            let result = DatabaseListStore.locateDatabaseFile(for: reference, resolveBookmark: { _ in (moved, true) },
+                beforeBookmarkRenewal: {
+                    if mode == "source-at-CAS" { _ = try self.seedAcceptedSource(bytes, for: reference.id) }
+                }, onBookmarkRenewal: { receipt = $0 })
+            guard case .available(let url)? = result else { XCTFail("Deferred renewal must preserve valid reading: \(mode)"); continue }
+            XCTAssertEqualFilePaths(url, moved)
+            XCTAssertEqual(try Data(contentsOf: url), bytes)
+            XCTAssertNil(receipt, mode)
+            XCTAssertEqual(try Data(contentsOf: registry), registryBefore, mode)
+            if let cacheBefore { XCTAssertEqual(try Data(contentsOf: cache), cacheBefore, mode) }
+            else { XCTAssertFalse(FileManager.default.fileExists(atPath: cache.path), mode) }
+            if mode == "source-at-CAS" { XCTAssertEqual(try PendingLocalSaveStore.recovery(for: reference.id).receipts.count, 1) }
+        }
+    }
+
     func testUnreadableSourceDoesNotHideHealthyExportAndCanBeDeliberatelyDiscarded() throws {
         let id = UUID()
         let blocked = try seedAcceptedSource(Data("blocked ciphertext".utf8), for: id)

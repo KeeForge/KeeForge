@@ -782,7 +782,8 @@ enum PendingLocalSaveStore {
             try requireNotRemoved(lease.databaseID)
             let state = try loadState(lease.databaseID) ?? OwnerState(version: 1, removed: false)
             guard state.epoch.id == lease.epochID, state.operation == .idle, state.retirementID == nil,
-                  state.keyEvidence?.pending == nil else { throw OwnershipError.recoveryRequired }
+                  state.keyEvidence?.pending == nil, state.sources.isEmpty,
+                  try sourceURLs(lease.databaseID).isEmpty else { throw OwnershipError.recoveryRequired }
             if case .known(let date, _) = state.epoch, date != lease.masterKeyChangedAt { throw OwnershipError.sourceChanged }
             return try publish()
         }

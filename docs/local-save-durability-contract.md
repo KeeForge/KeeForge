@@ -424,3 +424,13 @@ session after the owner/target/reference fence succeeds and the action/cycle/cur
 reference still match. Normal registry metadata refresh cannot supply a different
 bookmark, master-key date, key-file association or hardware configuration as new
 authority.
+
+Durable bookmark-renewal admission also requires both the source ledger and on-disk
+source enumeration to be empty, under the same owner lock. Pending, provisional or
+untracked sources defer the registry transition rather than weakening the final
+read-key/cache fence or promoting a reference from a failed publication callback.
+Resolution still returns a valid observed file without a receipt. The session and
+registry therefore keep the same bookmark through merge/save/consume; a later fresh
+read can renew after ownership is idle. Admission, retirement, key-publication,
+owner-read and revocation failures continue to reject renewal without inventing
+quiescence or changing source ownership.
