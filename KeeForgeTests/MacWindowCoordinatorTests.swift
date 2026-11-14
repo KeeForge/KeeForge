@@ -32,8 +32,11 @@ final class MacWindowCoordinatorTests: XCTestCase {
     private final class PromptScript {
         var choices: [MacWindowCloseGuard.Choice] = []
         var windows: [NSWindow?] = []
+        /// Runs while the prompt is up, before it answers.
+        var whilePrompting: ((NSWindow?) -> Void)?
         func next(_ window: NSWindow?) -> MacWindowCloseGuard.Choice {
             windows.append(window)
+            whilePrompting?(window)
             return choices.isEmpty ? .cancel : choices.removeFirst()
         }
     }
@@ -227,6 +230,40 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertNotNil(coordinator.databaseWindows[references[0].id])
     }
 
+    /// Removal force-retires the session, so a window holding unsaved work refuses it.
+    func testRemovingADatabaseWithUnsavedWorkIsRefusedAndKeepsItsWindowAndSession() async throws {
+        start()
+        coordinator.open(references[0])
+        coordinator.open(references[1])
+        let dirty = try XCTUnwrap(coordinator.databaseWindows[references[0].id])
+        let editing = try XCTUnwrap(coordinator.databaseWindows[references[1].id])
+        await dirty.session.unlock(password: "testpassword123")
+        await editing.session.unlock(password: "testpassword123")
+        try makeDirty(dirty.session, title: "Keep me")
+        let editorID = UUID()
+        editing.session.setEditorHasUnsavedChanges(true, editorID: editorID)
+
+        for controller in [dirty, editing] {
+            let reference = try XCTUnwrap(references.first { $0.id == controller.databaseID })
+            coordinator.launcher.remove(reference)
+            await Task { @MainActor in }.value
+            XCTAssertEqual(coordinator.launcher.refusedRemoval?.id, controller.databaseID)
+            XCTAssertTrue(coordinator.databaseWindows[controller.databaseID] === controller)
+            XCTAssertTrue(store.session(for: controller.databaseID) === controller.session)
+            XCTAssertEqual(controller.session.state, .unlocked)
+            XCTAssertTrue(list.databases.contains { $0.id == controller.databaseID })
+            coordinator.launcher.refusedRemoval = nil
+        }
+        XCTAssertTrue(dirty.session.isDirty)
+
+        editing.session.setEditorHasUnsavedChanges(false, editorID: editorID)
+        coordinator.launcher.remove(references[1])
+        await Task { @MainActor in }.value
+        XCTAssertNil(coordinator.launcher.refusedRemoval)
+        XCTAssertNil(coordinator.databaseWindows[references[1].id], "A clean database is removed with its window")
+        XCTAssertFalse(list.databases.contains { $0.id == references[1].id })
+    }
+
     func testSessionRetiredElsewhereTakesItsWindowWithIt() async throws {
         start()
         coordinator.open(references[0])
@@ -389,6 +426,46 @@ final class MacWindowCoordinatorTests: XCTestCase {
         coordinator.open(references[2])
         let opened = try XCTUnwrap(coordinator.databaseWindows[references[2].id])
         XCTAssertEqual(registry.registration(for: opened.window)?.isRestoring, false, "Only restored windows wait")
+    }
+
+    /// The click that ends a restoration may land in a window that is already
+    /// key, which posts no activation: the click itself asks for the attempt.
+    func testTurningToAnAlreadyKeyRestoredWindowStartsOneAutomaticUnlockAttempt() async throws {
+        let a = references[0].id
+        record([(a, frame(0))], front: a)
+        makeRestoringCoordinator()
+        start()
+        let controller = try XCTUnwrap(coordinator.databaseWindows[a])
+        let window = try XCTUnwrap(controller.window)
+        let attempts = Counter()
+        let registry = self.registry!
+        let session = controller.session
+        let autoUnlock = MacBiometricAutoUnlockController(isEligible: { true }, lockCycleID: { session.lockCycleID },
+            isForeground: { registry.admitsAutomaticUnlock(for: session, in: window) },
+            gate: MacBiometricAutoUnlockGate(),
+            unlock: {
+                attempts.value += 1
+                return .unlocked
+            })
+        autoUnlock.startObserving(window: window, centers: .init(app: center, workspace: NotificationCenter(),
+            distributed: NotificationCenter()))
+        defer { autoUnlock.stopObserving() }
+        func settle() async {
+            for _ in 0..<20 { await Task.yield() }
+            await autoUnlock.latestAttempt?.value
+        }
+        await settle()
+        center.post(name: NSWindow.didBecomeKeyNotification, object: window)
+        await settle()
+        XCTAssertEqual(attempts.value, 0, "Restoring windows admit no attempt")
+
+        coordinator.noteDeliberateFocus(a)
+        await settle()
+        XCTAssertEqual(attempts.value, 1)
+
+        coordinator.noteDeliberateFocus(a)
+        await settle()
+        XCTAssertEqual(attempts.value, 1, "One attempt per lock cycle")
     }
 
     func testQueuedURLForARestoredDatabaseFrontsItAndMissingDatabasesAreSkipped() throws {
@@ -600,6 +677,95 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertEqual(try recordedTopology(), before)
     }
 
+    /// A quit prompt holds the session it asks about as a window close does, so
+    /// the SSH agent offers none of its keys until the quit ends.
+    func testQuitPromptsWithdrawSSHKeysFromAskedSessionsUntilTheQuitIsCancelled() async throws {
+        makeRestoringCoordinator()
+        start()
+        coordinator.open(references[0])
+        coordinator.open(references[1])
+        let a = try XCTUnwrap(coordinator.databaseWindows[references[0].id])
+        let b = try XCTUnwrap(coordinator.databaseWindows[references[1].id])
+        await a.session.unlock(password: "testpassword123")
+        await b.session.unlock(password: "testpassword123")
+        try makeDirty(a.session, title: "Unsaved in A")
+        try makeDirty(b.session, title: "Unsaved in B")
+        var pending: [[Bool]] = []
+        prompts.whilePrompting = { _ in pending.append([a.session.isLockPending, b.session.isLockPending]) }
+        prompts.choices = [.discard, .cancel]
+
+        let reply = try await terminate()
+        XCTAssertEqual(reply, false)
+        XCTAssertEqual(pending, [[false, true], [true, true]], "B is asked first and stays held while A is asked")
+        XCTAssertFalse(a.session.isLockPending)
+        XCTAssertFalse(b.session.isLockPending, "A cancelled quit gives the keys back")
+        XCTAssertEqual(a.session.state, .unlocked)
+        XCTAssertEqual(b.session.state, .unlocked)
+    }
+
+    /// Don't Save answers for the draft as it was; work added to that window
+    /// while a later prompt is up still stops the quit.
+    func testDontSaveDoesNotCoverWorkAddedWhileALaterPromptIsUp() async throws {
+        makeRestoringCoordinator()
+        start()
+        coordinator.open(references[0])
+        coordinator.open(references[1])
+        let a = try XCTUnwrap(coordinator.databaseWindows[references[0].id])
+        let b = try XCTUnwrap(coordinator.databaseWindows[references[1].id])
+        await a.session.unlock(password: "testpassword123")
+        await b.session.unlock(password: "testpassword123")
+        try makeDirty(a.session, title: "Unsaved in A")
+        try makeDirty(b.session, title: "Discarded in B")
+        let sessionB = b.session
+        prompts.whilePrompting = { [weak self] window in
+            guard window === a.window else { return }
+            try? self?.makeDirty(sessionB, title: "Added to B after its answer")
+        }
+        prompts.choices = [.discard, .discard]
+
+        let reply = try await terminate()
+        XCTAssertEqual(reply, false)
+        XCTAssertEqual(prompts.windows.count, 2)
+        XCTAssertTrue(prompts.windows[0] === b.window)
+        XCTAssertTrue(b.session.isDirty)
+    }
+
+    /// A write in flight holds the quit even after its session locked, and a
+    /// failed key or settings change stops the quit with its window in front.
+    func testQuitWaitsForASettingsWriteOnALockedSessionAndStopsWhenItFails() async throws {
+        let held = HeldWrite()
+        let reference = references[0]
+        let session = store.adopt(DatabaseViewModel(databaseReference: reference,
+            localSaveOperation: { _, _, _, _, _, _, _ in try await held.write() },
+            quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false }))
+        makeRestoringCoordinator()
+        start()
+        coordinator.open(reference)
+        let controller = try XCTUnwrap(coordinator.databaseWindows[reference.id])
+        XCTAssertTrue(controller.session === session)
+        await session.unlock(password: "testpassword123")
+        let write = Task { try await session.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil) }
+        await held.waitUntilWriting()
+        session.lockRequest(force: true)
+        XCTAssertTrue(coordinator.hasUnsavedWork)
+        presenter.shown.removeAll()
+
+        let result = ReplyBox()
+        let done = expectation(description: "termination reply")
+        XCTAssertEqual(coordinator.requestTermination { settled in
+            result.value = settled
+            done.fulfill()
+        }, .terminateLater)
+        await held.finish(.failure(SaveError.saveContextUnavailable))
+        await fulfillment(of: [done], timeout: 30)
+        _ = try? await write.value
+
+        XCTAssertEqual(result.value, false)
+        XCTAssertTrue(presenter.shown.last === controller.window, "The failed change's window comes forward")
+        XCTAssertTrue(coordinator.databaseWindows[reference.id] === controller)
+        XCTAssertTrue(prompts.windows.isEmpty)
+    }
+
     func testLaunchOptionsOnlyApplyUnderUITesting() {
         let plain = MacWindowLaunchOptions(arguments: ["KeeForge", MacWindowLaunchOptions.databaseWindowSizeArgument, "1440x900"])
         XCTAssertTrue(plain.restoresWindows)
@@ -751,6 +917,20 @@ final class MacWindowCoordinatorTests: XCTestCase {
 @MainActor
 private final class ReplyBox {
     var value: Bool?
+}
+
+private actor HeldWrite {
+    private var continuation: CheckedContinuation<SaveResult, Error>?
+    func write() async throws -> SaveResult {
+        try await withCheckedThrowingContinuation { continuation = $0 }
+    }
+    func waitUntilWriting() async {
+        while continuation == nil { await Task.yield() }
+    }
+    func finish(_ result: Result<SaveResult, Error>) {
+        continuation?.resume(with: result)
+        continuation = nil
+    }
 }
 
 @MainActor

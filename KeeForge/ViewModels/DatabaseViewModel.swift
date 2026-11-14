@@ -563,6 +563,9 @@ final class DatabaseViewModel {
     @ObservationIgnored private var lastSaveAttemptFailed = false
     /// Sync Now waiting out a save that is still in flight (`waitForInFlightSave`).
     @ObservationIgnored private var saveCompletionWaiters: [CheckedContinuation<Void, Never>] = []
+    /// Bumped when a master-key or encryption-settings write fails. Its error goes to
+    /// the sheet that asked, not `saveError`, so a close waiting on it reads this.
+    @ObservationIgnored private(set) var failedSettingsWriteCount = 0
     private(set) var pendingLockRequest: PendingLockRequest?
     /// Retry Save and Lock is writing before it locks. `pendingLockRequest`
     /// is already cleared, but the lock is still what the user asked for.
@@ -2403,8 +2406,8 @@ final class DatabaseViewModel {
     }
 
     /// A lock was asked for and has neither completed nor been cancelled: it
-    /// waits on unsaved work, on a window-close prompt, or on the save that
-    /// precedes it.
+    /// waits on unsaved work, on a window-close or quit prompt, or on the save
+    /// that precedes it.
     var isLockPending: Bool {
         if pendingLockRequest != nil || isSavingBeforeLock {
             return true
@@ -2425,6 +2428,9 @@ final class DatabaseViewModel {
         /// already has for a deferred lock. The close waits for
         /// `onWindowCloseGranted`.
         case waitForEditorPrompt
+        /// A write of any kind is in flight, locked or not. The caller waits
+        /// for it and asks again, unless a settings write failed.
+        case waitForSave
         /// A write that already failed is still unsaved. The caller asks,
         /// because unlike the editor's fields it can drive the retry itself.
         case promptForUnsavedDraft
@@ -2440,6 +2446,7 @@ final class DatabaseViewModel {
 
     /// Called before a window close commits; the adapter locks this session on commit.
     func requestWindowClose() -> WindowCloseDecision {
+        if isSaving { return .waitForSave }
         guard case .unlocked = state else { return .close }
 
         // Only the editor can save or discard its own fields, so it prompts.
@@ -2475,6 +2482,18 @@ final class DatabaseViewModel {
     /// waiting on: the window stays open and the session is untouched.
     func cancelWindowClose() {
         onWindowCloseGranted = nil
+        isWindowClosePending = false
+    }
+
+    /// A quit asking about this session's unsaved work holds it as a window
+    /// close prompt does, until the quit ends.
+    func holdForQuitPrompt() {
+        isWindowClosePending = true
+    }
+
+    /// A quit that did not go ahead lets go; a window close still waiting keeps its hold.
+    func releaseQuitHold() {
+        guard onWindowCloseGranted == nil else { return }
         isWindowClosePending = false
     }
 
@@ -2703,7 +2722,9 @@ final class DatabaseViewModel {
 
         isSaving = true
         saveError = nil
+        var succeeded = false
         defer {
+            if !succeeded { failedSettingsWriteCount += 1 }
             isSaving = false
         }
 
@@ -2749,6 +2770,7 @@ final class DatabaseViewModel {
 
         switch saveResult {
         case .saved(let newSHA512, _):
+            succeeded = true
             // Keychain and reference reflect the on-disk file, so they update
             // even if the session locked mid-flight; the in-memory secrets must
             // not resurrect behind the lock screen. The express item belonged
@@ -2864,7 +2886,9 @@ final class DatabaseViewModel {
 
         isSaving = true
         saveError = nil
+        var succeeded = false
         defer {
+            if !succeeded { failedSettingsWriteCount += 1 }
             isSaving = false
         }
 
@@ -2895,6 +2919,7 @@ final class DatabaseViewModel {
 
         switch saveResult {
         case .saved(let newSHA512, _):
+            succeeded = true
             // The reference carries the new cloud revision, so it updates even
             // if the session locked mid-flight. The new KDF settings have no
             // express key until the next unlock or save stores one.

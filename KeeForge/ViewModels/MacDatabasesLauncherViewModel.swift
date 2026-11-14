@@ -22,6 +22,8 @@ final class MacDatabasesLauncherViewModel {
     var whatsNewRelease: WhatsNewRelease?
     var isChoosingEnrollmentDestination = false
     private(set) var connectRequest: ConnectRequest?
+    /// A removal refused because the database's window still holds unsaved work.
+    var refusedRemoval: DatabaseReference?
 
     struct ConnectRequest: Equatable {
         let id: Int
@@ -32,6 +34,8 @@ final class MacDatabasesLauncherViewModel {
     @ObservationIgnored var hasWindow: @MainActor (UUID) -> Bool = { _ in false }
     @ObservationIgnored var openDatabase: @MainActor (DatabaseReference) -> Void = { _ in }
     @ObservationIgnored var openCreatedDatabase: @MainActor (CreatedDatabase) -> Void = { _ in }
+    @ObservationIgnored var hasUnsavedWork: @MainActor (UUID) -> Bool = { _ in false }
+    @ObservationIgnored var removeDatabase: @MainActor (DatabaseReference) -> Void = { _ in }
     @ObservationIgnored var chooseEnrollmentDestinationHandler: @MainActor (UUID) -> Void = { _ in }
     @ObservationIgnored var cancelEnrollmentDestinationHandler: @MainActor () -> Void = {}
 
@@ -93,6 +97,23 @@ final class MacDatabasesLauncherViewModel {
 
     func didCreate(_ database: CreatedDatabase) {
         openCreatedDatabase(database)
+    }
+
+    /// Removal retires the database's session unconditionally, so it waits
+    /// until the window has saved or closed: nothing unsaved is discarded unasked.
+    /// False shows the refusal instead of the confirmation.
+    func requestRemoval(_ reference: DatabaseReference) -> Bool {
+        guard !hasUnsavedWork(reference.id) else {
+            refusedRemoval = reference
+            return false
+        }
+        return true
+    }
+
+    /// Checked again on confirmation: the window may have gained unsaved work meanwhile.
+    func remove(_ reference: DatabaseReference) {
+        guard requestRemoval(reference) else { return }
+        removeDatabase(reference)
     }
 
     func requestConnect(_ provider: CloudProviderKind) {

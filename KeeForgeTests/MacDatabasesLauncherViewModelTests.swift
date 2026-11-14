@@ -11,6 +11,8 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         var opened: [UUID] = []
         var chosen: [UUID] = []
         var cancelled = 0
+        var unsaved: Set<UUID> = []
+        var removed: [UUID] = []
     }
 
     func testOnlyLocalWebDAVAndFTPDatabasesAreListedAndOpened() throws {
@@ -98,6 +100,31 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         XCTAssertEqual(recorder.cancelled, 1)
     }
 
+    /// Removal force-retires the session, so it never runs while that session holds unsaved work.
+    func testRemovalIsRefusedWhileTheDatabaseHasUnsavedWork() throws {
+        let dirty = try reference()
+        let clean = try reference()
+        let (recorder, launcher) = makeLauncher([dirty, clean])
+        recorder.unsaved = [dirty.id]
+
+        XCTAssertFalse(launcher.requestRemoval(dirty))
+        XCTAssertEqual(launcher.refusedRemoval?.id, dirty.id)
+        launcher.refusedRemoval = nil
+        launcher.remove(dirty)
+        XCTAssertEqual(launcher.refusedRemoval?.id, dirty.id, "Confirming checks again")
+        XCTAssertTrue(recorder.removed.isEmpty)
+
+        launcher.refusedRemoval = nil
+        XCTAssertTrue(launcher.requestRemoval(clean))
+        launcher.remove(clean)
+        XCTAssertNil(launcher.refusedRemoval)
+        XCTAssertEqual(recorder.removed, [clean.id])
+
+        recorder.unsaved = []
+        launcher.remove(dirty)
+        XCTAssertEqual(recorder.removed, [clean.id, dirty.id])
+    }
+
     private func makeLauncher(_ references: [DatabaseReference]) -> (Recorder, MacDatabasesLauncherViewModel) {
         let recorder = Recorder()
         recorder.references = references
@@ -106,6 +133,8 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         launcher.openDatabase = { recorder.opened.append($0.id) }
         launcher.chooseEnrollmentDestinationHandler = { recorder.chosen.append($0) }
         launcher.cancelEnrollmentDestinationHandler = { recorder.cancelled += 1 }
+        launcher.hasUnsavedWork = { recorder.unsaved.contains($0) }
+        launcher.removeDatabase = { recorder.removed.append($0.id) }
         return (recorder, launcher)
     }
 

@@ -172,6 +172,58 @@
         }
       }
     },
+    "“%@” has unsaved changes. Save them or close its window, then remove it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ hat ungesicherte Änderungen. Sichere sie oder schließe das Fenster der Datenbank und entferne sie dann."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«%@» tiene cambios sin guardar. Guárdalos o cierra su ventana y, después, quítala."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "« %@ » contient des modifications non enregistrées. Enregistrez-les ou fermez sa fenêtre, puis retirez-la."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” ha modifiche non salvate. Salvale o chiudi la sua finestra, quindi rimuovilo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」には保存されていない変更があります。変更を保存するかウインドウを閉じてから、削除してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В «%@» есть несохранённые изменения. Сохраните их или закройте её окно, а затем удалите базу данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”有未保存的更改。请先保存更改或关闭其窗口，然后再移除。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」有未儲存的變更。請先儲存變更或關閉其視窗，然後再移除。"
+          }
+        }
+      }
+    },
     "“%@” is already in your database list." : {
       "localizations" : {
         "de" : {
@@ -9678,6 +9730,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需要取用相機"
+          }
+        }
+      }
+    },
+    "Can’t Remove Database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank kann nicht entfernt werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede quitar la base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de retirer la base de données"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile rimuovere il database"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースを削除できません"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нельзя удалить базу данных"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法移除数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法移除資料庫"
           }
         }
       }

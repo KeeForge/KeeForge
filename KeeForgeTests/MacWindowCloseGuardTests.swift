@@ -286,6 +286,7 @@ private final class StubWindowDelegate: NSObject, NSWindowDelegate {
 private final class FakeWindowCloseVault: MacWindowCloseVault {
     var isReadOnly = false
     var onWindowCloseGranted: (() -> Void)?
+    var failedSettingsWriteCount = 0
     var decision: DatabaseViewModel.WindowCloseDecision = .close
     /// Fulfilled by whichever resolution the guard drove.
     var resolved: XCTestExpectation?
@@ -299,6 +300,8 @@ private final class FakeWindowCloseVault: MacWindowCloseVault {
         requestCount += 1
         return decision
     }
+
+    func waitForInFlightSave() async {}
 
     func saveAndCloseWindow() async {
         saveCount += 1

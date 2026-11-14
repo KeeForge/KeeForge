@@ -483,7 +483,11 @@ struct DatabaseListView: View {
             presenting: pendingRemoval
         ) { target in
             Button("Remove", role: .destructive) {
+                #if os(macOS)
+                launcher.remove(target)
+                #else
                 viewModel.removeDatabase(target)
+                #endif
                 pendingRemoval = nil
             }
             Button("Cancel", role: .cancel) {
@@ -774,6 +778,9 @@ struct DatabaseListView: View {
         .accessibilityIdentifier("database-row.details")
 
         Button("Remove", role: .destructive) {
+            #if os(macOS)
+            guard launcher.requestRemoval(reference) else { return }
+            #endif
             pendingRemoval = reference
         }
     }

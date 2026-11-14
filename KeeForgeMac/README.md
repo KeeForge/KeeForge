@@ -20,7 +20,9 @@ The coordinator turns `MacApplicationRouting` effects into window effects throug
 then queued URL and Quick Launch opens, duplicates fronting the open window. It
 applies the capture policy to each window it creates before showing it, supplies
 Quick Access with the database window the user last made key, and closes a
-window whose session was retired elsewhere (removed from the list).
+window whose session was retired elsewhere (removed from the list). Remove in
+the Databases window is refused, with an alert, while that database's session has
+unsaved work or a write in flight.
 
 Window restoration: the coordinator is the only owner of top-level frames and
 records the topology in `MacWindowRestorationStore` (the app's own defaults) as
@@ -29,8 +31,9 @@ the Databases window is shown or closed. A relaunch applies the plan once the la
 presentations are done (`MacApplicationRouting`'s `restoreWindows` effect, ahead of
 queued and Quick Launch opens): each surviving database comes back locked in its
 own window, registered as restoring so automatic Touch ID waits until the user
-clicks or types in it or opens it explicitly, and the recorded frontmost is
-fronted. Quick Launch runs only when nothing was restored and no file arrived. New
+clicks or types in it or opens it explicitly; that first interaction posts
+`MacBiometricAutoUnlockController.restorationEndedNotification`, which asks for the
+attempt even in an already-key window. The recorded frontmost is fronted. Quick Launch runs only when nothing was restored and no file arrived. New
 windows open at the default size, a second one cascaded from the frontmost; unit tests inject the store's defaults, screen
 frames and the quit prompt. `-ui-testing` turns restoration and recording off, and
 `-ui-testing-database-window-size <w>x<h>` sets the database window's content size
@@ -118,14 +121,18 @@ window's guarded close (`MacWindowCloseGuard`); Close Window is disabled while a
 sheet is up, but Close Database still asks the guard, so an open editor answers
 with its own prompt. A committed close locks and
 retires exactly that session and releases its controller; cancel or a failed save
-keeps both. Lock keeps the window open on its unlock screen.
+keeps both. A close waits out a write in flight on its session and asks again; a
+failed master-key or encryption-settings write keeps the window. Lock keeps the window open on its unlock screen.
 
 Quit (`applicationShouldTerminate`, also on logout and restart) goes through
-`MacWindowCoordinator.requestTermination`: with nothing unsaved it terminates at
-once; otherwise it fronts each window with an unsaved write in turn, front first,
-asks the close prompt, and writes only after every answer is in. Cancel, a failed
-save, or a window whose editor still holds fields (fronted, for the user to
-finish) cancels the quit and leaves every window and session as it was. A quit
+`MacWindowCoordinator.requestTermination`: with nothing unsaved and no write in
+flight it terminates at once; otherwise it waits out each write, then fronts each
+window with an unsaved write in turn, front first, asks the close prompt (holding
+that session's lock pending, so the SSH agent withdraws its keys), and writes only
+after every answer is in. Cancel, a failed save or key or settings change, or a
+window whose editor still holds fields (fronted, for the user to
+finish) cancels the quit and leaves every window and session as it was. Don't Save
+covers the draft at the revision answered for; work added after it stops the quit. A quit
 that proceeds records the pre-quit topology, then freezes the record so the closes
 that follow cannot shrink it.
 

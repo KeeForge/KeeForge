@@ -259,6 +259,21 @@ final class MacSSHAgentControllerTests: XCTestCase {
         XCTAssertTrue(controller.keySources().isEmpty)
     }
 
+    /// A quit asking about a database's unsaved work holds it as a window close prompt does.
+    func testAQuitPromptWithdrawsTheKeysUntilTheQuitIsCancelled() async throws {
+        let session = try await makeUnlockedSession()
+        let controller = try makeController()
+        controller.isEnabled = true
+        controller.setSelected(true, entryID: ed25519EntryID, inDatabase: session.databaseReference.id)
+        XCTAssertFalse(controller.keySources().isEmpty)
+
+        session.holdForQuitPrompt()
+        XCTAssertTrue(controller.keySources().isEmpty)
+
+        session.releaseQuitHold()
+        XCTAssertFalse(controller.keySources().isEmpty)
+    }
+
     // MARK: - Several open databases
 
     func testOffersTheChosenKeysOfEveryUnlockedDatabase() async throws {

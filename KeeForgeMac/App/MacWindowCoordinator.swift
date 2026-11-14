@@ -126,6 +126,10 @@ final class MacWindowCoordinator {
         launcher.hasWindow = { [weak self] in self?.databaseWindows[$0] != nil }
         launcher.openDatabase = { [weak self] in self?.open($0) }
         launcher.openCreatedDatabase = { [weak self] in self?.openCreated($0) }
+        launcher.hasUnsavedWork = { [weak self] databaseID in
+            self?.sessionStore.session(for: databaseID).map(Self.hasUnsavedWork) ?? false
+        }
+        launcher.removeDatabase = { listViewModel.removeDatabase($0) }
         launcher.chooseEnrollmentDestinationHandler = { [weak self] in self?.chooseEnrollmentDestination($0) }
         launcher.cancelEnrollmentDestinationHandler = { [weak self] in self?.enrollment.discardEnrollment() }
         quickAccess.showDatabaseWindow = { [weak self] in self?.showDatabaseWindow($0) ?? false }
@@ -282,11 +286,13 @@ final class MacWindowCoordinator {
     }
 
     /// A click or key press in a database window, or an explicit request to
-    /// show it, ends its restoration and lets automatic unlock apply again.
+    /// show it, ends its restoration and asks for the automatic unlock it held back.
     func noteDeliberateFocus(_ databaseID: UUID) {
         guard let window = databaseWindows[databaseID]?.window,
-              let registration = registry.registration(for: window), registration.window === window else { return }
+              let registration = registry.registration(for: window), registration.window === window,
+              registration.isRestoring else { return }
         registration.isRestoring = false
+        notificationCenter.post(name: MacBiometricAutoUnlockController.restorationEndedNotification, object: window)
     }
 
     private func reference(for databaseID: UUID) -> DatabaseReference? {
@@ -576,14 +582,14 @@ final class MacWindowCoordinator {
 
     // MARK: - Termination
 
-    /// Whether quitting now would lose something: an unlocked session with a
-    /// failed or in-flight write, or an editor holding fields.
+    /// Whether quitting now would lose something: a write in flight, locked or
+    /// not, or an unlocked session with a failed write or an editor holding fields.
     var hasUnsavedWork: Bool {
         databaseWindows.values.contains { Self.hasUnsavedWork($0.session) }
     }
 
     private static func hasUnsavedWork(_ session: DatabaseViewModel) -> Bool {
-        session.state == .unlocked && (session.isDirty || session.hasUnsavedEditor || session.isSaving)
+        session.isSaving || (session.state == .unlocked && (session.isDirty || session.hasUnsavedEditor))
     }
 
     /// `applicationShouldTerminate(_:)`. Settles each window's unsaved work
@@ -596,8 +602,11 @@ final class MacWindowCoordinator {
             prepareForTermination()
             return .terminateNow
         }
+        let failures = Dictionary(databaseWindows.values.map {
+            (ObjectIdentifier($0.session), $0.session.failedSettingsWriteCount)
+        }, uniquingKeysWith: { first, _ in first })
         terminationTask = Task { @MainActor [weak self] in
-            let settled = await self?.settleUnsavedWork() ?? false
+            let settled = await self?.settleUnsavedWork(failures: failures) ?? false
             if settled { self?.prepareForTermination() }
             self?.terminationTask = nil
             reply(settled)
@@ -612,8 +621,18 @@ final class MacWindowCoordinator {
 
     /// Every answer is collected before anything is written, so a later
     /// Cancel leaves earlier windows untouched. Don't Save needs no action:
-    /// the draft goes with the process.
-    private func settleUnsavedWork() async -> Bool {
+    /// the draft goes with the process. A session asked about offers no SSH
+    /// keys until the quit ends; one that does not go ahead releases it.
+    private func settleUnsavedWork(failures: [ObjectIdentifier: Int]) async -> Bool {
+        var held: [DatabaseViewModel] = []
+        let settled = await settleUnsavedWork(failures: failures, holding: &held)
+        if !settled {
+            for session in held { session.releaseQuitHold() }
+        }
+        return settled
+    }
+
+    private func settleUnsavedWork(failures: [ObjectIdentifier: Int], holding held: inout [DatabaseViewModel]) async -> Bool {
         let controllers = windowOrder.reversed().compactMap { databaseWindows[$0] }
         // Only the editor can settle its own fields, and its prompt ends in a lock; the quit stops there instead.
         if let editing = controllers.first(where: { $0.session.state == .unlocked && $0.session.hasUnsavedEditor }) {
@@ -621,19 +640,27 @@ final class MacWindowCoordinator {
             return false
         }
         var saves: [DatabaseWindowController] = []
-        var discarded: Set<ObjectIdentifier> = []
+        // Don't Save covers the draft as it was when answered, not work added to it later.
+        var discardedRevisions: [ObjectIdentifier: Int] = [:]
         for controller in controllers {
             let session = controller.session
             await session.waitForInFlightSave()
             guard isCurrent(controller) else { return false }
+            // A failed key or settings change is only reported in its window.
+            guard session.failedSettingsWriteCount == failures[ObjectIdentifier(session)] ?? session.failedSettingsWriteCount else {
+                present(controller)
+                return false
+            }
             guard session.state == .unlocked, session.isDirty else { continue }
+            session.holdForQuitPrompt()
+            held.append(session)
             present(controller)
             let choice = await terminationPrompt(controller.window, !session.isReadOnly)
             guard isCurrent(controller), session.state == .unlocked else { return false }
             switch choice {
             case .cancel: return false
             case .save: saves.append(controller)
-            case .discard: discarded.insert(ObjectIdentifier(session))
+            case .discard: discardedRevisions[ObjectIdentifier(session)] = session.contentRevision
             }
         }
         for controller in saves {
@@ -644,8 +671,11 @@ final class MacWindowCoordinator {
             }
         }
         // Work that became unsaved while the prompts were up also stops the quit.
-        return !databaseWindows.values.contains {
-            Self.hasUnsavedWork($0.session) && !discarded.contains(ObjectIdentifier($0.session))
+        return !databaseWindows.values.contains { controller in
+            let session = controller.session
+            guard Self.hasUnsavedWork(session) else { return false }
+            return session.isSaving || session.hasUnsavedEditor
+                || discardedRevisions[ObjectIdentifier(session)] != session.contentRevision
         }
     }
 

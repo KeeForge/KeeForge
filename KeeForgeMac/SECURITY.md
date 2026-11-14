@@ -85,19 +85,30 @@ Restoration only shows the unlock screen: it never authenticates, reads no store
 key, and registers each window as restoring, so the automatic Touch ID prompt stays
 off until the user turns to that window with a click or key press in it, or opens
 that database again explicitly (Databases window, Open, Quick Access or a file).
+That first deliberate interaction itself asks for one automatic attempt, even in a
+window that is already key.
 Restoration takes precedence over Quick Launch, which runs only when no window was
 restored and no file arrived. A file that arrives at launch for a restored database
 fronts that window instead of opening a second one.
 
-On quit, including logout and restart, the coordinator asks about each window's
+On quit, including logout and restart, the coordinator first waits out every
+write in flight, locked sessions included, then asks about each window's
 unsaved write in turn, front window first, with the close prompt, collecting every
-answer before writing anything. Cancel, a failed save, or an editor still holding
+answer before writing anything. A session it asks about holds a pending lock, as a
+window-close prompt does, until the quit ends. Cancel, a failed save or key or
+settings change, or an editor still holding
 fields (which only its own prompt can settle; the quit fronts that window instead)
 cancels the quit with every window, session and draft as it was. Only when every
 window has settled does the store keep the pre-quit topology and stop recording,
 so the closes that termination brings never save an empty set. Don't Save leaves
-the unsaved draft to end with the process. Removing a database from the list also
-removes its split geometry and its entry in the record.
+the unsaved draft as it was answered for to end with the process; work added to
+that window while a later prompt is up stops the quit. Removing a database from
+the list also removes its split geometry and its entry in the record.
+
+The Databases window refuses to remove a database whose session has unsaved work
+(a dirty draft, an editor holding fields, or a write in flight) and says to save
+or close its window first, because removal retires the session unconditionally.
+A reference that vanishes outside the app still force-retires its session.
 
 [DatabaseListStore](../KeeForge/Services/Persistence/DatabaseListStore.swift)
 owns production cache writes, scoped by database UUID for local caches and by
@@ -186,7 +197,10 @@ prompt remains unanswered.
 [MacWindowCloseGuard](../KeeForge/Services/AppSupport/MacWindowCloseGuard.swift)
 resolves unsaved work independently for each registered database window. Repeated
 close requests share its pending prompt; cancel and failed save retain the window
-and session. A committed close locks exactly that session, regardless of other open
+and session. A close waits out a write in flight on that session, locked or not,
+including a master-key or encryption-settings change on a clean database, then asks
+again; if a key or settings change failed, the window stays with its error. A
+committed close locks exactly that session, regardless of other open
 windows; an opening or unlock still in flight is superseded, so its late result
 cannot open the database. The committed close then retires that session from the
 store and releases the window's controller. The app stays running with zero
@@ -382,8 +396,8 @@ The agent writes no keys anywhere. Which entries it serves is a per-database lis
 UUIDs in the app's own defaults, chosen in Settings ▸ SSH Agent. Every request
 reads those entries from every open session at that moment and offers the union.
 A session offers nothing while it is locked, closed, or has a lock pending: one
-waiting on unsaved work or a window-close prompt, or Retry Save and Lock writing
-before it locks. Locking or closing one database never withdraws keys another
+waiting on unsaved work, a window-close prompt, or a quit prompt that has asked
+about it, or Retry Save and Lock writing before it locks. Locking or closing one database never withdraws keys another
 unlocked database offers, and which window has focus plays no part. A key chosen
 in two databases is listed once, and a sign request uses the first session that
 offers it when the request arrives.

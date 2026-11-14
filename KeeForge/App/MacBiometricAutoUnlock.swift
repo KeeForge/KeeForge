@@ -27,6 +27,8 @@ final class MacBiometricAutoUnlockController {
 
     static let lockRequestedNotification = Notification.Name("KeeForge.macAutoUnlockLockRequested")
     static let screenIsUnlockedNotification = Notification.Name("com.apple.screenIsUnlocked")
+    /// Posted with the window when the user first turns to a restored window, which may already be key.
+    static let restorationEndedNotification = Notification.Name("KeeForge.macWindowRestorationEnded")
 
     private(set) var latestAttempt: Task<Void, Never>?
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
@@ -82,13 +84,15 @@ final class MacBiometricAutoUnlockController {
     }
 
     /// Prompts on opening and on each return to the window: app activation,
-    /// the window becoming key, or the screen unlocking or the login session
-    /// returning while KeeForge stays the active app, which post neither.
+    /// the window becoming key or ending its restoration, or the screen
+    /// unlocking or the login session returning while KeeForge stays the
+    /// active app, which post neither.
     func startObserving(window: AnyObject?, centers: NotificationCenters = NotificationCenters()) {
         stopObserving()
         let attemptTriggers: [(NotificationCenter, Notification.Name, AnyObject?)] = [
             (centers.app, NSApplication.didBecomeActiveNotification, nil),
             (centers.app, NSWindow.didBecomeKeyNotification, window),
+            (centers.app, Self.restorationEndedNotification, window),
             (centers.distributed, Self.screenIsUnlockedNotification, nil),
             (centers.workspace, NSWorkspace.sessionDidBecomeActiveNotification, nil),
         ]

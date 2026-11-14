@@ -100,6 +100,18 @@ struct MacDatabasesLauncherView: View {
             MacEnrollmentDestinationChooser(launcher: launcher)
         }
         .alert(item: enrollmentAlert) { $0.alertContent }
+        .alert("Can’t Remove Database", isPresented: refusedRemoval, presenting: launcher.refusedRemoval) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { reference in
+            Text("“\(reference.displayName)” has unsaved changes. Save them or close its window, then remove it.")
+        }
+    }
+
+    private var refusedRemoval: Binding<Bool> {
+        Binding(
+            get: { launcher.refusedRemoval != nil },
+            set: { if !$0 { launcher.refusedRemoval = nil } }
+        )
     }
 
     private func launchPresentation(_ presentation: MacApplicationRouting.LaunchPresentation) -> Binding<Bool> {

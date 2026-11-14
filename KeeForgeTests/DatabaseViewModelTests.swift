@@ -6576,6 +6576,85 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isLockPending)
     }
 
+    /// A clean session's close waits out its encryption-settings write, so
+    /// the session is never retired under that write; then it closes.
+    func testWindowCloseWaitsForASettingsWriteThenCloses() async throws {
+        let held = HeldSettingsWrite()
+        let (vm, window, guardUnderTest, closes) = try await makeSettingsWriteClose(held)
+        defer { vm.lock() }
+        let write = Task { try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil) }
+        await held.waitUntilWriting()
+        vm.lockRequest(force: true)
+
+        XCTAssertEqual(vm.requestWindowClose(), .waitForSave, "Locked or not, the write holds the close")
+        XCTAssertFalse(guardUnderTest.windowShouldClose(window))
+        XCTAssertFalse(guardUnderTest.windowShouldClose(window), "A repeated close does not stack")
+        for _ in 0..<5 { await Task.yield() }
+        XCTAssertEqual(closes.value, 0)
+
+        await held.finish(.success(.saved(newSHA512: Data("saved".utf8))))
+        try await write.value
+        for _ in 0..<100 where closes.value == 0 { await Task.yield() }
+        XCTAssertEqual(closes.value, 1)
+    }
+
+    /// A failed key or settings change reports only in its window, so the window stays.
+    func testWindowCloseKeepsTheWindowWhenItsSettingsWriteFails() async throws {
+        let held = HeldSettingsWrite()
+        let (vm, window, guardUnderTest, closes) = try await makeSettingsWriteClose(held)
+        defer { vm.lock() }
+        let write = Task { try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil) }
+        await held.waitUntilWriting()
+
+        XCTAssertFalse(guardUnderTest.windowShouldClose(window))
+        await held.finish(.failure(SaveError.saveContextUnavailable))
+        do {
+            try await write.value
+            XCTFail("The write was held to fail")
+        } catch {}
+        for _ in 0..<20 { await Task.yield() }
+
+        XCTAssertEqual(closes.value, 0)
+        XCTAssertEqual(vm.failedSettingsWriteCount, 1)
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNil(vm.onWindowCloseGranted)
+        XCTAssertTrue(guardUnderTest.windowShouldClose(window), "Closing again is the user's own choice")
+    }
+
+    private actor HeldSettingsWrite {
+        private var continuation: CheckedContinuation<SaveResult, Error>?
+        func write() async throws -> SaveResult {
+            try await withCheckedThrowingContinuation { continuation = $0 }
+        }
+        func waitUntilWriting() async {
+            while continuation == nil { await Task.yield() }
+        }
+        func finish(_ result: Result<SaveResult, Error>) {
+            continuation?.resume(with: result)
+            continuation = nil
+        }
+    }
+
+    @MainActor
+    private final class CloseCounter {
+        var value = 0
+    }
+
+    private func makeSettingsWriteClose(_ held: HeldSettingsWrite) async throws
+        -> (DatabaseViewModel, NSWindow, MacWindowCloseGuard, CloseCounter) {
+        let vm = try makeViewModel(localSaveOperation: { _, _, _, _, _, _, _ in try await held.write() })
+        await vm.unlock(password: fixturePassword)
+        let store = DatabaseSessionStore()
+        store.adopt(vm)
+        let registry = MacDatabaseWindowRegistry(sessionStore: store)
+        let window = NSWindow()
+        registry.register(window, databaseID: vm.databaseReference.id)
+        let closes = CloseCounter()
+        let guardUnderTest = MacWindowCloseGuard(registry: registry, prompt: { _, _ in .cancel },
+            closeWindow: { _ in closes.value += 1 })
+        return (vm, window, guardUnderTest, closes)
+    }
+
     func testWindowCloseIsAllowedWhileLocked() throws {
         let vm = try makeViewModel()
 

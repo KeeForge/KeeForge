@@ -9,7 +9,9 @@ import Foundation
 protocol MacWindowCloseVault: AnyObject {
     var isReadOnly: Bool { get }
     var onWindowCloseGranted: (() -> Void)? { get set }
+    var failedSettingsWriteCount: Int { get }
     func requestWindowClose() -> DatabaseViewModel.WindowCloseDecision
+    func waitForInFlightSave() async
     func saveAndCloseWindow() async
     func discardAndCloseWindow()
     func cancelWindowClose()
@@ -29,6 +31,9 @@ extension DatabaseViewModel: MacWindowCloseVault {}
 /// For each window registered in `MacDatabaseWindowRegistry` the guard answers
 /// `windowShouldClose(_:)` from that window's own session, and:
 /// - lets it through when nothing is unsaved;
+/// - waits out a write in flight, then asks again, so a session is never
+///   retired under its own write; a failed master-key or encryption-settings
+///   write keeps the window open with its error;
 /// - hands an open editor its own prompt, because only the editor can save the
 ///   fields it is holding, and closes the window once that resolves into a lock;
 /// - asks the standard Save / Don't Save / Cancel itself for a dirty draft,
@@ -130,6 +135,11 @@ final class MacWindowCloseGuard {
         case .promptForUnsavedDraft:
             waitForGrant(from: vault, closing: window)
             Task { await self.resolveUnsavedDraft(for: vault, window: window, registration: registration) }
+        case .waitForSave:
+            // A grant that closes nothing marks the close as held; only the wait below finishes it.
+            vault.onWindowCloseGranted = {}
+            let failures = vault.failedSettingsWriteCount
+            Task { await self.closeAfterSave(for: vault, window: window, registration: registration, failures: failures) }
         }
 
         return false
@@ -219,6 +229,18 @@ final class MacWindowCloseGuard {
             vault.onWindowCloseGranted = nil
             vault.cancelWindowClose()
         }
+    }
+
+    private func closeAfterSave(
+        for vault: MacWindowCloseVault, window: NSWindow?,
+        registration: MacDatabaseWindowRegistry.Registration, failures: Int
+    ) async {
+        let generation = generation
+        await vault.waitForInFlightSave()
+        vault.onWindowCloseGranted = nil
+        guard self.generation == generation, registry.isCurrent(registration), let window,
+              vaultProvider(window) === vault, vault.failedSettingsWriteCount == failures else { return }
+        if windowShouldClose(window) { closeWindow(window) }
     }
 
     private func adopt(_ window: NSWindow?) {
