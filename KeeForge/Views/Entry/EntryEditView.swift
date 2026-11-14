@@ -21,6 +21,8 @@ struct EntryEditView: View {
     @State private var revealedCustomFieldIDs: Set<UUID> = []
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var customFieldNameWidth: CGFloat = 120
+    /// Fields whose name is wider than the name column, so it sits above the value.
+    @State private var wideCustomFieldNameIDs: Set<UUID> = []
     @State private var isManualTOTPEntryActive = false
     @State private var showTOTPScanner = false
     @State private var showTOTPSetupLink = false
@@ -468,7 +470,11 @@ struct EntryEditView: View {
         let index = formViewModel.customFields.firstIndex { $0.id == id } ?? 0
         let name = field.wrappedValue.key.trimmingCharacters(in: .whitespacesAndNewlines)
         let valueLabel = name.isEmpty ? String(localized: "Field Value") : name
-        let layout = dynamicTypeSize.isAccessibilitySize
+        let stacksName = dynamicTypeSize.isAccessibilitySize || wideCustomFieldNameIDs.contains(id)
+        let nameColumnWidth = customFieldNameWidth
+        // One AnyLayout for both arrangements, so the name field keeps focus
+        // while typing moves it between them.
+        let layout = stacksName
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
             : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Theme.Spacing.iconText))
 
@@ -478,7 +484,20 @@ struct EntryEditView: View {
                     TextField(String(localized: "Field Name"), text: field.key)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : customFieldNameWidth, alignment: .leading)
+                        .frame(maxWidth: stacksName ? .infinity : nameColumnWidth, alignment: .leading)
+                        .background(alignment: .leading) {
+                            Text(verbatim: field.wrappedValue.key)
+                                .fixedSize()
+                                .hidden()
+                                .accessibilityHidden(true)
+                                .onGeometryChange(for: Bool.self) { $0.size.width > nameColumnWidth } action: { isWide in
+                                    if isWide {
+                                        wideCustomFieldNameIDs.insert(id)
+                                    } else {
+                                        wideCustomFieldNameIDs.remove(id)
+                                    }
+                                }
+                        }
                         .accessibilityIdentifier("entry-edit.custom-field.name-field.\(index)")
                         // The Reorder sheet is the visible way to move a field;
                         // VoiceOver gets the same steps here.

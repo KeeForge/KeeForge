@@ -55,7 +55,7 @@
 
 ### Editor
 
-- Custom field reordering uses a native List sheet containing field names only. Field values never appear in reorder rows. On macOS the form also has named move controls; on iOS each field is one name/value row whose name field carries Move Up and Move Down as VoiceOver actions, with Protect Field and Remove Field in the row's menu. The view model owns order, including dirty tracking and save payloads.
+- Custom field reordering uses a native List sheet containing field names only. Field values never appear in reorder rows. On macOS the form also has named move controls; on iOS each field is one name/value row (a name wider than the name column moves above its value rather than truncating) whose name field carries Move Up and Move Down as VoiceOver actions, with Protect Field and Remove Field in the row's menu. The view model owns order, including dirty tracking and save payloads.
 
 - `EntryEditView` draws additional URL rows in Basics using `EntryEditViewModel.additionalURLs`, with a named remove action for VoiceOver. Field names are stored as `KP2A_URL_<n>` but are not shown to the user; `EntryDetailView` displays those URLs once, outside Custom Fields.
 - On iOS the editor splits Basics into the fields, the URLs and the tags, and short fields are label/value rows (`basicFieldRow(_:inline:)`); macOS keeps one Basics section.

@@ -122,7 +122,12 @@ final class ViewRenderTests: XCTestCase {
             password: "correct-Horse-battery-staple-42",
             url: "https://example.com",
             additionalURLs: [.init(key: "KP2A_URL_1", value: "https://login.example.com")],
-            tags: ["work"]
+            tags: ["work"],
+            editableCustomFields: [
+                .init(key: "PIN", value: "4821"),
+                .init(key: "Recovery Email Address", value: "recovery@example.com"),
+                .init(key: "API Token", value: "custom-secret", isProtected: true),
+            ]
         )
         let editor = NavigationStack {
             EntryEditView(formViewModel: form, databaseViewModel: DatabaseViewModel(databaseReference: reference("Personal")))
@@ -134,8 +139,8 @@ final class ViewRenderTests: XCTestCase {
     /// Slider and Picker as placeholders.
     private func renderScreens(_ states: [(String, AnyView)], named name: String) throws {
         let columns: [(size: CGSize, type: DynamicTypeSize, label: String)] = [
-            (CGSize(width: 375, height: 1400), .large, "375pt"),
-            (CGSize(width: 440, height: 1400), .large, "440pt"),
+            (CGSize(width: 375, height: 1800), .large, "375pt"),
+            (CGSize(width: 440, height: 1800), .large, "440pt"),
             (CGSize(width: 440, height: 2400), .accessibility2, "440pt AX2"),
         ]
         let scene = try XCTUnwrap(
