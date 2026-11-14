@@ -169,10 +169,16 @@ struct MasterKeyChangeView: View {
             )
             .macFormFieldStyle()
 
-            if let warning = viewModel.passwordStrengthWarning {
-                Text(warning)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.State.warning)
+            if viewModel.newPassword.isEmpty == false {
+                VStack(alignment: .leading, spacing: 6) {
+                    PasswordStrengthIndicator(password: viewModel.newPassword, caption: .passwordStrength)
+                    if let warning = viewModel.passwordStrengthWarning {
+                        Text(warning)
+                            .font(.footnote)
+                            .foregroundStyle(Theme.State.warning)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
         } header: {
             Text("Master Password")

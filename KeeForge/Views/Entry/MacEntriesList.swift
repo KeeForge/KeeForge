@@ -184,6 +184,8 @@ struct MacEntryRow: View {
     private func menuItems(for entry: KPEntry) -> some View {
         EntryRowCopyActions(entry: entry, viewModel: viewModel)
 
+        Divider()
+
         EntryRowDuplicateAction(entryID: entry.id, viewModel: viewModel) { editor in
             onRequestDuplicate(editor)
         }
@@ -195,7 +197,9 @@ struct MacEntryRow: View {
         EntryRowSelectAction(entryID: entry.id, viewModel: viewModel)
 
         if viewModel.isReadOnly == false {
-            Button(sendToRecycleBin ? "Delete" : "Delete Permanently", role: .destructive) {
+            Divider()
+
+            Button(sendToRecycleBin ? "Delete" : "Delete Permanently", systemImage: "trash", role: .destructive) {
                 onRequestDeletion(
                     .entry(
                         PendingEntryDeletion(

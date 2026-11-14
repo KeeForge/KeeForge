@@ -259,6 +259,14 @@ struct RestoreRowAction: View {
                 }
             }
             .accessibilityIdentifier(identifier)
+
+            // Restore already asks where when the original group is gone.
+            if viewModel.originalRestoreDestination(for: item) != nil {
+                Button("Restore to Group…", systemImage: "folder") {
+                    onChooseDestination(.restore(item))
+                }
+                .accessibilityIdentifier(restoreToGroupIdentifier)
+            }
         }
     }
 
@@ -266,6 +274,13 @@ struct RestoreRowAction: View {
         switch item {
         case .entry: "entry-row.restore-context"
         case .group: "group-row.restore-context"
+        }
+    }
+
+    private var restoreToGroupIdentifier: String {
+        switch item {
+        case .entry: "entry-row.restore-to-group-context"
+        case .group: "group-row.restore-to-group-context"
         }
     }
 }

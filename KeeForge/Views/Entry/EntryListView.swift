@@ -17,6 +17,7 @@ struct EntryListView: View {
     @State private var pendingDeletion: PendingDeletion?
     /// The entry whose Move-to-Group picker is presented, or `nil` when none is.
     @State private var pendingMove: PendingMove?
+    @State private var pendingEntryIconChange: PendingEntryIconChange?
     #if os(macOS)
     /// The prefilled New Entry form a Duplicate raised, or `nil` when none is.
     /// iOS opens it as the workspace's editor instead.
@@ -69,6 +70,9 @@ struct EntryListView: View {
             ) { destinationGroupID in
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }
+        }
+        .sheet(item: $pendingEntryIconChange) { pending in
+            EntryIconChangeSheet(entryID: pending.entryID, viewModel: viewModel)
         }
         #if os(macOS)
         // Outside the branches for the same reason as the hosts above.
@@ -164,6 +168,8 @@ struct EntryListView: View {
         .contextMenu {
             EntryRowCopyActions(entry: entry, viewModel: viewModel)
 
+            Divider()
+
             EntryRowDuplicateAction(entryID: entry.id, viewModel: viewModel) { editor in
                 #if os(macOS)
                 duplicateEditor = editor
@@ -176,10 +182,16 @@ struct EntryListView: View {
                 pendingMove = move
             }
 
+            EntryRowChangeIconAction(entryID: entry.id, viewModel: viewModel) { change in
+                pendingEntryIconChange = change
+            }
+
             EntryRowSelectAction(entryID: entry.id, viewModel: viewModel)
 
             if viewModel.isReadOnly == false {
-                Button(deletionTitle(for: entry), role: .destructive) {
+                Divider()
+
+                Button(deletionTitle(for: entry), systemImage: "trash", role: .destructive) {
                     requestDeletion(for: entry)
                 }
                 .accessibilityIdentifier(
@@ -201,7 +213,7 @@ struct EntryListView: View {
     }
 
     private func deletionTitle(for entry: KPEntry) -> String {
-        sendDeletionToRecycleBin(for: entry) ? "Delete" : "Delete Permanently"
+        sendDeletionToRecycleBin(for: entry) ? String(localized: "Delete") : String(localized: "Delete Permanently")
     }
 
     private func sendDeletionToRecycleBin(for entry: KPEntry) -> Bool {

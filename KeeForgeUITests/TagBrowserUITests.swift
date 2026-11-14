@@ -100,6 +100,27 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
         XCTAssertTrue(waitForLockedState(timeout: 10), "Manual lock did not leave the vault locked")
     }
 
+    func testTagPageLocksTheDatabase() throws {
+        unlockSuccessfully()
+        try XCTSkipIf(usesRegularWidthLayout, "At regular width the sidebar's Lock stays on screen")
+        selectDatabaseView(.tags)
+        let sharedRow = app.descendants(matching: .any)
+            .matching(identifier: "tag-list.row.\(sharedTag)")
+            .firstMatch
+        XCTAssertTrue(revealElement(sharedRow, in: scrollableContainer()), "Tag row was not reachable")
+        tapElement(sharedRow)
+        XCTAssertTrue(
+            searchResult(named: taggedEntryName).waitForExistence(timeout: KeeForgeUITestCase.ciElementTimeout),
+            "The tag's entries did not appear"
+        )
+
+        let lockButton = app.buttons.matching(identifier: "lock.button").allElementsBoundByIndex
+            .first { $0.exists && $0.isHittable }
+        let tagLock = try XCTUnwrap(lockButton, "The tag page did not offer Lock")
+        tapElement(tagLock)
+        XCTAssertTrue(waitForLockedState(timeout: 10), "Lock on the tag page did not lock the vault")
+    }
+
     /// Tapping a chip must open *that* chip's tag.
     ///
     /// The chips share one list row, so when they were `NavigationLink`s the

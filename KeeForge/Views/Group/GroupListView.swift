@@ -32,6 +32,7 @@ struct GroupListView: View {
     @State private var pendingIconChange: PendingIconChange?
     /// The entry or group whose Move-to-Group picker is presented, or `nil`.
     @State private var pendingMove: PendingMove?
+    @State private var pendingEntryIconChange: PendingEntryIconChange?
     @State private var isShowingQRScanner = false
     /// A scanned code waits here until the scanner has dismissed, then opens
     /// the enrollment, which offers the entry to add it to.
@@ -123,21 +124,6 @@ struct GroupListView: View {
         return entries.map(\.id).filter { EntryRowMoveAction.isAvailable(entryID: $0, viewModel: viewModel) }
     }
 
-    /// An app built with the iOS 27 SDK folds trailing bar items into an
-    /// overflow menu when the title needs their room — a long title that has
-    /// scrolled inline is enough — which would put Lock behind it. The pinned
-    /// placement keeps the items and truncates the title instead.
-    private var databaseActionsPlacement: ToolbarItemPlacement {
-        #if compiler(>=6.4)
-        #if os(iOS)
-        if #available(iOS 27.0, *) {
-            return .topBarPinnedTrailing
-        }
-        #endif
-        #endif
-        return .topBarTrailing
-    }
-
     var body: some View {
         Group {
             if viewModel.searchText.isEmpty {
@@ -153,24 +139,12 @@ struct GroupListView: View {
                     .modifier(GroupListSubtitle(subtitle: subtitle(for: resolvedGroup), isTitlePinned: pinsCloudTitle))
                     .toolbar {
                         if usesSelectionToolbar == false || viewModel.workspace.entrySelection == nil {
-                        ToolbarItem(placement: databaseActionsPlacement) {
+                        ToolbarItem(placement: .databaseActions) {
                             HStack(spacing: 12) {
                                 // Leads the trailing group rather than sitting
                                 // beside the system back button, which made an
                                 // accidental lock a one-tap mistake.
-                                Button {
-                                    viewModel.lockRequest(manuallyTriggered: true)
-                                } label: {
-                                    if isCompact {
-                                        // Compact bars are all icons; a text
-                                        // label would be the odd wide one out.
-                                        Image(systemName: "lock.fill")
-                                    } else {
-                                        Text("Lock")
-                                    }
-                                }
-                                .accessibilityLabel("Lock")
-                                .accessibilityIdentifier("lock.button")
+                                DatabaseLockButton(viewModel: viewModel, isCompact: isCompact)
 
                                 // The root says it in a card of its own.
                                 if viewModel.isReadOnly, isRoot == false {
@@ -279,6 +253,9 @@ struct GroupListView: View {
             ) { destinationGroupID in
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }
+        }
+        .sheet(item: $pendingEntryIconChange) { pending in
+            EntryIconChangeSheet(entryID: pending.entryID, viewModel: viewModel)
         }
         // Covers the inline search results as well as this level's own rows.
         .modifier(
@@ -658,8 +635,7 @@ struct GroupListView: View {
                 emptyTitle: "Recycle Bin Is Empty",
                 emptyDescription: "Deleted entries and groups appear here."
             )
-            if PlatformDesign.followsIOSDesign == false,
-               visibleGroups.isEmpty == false || visibleEntries.isEmpty == false,
+            if visibleGroups.isEmpty == false || visibleEntries.isEmpty == false,
                viewModel.isReadOnly == false {
                 Section {
                 } footer: {
@@ -745,7 +721,7 @@ struct GroupListView: View {
     @ViewBuilder
     private func groupRow(for groupID: UUID) -> some View {
         NavigationLink(value: DatabaseRoute.group(groupID)) {
-            GroupRow(groupID: groupID, viewModel: viewModel)
+            GroupRow(groupID: groupID, viewModel: viewModel, recycleBinDetail: recycleBinDetail(for: .group(groupID)))
         }
         .accessibilityIdentifier("group.navlink")
         .macHoverHighlight()
@@ -809,7 +785,8 @@ struct GroupListView: View {
             entry: entry,
             username: viewModel.resolvingFieldReferences(entry.username),
             customIconData: viewModel.customIconData(for: entry),
-            folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
+            folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil,
+            recycleBinDetail: recycleBinDetail(for: .entry(entry.id))
         )
         HStack {
             if viewModel.workspace.entrySelection != nil {
@@ -851,6 +828,8 @@ struct GroupListView: View {
         .contextMenu {
             EntryRowCopyActions(entry: entry, viewModel: viewModel)
 
+            Divider()
+
             EntryRowDuplicateAction(entryID: entry.id, viewModel: viewModel) { editor in
                 viewModel.workspace.present(.entry(editor))
             }
@@ -859,10 +838,16 @@ struct GroupListView: View {
                 pendingMove = move
             }
 
+            EntryRowChangeIconAction(entryID: entry.id, viewModel: viewModel) { change in
+                pendingEntryIconChange = change
+            }
+
             EntryRowSelectAction(entryID: entry.id, viewModel: viewModel)
 
             if viewModel.isReadOnly == false {
-                Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
+                Divider()
+
+                Button(isRecycleBin ? "Delete Permanently" : "Delete", systemImage: "trash", role: .destructive) {
                     pendingDeletion = .entry(
                         PendingEntryDeletion(
                             entryID: entry.id,
@@ -889,6 +874,12 @@ struct GroupListView: View {
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }
+    }
+
+    /// Only the Recycle Bin screen lists items lying directly in the bin.
+    private func recycleBinDetail(for item: DatabaseViewModel.RecycleBinItem) -> String? {
+        guard collection == .recycleBin else { return nil }
+        return viewModel.recycleBinOrigin(for: item)?.summary()
     }
 
     /// What tapping an entry row does in each shell: the regular-width
@@ -1007,6 +998,44 @@ struct GroupListView: View {
     }
 }
 
+/// Lock in a vault screen's bar. Compact bars are all icons; a text label
+/// would be the odd wide one out.
+struct DatabaseLockButton: View {
+    let viewModel: DatabaseViewModel
+    let isCompact: Bool
+
+    var body: some View {
+        Button {
+            viewModel.lockRequest(manuallyTriggered: true)
+        } label: {
+            if isCompact {
+                Image(systemName: "lock.fill")
+            } else {
+                Text("Lock")
+            }
+        }
+        .accessibilityLabel("Lock")
+        .accessibilityIdentifier("lock.button")
+    }
+}
+
+extension ToolbarItemPlacement {
+    /// An app built with the iOS 27 SDK folds trailing bar items into an
+    /// overflow menu when the title needs their room — a long title that has
+    /// scrolled inline is enough — which would put Lock behind it. The pinned
+    /// placement keeps the items and truncates the title instead.
+    static var databaseActions: ToolbarItemPlacement {
+        #if compiler(>=6.4)
+        #if os(iOS)
+        if #available(iOS 27.0, *) {
+            return .topBarPinnedTrailing
+        }
+        #endif
+        #endif
+        return .topBarTrailing
+    }
+}
+
 struct NewGroupSheet: View {
     @Binding var name: String
     @Binding var errorMessage: String?
@@ -1061,6 +1090,8 @@ struct NewGroupSheet: View {
 struct GroupRow: View {
     let groupID: UUID
     @Bindable var viewModel: DatabaseViewModel
+    /// A recycled group's origin and deletion date.
+    var recycleBinDetail: String? = nil
 
     private var group: KPGroup? {
         viewModel.group(withID: groupID)
@@ -1087,8 +1118,13 @@ struct GroupRow: View {
                     )
                     .frame(width: 28)
 
-                    Text(group.name)
-                        .font(.body)
+                    VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
+                        Text(group.name)
+                            .font(.body)
+                        if let recycleBinDetail, recycleBinDetail.isEmpty == false {
+                            RecycleBinDetailText(text: recycleBinDetail)
+                        }
+                    }
 
                     Spacer(minLength: 4)
 
@@ -1119,6 +1155,8 @@ struct EntryRow: View {
     var username: String
     var customIconData: Data? = nil
     var folderPath: String? = nil
+    /// A recycled entry's origin and deletion date.
+    var recycleBinDetail: String? = nil
 
     @ScaledMetric(relativeTo: .body) private var iconSize = Theme.Size.entryIcon
 
@@ -1154,6 +1192,9 @@ struct EntryRow: View {
                         .lineLimit(1)
                         .truncationMode(.head)
                         .accessibilityIdentifier("entry-row.folder")
+                }
+                if let recycleBinDetail, recycleBinDetail.isEmpty == false {
+                    RecycleBinDetailText(text: recycleBinDetail)
                 }
             }
 
@@ -1235,6 +1276,18 @@ struct EntryRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+    }
+}
+
+/// "From Banking · Deleted yesterday" under a Recycle Bin row's name.
+private struct RecycleBinDetailText: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(Theme.Font.footnote)
+            .foregroundStyle(Theme.labelSecondary)
+            .accessibilityIdentifier("recycle-bin.origin")
     }
 }
 

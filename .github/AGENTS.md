@@ -40,6 +40,7 @@ Three repository rulesets, all with admin bypass. They live in GitHub settings, 
 
 ## Gotchas
 
+- Every workflow declares `permissions: contents: read` at the top. A job that needs more asks for it on the job itself, and a called workflow cannot exceed its caller.
 - Renaming the `unit-tests` or `macos-unit-tests` job breaks the rulesets, which match the check by job name.
 - Every `KeeForgeMac` job runs on `macos-26` and fails below Xcode 26.4: Xcode 26.3's `actool` crashes compiling `KeeForge.icon` for macOS. The PR `unit-tests` job also runs on `macos-26`.
 - Mac jobs sign ad hoc with entitlements stripped (`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_ENTITLEMENTS=`), because runners have no signing account.

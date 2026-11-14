@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// The Copy Username / Copy Password pair every entry row's context menu
-/// offers. Shared by the iOS group list, the entry list behind search and the
+/// The copy items every entry row's context menu offers. Shared by the iOS group list, the entry list behind search and the
 /// tag browser, and the macOS rows, so the wording, the device-owner gate, and
 /// the accessibility identifiers cannot drift per shell.
 struct EntryRowCopyActions: View {
@@ -11,7 +10,7 @@ struct EntryRowCopyActions: View {
 
     var body: some View {
         if entry.username.isEmpty == false {
-            Button("Copy Username") {
+            Button("Copy Username", systemImage: "person") {
                 ClipboardService.copy(viewModel.resolvingFieldReferences(entry.username))
                 HapticService.success()
             }
@@ -19,7 +18,7 @@ struct EntryRowCopyActions: View {
         }
 
         if entry.hasPassword, viewModel.sessionKey != nil {
-            Button("Copy Password") {
+            Button("Copy Password", systemImage: "key") {
                 copyPassword()
             }
             .disabled(secretAction.isAuthenticating)
@@ -27,6 +26,22 @@ struct EntryRowCopyActions: View {
             .onChange(of: entry.password) { secretAction.invalidate() }
             .onChange(of: entry.id) { secretAction.invalidate() }
         }
+
+        if entry.totpConfig != nil, viewModel.sessionKey != nil {
+            Button("Copy Verification Code", systemImage: "timer") {
+                copyVerificationCode()
+            }
+            .accessibilityIdentifier("entry-row.copy-code-context")
+        }
+    }
+
+    /// Not behind the device-owner gate, like the detail's code copy button:
+    /// the code expires on its own.
+    private func copyVerificationCode() {
+        guard let config = viewModel.entry(withID: entry.id)?.totpConfig,
+              let sessionKey = viewModel.sessionKey else { return }
+        ClipboardService.copy(TOTPGenerator.generateCode(config: config, sessionKey: sessionKey))
+        HapticService.success()
     }
 
     /// Same device-owner gate as the detail view's copy button and the macOS

@@ -26,6 +26,9 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: read
+
 jobs:
   ios-rc-tests:
     # xcode-27 is the only GitHub image with Xcode 27 and an iOS 27 simulator

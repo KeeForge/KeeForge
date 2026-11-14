@@ -1193,10 +1193,7 @@ final class ProtectedCustomFieldEditorAuthUITests: UnlockedDatabaseUITestCase {
         unlockSuccessfully()
         openFixtureEntry(groupName: "Secrets", entryName: "Protected Custom")
         openProtectedCustomFieldInEditor()
-        let protect = app.switches["entry-edit.custom-field.protection.0"]
-        XCTAssertTrue(revealElement(protect))
-        protect.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
-        XCTAssertEqual(protect.value as? String, "1")
+        toggleCustomFieldProtection(at: 0)
         XCTAssertFalse(app.textViews["entry-edit.custom-field.value-field.0"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.textFields["entry-edit.custom-field.value-field.0"].exists)
         XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].exists)
