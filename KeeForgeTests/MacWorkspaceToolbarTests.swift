@@ -11,6 +11,7 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         XCTAssertEqual(toolbar.toolbar.items.map(\.itemIdentifier.rawValue), [
             "sidebar.left", "workspace.sidebar-separator", "workspace.search", "entry-list.add-entry",
             "database.read-only-indicator", "workspace.list-separator",
+            NSToolbarItem.Identifier.flexibleSpace.rawValue, "workspace.database-title",
             NSToolbarItem.Identifier.flexibleSpace.rawValue, "entry-detail.edit", "workspace.database-status",
             "database-details.button", "database.cloud-sync-now", "lock.button",
         ])
@@ -100,6 +101,53 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         presentation.isSidebarCollapsed = false
         await Task { @MainActor in }.value
         XCTAssertTrue(statusItems.allSatisfy(\.isHidden))
+    }
+
+    func testTheSearchFieldFitsTheListAndTheStatusIsPlainText() async throws {
+        let (toolbar, window) = try await makeToolbar()
+        defer { window.close() }
+        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 320, isSidebarCollapsed: false), 252)
+        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 260, isSidebarCollapsed: false), 192,
+                       "Search and New Entry fit the list's minimum width")
+        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 330, isSidebarCollapsed: true), 140,
+                       "Beside the window controls and the sidebar toggle, as SidebarHidden draws it")
+        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 260, isSidebarCollapsed: true), 90)
+        let splitView = try XCTUnwrap(window.contentView as? NSSplitView)
+        splitView.setPosition(200, ofDividerAt: 0)
+        splitView.setPosition(500, ofDividerAt: 1)
+        await Task { @MainActor in }.value
+        XCTAssertEqual(toolbar.searchItem.preferredWidthForSearchField,
+                       MacWorkspaceToolbar.searchFieldWidth(listWidth: splitView.arrangedSubviews[1].frame.width,
+                                                            isSidebarCollapsed: false))
+        XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.databaseStatus]?.isBordered, false)
+    }
+
+    func testTheDatabaseNameIsPlainAndCentredOverTheDetail() async throws {
+        let (toolbar, window) = try await makeToolbar()
+        defer { window.close() }
+        await Task { @MainActor in }.value
+        let item = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.title])
+        XCTAssertFalse(item.isBordered, "Plain text, no shared background")
+        XCTAssertEqual(toolbar.titleView.titleField.stringValue, toolbar.session.databaseDisplayName)
+        XCTAssertEqual(toolbar.titleView.titleField.accessibilityIdentifier(), "workspace.database-title")
+
+        let splitView = try XCTUnwrap(window.contentView as? NSSplitView)
+        let detail = splitView.arrangedSubviews[2]
+        let view = toolbar.titleView
+        // Laid out standalone, standing in for the stretch the toolbar gives it.
+        let host = NSView(frame: NSRect(x: 0, y: 0, width: 1080, height: 700))
+        host.addSubview(view)
+        view.translatesAutoresizingMaskIntoConstraints = true
+        view.frame = NSRect(x: 520, y: 650, width: 480, height: 28)
+        detail.frame = NSRect(x: 500, y: 0, width: 580, height: 650)
+        host.addSubview(detail)
+        window.contentView = host
+        view.layout()
+        let title = view.convert(view.titleField.frame, to: nil)
+        let column = detail.convert(detail.bounds, to: nil)
+        XCTAssertEqual(title.midX, column.midX, accuracy: 1, "Centred on the detail column, not on the item")
+        XCTAssertGreaterThan(view.titleField.frame.width, ceil(view.titleField.intrinsicContentSize.width), "Never truncated")
+        XCTAssertFalse(view.clipsToBounds)
     }
 
     func testNewEntryIsOneButtonThatCreatesAnEntry() async throws {

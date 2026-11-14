@@ -25,6 +25,14 @@ final class MacDatabasesLauncherViewControllerTests: XCTestCase {
         XCTAssertEqual(buttons.map { $0.accessibilityIdentifier() },
                        ["databases.create-new", "databases.add-existing", "databases.connect-server"])
         XCTAssertEqual(buttons.map(\.shortcut), ["⌥⌘N", "⌘O", ""])
+        controller.view.frame = NSRect(x: 0, y: 0, width: 760, height: 520)
+        controller.view.layoutSubtreeIfNeeded()
+        for button in buttons {
+            XCTAssertGreaterThanOrEqual(button.titleField.frame.width.rounded(.up),
+                                        button.titleField.intrinsicContentSize.width.rounded(.down),
+                                        "\(button.commandTitle) is not clipped by its shortcut")
+        }
+        XCTAssertEqual(MacLauncherEmptyStateView.symbolName, "folder.badge.plus", "FirstRun draws a folder with a plus")
         XCTAssertEqual(controller.connectButton.caption, "WebDAV, FTP")
         XCTAssertTrue(controller.connectButton.isEnabled)
         XCTAssertEqual(MacDatabasesLauncherViewController.versionText("1.22"), String(localized: "Version \("1.22")"))

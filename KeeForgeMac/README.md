@@ -81,6 +81,11 @@ detail column has no banners. The save-conflict family (Save Conflict with
 Cancel on Escape, Changes Merged, Couldn't Merge Changes) and the failed Sync Now
 alert are `NSAlert`s from `MacWorkspaceAlerts`, which the split controller owns
 and starts once it has a window; releasing it on lock ends any alert still up.
+A Save Conflict alert closes when its conflict clears or changes, and an answer
+counts only for the conflict it was shown for with no save running. What a Push
+Pending Changes from the status card reports (reconnect, merge, failure) comes
+back through `MacWorkspacePresentation.pushAlert` and shows in that window, not
+the Databases window.
 Column revisions never replace it. It resets presentation state on workspace
 disappearance and rejects old cloud reconnect completions. `MacDatabaseRootView`
 keeps enrollment and its biometric observer mounted across lock/unlock. This
@@ -218,7 +223,9 @@ Each item's identifier is also its view's accessibility identifier. Tracking
 separators on the split's two dividers put the search field and New Entry (the
 read-only glasses instead in a read-only database) over the entry list and Edit
 over the detail; the window title is hidden while this toolbar is installed, as
-the list header shows it. The status card's line, Database Settings, Sync Now
+the list header shows it. The database's name is a plain (`isBordered` off) item
+between flexible spaces that draws the name at the detail column's centre
+(`MacToolbarTitleView`), whatever Edit and the status items take. The status card's line (plain text, `isBordered` off), Database Settings, Sync Now
 and Lock join the trailing end of the detail only while the sidebar is collapsed. Each item has a
 menu form for the overflow menu. Enablement comes from `DatabaseCommands` and
 `MacDatabaseStatus`, and the whole bar is disabled while saving.

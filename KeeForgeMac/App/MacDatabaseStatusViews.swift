@@ -106,6 +106,11 @@ final class MacSidebarStatusCardView: NSView {
     let lineView = MacStatusLineView()
     let actionButton = NSButton(title: "", target: nil, action: nil)
     let box = NSBox()
+    /// Below this width (the sidebar's minimum is 200, its ideal 240) the card
+    /// keeps the name whole: the line drops the storage name (DarkMin) and the
+    /// badge shrinks to the read-only glasses.
+    static let compactWidth: CGFloat = 230
+    private(set) var isCompact = false
 
     init() {
         super.init(frame: .zero)
@@ -130,10 +135,8 @@ final class MacSidebarStatusCardView: NSView {
         readOnlyBadge.wantsLayer = true
         readOnlyBadge.layer?.cornerRadius = 7
         readOnlyBadge.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.14).cgColor
-        readOnlyBadge.attributedTitle = NSAttributedString(
-            string: String(localized: "Read-only").uppercased(),
-            attributes: [.font: NSFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor.controlAccentColor]
-        )
+        readOnlyBadge.contentTintColor = .controlAccentColor
+        applyBadgeStyle()
         readOnlyBadge.setAccessibilityLabel(String(localized: "Read-only database"))
         readOnlyBadge.setAccessibilityIdentifier("sidebar.status-card.read-only")
         readOnlyBadge.setContentHuggingPriority(.required, for: .horizontal)
@@ -202,12 +205,36 @@ final class MacSidebarStatusCardView: NSView {
         syncButton.isHidden = status.offersSyncNow == false
         syncButton.isEnabled = status.canSyncNow
         lockButton.isEnabled = status.canLock
-        lineView.update(status.line)
+        lineView.update(status.line, short: isCompact)
         actionButton.isHidden = status.action == nil
         actionButton.title = status.action?.title ?? ""
         actionButton.isEnabled = status.isActionEnabled
         actionButton.setAccessibilityIdentifier(status.action?.accessibilityIdentifier)
         setAccessibilityLabel(status.name)
+    }
+
+    override func layout() {
+        super.layout()
+        let compact = bounds.width < Self.compactWidth
+        guard compact != isCompact else { return }
+        isCompact = compact
+        applyBadgeStyle()
+        if let status { lineView.update(status.line, short: compact) }
+    }
+
+    private func applyBadgeStyle() {
+        if isCompact {
+            readOnlyBadge.attributedTitle = NSAttributedString(string: "")
+            readOnlyBadge.image = NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)
+            readOnlyBadge.imagePosition = .imageOnly
+        } else {
+            readOnlyBadge.image = nil
+            readOnlyBadge.imagePosition = .noImage
+            readOnlyBadge.attributedTitle = NSAttributedString(
+                string: String(localized: "Read-only").uppercased(),
+                attributes: [.font: NSFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor.controlAccentColor]
+            )
+        }
     }
 
     @objc private func controlClicked(_ sender: NSButton) {
@@ -326,7 +353,6 @@ final class MacWorkspaceNoticeView: NSView {
         actionButton.title = notice.action?.title ?? ""
         actionButton.isHidden = notice.action == nil
         actionButton.keyEquivalent = ""
-        if notice.action != nil, notice.action != .dismissSyncResult { actionButton.bezelColor = .controlAccentColor }
         actionButton.isEnabled = notice.isActionEnabled
         actionButton.setAccessibilityIdentifier(notice.actionAccessibilityIdentifier)
         actionButton.target = self

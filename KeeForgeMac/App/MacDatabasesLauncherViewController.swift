@@ -392,7 +392,7 @@ final class MacLauncherTableView: NSTableView {
 /// caption or shortcut, sent to the same nil-targeted command as its menu item.
 @MainActor
 final class MacLauncherActionButton: NSButton {
-    private let titleField = NSTextField(labelWithString: "")
+    let titleField = NSTextField(labelWithString: "")
     private let captionField = NSTextField(labelWithString: "")
     private let shortcutField = NSTextField(labelWithString: "")
     let tile = NSView()
@@ -451,8 +451,14 @@ final class MacLauncherActionButton: NSButton {
         labels.orientation = .vertical
         labels.alignment = .leading
         labels.spacing = 0
-        let row = NSStackView(views: [tile, labels, NSView(), shortcutField])
+        let spacer = NSView()
+        let row = NSStackView(views: [tile, labels, spacer, shortcutField])
         row.spacing = 12
+        // The title gets the room the shortcut does not need, so "File…" keeps its ellipsis.
+        row.setCustomSpacing(6, after: labels)
+        row.setCustomSpacing(0, after: spacer)
+        titleField.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        shortcutField.setContentCompressionResistancePriority(.required, for: .horizontal)
         row.detachesHiddenViews = true
         for view in [titleField, captionField, shortcutField, glyph, tile] { view.setAccessibilityElement(false) }
         row.translatesAutoresizingMaskIntoConstraints = false
@@ -497,12 +503,13 @@ final class MacLauncherActionButton: NSButton {
 
 @MainActor
 final class MacLauncherEmptyStateView: NSStackView {
+    static let symbolName = "folder.badge.plus"
     let titleField = NSTextField(labelWithString: "")
     let messageField = NSTextField(wrappingLabelWithString: "")
 
     init() {
         super.init(frame: .zero)
-        let image = NSImageView(image: NSImage(systemSymbolName: "externaldrive", accessibilityDescription: nil) ?? NSImage())
+        let image = NSImageView(image: NSImage(systemSymbolName: Self.symbolName, accessibilityDescription: nil) ?? NSImage())
         image.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 30, weight: .light)
         image.contentTintColor = .tertiaryLabelColor
         image.setAccessibilityElement(false)

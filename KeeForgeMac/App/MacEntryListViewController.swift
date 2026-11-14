@@ -19,10 +19,6 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     let notices = MacWorkspaceNoticesView()
     let resultCountField = NSTextField(labelWithString: "")
     let footerField = NSTextField(wrappingLabelWithString: "")
-    /// Whether a click extends the selection; reads the current event's modifiers.
-    var isExtendingSelection: @MainActor () -> Bool = {
-        NSApp.currentEvent?.modifierFlags.intersection([.command, .shift]).isEmpty == false
-    }
     var copyToClipboard: @MainActor (String) -> Void = { ClipboardService.copy($0) }
     /// Nil uses the session's device-owner gate.
     var authenticatePassword: (@MainActor () async throws -> Void)?
@@ -255,6 +251,8 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     }
 
     private func apply(_ state: State) {
+        var state = state
+        if MacEntryListSelection.dropHiddenPicks(session: session) { state = readState() }
         isApplyingModel = true
         defer { isApplyingModel = false }
         let old = snapshot
@@ -461,6 +459,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     }
 
     private func moveEntrySelection() {
+        MacEntryListSelection.dropHiddenPicks(session: session)
         guard let selection = session.workspace.entrySelection, selection.isEmpty == false,
               session.isReadOnly == false, session.isSaving == false else { return }
         presentation.pendingMove = .entries(selection)
@@ -538,12 +537,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard isApplyingModel == false else { return }
         let selected = tableView.selectedRowIndexes.filter { rows.indices.contains($0) }.map { rows[$0].id }
-        MacEntryListSelection.apply(
-            selectedIDs: selected,
-            visibleIDs: Set(rows.map(\.id)),
-            isExtending: isExtendingSelection(),
-            to: session.workspace
-        )
+        MacEntryListSelection.apply(selectedIDs: selected, to: session.workspace)
     }
 
     // MARK: - Context menu
@@ -1316,6 +1310,8 @@ final class MacEntryListHeaderView: NSView {
         sortButton.setAccessibilityIdentifier("sort.menu")
         sortButton.setContentHuggingPriority(.required, for: .horizontal)
         sortButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+        // The boards draw a round button.
+        if #available(macOS 26.0, *) { sortButton.borderShape = .circle }
         let menu = NSMenu()
         menu.autoenablesItems = false
         let face = NSMenuItem(title: label, action: nil, keyEquivalent: "")
@@ -1354,6 +1350,7 @@ final class MacEntryListHeaderView: NSView {
             sortButton.leadingAnchor.constraint(greaterThanOrEqualTo: text.trailingAnchor, constant: 10),
             sortButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
             sortButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            sortButton.widthAnchor.constraint(equalTo: sortButton.heightAnchor),
         ])
     }
 

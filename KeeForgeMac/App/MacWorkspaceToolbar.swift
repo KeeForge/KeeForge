@@ -17,17 +17,20 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         static let lock = NSToolbarItem.Identifier("lock.button")
         static let edit = NSToolbarItem.Identifier("entry-detail.edit")
         static let search = NSToolbarItem.Identifier("workspace.search")
+        static let title = NSToolbarItem.Identifier("workspace.database-title")
         static let sidebarSeparator = NSToolbarItem.Identifier("workspace.sidebar-separator")
         static let listSeparator = NSToolbarItem.Identifier("workspace.list-separator")
     }
 
     /// The boards' layout: the sidebar toggle over the sidebar, search and New
     /// Entry (the glasses in a read-only database) over the entry list, between
-    /// the split's tracking separators, and Edit over the detail. The status
-    /// card's line and buttons join the detail only while the sidebar is hidden.
+    /// the split's tracking separators, the database's name centred over the
+    /// detail, and Edit. The status card's line and buttons join the detail
+    /// only while the sidebar is hidden.
     static let itemIdentifiers: [NSToolbarItem.Identifier] = [
         Item.toggleSidebar, Item.sidebarSeparator, Item.search, Item.add, Item.readOnly, Item.listSeparator,
-        .flexibleSpace, Item.edit, Item.databaseStatus, Item.databaseSettings, Item.syncNow, Item.lock,
+        .flexibleSpace, Item.title, .flexibleSpace,
+        Item.edit, Item.databaseStatus, Item.databaseSettings, Item.syncNow, Item.lock,
     ]
     static let statusItemIdentifiers: [NSToolbarItem.Identifier] = [
         Item.databaseStatus, Item.databaseSettings, Item.syncNow, Item.lock,
@@ -37,10 +40,15 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     let toolbar = NSToolbar(identifier: MacWorkspaceToolbar.identifier)
     let searchItem = NSSearchToolbarItem(itemIdentifier: Item.search)
     let statusLineView = MacStatusLineView()
+    let titleView = MacToolbarTitleView()
     private(set) var items: [NSToolbarItem.Identifier: NSToolbarItem] = [:]
     private let presentation: MacWorkspacePresentation
     private let observation = MacObservation()
     private var controls: [NSControl] = []
+    private weak var listPane: NSView?
+    private var listFrameObserver: NSObjectProtocol?
+    private var detailFrameObserver: NSObjectProtocol?
+    private var isSidebarCollapsed = false
 
     /// `splitView` is the workspace split whose dividers the separators track.
     init(session: DatabaseViewModel, presentation: MacWorkspacePresentation, splitView: NSSplitView) {
@@ -58,6 +66,12 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
             guard let state else { return }
             self?.apply(state)
         })
+    }
+
+    isolated deinit {
+        for observer in [listFrameObserver, detailFrameObserver].compactMap(\.self) {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     func focusSearch() {
@@ -132,11 +146,15 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         enable(Item.syncNow, state.status.canSyncNow)
         enable(Item.lock, state.status.canLock)
         for identifier in Self.statusItemIdentifiers { items[identifier]?.isHidden = state.isSidebarCollapsed == false }
+        isSidebarCollapsed = state.isSidebarCollapsed
+        updateSearchFieldWidth()
         if state.status.offersSyncNow == false { items[Item.syncNow]?.isHidden = true }
         statusLineView.update(state.status.line, short: true)
         items[Item.readOnly]?.isHidden = state.isReadOnly == false
         items[Item.add]?.isHidden = state.isReadOnly
         items[Item.edit]?.isHidden = state.showsEdit == false
+        titleView.titleField.stringValue = state.databaseName
+        titleView.needsLayout = true
         let placeholder = Self.searchPlaceholder(databaseName: state.databaseName)
         if searchItem.searchField.placeholderString != placeholder {
             searchItem.searchField.placeholderString = placeholder
@@ -144,6 +162,19 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         if searchItem.searchField.stringValue != state.searchText {
             searchItem.searchField.stringValue = state.searchText
         }
+    }
+
+    /// The search field takes what the list column leaves beside New Entry (and,
+    /// with the sidebar hidden, the window controls and the sidebar toggle), so
+    /// focusing it never pushes the list separator and it stays a field.
+    static func searchFieldWidth(listWidth: CGFloat, isSidebarCollapsed: Bool) -> CGFloat {
+        let neighbours: CGFloat = isSidebarCollapsed ? 36 + 36 + 86 : 36
+        return min(max(listWidth - neighbours - 32, 90), 260)
+    }
+
+    private func updateSearchFieldWidth() {
+        let width = Self.searchFieldWidth(listWidth: listPane?.frame.width ?? 320, isSidebarCollapsed: isSidebarCollapsed)
+        if searchItem.preferredWidthForSearchField != width { searchItem.preferredWidthForSearchField = width }
     }
 
     static func searchPlaceholder(databaseName: String) -> String {
@@ -191,6 +222,8 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         // The toolbar draws its item background to the view's edges.
         statusLineView.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
         statusItem.view = statusLineView
+        // Plain text beside the buttons' shared background (SidebarHidden board).
+        statusItem.isBordered = false
         statusItem.label = String(localized: "Status")
         statusLineView.setAccessibilityIdentifier(Item.databaseStatus.rawValue)
         items[Item.databaseStatus] = statusItem
@@ -215,6 +248,32 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         addItem(Item.edit, view: edit, label: editLabel, menuForm: menuItem(editLabel, action: #selector(editEntry(_:))))
 
         searchItem.label = String(localized: "Search")
+        let detailPane = splitView.arrangedSubviews.count > 2 ? splitView.arrangedSubviews[2] : nil
+        titleView.centerReference = detailPane
+        detailPane?.postsFrameChangedNotifications = true
+        if let detailPane {
+            detailFrameObserver = NotificationCenter.default.addObserver(
+                forName: NSView.frameDidChangeNotification, object: detailPane, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.titleView.needsLayout = true }
+            }
+        }
+        let titleItem = NSToolbarItem(itemIdentifier: Item.title)
+        titleItem.view = titleView
+        // Plain text, between flexible spaces.
+        titleItem.isBordered = false
+        titleItem.label = String(localized: "Database")
+        items[Item.title] = titleItem
+
+        listPane = splitView.arrangedSubviews.count > 1 ? splitView.arrangedSubviews[1] : nil
+        listPane?.postsFrameChangedNotifications = true
+        if let listPane {
+            listFrameObserver = NotificationCenter.default.addObserver(
+                forName: NSView.frameDidChangeNotification, object: listPane, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateSearchFieldWidth() }
+            }
+        }
         searchItem.searchField.placeholderString = Self.searchPlaceholder(databaseName: session.databaseDisplayName)
         searchItem.searchField.delegate = self
         searchItem.searchField.target = self
@@ -256,5 +315,55 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
         return item
+    }
+}
+
+/// The database's name in the toolbar, between flexible spaces. Edit and the
+/// status items pull that centre off the detail column's, so the name is drawn
+/// at the column's centre instead (Main and SidebarHidden boards), past the
+/// small view's bounds, which do not clip.
+final class MacToolbarTitleView: NSView {
+    let titleField = NSTextField(labelWithString: "")
+    weak var centerReference: NSView?
+
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: 40, height: 28))
+        clipsToBounds = false
+        titleField.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+        titleField.textColor = .secondaryLabelColor
+        titleField.alignment = .center
+        titleField.setAccessibilityIdentifier(MacWorkspaceToolbar.Item.title.rawValue)
+        addSubview(titleField)
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: 40),
+            heightAnchor.constraint(equalToConstant: 28),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    /// Moving with the toolbar's items moves the column's centre in this view.
+    override func setFrameOrigin(_ newOrigin: NSPoint) {
+        super.setFrameOrigin(newOrigin)
+        needsLayout = true
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        let size = titleField.intrinsicContentSize
+        // In the toolbar the measured width clipped the last glyph; centred slack keeps it.
+        let width = ceil(size.width) + 16
+        var midX = bounds.midX
+        if let reference = centerReference, reference.window != nil, reference.window === window {
+            midX = convert(NSPoint(x: reference.bounds.midX, y: 0), from: reference).x
+        }
+        titleField.frame = NSRect(x: midX - width / 2, y: (bounds.height - size.height) / 2,
+                                  width: width, height: size.height)
     }
 }

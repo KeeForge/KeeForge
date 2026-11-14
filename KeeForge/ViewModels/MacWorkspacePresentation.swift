@@ -32,6 +32,8 @@ final class MacWorkspacePresentation {
     private(set) var saveConflictPromptRequestID = 0
     /// Set once by the window's owner; the database list holds the markers.
     @ObservationIgnored var pendingUploads = MacPendingUploads.none
+    /// What went wrong with a Push Pending Changes this window asked for, shown in this window.
+    private(set) var pushAlert: PendingUploadAlert?
     /// Advanced every minute while the workspace is shown, so "Synced 5 minutes ago" keeps up.
     private(set) var statusClockTick = 0
     /// The list's copy ticks, and the detail pane's later.
@@ -116,6 +118,7 @@ final class MacWorkspacePresentation {
     }
 
     func beginSelectionDeletion(in database: DatabaseViewModel) {
+        MacEntryListSelection.dropHiddenPicks(session: database)
         switch database.deletableSelection {
         case .entry(let entryID):
             pendingDeletion = .entry(PendingEntryDeletion(
@@ -130,6 +133,23 @@ final class MacWorkspacePresentation {
         case nil:
             return
         }
+    }
+
+    /// Pushes through the list's one push; its result belongs to this window, not the Databases window.
+    @discardableResult
+    func pushPendingUploads(in database: DatabaseViewModel) -> Task<Void, Never> {
+        let lifetimeID = self.lifetimeID
+        let push = pendingUploads.push
+        let databaseID = database.databaseReference.id
+        return Task { @MainActor in
+            let alert = await push(databaseID)
+            guard self.lifetimeID == lifetimeID, let alert else { return }
+            pushAlert = alert
+        }
+    }
+
+    func dismissPushAlert() {
+        pushAlert = nil
     }
 
     func advanceStatusClock() {
@@ -177,6 +197,7 @@ final class MacWorkspacePresentation {
         isShowingDatabaseDetails = false
         presentedSaveError = nil
         isCloudReconnectInFlight = false
+        pushAlert = nil
         copyFeedback.clear()
     }
 }

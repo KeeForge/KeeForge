@@ -81,21 +81,143 @@ final class MacWorkspaceAlertsTests: XCTestCase {
         XCTAssertEqual(MacWorkspaceAlerts.conflictChoice(for: .cancel), .cancel)
     }
 
-    func testAnAlertOverASheetAttachesToTheSheet() {
+    func testAnAlertOverARealSheetAttachesToItAndClosesWhenItsConflictClears() async throws {
+        // A sheet attaches only to a window on screen (as in MacWindowCoordinatorTests).
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
-                              styleMask: [.titled], backing: .buffered, defer: true)
+                              styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        XCTAssertTrue(MacWorkspaceAlerts.topmostSheet(of: window) === window)
+        window.orderFront(nil)
+        let editor = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        editor.isReleasedWhenClosed = false
+        window.beginSheet(editor, completionHandler: nil)
+        defer {
+            window.endSheet(editor)
+            window.close()
+        }
+        XCTAssertTrue(MacWorkspaceAlerts.topmostSheet(of: window) === editor)
+
+        let (alerts, session, _) = try await makeAlerts(window: window, presentsForReal: true)
+        try await hitSaveConflict(session)
+        await settle()
+        let alert = try XCTUnwrap(alerts.presented?.alert)
+        XCTAssertEqual(alerts.presented?.kind, .saveConflict)
+        XCTAssertTrue(alert.window.sheetParent === editor, "The alert attaches to the editor sheet")
+
+        session.discardDraft()
+        await settle()
+        XCTAssertNil(alerts.presented, "An alert for a conflict that cleared closes")
+        try await waitUntil { editor.attachedSheet == nil }
+    }
+
+    func testAnAnswerToAConflictASaveReplacedIsIgnoredAndTheNewConflictAsksAgain() async throws {
+        let gate = SaveGate()
+        let saves = SaveCallCounter()
+        let reloads = SaveCallCounter()
+        let (alerts, session, _) = try await makeAlerts(save: { _, _, _, _, _, _, _ in
+            if await saves.increment() == 2 {
+                await gate.signalStarted()
+                await gate.waitUntilOpen()
+            }
+            return .conflict(remoteSHA512: Data([1, 2, 3]), remoteData: Data())
+        }, reloads: reloads)
+        try await hitSaveConflict(session)
+        await settle()
+        XCTAssertEqual(alerts.presented?.kind, .saveConflict)
+        let staleAnswer = try XCTUnwrap(shown.last?.answer)
+
+        // ⌘S with the alert up: the save clears the conflict while it runs.
+        try session.createGroup(named: "Second", in: try XCTUnwrap(session.visibleRootGroupID))
+        let save = Task { await session.saveHandlingError() }
+        await gate.waitUntilStarted()
+        await settle()
+        XCTAssertTrue(session.isSaving)
+        XCTAssertNil(alerts.presented, "The alert closes when the save clears its conflict")
+
+        staleAnswer(.alertSecondButtonReturn)
+        do {
+            try await session.reloadDiscardingDraft()
+            XCTFail("Reload must not run under a save")
+        } catch {
+            XCTAssertEqual(error as? SaveError, .saveContextUnavailable)
+        }
+        let reloadCount = await reloads.value
+        XCTAssertEqual(reloadCount, 0, "Neither the stale Reload nor a direct one ran during the save")
+        XCTAssertEqual(session.state, .unlocked)
+
+        await gate.open()
+        await save.value
+        await settle()
+        XCTAssertNotNil(session.saveConflict)
+        XCTAssertEqual(alerts.presented?.kind, .saveConflict, "The save's own conflict asks again")
+        XCTAssertEqual(shown.count, 2)
+    }
+
+    func testAPushFailureShowsInThisWindowAndOffersReconnect() async throws {
+        let (alerts, session, presentation) = try await makeAlerts()
+        let failure = PendingUploadAlert(databaseId: session.databaseReference.id, kind: .notAuthenticated,
+                                         title: "Reconnect Cloud Account", message: "Sign in again.")
+        presentation.pendingUploads = MacPendingUploads(counts: { _ in .init() }, push: { _ in failure })
+
+        await presentation.pushPendingUploads(in: session).value
+        await settle()
+
+        XCTAssertEqual(presentation.pushAlert, failure)
+        XCTAssertEqual(alerts.presented?.kind, .pushFailure(failure))
+        let alert = try XCTUnwrap(shown.last?.alert)
+        XCTAssertEqual(alert.messageText, "Reconnect Cloud Account")
+        XCTAssertEqual(alert.informativeText, "Sign in again.")
+        XCTAssertEqual(alert.buttons.map { $0.accessibilityIdentifier() },
+                       ["pending-upload-push.reconnect", "pending-upload-push.cancel"])
+        XCTAssertEqual(alert.buttons.last?.keyEquivalent, "\u{1b}")
+
+        shown.last?.answer(.alertSecondButtonReturn)
+        await settle()
+        XCTAssertNil(presentation.pushAlert)
+        XCTAssertNil(alerts.presented)
+    }
+
+    func testAPushConflictOffersMergeHereAndAResultAfterALockIsDropped() async throws {
+        let (_, session, presentation) = try await makeAlerts()
+        let conflict = PendingUploadAlert(databaseId: session.databaseReference.id, kind: .conflict,
+                                          title: "Pending Upload Conflict", message: "Open the database to merge.")
+        let alert = MacWorkspaceAlerts.makeAlert(.pushFailure(conflict), session: session)
+        XCTAssertEqual(alert.informativeText, String(
+            localized: "A change saved through AutoFill couldn’t be uploaded because the cloud copy changed. Merge it into this database to upload it."
+        ))
+        XCTAssertEqual(alert.buttons.map(\.title), [String(localized: "Merge Changes"), String(localized: "Cancel")])
+
+        let gate = SaveGate()
+        presentation.pendingUploads = MacPendingUploads(counts: { _ in .init() }, push: { _ in
+            await gate.waitUntilOpen()
+            return conflict
+        })
+        let push = presentation.pushPendingUploads(in: session)
+        presentation.reset()
+        await gate.open()
+        await push.value
+        XCTAssertNil(presentation.pushAlert, "A lock in between drops the result")
     }
 
     // MARK: - Helpers
 
-    private func makeAlerts() async throws -> (MacWorkspaceAlerts, DatabaseViewModel, MacWorkspacePresentation) {
+    private func makeAlerts(
+        save: @escaping DatabaseViewModel.LocalSaveOperation = { _, _, _, _, _, _, _ in
+            .conflict(remoteSHA512: Data([1, 2, 3]), remoteData: Data())
+        },
+        reloads: SaveCallCounter = SaveCallCounter(),
+        window: NSWindow? = nil,
+        presentsForReal: Bool = false
+    ) async throws -> (MacWorkspaceAlerts, DatabaseViewModel, MacWorkspacePresentation) {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
         let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
         let session = DatabaseViewModel(
             databaseReference: reference,
-            localSaveOperation: { _, _, _, _, _, _, _ in .conflict(remoteSHA512: Data([1, 2, 3]), remoteData: Data()) },
+            localSaveOperation: save,
+            reloadOperation: { _, _ in
+                await reloads.increment()
+                throw SaveError.saveContextUnavailable
+            },
             quickUnlockKeyPersistOperation: { _, _, _ in false },
             storedKeyPresenceCheck: { _ in false }
         )
@@ -103,8 +225,10 @@ final class MacWorkspaceAlertsTests: XCTestCase {
         XCTAssertEqual(session.state, .unlocked)
         addTeardownBlock { @MainActor in session.lockRequest(force: true) }
         let presentation = MacWorkspacePresentation()
-        let alerts = MacWorkspaceAlerts(session: session, presentation: presentation) { nil }
-        alerts.present = { [weak self] alert, _, answer in self?.shown.append((alert, answer)) }
+        let alerts = MacWorkspaceAlerts(session: session, presentation: presentation) { window }
+        if presentsForReal == false {
+            alerts.present = { [weak self] alert, _, answer in self?.shown.append((alert, answer)) }
+        }
         alerts.start()
         return (alerts, session, presentation)
     }

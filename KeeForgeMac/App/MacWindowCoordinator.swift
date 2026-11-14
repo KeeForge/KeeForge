@@ -350,8 +350,8 @@ final class MacWindowCoordinator {
                 return .init(waiting: max(status.pendingUploadCount - conflicts, 0), conflicts: conflicts)
             },
             push: { databaseID in
-                guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return }
-                await listViewModel.pushPendingChanges(for: reference)
+                guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return nil }
+                return await listViewModel.pushPendingChanges(for: reference, presentsAlert: false)
             }
         )
         controller.loadWindow()

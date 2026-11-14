@@ -59,6 +59,7 @@ struct MacWorkspaceCommands {
     var canMoveToGroup: Bool { pendingMove != nil }
 
     func moveToGroup() {
+        if let session { MacEntryListSelection.dropHiddenPicks(session: session) }
         guard let pendingMove else { return }
         presentation.pendingMove = pendingMove
     }

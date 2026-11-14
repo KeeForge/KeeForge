@@ -548,6 +548,23 @@ final class MacEntryDropTests: MacSidebarSessionTestCase {
         XCTAssertTrue(drop.canDrop([tree.alpha.id, tree.beta.id], onto: .group(tree.root.id)))
     }
 
+    func testTheWrapperAroundOneTopLevelGroupIsNeitherAMoveNorADropDestination() async throws {
+        let entry = KPEntry(title: "Alpha")
+        let work = KPGroup(name: "Work", entries: [entry])
+        let bin = KPGroup(name: "Recycle Bin")
+        let personal = KPGroup(name: "Personal", groups: [work, bin])
+        let wrapper = KPGroup(name: "Root", groups: [personal], recycleBinUUID: bin.id)
+        let session = try await makeSidebarSession(root: wrapper)
+        XCTAssertTrue(session.isSyntheticRootGroup(groupID: wrapper.id))
+        XCTAssertEqual(session.workspaceRootGroupID, personal.id)
+
+        XCTAssertEqual(session.moveDestinationOptions(forEntryID: entry.id).map(\.id), [personal.id, work.id])
+        XCTAssertEqual(session.moveDestinationOptions(forEntryIDs: [entry.id]).map(\.id), [personal.id, work.id])
+        let drop = MacEntryDrop(session: session, presentation: MacWorkspacePresentation())
+        XCTAssertFalse(drop.canDrop([entry.id], onto: .group(wrapper.id)))
+        XCTAssertTrue(drop.canDrop([entry.id], onto: .group(personal.id)))
+    }
+
     func testDropsAreRefusedWhereMoveToGroupRefuses() async throws {
         let (tree, session, presentation) = try await make()
         let drop = MacEntryDrop(session: session, presentation: presentation)
@@ -708,6 +725,20 @@ final class MacDatabaseStatusTests: MacSidebarSessionTestCase {
         XCTAssertEqual(status.notices.first?.actionAccessibilityIdentifier, "pending-upload-banner.merge")
     }
 
+    func testTheLiveConflictCountWarnsBeforeTheSessionFlagCatchesUp() {
+        let status = MacDatabaseStatus(cloudState { $0.pendingUploads = .init(waiting: 0, conflicts: 2) })
+
+        XCTAssertEqual(status.line.text, "WebDAV · \(String(localized: "\(2) pending upload conflicts"))")
+        XCTAssertEqual(status.line.dot, .warning)
+        XCTAssertEqual(status.notices.map(\.kind), [.uploadConflict])
+
+        let readOnly = MacDatabaseStatus(cloudState {
+            $0.pendingUploads = .init(waiting: 0, conflicts: 2)
+            $0.isReadOnly = true
+        })
+        XCTAssertEqual(readOnly.notices.map(\.kind), [], "A read-only database cannot merge")
+    }
+
     func testWaitingUploadsOfferPush() {
         let status = MacDatabaseStatus(cloudState { $0.pendingUploads = .init(waiting: 2, conflicts: 0) })
 
@@ -797,6 +828,8 @@ final class MacDatabaseStatusTests: MacSidebarSessionTestCase {
         next.isDirty = false
         XCTAssertNil(MacDatabaseStatus(next).action, "Upload conflicts are merged from the notice")
         next.hasPendingUploadConflict = false
+        XCTAssertNil(MacDatabaseStatus(next).action, "The list's live count still holds the conflict")
+        next.pendingUploads = .init(waiting: 3, conflicts: 0)
         XCTAssertEqual(MacDatabaseStatus(next).action, .pushPendingUploads)
     }
 

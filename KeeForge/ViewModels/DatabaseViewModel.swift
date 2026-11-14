@@ -3503,7 +3503,8 @@ final class DatabaseViewModel {
     }
 
     func reloadDiscardingDraft() async throws {
-        guard let compositeKey else {
+        // A save in flight would land under the reloaded tree and baseline.
+        guard isSaving == false, let compositeKey else {
             throw SaveError.saveContextUnavailable
         }
 
@@ -4539,11 +4540,13 @@ final class DatabaseViewModel {
         guard reference.id == databaseReference.id else { return }
         // Session writes reach the list store before a delayed list callback can arrive.
         let current = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
-        guard current != databaseReference else { return }
-        databaseReference = current
-        if isReadOnly {
-            workspace.endEntrySelection()
+        if current != databaseReference {
+            databaseReference = current
+            if isReadOnly {
+                workspace.endEntrySelection()
+            }
         }
+        // The upload drainer marks a conflict without touching the reference.
         refreshPendingUploadConflict()
     }
 

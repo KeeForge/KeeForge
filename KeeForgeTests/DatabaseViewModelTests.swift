@@ -5524,6 +5524,23 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.hasPendingUploadConflict)
     }
 
+    func testAConflictTheDrainerMarksLaterIsPickedUpWithoutAReferenceChange() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8), isConflicted: false)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+        await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+
+        pending.markConflicted()
+        let listed = DatabaseListStore.databases.first { $0.id == reference.id } ?? vm.databaseReference
+        XCTAssertEqual(listed, vm.databaseReference, "the list reload carries the same reference")
+        vm.reconcileReference(listed)
+
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+    }
+
     func testLockingClearsThePendingUploadState() async throws {
         let fixtureData = try Data(contentsOf: fixtureURL())
         let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
@@ -8502,6 +8519,13 @@ private final class PendingUploadFake: @unchecked Sendable {
 
     func dropAll() {
         lock.withLock { markers.removeAll() }
+    }
+
+    /// What the drainer does when the cloud copy moved on: the marker changes, the reference does not.
+    func markConflicted() {
+        lock.withLock {
+            for index in markers.indices { markers[index].marker.isConflicted = true }
+        }
     }
 
     var environment: PendingUploadRecovery.Environment {

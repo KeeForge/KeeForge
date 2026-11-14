@@ -482,53 +482,103 @@ final class MacEntryListModelTests: XCTestCase {
         XCTAssertEqual(MacEntryListSelection.tableSelection(rows: rows, workspace: workspace), [])
     }
 
-    func testApplyingAPlainSelectionCollapsesToTheTable() {
+    func testApplyingTheTableSelectionMakesPicksOrOneSelectedEntry() {
         let rows = Self.rows(count: 3)
-        let visible = Set(rows.map(\.id))
-        let hidden = UUID()
         let workspace = DatabaseWorkspaceState()
 
-        MacEntryListSelection.apply(selectedIDs: [rows[0].id], visibleIDs: visible, isExtending: false, to: workspace)
+        MacEntryListSelection.apply(selectedIDs: [rows[0].id], to: workspace)
         XCTAssertNil(workspace.entrySelection)
         XCTAssertEqual(workspace.selectedEntryID, rows[0].id)
 
-        MacEntryListSelection.apply(selectedIDs: [rows[0].id, rows[1].id], visibleIDs: visible, isExtending: false,
-                                    to: workspace)
+        MacEntryListSelection.apply(selectedIDs: [rows[0].id, rows[1].id], to: workspace)
         XCTAssertEqual(workspace.entrySelection, [rows[0].id, rows[1].id])
 
-        workspace.setEntrySelection([hidden, rows[0].id])
-        MacEntryListSelection.apply(selectedIDs: [rows[2].id], visibleIDs: visible, isExtending: false, to: workspace)
-        XCTAssertNil(workspace.entrySelection, "a plain click drops picks the list does not show")
+        workspace.setEntrySelection([UUID(), rows[0].id])
+        MacEntryListSelection.apply(selectedIDs: [rows[2].id], to: workspace)
+        XCTAssertNil(workspace.entrySelection, "the table's rows replace the picks")
         XCTAssertEqual(workspace.selectedEntryID, rows[2].id)
 
-        MacEntryListSelection.apply(selectedIDs: [], visibleIDs: visible, isExtending: false, to: workspace)
+        MacEntryListSelection.apply(selectedIDs: [], to: workspace)
         XCTAssertNil(workspace.entrySelection)
         XCTAssertNil(workspace.selectedEntryID)
     }
 
-    func testApplyingAnExtendedSelectionKeepsHiddenPicks() {
-        let rows = Self.rows(count: 3)
-        let visible = Set(rows.map(\.id))
-        let hidden = UUID()
-        let workspace = DatabaseWorkspaceState()
+    func testPicksAreDroppedWhenASearchOrSidebarChangeHidesThem() async throws {
+        let fixture = try await makeFixture()
+        let session = fixture.session
+        let workspace = session.workspace
+        let work = fixture.work.entries
+        workspace.selectedCollection = .allEntries
+        workspace.setEntrySelection([work[0].id, work[1].id, work[2].id])
+        XCTAssertFalse(MacEntryListSelection.dropHiddenPicks(session: session), "every pick is on screen")
 
-        workspace.selectedEntryID = rows[0].id
-        MacEntryListSelection.apply(selectedIDs: [rows[0].id, rows[1].id], visibleIDs: visible, isExtending: true,
-                                    to: workspace)
-        XCTAssertEqual(workspace.entrySelection, [rows[0].id, rows[1].id])
+        session.searchText = "Account"
+        XCTAssertFalse(MacEntryListSelection.dropHiddenPicks(session: session))
+        session.searchText = "Account A"
+        XCTAssertTrue(MacEntryListSelection.dropHiddenPicks(session: session))
+        XCTAssertNil(workspace.entrySelection, "one pick left is the selected entry")
+        XCTAssertEqual(workspace.selectedEntryID, work[1].id)
 
-        workspace.setEntrySelection([hidden])
-        MacEntryListSelection.apply(selectedIDs: [rows[2].id], visibleIDs: visible, isExtending: true, to: workspace)
-        XCTAssertEqual(workspace.entrySelection, [hidden, rows[2].id])
-
-        MacEntryListSelection.apply(selectedIDs: [], visibleIDs: visible, isExtending: true, to: workspace)
-        XCTAssertNil(workspace.entrySelection, "one pick left is a single selection")
-        XCTAssertEqual(workspace.selectedEntryID, hidden)
-
-        workspace.selectedEntryID = nil
-        MacEntryListSelection.apply(selectedIDs: [rows[1].id], visibleIDs: visible, isExtending: true, to: workspace)
+        session.searchText = ""
+        workspace.selectedGroupID = fixture.work.id
+        workspace.setEntrySelection([work[0].id, work[1].id])
+        workspace.selectedGroupID = fixture.home.id
+        XCTAssertTrue(MacEntryListSelection.dropHiddenPicks(session: session))
         XCTAssertNil(workspace.entrySelection)
-        XCTAssertEqual(workspace.selectedEntryID, rows[1].id)
+        XCTAssertNil(workspace.selectedEntryID)
+
+        workspace.selectedCollection = .allEntries
+        workspace.setEntrySelection([work[0].id, work[1].id, fixture.home.entries[0].id])
+        workspace.selectedCollection = .verificationCodes
+        XCTAssertTrue(MacEntryListSelection.dropHiddenPicks(session: session))
+        XCTAssertEqual(workspace.entrySelection, [work[1].id, fixture.home.entries[0].id])
+        let header = try XCTUnwrap(MacEntryListSnapshot.make(session: session).header)
+        XCTAssertTrue(header.subtitle.hasSuffix(String(localized: "\(2) of \(2) selected")))
+        XCTAssertEqual(MacEntrySelectionSummary.make(session: session)?.title,
+                       String(localized: "\(2) Entries Selected"))
+    }
+
+    func testAMergeThatMovesAPickOutOfTheGroupDropsIt() async throws {
+        let fixture = try await makeFixture()
+        let session = fixture.session
+        let work = fixture.work.entries
+        session.workspace.selectedGroupID = fixture.work.id
+        session.workspace.setEntrySelection(Set(work.map(\.id)))
+
+        let root = try XCTUnwrap(session.currentRootGroup).deepCopy()
+        let workCopy = try XCTUnwrap(root.groups.first { $0.id == fixture.work.id })
+        let moved = workCopy.entries.removeFirst()
+        root.groups.first { $0.id == fixture.home.id }?.entries.append(moved)
+        session.draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: try XCTUnwrap(session.sessionKey))
+
+        XCTAssertTrue(MacEntryListSelection.dropHiddenPicks(session: session))
+        XCTAssertEqual(session.workspace.entrySelection, [work[1].id, work[2].id])
+    }
+
+    func testDeleteAndMoveActOnlyOnThePicksTheListShows() async throws {
+        let fixture = try await makeFixture()
+        let session = fixture.session
+        let work = fixture.work.entries
+        let presentation = MacWorkspacePresentation()
+        let home = fixture.home.entries[0]
+        session.workspace.selectedCollection = .allEntries
+        session.workspace.setEntrySelection([work[0].id, home.id, work[2].id])
+        // A sidebar change hides Home Account; no list view has pruned the picks yet.
+        session.workspace.selectedGroupID = fixture.work.id
+
+        presentation.beginSelectionDeletion(in: session)
+        guard case .entries(let deleted) = presentation.pendingDeletion else {
+            return XCTFail("Expected the picked entries' confirmation")
+        }
+        XCTAssertEqual(deleted, [work[0].id, work[2].id], "Delete never recycles a pick the list does not show")
+
+        presentation.pendingDeletion = nil
+        session.workspace.setEntrySelection([work[0].id, home.id, work[2].id])
+        MacWorkspaceCommands(session: session, presentation: presentation).moveToGroup()
+        guard case .entries(let moved) = presentation.pendingMove else {
+            return XCTFail("Expected the picked entries' move")
+        }
+        XCTAssertEqual(moved, [work[0].id, work[2].id])
     }
 
     func testProposedSelectionFiltersImmovableRowsAndKeepsOneWhenReadOnly() {

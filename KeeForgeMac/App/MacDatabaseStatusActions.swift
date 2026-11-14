@@ -18,9 +18,7 @@ struct MacDatabaseStatusActions {
         case .reconnect:
             reconnect(from: window)
         case .pushPendingUploads:
-            let push = presentation.pendingUploads.push
-            let databaseID = session.databaseReference.id
-            Task { await push(databaseID) }
+            presentation.pushPendingUploads(in: session)
         }
     }
 

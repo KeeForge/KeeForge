@@ -1,7 +1,8 @@
 import AppKit
 
-/// The save-conflict family of alerts (SyncProblems board) and the failed
-/// Sync Now alert, as native alerts: SwiftUI's four-button macOS alert drops
+/// The save-conflict family of alerts (SyncProblems board), the failed Sync
+/// Now alert and what a Push Pending Changes from this window reported, as
+/// native alerts: SwiftUI's four-button macOS alert drops
 /// Cancel and ignores Escape. One per unlocked workspace; releasing it on lock
 /// ends any alert still up.
 @MainActor
@@ -12,6 +13,7 @@ final class MacWorkspaceAlerts {
         case pendingUploadMergeFailure
         case mergeSummary
         case syncFailure
+        case pushFailure(PendingUploadAlert)
     }
 
     enum ConflictChoice: Equatable {
@@ -28,6 +30,8 @@ final class MacWorkspaceAlerts {
     var present: @MainActor (NSAlert, NSWindow?, @escaping @MainActor (NSApplication.ModalResponse) -> Void) -> Void
         = MacWorkspaceAlerts.presentAsSheet
     private(set) var presented: (kind: Kind, alert: NSAlert)?
+    /// The conflict the presented Save Conflict alert asks about.
+    private var presentedConflict: SaveConflict?
     private var presentedSheetParent: NSWindow?
     private var wantsConflictPrompt = false
     private var lastConflict: SaveConflict?
@@ -64,6 +68,8 @@ final class MacWorkspaceAlerts {
         var hasPendingUploadMergeFailure: Bool
         var hasMergeSummary: Bool
         var hasSyncFailure: Bool
+        var isSaving: Bool
+        var pushAlert: PendingUploadAlert?
     }
 
     private func readState() -> State {
@@ -74,7 +80,9 @@ final class MacWorkspaceAlerts {
             hasMergeFailure: session.mergeFailure != nil,
             hasPendingUploadMergeFailure: session.pendingUploadMergeFailure != nil,
             hasMergeSummary: session.mergeSummaryMessage != nil,
-            hasSyncFailure: hasSyncFailure
+            hasSyncFailure: hasSyncFailure,
+            isSaving: session.isSaving,
+            pushAlert: presentation.pushAlert
         )
     }
 
@@ -84,6 +92,8 @@ final class MacWorkspaceAlerts {
         if state.conflict == nil { wantsConflictPrompt = false }
         lastConflict = state.conflict
         lastPromptRequestID = state.promptRequestID
+        // A conflict alert whose conflict cleared or changed asks about nothing; a changed one comes back fresh.
+        if presented?.kind == .saveConflict, state.conflict != presentedConflict { dismissPresented() }
         presentNext(state)
     }
 
@@ -95,8 +105,10 @@ final class MacWorkspaceAlerts {
             .pendingUploadMergeFailure
         } else if state.hasMergeSummary {
             .mergeSummary
-        } else if wantsConflictPrompt {
+        } else if wantsConflictPrompt, state.isSaving == false {
             .saveConflict
+        } else if let pushAlert = state.pushAlert {
+            .pushFailure(pushAlert)
         } else if state.hasSyncFailure {
             .syncFailure
         } else {
@@ -137,6 +149,27 @@ final class MacWorkspaceAlerts {
             alert.messageText = String(localized: "Cloud Sync Needs Attention")
             alert.informativeText = String(localized: "\(message)\n\nKeeForge opened the cached copy for now. Cloud sync needs attention before this database can be refreshed from its provider.")
             addButton(String(localized: "OK"), identifier: "cloud-sync-failure.ok", to: alert)
+        case .pushFailure(let failure):
+            alert.messageText = failure.title
+            switch failure.kind {
+            case .writeScopeRequired, .notAuthenticated:
+                alert.informativeText = failure.message
+                let provider = session.databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")
+                addButton(String(localized: "Reconnect \(provider)"), identifier: "pending-upload-push.reconnect", to: alert)
+                addButton(String(localized: "Cancel"), identifier: "pending-upload-push.cancel", to: alert)
+                    .keyEquivalent = "\u{1b}"
+            case .conflict:
+                // The list's wording sends the user to open the database; this window merges in place.
+                alert.informativeText = String(
+                    localized: "A change saved through AutoFill couldn’t be uploaded because the cloud copy changed. Merge it into this database to upload it."
+                )
+                addButton(String(localized: "Merge Changes"), identifier: "pending-upload-push.merge", to: alert)
+                addButton(String(localized: "Cancel"), identifier: "pending-upload-push.cancel", to: alert)
+                    .keyEquivalent = "\u{1b}"
+            case .message:
+                alert.informativeText = failure.message
+                addButton(String(localized: "OK"), identifier: "pending-upload-push.ok", to: alert)
+            }
         }
         return alert
     }
@@ -160,15 +193,23 @@ final class MacWorkspaceAlerts {
     private func show(_ kind: Kind) {
         let alert = Self.makeAlert(kind, session: session)
         let lockCycleID = session.lockCycleID
+        let conflict = session.saveConflict
         presented = (kind, alert)
+        presentedConflict = kind == .saveConflict ? conflict : nil
         let parent = window().map(Self.topmostSheet(of:))
         presentedSheetParent = parent
         present(alert, parent) { [weak self] response in
             guard let self, presented?.alert === alert else { return }
             presented = nil
+            presentedConflict = nil
             presentedSheetParent = nil
             guard session.lockCycleID == lockCycleID, session.state == .unlocked else { return }
-            respond(to: kind, with: response)
+            if kind == .saveConflict, session.saveConflict != conflict || session.isSaving {
+                // Asked again once the save ends, if the same conflict still stands.
+                if session.saveConflict != nil { wantsConflictPrompt = true }
+            } else {
+                respond(to: kind, with: response)
+            }
             presentNext(readState())
         }
     }
@@ -193,6 +234,19 @@ final class MacWorkspaceAlerts {
             session.acknowledgeMergeSummary()
         case .syncFailure:
             session.dismissCloudSyncOutcome()
+        case .pushFailure(let failure):
+            presentation.dismissPushAlert()
+            guard response == .alertFirstButtonReturn else { return }
+            let actions = MacDatabaseStatusActions(session: session, presentation: presentation)
+            switch failure.kind {
+            case .writeScopeRequired, .notAuthenticated:
+                guard let provider = session.databaseReference.cloudProviderKind?.displayName else { return }
+                actions.perform(MacDatabaseStatus.Action.reconnect(provider: provider), from: window())
+            case .conflict:
+                actions.perform(MacDatabaseStatus.Notice.Action.mergePendingUploads, from: window())
+            case .message:
+                break
+            }
         }
     }
 
@@ -210,6 +264,7 @@ final class MacWorkspaceAlerts {
     private func dismissPresented() {
         guard let presented else { return }
         self.presented = nil
+        presentedConflict = nil
         let sheet = presented.alert.window
         if let parent = sheet.sheetParent ?? presentedSheetParent {
             parent.endSheet(sheet, returnCode: .cancel)

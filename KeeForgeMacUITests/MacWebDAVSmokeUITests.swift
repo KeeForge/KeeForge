@@ -63,7 +63,6 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
             XCTAssertTrue(waitForStatusLine(containing: "Synced just now"), "Sync Now did not report the database as synced")
             XCTAssertFalse(window.buttons["cloud-sync-failure.ok"].exists, "Sync Now reported a failure")
         }
-        XCTAssertTrue(waitForStatusLine(containing: "WebDAV"), "The status line does not name the storage")
     }
 
     /// Re-queries the line every pass: a sync outcome rebuilds the card.

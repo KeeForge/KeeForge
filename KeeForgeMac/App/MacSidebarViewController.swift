@@ -47,7 +47,7 @@ final class MacSidebarOutlineItem: NSObject {
 final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate,
     NSMenuDelegate, NSMenuItemValidation {
     static let outlineIdentifier = "sidebar.outline"
-    static let captionRowHeight: CGFloat = 40
+    private var captionLayoutWidth: CGFloat = 0
 
     let session: DatabaseViewModel
     let outlineView = NSOutlineView()
@@ -499,9 +499,24 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         return item.content.title
     }
 
-    /// The caption wraps to two lines; every other row keeps the source list's own height.
+    /// The caption wraps to as many lines as the column needs; every other row keeps the source list's own height.
     func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
-        (item as? MacSidebarOutlineItem)?.isCaption == true ? Self.captionRowHeight : outlineView.rowHeight
+        guard let item = item as? MacSidebarOutlineItem, item.isCaption else { return outlineView.rowHeight }
+        let indent = outlineView.indentationPerLevel * CGFloat(outlineView.level(forItem: item) + 1)
+        let width = (outlineView.tableColumns.first?.width ?? outlineView.bounds.width) - indent
+        return max(outlineView.rowHeight, MacSidebarCaptionCellView.height(for: item.content.title, width: width))
+    }
+
+    /// A narrower sidebar wraps the caption onto more lines.
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        let width = outlineView.tableColumns.first?.width ?? outlineView.bounds.width
+        guard width != captionLayoutWidth else { return }
+        captionLayoutWidth = width
+        let captionRows = IndexSet((0..<outlineView.numberOfRows).filter {
+            (outlineView.item(atRow: $0) as? MacSidebarOutlineItem)?.isCaption == true
+        })
+        if captionRows.isEmpty == false { outlineView.noteHeightOfRows(withIndexesChanged: captionRows) }
     }
 
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
@@ -748,22 +763,22 @@ final class MacSidebarHeaderCellView: NSTableCellView {
 /// A section's explanatory line, such as the Tags section's while there are no tags.
 final class MacSidebarCaptionCellView: NSTableCellView {
     static let reuseIdentifier = NSUserInterfaceItemIdentifier("sidebar.caption")
+    /// Not the cell's `textField`: the source list would restyle that to its row font.
+    let captionField = NSTextField(wrappingLabelWithString: "")
 
     init() {
         super.init(frame: .zero)
         identifier = Self.reuseIdentifier
-        let field = NSTextField(wrappingLabelWithString: "")
+        let field = captionField
         field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         field.textColor = .secondaryLabelColor
-        field.maximumNumberOfLines = 2
-        field.cell?.truncatesLastVisibleLine = true
+        field.maximumNumberOfLines = 0
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         field.translatesAutoresizingMaskIntoConstraints = false
         addSubview(field)
-        textField = field
         NSLayoutConstraint.activate([
-            field.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-            field.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            field.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.leadingInset),
+            field.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.trailingInset),
             field.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
@@ -771,9 +786,33 @@ final class MacSidebarCaptionCellView: NSTableCellView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    static let leadingInset: CGFloat = 2
+    static let trailingInset: CGFloat = 4
+    static let verticalPadding: CGFloat = 8
+
+    /// The row height that shows every line of `text` in a cell `width` wide.
+    static func height(for text: String, width: CGFloat) -> CGFloat {
+        let textWidth = max(width - leadingInset - trailingInset, 1)
+        // The field's own cell measures, so its text insets count as they will when drawn.
+        let field = NSTextField(wrappingLabelWithString: text)
+        field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        let size = field.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: textWidth, height: .greatestFiniteMagnitude))
+        return ceil(size?.height ?? 0) + 2 * verticalPadding
+    }
+
+    override func layout() {
+        super.layout()
+        let field = captionField
+        if field.preferredMaxLayoutWidth != field.frame.width {
+            field.preferredMaxLayoutWidth = field.frame.width
+            // The wrap width changes the field's height, laid out again in the same pass.
+            super.layout()
+        }
+    }
+
     func configure(_ content: MacSidebarOutlineItem.Content) {
-        textField?.stringValue = content.title
-        textField?.setAccessibilityIdentifier(content.accessibilityIdentifier)
+        captionField.stringValue = content.title
+        captionField.setAccessibilityIdentifier(content.accessibilityIdentifier)
         toolTip = content.title
     }
 }

@@ -752,6 +752,23 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.pendingUploadAlert?.databaseId, reference.id)
     }
 
+    func testAPushForADatabaseWindowReturnsItsFailureInsteadOfShowingIt() async {
+        let reference = makeCloudReference()
+        let viewModel = DatabaseListViewModel(
+            pendingUploadDrainer: makeDrainer(
+                markers: [makeStoredMarker(databaseId: reference.id)],
+                reference: reference,
+                pushPendingUpload: { _, _, _ in throw CloudProviderError.notAuthenticated }
+            )
+        )
+
+        let alert = await viewModel.pushPendingChanges(for: reference, presentsAlert: false)
+
+        XCTAssertEqual(alert?.kind, .notAuthenticated)
+        XCTAssertEqual(alert?.databaseId, reference.id)
+        XCTAssertNil(viewModel.pendingUploadAlert, "The Databases window shows nothing for another window's push")
+    }
+
     func testAppActiveDrainStaysSilentOnConflict() async {
         let reference = makeCloudReference()
         let viewModel = DatabaseListViewModel(

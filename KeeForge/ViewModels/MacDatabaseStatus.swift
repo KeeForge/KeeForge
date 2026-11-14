@@ -10,9 +10,10 @@ struct MacPendingUploads {
     }
 
     var counts: @MainActor (UUID) -> Counts
-    var push: @MainActor (UUID) async -> Void
+    /// What went wrong, for the window that asked to show.
+    var push: @MainActor (UUID) async -> PendingUploadAlert?
 
-    static let none = MacPendingUploads(counts: { _ in Counts() }, push: { _ in })
+    static let none = MacPendingUploads(counts: { _ in Counts() }, push: { _ in nil })
 }
 
 /// What a Mac database window says about its database: the sidebar status
@@ -154,6 +155,11 @@ struct MacDatabaseStatus: Equatable {
         var canLock = false
         var canShowSettings = false
 
+        /// The session's flag or the list's live count, whichever learned of the conflict first.
+        var hasUploadConflict: Bool {
+            hasPendingUploadConflict || (pendingUploads.conflicts > 0 && isReadOnly == false)
+        }
+
         init() {}
 
         @MainActor
@@ -264,7 +270,7 @@ struct MacDatabaseStatus: Equatable {
         guard provider != nil else {
             return (Line(storage: storage, state: String(localized: "On This Mac")), nil)
         }
-        if state.hasPendingUploadConflict {
+        if state.hasUploadConflict {
             let count = max(state.pendingUploads.conflicts, 1)
             return (warning(String(localized: "\(count) pending upload conflicts")), nil)
         }
@@ -310,7 +316,7 @@ struct MacDatabaseStatus: Equatable {
                                   action: .reconnect(provider: provider), isWarning: true,
                                   isActionEnabled: state.isReconnectInFlight == false))
         }
-        if state.hasPendingUploadConflict, state.isSaving == false {
+        if state.hasUploadConflict, state.isSaving == false {
             notices.append(Notice(kind: .uploadConflict, text: String(
                 localized: "A change saved through AutoFill couldn’t be uploaded because the cloud copy changed. Merge it into this database to upload it."
             ), action: .mergePendingUploads, isWarning: true))

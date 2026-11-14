@@ -379,26 +379,34 @@ enum MacEntryListSelection {
         return IndexSet(integer: index)
     }
 
-    /// A plain click collapses to what the table shows; a Command or Shift
-    /// extension keeps picks the current list does not show.
+    /// The table's selected rows become the workspace's selection: two or
+    /// more are picks, one is the selected entry.
     @MainActor
-    static func apply(
-        selectedIDs: [UUID],
-        visibleIDs: Set<UUID>,
-        isExtending: Bool,
-        to workspace: DatabaseWorkspaceState
-    ) {
-        var total = Set(selectedIDs)
-        if isExtending {
-            let old = workspace.entrySelection ?? Set(workspace.selectedEntryID.map { [$0] } ?? [])
-            total = old.subtracting(visibleIDs).union(selectedIDs)
-        }
+    static func apply(selectedIDs: [UUID], to workspace: DatabaseWorkspaceState) {
+        let total = Set(selectedIDs)
         if total.count >= 2 {
             workspace.setEntrySelection(total)
         } else {
             workspace.endEntrySelection()
             workspace.selectedEntryID = total.first
         }
+    }
+
+    /// As in a native list, a pick does not outlive its row: picks the current
+    /// list no longer shows (another group, tag or search, a merge) are
+    /// dropped, and one left over becomes the selected entry. Returns whether
+    /// anything changed.
+    @MainActor
+    @discardableResult
+    static func dropHiddenPicks(session: DatabaseViewModel) -> Bool {
+        let workspace = session.workspace
+        guard let picked = workspace.entrySelection, picked.isEmpty == false else { return false }
+        let mode = MacEntryListSnapshot.mode(session: session)
+        let visible = Set(MacEntryListSnapshot.entries(for: mode, session: session).map(\.id))
+        let kept = picked.intersection(visible)
+        guard kept != picked else { return false }
+        apply(selectedIDs: Array(kept), to: workspace)
+        return true
     }
 
     /// Several rows may be picked only to move or recycle them, so a multiple

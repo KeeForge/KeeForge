@@ -131,12 +131,10 @@ final class MacWorkspacePresentationTests: XCTestCase {
         database.workspace.setEntrySelection([recycledEntry.id])
         presentation.beginSelectionDeletion(in: database)
         XCTAssertNil(presentation.pendingDeletion, "Picks in the bin are never recycled again")
+        // The shared rule, before the Mac list's own pruning of picks it does not show.
         database.workspace.setEntrySelection([entry.id, recycledEntry.id])
-        presentation.beginSelectionDeletion(in: database)
-        XCTAssertEqual(presentation.pendingDeletion?.id, PendingDeletion.entries([entry.id]).id,
-                       "Never the entry or group left selected underneath")
-        guard case .entries(let picked) = presentation.pendingDeletion else { return XCTFail("Expected the picks") }
-        XCTAssertEqual(picked, [entry.id])
+        XCTAssertEqual(database.deletableSelection, .entries([entry.id]),
+                       "Never the entry or group left selected underneath, and never a pick in the bin")
         XCTAssertNotNil(database.entry(withID: entry.id))
         database.lock()
         presentation.pendingDeletion = nil

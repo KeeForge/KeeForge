@@ -485,6 +485,32 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(card.box.borderWidth, 0.5)
     }
 
+    func testAtTheMinimumWidthTheCardKeepsTheNameWholeAndDropsTheStorage() throws {
+        var state = MacDatabaseStatus.State()
+        state.name = "Personal"
+        state.storage = .local(filename: "Personal.kdbx")
+        state.isReadOnly = true
+        state.canLock = true
+        state.canShowSettings = true
+        let card = MacSidebarStatusCardView()
+        card.update(MacDatabaseStatus(state))
+
+        card.frame = NSRect(x: 0, y: 0, width: 260, height: 80)
+        card.layoutSubtreeIfNeeded()
+        XCTAssertFalse(card.isCompact)
+        XCTAssertEqual(card.lineView.textField.stringValue, "Personal.kdbx · \(String(localized: "On This Mac"))")
+        XCTAssertEqual(card.readOnlyBadge.attributedTitle.string, String(localized: "Read-only").uppercased())
+
+        card.frame = NSRect(x: 0, y: 0, width: 200, height: 80)
+        card.layoutSubtreeIfNeeded()
+        XCTAssertTrue(card.isCompact)
+        XCTAssertEqual(card.lineView.textField.stringValue, String(localized: "On This Mac"), "DarkMin drops the storage")
+        XCTAssertNotNil(card.readOnlyBadge.image, "The badge shrinks to the glasses")
+        XCTAssertEqual(card.readOnlyBadge.accessibilityLabel(), String(localized: "Read-only database"))
+        XCTAssertGreaterThanOrEqual(card.nameField.frame.width.rounded(.up),
+                                    card.nameField.intrinsicContentSize.width.rounded(.down), "The name is not truncated")
+    }
+
     func testAReadOnlySessionShowsTheBadgeAndOffersNoGroupMenu() async throws {
         let tree = Tree()
         let (controller, _, _) = try await makeController(tree, readOnly: true)
@@ -579,13 +605,20 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertFalse(controller.outlineView(outline, isGroupItem: caption))
         XCTAssertNil(controller.outlineView(outline, typeSelectStringFor: nil, item: caption))
         let view = try XCTUnwrap(cell(outline, caption) as? MacSidebarCaptionCellView)
-        XCTAssertEqual(view.textField?.stringValue, String(localized: "No tags yet. Tags you add to entries appear here."))
-        XCTAssertEqual(view.textField?.accessibilityIdentifier(), "sidebar.tags.empty")
-        let field = try XCTUnwrap(view.textField)
-        view.setFrameSize(NSSize(width: 180, height: MacSidebarViewController.captionRowHeight))
-        view.layoutSubtreeIfNeeded()
+        let field = view.captionField
+        XCTAssertEqual(field.stringValue, String(localized: "No tags yet. Tags you add to entries appear here."))
+        XCTAssertEqual(field.accessibilityIdentifier(), "sidebar.tags.empty")
         let lineHeight = try XCTUnwrap(field.font).boundingRectForFont.height
+        let text = field.stringValue
+        // At the minimum sidebar width the whole caption shows, on as many lines as it takes.
+        let narrowHeight = MacSidebarCaptionCellView.height(for: text, width: 150)
+        XCTAssertGreaterThan(narrowHeight, MacSidebarCaptionCellView.height(for: text, width: 300))
+        view.setFrameSize(NSSize(width: 150, height: narrowHeight))
+        view.layoutSubtreeIfNeeded()
+        view.layoutSubtreeIfNeeded()
         XCTAssertGreaterThan(field.frame.height, lineHeight * 1.5, "The caption wraps instead of truncating its first line")
+        XCTAssertGreaterThanOrEqual(field.frame.height + 1, field.intrinsicContentSize.height, "No line is cut off")
+        XCTAssertLessThanOrEqual(field.frame.maxY, view.bounds.maxY + 0.5)
         let groupRow = outline.row(forItem: controller.item(for: .group(tree.work.id)))
         let captionHeight = outline.rect(ofRow: outline.row(forItem: caption)).height
         let groupHeight = outline.rect(ofRow: groupRow).height

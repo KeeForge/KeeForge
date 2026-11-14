@@ -163,8 +163,9 @@ final class DatabaseWorkspaceState {
         didSet { onInteraction?() }
     }
     /// The entries picked while the lists are in selection mode, or `nil`
-    /// outside it. One selection per session, so it survives walking from
-    /// group to group and into the search results.
+    /// outside it. One selection per session; on iOS it survives walking from
+    /// group to group and into the search results, while the Mac list drops
+    /// picks it stops showing.
     private(set) var entrySelection: Set<UUID>? {
         didSet { onInteraction?() }
     }

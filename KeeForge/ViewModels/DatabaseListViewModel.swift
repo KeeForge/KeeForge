@@ -207,13 +207,20 @@ final class DatabaseListViewModel {
     }
 
     func drainPendingUploadsOnAppActive() async {
-        let outcome = await pendingUploadDrainer.drainAll()
-        applyDrainOutcome(outcome, surfaceAlerts: false, preferredDatabaseId: nil)
+        _ = await pendingUploadDrainer.drainAll()
+        reload()
     }
 
-    func pushPendingChanges(for reference: DatabaseReference) async {
+    /// The one push behind every Push Pending Changes. The list shows what went
+    /// wrong itself unless `presentsAlert` is off, as for a Mac database
+    /// window, which shows the returned alert in its own window.
+    @discardableResult
+    func pushPendingChanges(for reference: DatabaseReference, presentsAlert: Bool = true) async -> PendingUploadAlert? {
         let outcome = await pendingUploadDrainer.drain(databaseId: reference.id)
-        applyDrainOutcome(outcome, surfaceAlerts: true, preferredDatabaseId: reference.id)
+        reload()
+        let alert = Self.alert(for: outcome, preferredDatabaseId: reference.id)
+        if presentsAlert, let alert { pendingUploadAlert = alert }
+        return alert
     }
 
     /// User-confirmed resolution for the orange conflict badge: backs up the
@@ -368,28 +375,24 @@ final class DatabaseListViewModel {
         databases = DatabaseListStore.databases
     }
 
-    private func applyDrainOutcome(
-        _ outcome: PendingUploadDrainer.DrainOutcome,
-        surfaceAlerts: Bool,
-        preferredDatabaseId: UUID?
-    ) {
-        reload()
-
-        guard surfaceAlerts else { return }
-
+    private static func alert(
+        for outcome: PendingUploadDrainer.DrainOutcome,
+        preferredDatabaseId: UUID
+    ) -> PendingUploadAlert? {
         guard let issue = outcome.userIssue else {
             // A conflicted push leaves the marker in place without a user
             // issue; an explicit push still owes the user an explanation.
             let conflictIDs = outcome.conflictDatabaseIDs
-            guard let conflictedId = preferredDatabaseId.flatMap({ conflictIDs.contains($0) ? $0 : nil })
-                ?? conflictIDs.min(by: { $0.uuidString < $1.uuidString }) else { return }
-            pendingUploadAlert = PendingUploadAlert(
+            let conflictedId = conflictIDs.contains(preferredDatabaseId)
+                ? preferredDatabaseId
+                : conflictIDs.min(by: { $0.uuidString < $1.uuidString })
+            guard let conflictedId else { return nil }
+            return PendingUploadAlert(
                 databaseId: conflictedId,
                 kind: .conflict,
                 title: String(localized: "Pending Upload Conflict"),
                 message: String(localized: "A change saved through AutoFill couldn’t be uploaded because the copy of this database in the cloud changed since. Open the database to merge the change into it. You can also export a copy to merge it in another KeePass app, or discard the pending upload. KeeForge keeps a backup of the discarded change on this device.")
             )
-            return
         }
 
         let alert: PendingUploadAlert
@@ -416,8 +419,7 @@ final class DatabaseListViewModel {
                 message: issue.message
             )
         }
-
-        pendingUploadAlert = alert
+        return alert
     }
 
 }

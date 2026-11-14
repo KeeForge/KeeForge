@@ -161,6 +161,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertLessThanOrEqual(rows.maxY, header.frame.minY + 0.5, "The rows start under the header")
         let sort = header.sortButton
         XCTAssertEqual(sort.accessibilityIdentifier(), "sort.menu")
+        if #available(macOS 26.0, *) { XCTAssertEqual(sort.borderShape, .circle, "The boards draw a round Sort button") }
         XCTAssertEqual(sort.accessibilityLabel(), String(localized: "Sort"))
         let items = try XCTUnwrap(sort.menu?.items.dropFirst(), "The first item is the pull-down's face")
         XCTAssertEqual(items.map(\.title), [String(localized: "Sort By")] + DatabaseViewModel.SortOrder.allCases.map(\.title)
@@ -189,12 +190,10 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(header.subtitleField.stringValue, "\(String(localized: "Tag")) · \(String(localized: "\(0) entries"))")
     }
 
-    func testTableSelectionWritesTheWorkspaceExtendingAndFiltering() async throws {
+    func testTableSelectionWritesTheWorkspaceAndHiddenPicksAreDropped() async throws {
         let (controller, session, _, tree) = try await makeController()
         let table = controller.tableView
         let entries = tree.work.entries
-        var extending = false
-        controller.isExtendingSelection = { extending }
 
         table.selectRowIndexes([1], byExtendingSelection: false)
         XCTAssertEqual(session.workspace.selectedEntryID, entries[1].id)
@@ -204,20 +203,23 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(session.workspace.entrySelection, [entries[0].id, entries[2].id])
         XCTAssertNil(session.workspace.commandEntryID)
 
-        // A Command-click elsewhere keeps the picks this list does not show.
+        // A search that shows one pick leaves that one selected, as a native list does.
         session.workspace.selectedCollection = .allEntries
-        session.searchText = "Account 01"
+        session.searchText = "Account 02"
         await settle()
-        extending = true
-        table.selectRowIndexes([0], byExtendingSelection: false)
-        XCTAssertEqual(session.workspace.entrySelection, Set(entries.map(\.id)))
+        XCTAssertNil(session.workspace.entrySelection)
+        XCTAssertEqual(session.workspace.selectedEntryID, entries[2].id)
+        XCTAssertEqual(table.selectedRowIndexes, [0])
 
+        session.searchText = ""
+        session.workspace.selectedGroupID = tree.work.id
         await settle()
-        extending = false
-        table.deselectAll(nil)
-        table.selectRowIndexes([0], byExtendingSelection: false)
-        XCTAssertNil(session.workspace.entrySelection, "A plain click collapses the selection")
-        XCTAssertEqual(session.workspace.selectedEntryID, entries[1].id)
+        table.selectRowIndexes([0, 1], byExtendingSelection: false)
+        session.workspace.selectedGroupID = tree.other.id
+        await settle()
+        XCTAssertNil(session.workspace.entrySelection, "Leaving the list drops its picks")
+        XCTAssertNil(MacEntrySelectionSummary.make(session: session))
+        if case .entries = session.deletableSelection { XCTFail("Delete must not target the dropped picks") }
 
         let (readOnly, readOnlySession, _, readOnlyTree) = try await makeController(readOnly: true)
         readOnlySession.workspace.selectedEntryID = readOnlyTree.work.entries[1].id
