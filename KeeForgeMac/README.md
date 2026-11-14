@@ -108,11 +108,14 @@ only: the main menu answers the key first, and row and sidebar menu selectors
 never match a main-menu selector, or the controller in the responder chain
 would catch the nil-targeted command. Return and double-click open the
 editor through the workspace request; the table is disabled while saving.
-In Verification Codes each row shows the live code, its countdown and a copy
-button (the per-entry command, no prompt), with username and folder on one line.
-One timer redraws the visible rows each second, only while that list is on
-screen and the session is unlocked; `MacVerificationCodeClock` keeps only the
-codes shown and forgets them whenever the timer stops.
+In Verification Codes each row keeps the usual title and username and shows the
+live code trailing, dimmed with an orange ring in its last five seconds; clicking
+the code copies it (the per-entry command, no prompt). One timer redraws the
+visible rows on each whole second, only while that list is on screen and the
+session is unlocked; `MacVerificationCodeClock` keeps only the codes shown and
+forgets them whenever the timer stops. A copy from the row menu, the code or the
+menu bar leaves a green tick on its row for 1.5 seconds (`MacCopyFeedback`, in
+the window's presentation, so it clears with it on lock).
 
 The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, and
 the detail takes the remaining width. `NSSplitView` autosave owns widths and

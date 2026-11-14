@@ -11,7 +11,7 @@ final class TOTPViewModel {
 
     private var config: TOTPConfig
     private var parameters: TOTPParameters?
-    private var timer: Timer?
+    private(set) var timer: Timer?
 
     var period: Int { config.period }
 
@@ -34,11 +34,18 @@ final class TOTPViewModel {
     func start() {
         stop()
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        // On whole seconds, so every countdown showing the same code reads the same number.
+        let timer = Timer(fire: Self.nextWholeSecond(after: .now), interval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.refresh()
             }
         }
+        RunLoop.current.add(timer, forMode: .default)
+        self.timer = timer
+    }
+
+    static func nextWholeSecond(after date: Date) -> Date {
+        Date(timeIntervalSince1970: (date.timeIntervalSince1970 + 1).rounded(.down))
     }
 
     func stop() {

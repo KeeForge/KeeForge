@@ -23,6 +23,8 @@ final class MacWorkspacePresentation {
     var isShowingDatabaseDetails = false
     var presentedSaveError: DatabaseSaveError?
     var isCloudReconnectInFlight = false
+    /// The list's copy ticks, and the detail pane's later.
+    let copyFeedback = MacCopyFeedback()
     private(set) var lifetimeID = UUID()
 
     func beginNewEntry(in database: DatabaseViewModel) {
@@ -154,6 +156,7 @@ final class MacWorkspacePresentation {
         isShowingDatabaseDetails = false
         presentedSaveError = nil
         isCloudReconnectInFlight = false
+        copyFeedback.clear()
     }
 }
 #endif

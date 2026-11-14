@@ -285,6 +285,11 @@ final class MacVerificationCodeClock {
         let grouped: String
         let secondsRemaining: Int
         let progress: Double
+
+        /// The last seconds of a code, when the row dims it and the ring turns orange.
+        var isExpiring: Bool { secondsRemaining <= Self.expiringSeconds }
+
+        static let expiringSeconds = 5
     }
 
     private struct Generation: Equatable {

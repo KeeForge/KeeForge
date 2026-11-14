@@ -165,6 +165,29 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertNil(controller.window, "Headless validation must not create a window")
     }
 
+    func testMenuBarCopiesTickTheCommandEntryOnlyForTheCommandTarget() async throws {
+        let session = try makeSession()
+        let controller = DatabaseWindowController(session: session, windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false)
+        let isTarget = Box(false)
+        controller.isCommandTarget = { isTarget.value }
+        await session.unlock(password: "testpassword123")
+        addTeardownBlock { @MainActor in
+            session.lockRequest(force: true)
+            ClipboardService.clearOwnedContents()
+        }
+        let entry = try XCTUnwrap(session.rootGroup?.allEntries.first { $0.username.isEmpty == false })
+        session.workspace.selectedEntryID = entry.id
+        let feedback = controller.workspacePresentation.copyFeedback
+
+        controller.copyUsername(nil)
+        XCTAssertNil(feedback.copied, "Another window's command copies nothing here")
+        isTarget.value = true
+        controller.copyUsername(nil)
+        XCTAssertEqual(feedback.copied, MacCopyFeedback.Copied(entryID: entry.id, field: .username))
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), entry.username)
+    }
+
     func testCloseDatabaseAndReturnToDatabasesUseTheGuardedClose() throws {
         let session = try makeSession()
         let closeRequests = Box<[NSWindow]>([])

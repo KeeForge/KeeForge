@@ -62,10 +62,6 @@ struct DatabaseCommands {
         return Task { await session.saveHandlingError() }
     }
     /// `currentSession` answers, after any authentication, which session the command's origin still shows.
-    func copyUsername(currentSession: @escaping @MainActor () -> DatabaseViewModel?) {
-        guard let entryID = commandEntryID else { return }
-        copyUsername(entryID: entryID, currentSession: currentSession)
-    }
     @discardableResult
     func copyUsername(
         entryID: UUID,
@@ -76,11 +72,6 @@ struct DatabaseCommands {
         guard let session, entry(withID: entryID) != nil else { return nil }
         return Self.copyEntryField(\.username, entryID: entryID, in: session, action: passwordCopyAction,
                                    currentSession: currentSession, authenticate: authenticate, copy: copy)
-    }
-    /// `currentSession` answers, after authentication, which session the command's origin still shows.
-    func copyPassword(currentSession: @escaping @MainActor () -> DatabaseViewModel?) {
-        guard let session, let entryID = commandEntryID else { return }
-        Self.copyEntryPassword(entryID: entryID, in: session, action: passwordCopyAction, currentSession: currentSession)
     }
     @discardableResult
     func copyPassword(
@@ -93,10 +84,6 @@ struct DatabaseCommands {
         return Self.copyEntryPassword(entryID: entryID, in: session, action: passwordCopyAction,
                                       currentSession: currentSession, authenticate: authenticate, copy: copy)
     }
-    func copyURL(currentSession: @escaping @MainActor () -> DatabaseViewModel?) {
-        guard let entryID = commandEntryID else { return }
-        copyURL(entryID: entryID, currentSession: currentSession)
-    }
     @discardableResult
     func copyURL(
         entryID: UUID,
@@ -107,10 +94,6 @@ struct DatabaseCommands {
         guard let session, entry(withID: entryID) != nil else { return nil }
         return Self.copyEntryField(\.url, entryID: entryID, in: session, action: passwordCopyAction,
                                    currentSession: currentSession, authenticate: authenticate, copy: copy)
-    }
-    func copyVerificationCode() {
-        guard let entryID = commandEntryID else { return }
-        copyVerificationCode(entryID: entryID)
     }
     /// Not behind the device-owner gate, matching the entry detail view: the code expires on its own.
     func copyVerificationCode(entryID: UUID, copy: (String) -> Void = { ClipboardService.copy($0) }) {

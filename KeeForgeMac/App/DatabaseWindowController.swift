@@ -164,20 +164,35 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         requestGuardedClose()
     }
     @objc func copyUsername(_ sender: Any?) {
-        commands.copyUsername(currentSession: { [weak self] in self?.currentSession() })
+        guard let entryID = commandEntryID else { return }
+        commands.copyUsername(entryID: entryID, currentSession: { [weak self] in self?.currentSession() },
+                              copy: copyFeedback.recording(.username, for: entryID))
     }
     @objc func copyPassword(_ sender: Any?) {
-        commands.copyPassword(currentSession: { [weak self] in self?.currentSession() })
+        guard let entryID = commandEntryID else { return }
+        commands.copyPassword(entryID: entryID, currentSession: { [weak self] in self?.currentSession() },
+                              copy: copyFeedback.recording(.password, for: entryID))
     }
+
+    /// The menu-bar copies act on `commandEntryID` and leave the tick on its row.
+    private var commandEntryID: UUID? {
+        isCommandTarget() ? session.workspace.commandEntryID : nil
+    }
+    private var copyFeedback: MacCopyFeedback { workspacePresentation.copyFeedback }
 
     /// The session a gated copy may still disclose into after authentication.
     private func currentSession() -> DatabaseViewModel? {
         isCurrent() ? session : nil
     }
     @objc func copyURL(_ sender: Any?) {
-        commands.copyURL(currentSession: { [weak self] in self?.currentSession() })
+        guard let entryID = commandEntryID else { return }
+        commands.copyURL(entryID: entryID, currentSession: { [weak self] in self?.currentSession() },
+                         copy: copyFeedback.recording(.url, for: entryID))
     }
-    @objc func copyVerificationCode(_ sender: Any?) { commands.copyVerificationCode() }
+    @objc func copyVerificationCode(_ sender: Any?) {
+        guard let entryID = commandEntryID else { return }
+        commands.copyVerificationCode(entryID: entryID, copy: copyFeedback.recording(.verificationCode, for: entryID))
+    }
     @objc func editEntry(_ sender: Any?) { commands.editEntry() }
     @objc func deleteSelection(_ sender: Any?) { commands.deleteSelection() }
     @objc func findEntry(_ sender: Any?) {

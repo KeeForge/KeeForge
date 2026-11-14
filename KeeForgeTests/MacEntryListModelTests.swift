@@ -386,10 +386,17 @@ final class MacEntryListModelTests: XCTestCase {
         XCTAssertEqual(clock.display(for: entry.id, session: session), MacVerificationCodeClock.Display(
             code: "123456", grouped: "123 456", secondsRemaining: 15, progress: 0.5
         ))
-        date = date.addingTimeInterval(14)
+        XCTAssertEqual(clock.display(for: entry.id, session: session)?.isExpiring, false)
+        date = date.addingTimeInterval(9)
+        XCTAssertEqual(clock.display(for: entry.id, session: session)?.secondsRemaining, 6)
+        XCTAssertEqual(clock.display(for: entry.id, session: session)?.isExpiring, false)
+        date = date.addingTimeInterval(1)
+        XCTAssertEqual(clock.display(for: entry.id, session: session)?.isExpiring, true, "the last five seconds")
+        date = date.addingTimeInterval(4)
         XCTAssertEqual(clock.display(for: entry.id, session: session)?.code, "123456")
         XCTAssertEqual(clock.display(for: entry.id, session: session)?.secondsRemaining, 1)
         XCTAssertEqual(generated.count, 1, "the step's code is reused")
+        XCTAssertEqual(clock.display(for: entry.id, session: session)?.isExpiring, true)
 
         date = date.addingTimeInterval(1)
         XCTAssertEqual(clock.display(for: entry.id, session: session), MacVerificationCodeClock.Display(
