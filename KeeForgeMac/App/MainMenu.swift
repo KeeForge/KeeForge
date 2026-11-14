@@ -90,6 +90,8 @@ enum MainMenu {
         add(String(localized: "Sync Now"), #selector(DatabaseWindowController.syncNow), key: "r", modifiers: [.command, .shift], to: database)
         database.addItem(.separator())
         add(String(localized: "Database Settings…"), #selector(DatabaseWindowController.showDatabaseSettings), key: "i", to: database)
+        database.addItem(.separator())
+        add(String(localized: "Password Generator"), #selector(AppDelegate.showPasswordGenerator), to: database)
 
         let window = submenu(String(localized: "Window"), in: menu)
         add(String(localized: "Minimize"), #selector(NSWindow.performMiniaturize(_:)), key: "m", to: window)

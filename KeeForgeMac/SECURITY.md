@@ -321,6 +321,26 @@ has to cover it. It applies Block Screen Capture to itself when it is created,
 before it is first shown, since the key-window sweep would only reach it once
 it is key; the same best-effort limits apply.
 
+The History sheet ([MacEntryHistorySession](../KeeForge/ViewModels/MacEntryHistorySession.swift))
+compares the selected stored version with the current entry. Protected values
+(and values reached through a protected field reference) are decrypted in memory
+only to compare; the sheet shows only that such a value differs ("Different
+from the current password"), never its current value, and the version's own
+protected values stay masked until the same gated reveal as the detail. That
+"differs" mark does disclose, without the gate, whether two stored values are
+equal. Copies from a version take the same gate and clipboard path, with copy
+ticks of the sheet's own. The sheet closes and drops its reveals on lock, on a
+content change (the version list may have changed), when the selected entry
+changes, and when the window resets.
+
+The Password Generator panel ([MacPasswordGeneratorPanelController](App/MacPasswordGeneratorPanelController.swift),
+Database ▸ Password Generator) holds no vault data: its suggestion lives in the
+panel's model until regenerated or the panel closes, and closing drops it. It
+opens only while the command-target database is unlocked and closes when no
+database is unlocked. Copy goes through `ClipboardService` (concealed marker,
+clear timer, clear on lock). It applies Block Screen Capture to itself when it
+is created, like the Large Type panel.
+
 The Verification Codes list shows each entry's live code; only the codes on
 screen are kept, and that cache is cleared when the list stops showing or the
 database locks.

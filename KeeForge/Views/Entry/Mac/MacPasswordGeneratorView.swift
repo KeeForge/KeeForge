@@ -45,6 +45,46 @@ struct MacPasswordGeneratorPopover: View {
     }
 }
 
+/// The Password Generator panel's content (Generator board): the same controls as the popover,
+/// with Copy in place of Use, since the panel has no entry to fill.
+struct MacPasswordGeneratorPanelView: View {
+    static let width: CGFloat = 340
+
+    let model: PasswordGeneratorModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Suggested Password")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                MacDetailIconButton(systemImage: "arrow.clockwise", label: String(localized: "Generate Another")) {
+                    model.regenerate()
+                }
+                .accessibilityIdentifier("password-generator.regenerate")
+            }
+            .padding(.bottom, 10)
+            MacPasswordGeneratorControls(model: model)
+            Button {
+                model.copySuggestion()
+            } label: {
+                Text(model.options.mode == .passphrase ? "Copy Passphrase" : "Copy Password")
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
+            .disabled(model.suggestion.isEmpty)
+            .accessibilityIdentifier("password-generator.copy")
+        }
+        .padding(EdgeInsets(top: 14, leading: 16, bottom: 16, trailing: 16))
+        .frame(width: Self.width)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 /// The suggestion, kind, length or words, character sets and strength, shared by the generator
 /// surfaces. The suggestion is not selectable: a system copy would bypass `ClipboardService`.
 struct MacPasswordGeneratorControls: View {

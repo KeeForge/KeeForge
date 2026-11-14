@@ -94,7 +94,7 @@ final class MacEntryDetailModel {
     let source: EntrySource
     let session: DatabaseViewModel
     private let copyFeedback: MacCopyFeedback
-    private let currentSession: @MainActor () -> DatabaseViewModel?
+    let currentSession: @MainActor () -> DatabaseViewModel?
     private let copyToClipboard: @MainActor (String) -> Void
     private let secretAction = EntrySecretAction()
     private var revealedKinds: Set<MacEntryField.Kind> = []

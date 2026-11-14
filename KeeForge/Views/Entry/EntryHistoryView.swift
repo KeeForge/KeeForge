@@ -1,13 +1,9 @@
+#if os(iOS)
 import CryptoKit
 import SwiftUI
 
-/// Browses an entry's stored `<History>` versions and restores one.
-///
-/// A sheet rather than a push: pushed levels inside the macOS sidebar column render
-/// zero-height (see `AGENTS.md`). Two shells over one field list — iOS pushes the
-/// version inside the sheet's own `NavigationStack`, macOS shows the versions and
-/// the selected one side by side, because pushing inside a Mac sheet drops the
-/// sheet's buttons and leaves the pushed list inset for a bar it never draws.
+/// Browses an entry's stored `<History>` versions on iPhone and iPad, pushing a version inside
+/// the sheet, and restores one. The Mac sheet is `MacEntryHistorySheet`.
 struct EntryHistoryView: View {
     let entryID: UUID
     @Bindable var viewModel: DatabaseViewModel
@@ -15,9 +11,6 @@ struct EntryHistoryView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        #if os(macOS)
-        MacEntryHistoryBrowser(entryID: entryID, viewModel: viewModel) { dismiss() }
-        #else
         NavigationStack {
             Group {
                 let versions = viewModel.history(forEntryID: entryID)
@@ -25,7 +18,7 @@ struct EntryHistoryView: View {
                     EntryHistoryEmptyState()
                 } else {
                     List {
-                        if PlatformDesign.followsIOSDesign, let current = viewModel.entry(withID: entryID) {
+                        if let current = viewModel.entry(withID: entryID) {
                             Section {
                                 CurrentVersionRow(entry: current, customIconData: viewModel.customIconData(for: current))
                             }
@@ -45,9 +38,7 @@ struct EntryHistoryView: View {
                                 .accessibilityIdentifier("entry-history.version.\(position)")
                             }
                         } header: {
-                            if PlatformDesign.followsIOSDesign {
-                                Text("Earlier Versions")
-                            }
+                            Text("Earlier Versions")
                         } footer: {
                             Text(EntryHistoryStrings.retentionFootnote)
                         }
@@ -63,7 +54,6 @@ struct EntryHistoryView: View {
                 }
             }
         }
-        #endif
     }
 
     /// "GitHub · 4 earlier versions" under the large title.
@@ -76,7 +66,6 @@ struct EntryHistoryView: View {
     }
 }
 
-#if os(iOS)
 /// iPhone and iPad: a large title with the entry and its version count
 /// below it from iOS 26; the sheet's own inline title before.
 private struct EntryHistoryTitleStyle: ViewModifier {
@@ -117,9 +106,8 @@ private struct CurrentVersionRow: View {
         .accessibilityElement(children: .combine)
     }
 }
-#endif
 
-// MARK: - Shared pieces
+// MARK: - Pieces
 
 private enum EntryHistoryStrings {
     static var retentionFootnote: String {
@@ -150,25 +138,16 @@ private struct VersionRow: View {
     let version: KPEntry
 
     var body: some View {
-        if PlatformDesign.followsIOSDesign {
-            Label {
-                VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
-                    Text(version.historyTimestampText)
-                    Text(version.title.isEmpty ? String(localized: "(untitled)") : version.title)
-                        .font(Theme.Font.footnote)
-                        .foregroundStyle(Theme.labelSecondary)
-                }
-            } icon: {
-                Image(systemName: "clock.arrow.circlepath")
-                    .foregroundStyle(Theme.labelSecondary)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 2) {
+        Label {
+            VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
                 Text(version.historyTimestampText)
                 Text(version.title.isEmpty ? String(localized: "(untitled)") : version.title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Theme.Font.footnote)
+                    .foregroundStyle(Theme.labelSecondary)
             }
+        } icon: {
+            Image(systemName: "clock.arrow.circlepath")
+                .foregroundStyle(Theme.labelSecondary)
         }
     }
 }
@@ -236,7 +215,7 @@ private struct EntryHistoryVersionFields: View {
                         icon: "textformat",
                         accessibilityKey: "title",
                         accessibilityPrefix: "entry-history",
-                        isCardRow: PlatformDesign.followsIOSDesign
+                        isCardRow: true
                     )
                 }
                 if !version.username.isEmpty {
@@ -249,7 +228,7 @@ private struct EntryHistoryVersionFields: View {
                             icon: "person",
                             accessibilityKey: "username",
                             accessibilityPrefix: "entry-history",
-                            isCardRow: PlatformDesign.followsIOSDesign
+                            isCardRow: true
                         )
                     }
                 }
@@ -261,7 +240,7 @@ private struct EntryHistoryVersionFields: View {
                         resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
                         accessibilityPrefix: "entry-history",
                         isCurrent: secretActionIsCurrent,
-                        isCardRow: PlatformDesign.followsIOSDesign
+                        isCardRow: true
                     )
                 }
                 if !version.url.isEmpty {
@@ -274,7 +253,7 @@ private struct EntryHistoryVersionFields: View {
                             icon: "link",
                             accessibilityKey: "url",
                             accessibilityPrefix: "entry-history",
-                            isCardRow: PlatformDesign.followsIOSDesign
+                            isCardRow: true
                         )
                     }
                 }
@@ -283,7 +262,7 @@ private struct EntryHistoryVersionFields: View {
                         config: totpConfig,
                         sessionKey: sessionKey,
                         accessibilityPrefix: "entry-history",
-                        isCardRow: PlatformDesign.followsIOSDesign
+                        isCardRow: true
                     )
                 }
             }
@@ -313,7 +292,7 @@ private struct EntryHistoryVersionFields: View {
                                 resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
                                 accessibilityPrefix: "entry-history",
                                 showsInlineLabel: true,
-                                isCardRow: PlatformDesign.followsIOSDesign,
+                                isCardRow: true,
                                 isCurrent: secretActionIsCurrent
                             )
                         } else {
@@ -326,7 +305,7 @@ private struct EntryHistoryVersionFields: View {
                                     icon: "text.justify.left",
                                     accessibilityPrefix: "entry-history",
                                     showsInlineLabel: true,
-                                    isCardRow: PlatformDesign.followsIOSDesign
+                                    isCardRow: true
                                 )
                             }
                         }
@@ -377,137 +356,8 @@ private struct EntryHistoryVersionUnavailable: View {
     }
 }
 
-// MARK: - macOS shell
+// MARK: - Pushed version screen
 
-#if os(macOS)
-/// Versions on the left, the selected one on the right, and one action bar
-/// underneath both.
-private struct MacEntryHistoryBrowser: View {
-    let entryID: UUID
-    @Bindable var viewModel: DatabaseViewModel
-    let onDone: () -> Void
-
-    /// Seeded here rather than in `onAppear`: selecting after the first layout
-    /// pass swaps the detail pane's placeholder for the field list, and the
-    /// list keeps a scroll offset from that swap which hides its first row.
-    @State private var selection: Int?
-
-    init(entryID: UUID, viewModel: DatabaseViewModel, onDone: @escaping () -> Void) {
-        self.entryID = entryID
-        self.viewModel = viewModel
-        self.onDone = onDone
-        _selection = State(initialValue: viewModel.history(forEntryID: entryID).first?.index)
-    }
-
-    private var versions: [DatabaseViewModel.EntryHistoryVersion] {
-        viewModel.history(forEntryID: entryID)
-    }
-
-    /// `selection` addresses storage order, not the sorted display order.
-    private var selectedVersion: KPEntry? {
-        versions.first { $0.index == selection }?.entry
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            content
-            Divider()
-            actionBar
-        }
-    }
-
-    private var header: some View {
-        Text("History")
-            .font(.headline)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        if versions.isEmpty {
-            EntryHistoryEmptyState()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            HStack(spacing: 0) {
-                versionList
-                Divider()
-                versionDetail
-            }
-        }
-    }
-
-    private var versionList: some View {
-        VStack(spacing: 0) {
-            List(selection: $selection) {
-                ForEach(Array(versions.enumerated()), id: \.element.id) { position, version in
-                    VersionRow(version: version.entry)
-                        .tag(version.index)
-                        .accessibilityIdentifier("entry-history.version.\(position)")
-                }
-            }
-            .listStyle(.inset)
-
-            Divider()
-
-            Text(EntryHistoryStrings.retentionFootnote)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-        }
-        .frame(width: 240)
-    }
-
-    @ViewBuilder
-    private var versionDetail: some View {
-        if let selectedVersion, let sessionKey = viewModel.sessionKey {
-            List {
-                EntryHistoryVersionFields(
-                    version: selectedVersion,
-                    sessionKey: sessionKey,
-                    viewModel: viewModel
-                )
-            }
-            // Rebuilt per version: a macOS `List` of static rows keeps the rows
-            // it first laid out, so picking another version left the previous
-            // one's fields on screen. Also drops the scroll offset, which is
-            // what switching versions should do anyway.
-            .id(selection)
-        } else {
-            EntryHistoryVersionUnavailable()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    private var actionBar: some View {
-        HStack {
-            Spacer()
-            if viewModel.isReadOnly == false, let selection, selectedVersion != nil {
-                RestoreButton(
-                    entryID: entryID,
-                    historyIndex: selection,
-                    viewModel: viewModel,
-                    onRestored: onDone
-                )
-            }
-            Button("Done") { onDone() }
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier("entry-history.done")
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-    }
-}
-#endif
-
-// MARK: - iOS pushed version screen
-
-#if os(iOS)
 private struct EntryHistoryVersionView: View {
     let entryID: UUID
     let historyIndex: Int

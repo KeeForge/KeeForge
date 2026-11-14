@@ -25,6 +25,9 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
             databaseWindowContentSize: options.databaseWindowContentSize)
     }()
     private var settingsWindowController: SettingsWindowController?
+    private(set) lazy var passwordGenerator = MacPasswordGeneratorPanelController { [sessionStore] in
+        sessionStore.openSessions.contains { $0.state == .unlocked }
+    }
     private lazy var windowMenuDecorator = MacWindowMenuDecorator { [weak self] in
         self?.windowCoordinator.lockState(of: $0)
     }
@@ -129,6 +132,16 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
 
     @objc func lockAllDatabases(_ sender: Any?) { windowCoordinator.lockAllDatabases() }
 
+    @objc func showPasswordGenerator(_ sender: Any?) {
+        guard canShowPasswordGenerator else { return }
+        passwordGenerator.show()
+    }
+
+    /// While the database a menu command would act on is unlocked.
+    private var canShowPasswordGenerator: Bool {
+        windowCoordinator.commandTarget()?.session.state == .unlocked
+    }
+
     @objc func connectToServer(_ sender: Any?) {
         guard windowCoordinator.launcher.canConnect else { return }
         windowCoordinator.showDatabasesWindow()
@@ -146,6 +159,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         switch item.action {
         case #selector(connectToServer): return windowCoordinator.launcher.canConnect
         case #selector(lockAllDatabases): return windowCoordinator.canLockAllDatabases
+        case #selector(showPasswordGenerator): return canShowPasswordGenerator
         #if KEEFORGE_DIRECT_DOWNLOAD
         case #selector(checkForUpdates): return SoftwareUpdateService.shared.canCheckForUpdates
         #endif

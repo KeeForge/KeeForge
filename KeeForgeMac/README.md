@@ -107,7 +107,12 @@ hands the password to the app's one `MacLargeTypePanelController`: a borderless
 key `NSPanel` centred over the window, hosting `MacLargeTypeView`. Opening
 another replaces it, and it closes on any key, click or loss of key status and
 on lock, content or selection changes, its window closing and resign active;
-the reasons are in `SECURITY.md`. The sidebar renders
+the reasons are in `SECURITY.md`. The History link opens `MacEntryHistorySheet`
+on the window presentation's `MacEntryHistorySession`, which closes on lock,
+content or selection changes. Database ▸ Password Generator (an `AppDelegate`
+action, enabled while the command-target database is unlocked) opens the app's
+one `MacPasswordGeneratorPanelController`, a utility `NSPanel` that closes when
+no database is unlocked. The sidebar renders
 `MacSidebarSnapshot` in a source-list `NSOutlineView` (Library, Groups, Tags and
 Recycle Bin headers, Tags keeping a caption row while there are none; the Recycle
 Bin section is a Deleted Entries row, which selects the bin group, then the

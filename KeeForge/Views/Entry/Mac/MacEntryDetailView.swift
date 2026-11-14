@@ -12,7 +12,6 @@ struct MacEntryDetailView: View {
     let attachmentPreview: MacAttachmentPreviewController
 
     @State private var width: CGFloat = 600
-    @State private var isShowingHistory = false
     @State private var isShowingIconPicker = false
     @State private var hasClosed = false
 
@@ -52,9 +51,11 @@ struct MacEntryDetailView: View {
             guard let copied, copied.entryID == entryID else { return }
             AccessibilityNotification.Announcement(copied.field.copiedLabel).post()
         }
-        .sheet(isPresented: $isShowingHistory) {
-            EntryHistoryView(entryID: entryID, viewModel: viewModel)
-                .macSheetFrame(minWidth: 760, minHeight: 520)
+        .sheet(item: Binding(
+            get: { presentation.currentEntryHistory(in: viewModel) },
+            set: { if $0 == nil { presentation.closeEntryHistory() } }
+        )) { history in
+            MacEntryHistorySheet(history: history) { presentation.closeEntryHistory(history) }
         }
         .sheet(isPresented: $isShowingIconPicker) {
             if let entry = viewModel.entry(withID: entryID) {
@@ -214,7 +215,7 @@ struct MacEntryDetailView: View {
             if model.historyCount > 0 {
                 Text(verbatim: "·")
                 Button(String(localized: "\(model.historyCount) Earlier Versions")) {
-                    isShowingHistory = true
+                    presentation.showEntryHistory(entryID: entryID, in: viewModel, currentSession: model.currentSession)
                 }
                 .buttonStyle(.link)
                 .accessibilityIdentifier("entry-detail.history")

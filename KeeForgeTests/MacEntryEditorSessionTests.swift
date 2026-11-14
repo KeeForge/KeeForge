@@ -1,5 +1,6 @@
 #if os(macOS)
 import CryptoKit
+import KDBXXML
 import XCTest
 @testable import KeeForge
 
@@ -88,6 +89,52 @@ final class MacEntryEditorSessionTests: XCTestCase {
             return (files: [EntryAttachmentFileLoader.LoadedFile(name: "late.txt", data: Data("late".utf8))], error: nil)
         }, onError: { _ in XCTFail("A stale import reports nothing") })?.value
         XCTAssertEqual(editor.form.attachments.map(\.name), ["report.txt"], "Nothing lands after a lock")
+    }
+
+    /// The Mac editor shows no passkey or unknown-XML rows; saving through it must still keep both exactly.
+    func testSavingThroughTheInlineEditorKeepsPasskeyDataAndUnknownXMLExactly() async throws {
+        let key = SymmetricKey(size: .bits256)
+        var unknownXML = OpaqueXMLNodes()
+        unknownXML.append(xml: "<CustomData><Item><Key>Plugin</Key><Value>kept</Value></Item></CustomData>", insertionIndex: 2)
+        let passkeyFields = [
+            PasskeyCredential.credentialIDKey: "Y3JlZA",
+            PasskeyCredential.relyingPartyKey: "github.com",
+            PasskeyCredential.usernameKey: "alexrivers",
+            PasskeyCredential.userHandleKey: "dXNlcg",
+        ]
+        let entry = KPEntry(
+            title: "GitHub", username: "alice", password: try EncryptedValue.encrypt("secret", using: key),
+            customFields: passkeyFields.merging(["Note": "visible"]) { $1 }, customFieldOrder: ["Note"],
+            passkeyPrivateKey: try EncryptedValue.encrypt("-----BEGIN PRIVATE KEY-----", using: key),
+            unknownXML: unknownXML
+        )
+        let session = try await TestDatabaseSupport.makeUnlockedSession(
+            root: KPGroup(name: "Root", entries: [entry]), key: key, bundle: Bundle(for: Self.self)
+        )
+        defer { session.lockRequest(force: true) }
+        let before = try XCTUnwrap(session.entry(withID: entry.id))
+        let presentation = MacWorkspacePresentation()
+        session.workspace.selectedEntryID = entry.id
+        presentation.beginEntryEdit(entryID: entry.id, in: session)
+        let editor = try XCTUnwrap(presentation.entryEditor)
+
+        editor.form.title = "GitHub (work)"
+        editor.form.username = "alice-work"
+        await editor.save().value
+
+        XCTAssertNil(presentation.entryEditor, "The save completed")
+        let saved = try XCTUnwrap(session.entry(withID: entry.id))
+        XCTAssertEqual(saved.title, "GitHub (work)")
+        XCTAssertEqual(saved.unknownXML, before.unknownXML)
+        XCTAssertEqual(saved.customFields.filter { PasskeyCredential.allFieldKeys.contains($0.key) },
+                       before.customFields.filter { PasskeyCredential.allFieldKeys.contains($0.key) })
+        XCTAssertEqual(saved.customFields["Note"], "visible")
+        XCTAssertEqual(try saved.passkeyPrivateKey?.decryptData(using: key),
+                       try before.passkeyPrivateKey?.decryptData(using: key))
+        XCTAssertEqual(saved.protectedStringKeys, before.protectedStringKeys)
+        XCTAssertEqual(saved.passkeyCredential?.relyingParty, "github.com")
+        XCTAssertEqual(saved.passkeyCredential?.username, "alexrivers")
+        XCTAssertEqual(saved.history.first?.unknownXML, before.unknownXML, "The replaced version keeps it too")
     }
 
     private func settle(_ editor: MacEntryEditorSession) async {

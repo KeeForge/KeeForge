@@ -15,8 +15,8 @@
 ## Invariants
 
 - `EntryDetailView` is iOS only. It shows entry actions and any sync warning in its toolbar; on iPhone it also offers Lock (`lock.button`) beside Edit; at regular width the sidebar's Lock sits beside it, so the detail adds none.
-- The Mac detail is `Mac/MacEntryDetailView` on `MacEntryDetailModel` (`../../ViewModels/`): header (icon, title, path, Edit), cards of label/value rows, footer (dates, History link). It reads values, reveals and copies only through the model, never an `EncryptedValue`; the copy tick is `MacCopyFeedback`, whichever path copied. Edit (`entry-detail.edit`) sits in its header and opens the inline editor, which replaces the detail in the column until it closes. History and the icon picker are still sheets from the detail.
-- On iOS the detail puts its fields in one `EntryFieldsCard` of label/value rows (`isCardRow` on the field rows). The Mac history viewer still uses those rows' section branch (`../Components/EntryFieldRows.swift`).
+- The Mac detail is `Mac/MacEntryDetailView` on `MacEntryDetailModel` (`../../ViewModels/`): header (icon, title, path, Edit), cards of label/value rows, footer (dates, History link). It reads values, reveals and copies only through the model, never an `EncryptedValue`; the copy tick is `MacCopyFeedback`, whichever path copied. Edit (`entry-detail.edit`) sits in its header and opens the inline editor, which replaces the detail in the column until it closes. The icon picker is a sheet from the detail; the History link opens `Mac/MacEntryHistorySheet` on the presentation's `MacEntryHistorySession` (`../../ViewModels/`).
+- On iOS the detail puts its fields in one `EntryFieldsCard` of label/value rows (`isCardRow` on the field rows).
 - Below the fields, iOS gathers Group, Tags, Created, Expires and History in one card; the Group row pushes the group only in the compact stack. A row whose content switches with state (the password reveal) keeps one top-level container: in a `List` a changed top-level view is a new row, and its `onDisappear`/`onAppear` would clear and reload the reveal without end.
 - Entry rows in `EntryListView` and the group list are buttons, not `NavigationLink`s, so they carry no chevron; they still push `DatabaseRoute.entry` in compact and select in the regular shells.
 
@@ -36,7 +36,6 @@
 ### Mac lists
 
 - The Mac entry table's Return and double-click go through `DatabaseViewModel.requestEntryEdit()` so they open the window's one inline editor; while it is open they do nothing.
-- The Mac history browser exists because pushing inside that sheet loses its toolbar. Its `init`-seeded selection and `.id(selection)` list are both load-bearing; the reasons are at the sites in `EntryHistoryView.swift`.
 
 ### Custom icons
 
@@ -50,6 +49,8 @@
 - Attachment previews are plaintext temp files (`AttachmentPreviewFileStore`). On iOS cleanup runs from the Quick Look `onDismiss` and when the shown entry changes. On Mac every Quick Look and Share goes through the window's `MacAttachmentPreviewController` (`../../../KeeForgeMac/App/`) and its `AttachmentPreviewSession`, whose cleanup triggers are listed in `../../ViewModels/AGENTS.md`; a Mac view never writes or holds a preview file.
 - Mac Large Type: the password row's button (`entry.password.large-type`) and View ▸ Show in Large Type both disclose through the reveal gate and hand the plaintext straight to the app's one `MacLargeTypePanelController` (`../../../KeeForgeMac/App/`), which hosts `Mac/MacLargeTypeView` (`large-type.panel` on the panel, `large-type.close`). No view keeps the password; the controller drops it on every close trigger it lists.
 - iOS attachment rows are positional and carry `.id(attachment)`. Tests enumerate them by the `entry.attachment.<index>` prefix because SwiftUI collapses each row into one accessibility element; a shared row identifier would be shadowed. Mac rows keep `entry.attachment.<index>` on the clickable name; their buttons are `entry.attachment.quick-look.<index>` and `entry.attachment.share.<index>`.
+- `EntryHistoryView` is iOS only. The Mac History sheet reads every value, reveal and copy through its session's `MacEntryDetailModel(.history)`: a version's protected values stay masked until the gated reveal, and the comparison shows only that one differs. Its copy ticks are the session's own, never the live detail's. The session closes on lock, a content change, another selection, a window reset and its own dismissal. Identifiers: `entry-history.current-version`, `entry-history.version.<position>`, `entry-history.difference.<field>`, `entry-history.password.reveal`, `entry-history.copy.<key>`, `entry-history.version-detail`, `entry-history.restore` (Restore…), `.restore.confirm`, `.done`.
+- The Password Generator panel (`Mac/MacPasswordGeneratorPanelView`, `password-generator.panel`, Copy `password-generator.copy`) is hosted by `MacPasswordGeneratorPanelController` (`../../../KeeForgeMac/App/`), which owns its model and drops it on close.
 - `entry-detail.title` (a leaf `Text`) is how the macOS tests read which entry the detail column shows. `entry-detail.history` carries the stored-version count as its accessibility value.
 
 ### Editor
@@ -75,7 +76,8 @@
 - Search-results delete and move: `SearchResultsDeleteUITests` and `SearchResultsMoveUITests`, both in `KeeForgeUITests/EntryEditUITests.swift`. The move gate itself: `testEntryRowMove...` in `DatabaseViewModelTests`, the other row gates `testEntryRowActions...` there.
 - Mac inline editor lifecycle and freeze: `MacWorkspacePresentationTests`, `MacEntryEditorSessionTests`, and the controller classes for the frozen sidebar, table and toolbar. Row menu: `EntryRowCopyUITests`, `EntryDuplicateUITests`. Editor: `EntryEditSmokeUITests`; its custom-field cases cover moving, protection toggles, and reopening, with counterparts in `MacSmokeUITests`. `ProtectedCustomFieldEditorAuthUITests` covers the reveal and protection-removal authentication gates. Tags shown on detail: `InheritedTagsUITests`.
 - Attachments: `EntryAttachmentsSmokeUITests` and `EntryAttachmentFileLoaderTests` (size budget). The system file picker is exercised by hand. Mac Quick Look and Share: `MacAttachmentPreviewControllerTests` (panel control, data source, share picker completion, every close trigger, responder-chain placement); the system panel and picker themselves are checked by hand. Large Type: `MacLargeTypePanelControllerTests` (content, every close trigger, plaintext released, sharing type at creation, never shown) and `DatabaseWindowControllerTests` (the menu command through the gate).
-- History: `EntryHistoryUITests` on iOS. The Mac shell is only captured, as `08b-entry-history` in `MacScreenshotAuditUITests`.
+- History: `EntryHistoryUITests` on iOS. Mac: `MacEntryHistorySessionTests` (comparison, gating, separate ticks, every close trigger, restore) and `EntryVersionComparisonTests`; the sheet is captured as `08b-entry-history` in `MacScreenshotAuditUITests`. Generator panel: `MacPasswordGeneratorPanelControllerTests`, menu item in `MacMainMenuTests`.
+- Editor saves keep passkey data and unknown XML the Mac editor does not show: `MacEntryEditorSessionTests`.
 - Held completion behind a save conflict: `SaveConflictMergeUITests`.
 
 ## See also

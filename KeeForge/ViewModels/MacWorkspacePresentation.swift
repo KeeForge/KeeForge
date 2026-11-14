@@ -42,6 +42,8 @@ final class MacWorkspacePresentation {
     let copyFeedback = MacCopyFeedback()
     /// Replaced when the selected entry or session changes, which conceals what the old one revealed.
     @ObservationIgnored private var currentDetailModel: MacEntryDetailModel?
+    /// The open History sheet; `currentEntryHistory(in:)` stops answering it once it is stale.
+    private(set) var entryHistory: MacEntryHistorySession?
     private(set) var lifetimeID = UUID()
 
     func beginNewEntry(in database: DatabaseViewModel) {
@@ -166,10 +168,40 @@ final class MacWorkspacePresentation {
             return model
         }
         currentDetailModel?.invalidate()
+        if entryHistory?.entryID != entryID || entryHistory?.session !== database { closeEntryHistory() }
         let model = MacEntryDetailModel(source: .live(entryID), session: database, copyFeedback: copyFeedback,
                                         currentSession: currentSession)
         currentDetailModel = model
         return model
+    }
+
+    func showEntryHistory(
+        entryID: UUID,
+        in database: DatabaseViewModel,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?
+    ) {
+        guard currentEntryEditor(in: database) == nil, database.state == .unlocked,
+              database.workspace.selectedEntryID == entryID,
+              database.history(forEntryID: entryID).isEmpty == false else { return }
+        closeEntryHistory()
+        entryHistory = MacEntryHistorySession(entryID: entryID, session: database, currentSession: currentSession)
+    }
+
+    /// The History sheet while it still belongs to `session` as it is now: same lock cycle,
+    /// content revision and selected entry.
+    func currentEntryHistory(in session: DatabaseViewModel) -> MacEntryHistorySession? {
+        guard let entryHistory, entryHistory.session === session, entryHistory.isCurrent else { return nil }
+        return entryHistory
+    }
+
+    /// With `history`, closes only that sheet's session, so a late dismissal leaves a newer one open.
+    func closeEntryHistory(_ history: MacEntryHistorySession? = nil) {
+        guard let entryHistory, history == nil || history === entryHistory else {
+            history?.close()
+            return
+        }
+        entryHistory.close()
+        self.entryHistory = nil
     }
 
     func beginGroupEdit(groupID: UUID, in database: DatabaseViewModel) {
@@ -281,6 +313,7 @@ final class MacWorkspacePresentation {
     func reset() {
         lifetimeID = UUID()
         closeEntryEditor()
+        closeEntryHistory()
         groupEditor = nil
         dismissNewGroup()
         pendingDeletion = nil
