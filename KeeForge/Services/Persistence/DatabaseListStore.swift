@@ -900,48 +900,91 @@ enum DatabaseListStore {
         }
     }
 
+    final class KeyCommitPublicationPermit: @unchecked Sendable {
+        enum State: Sendable, Equatable { case pending, claimed, closed }
+        let actionID: UUID
+        let lockCycleID: Int
+        private let lock = NSLock()
+        private var value = State.pending
+        init(actionID: UUID, lockCycleID: Int) { self.actionID = actionID; self.lockCycleID = lockCycleID }
+        var state: State { lock.lock(); defer { lock.unlock() }; return value }
+        func close() { lock.lock(); defer { lock.unlock() }; if value == .pending { value = .closed } }
+        func claim() -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            guard value == .pending else { return false }
+            value = .claimed
+            return true
+        }
+    }
+
+    struct KeyCommitPublicationIO: Sendable {
+        var resolve: @Sendable (Data) -> (url: URL, isStale: Bool)? = SecurityScopedBookmarkManager.resolveURL
+        var read: @Sendable (URL) throws -> Data = { try Data(contentsOf: $0) }
+        var coordinate: @Sendable (URL, URL, (URL, URL) -> Void) throws -> Void = { target, registry, accessor in
+            var error: NSError?
+            NSFileCoordinator().coordinate(readingItemAt: target, options: [], writingItemAt: registry,
+                options: [], error: &error, byAccessor: accessor)
+            if let error { throw error }
+        }
+        var beforeEffect: @Sendable () throws -> Void = {}
+        var didFinish: @Sendable () -> Void = {}
+    }
+
     static func withLocalKeyCommitPublication<T>(
-        for expected: DatabaseReference, receipt: PendingLocalSaveStore.CommitReceipt, _ publish: () throws -> T
+        for expected: DatabaseReference, receipt: PendingLocalSaveStore.CommitReceipt,
+        permit: KeyCommitPublicationPermit, io: KeyCommitPublicationIO = .init(), _ publish: () throws -> T
     ) throws -> T {
-        try withStateLock {
+        guard permit.state == .pending else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+        let observed = try withStateLock {
             let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
-            guard let observed = references.first(where: { $0.id == expected.id }), observed.id == receipt.databaseID,
-                  !observed.isCloudBacked, !expected.isCloudBacked,
-                  observed.bookmarkData == expected.bookmarkData, observed.hardwareKey == expected.hardwareKey,
-                  observed.legacyKeychainFilename == expected.legacyKeychainFilename else {
+            guard let current = references.first(where: { $0.id == expected.id }), current.id == receipt.databaseID,
+                  !current.isCloudBacked, !expected.isCloudBacked,
+                  current.bookmarkData == expected.bookmarkData, current.hardwareKey == expected.hardwareKey,
+                  current.legacyKeychainFilename == expected.legacyKeychainFilename else {
                 throw PendingLocalSaveStore.OwnershipError.sourceChanged
             }
-            let target: URL
-            if let bookmark = observed.bookmarkData {
-                guard let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmark) else {
-                    throw PendingLocalSaveStore.OwnershipError.targetChanged
-                }
-                target = resolved.url
-            } else { target = cacheLocation(for: observed) }
-            let access = observed.bookmarkData != nil && target.startAccessingSecurityScopedResource()
-            defer { if access { target.stopAccessingSecurityScopedResource() } }
-            var coordinatorError: NSError?
-            var result: Result<T, Error>?
-            NSFileCoordinator().coordinate(readingItemAt: target, options: [], writingItemAt: databaseListURL,
-                options: [], error: &coordinatorError) { protectedTarget, registry in
+            return current
+        }
+        guard permit.state == .pending else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+        let target: URL
+        if let bookmark = observed.bookmarkData {
+            guard let resolved = io.resolve(bookmark) else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
+            target = resolved.url
+        } else { target = cacheLocation(for: observed) }
+        let access = observed.bookmarkData != nil && target.startAccessingSecurityScopedResource()
+        defer { if access { target.stopAccessingSecurityScopedResource() } }
+        guard permit.state == .pending else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+        var result: Result<T, Error>?
+        var coordinatorError: Error?
+        do {
+            try io.coordinate(target, databaseListURL) { protectedTarget, registry in
                 result = Result {
-                    let currentReferences = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
-                    guard let current = currentReferences.first(where: { $0.id == expected.id }),
+                    guard permit.state == .pending else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+                    let identity = try PendingLocalSaveStore.targetIdentity(at: protectedTarget)
+                    let bytes = try io.read(protectedTarget)
+                    guard permit.state == .pending else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+                    // Never wait for a list holder that may itself be waiting for this coordination.
+                    guard stateLock.try() else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+                    defer { stateLock.unlock() }
+                    let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                    guard let current = references.first(where: { $0.id == expected.id }),
                           PendingLocalSaveStore.PreferenceObservation(observed).matches(current),
                           current.hardwareKey == observed.hardwareKey,
                           current.legacyKeychainFilename == observed.legacyKeychainFilename else {
                         throw PendingLocalSaveStore.OwnershipError.sourceChanged
                     }
-                    let identity = try PendingLocalSaveStore.targetIdentity(at: protectedTarget)
-                    let bytes = try Data(contentsOf: protectedTarget)
                     return try PendingLocalSaveStore.withKeyCommitPublicationAuthorization(receipt, reference: current,
-                        observeTarget: { (identity, bytes) }, publish)
+                        observeTarget: { (identity, bytes) }) {
+                            try io.beforeEffect()
+                            guard permit.claim() else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+                            return try publish()
+                        }
                 }
             }
-            // An outer coordinator error cannot undo Keychain effects observed inside the protected accessor.
-            if let result { return try result.get() }
-            throw coordinatorError ?? CocoaError(.fileReadUnknown)
-        }
+        } catch { coordinatorError = error }
+        // An outer coordinator error cannot undo Keychain effects observed inside the protected accessor.
+        if let result { return try result.get() }
+        throw coordinatorError ?? CocoaError(.fileReadUnknown)
     }
 
     static func withLocalReadKeyPublication<T>(

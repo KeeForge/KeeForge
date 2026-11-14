@@ -454,7 +454,7 @@ final class DatabaseViewModel {
         _ masterKeyEntered: Bool
     ) -> Bool
     /// Replaces the express-unlock item after a save; nil only drops it.
-    typealias ExpressUnlockKeySaveOperation = @MainActor (_ key: ExpressUnlockKey?, _ reference: DatabaseReference) -> Void
+    typealias ExpressUnlockKeySaveOperation = @Sendable (_ key: ExpressUnlockKey?, _ reference: DatabaseReference) -> Void
     typealias PendingUploadMarkerCheck = @Sendable (_ reference: DatabaseReference) -> Bool
     typealias StoredKeyPresenceCheck = @Sendable (_ reference: DatabaseReference) -> Bool
     typealias StoredKeyStoreOperation = @Sendable (_ compositeKey: SymmetricKey, _ reference: DatabaseReference) throws -> Void
@@ -661,6 +661,10 @@ final class DatabaseViewModel {
     private let localDatabaseReadOperation: LocalDatabaseReadOperation
     private let localSaveOperation: LocalSaveOperation
     private let pendingLocalStorageIO: PendingLocalSaveStore.StorageIO
+    private let keyCommitPublicationIO: DatabaseListStore.KeyCommitPublicationIO
+    private let keyCommitPublicationTimeout: Duration
+    private var keyCommitPublicationActionID: UUID?
+    private var keyCommitPublicationPermit: DatabaseListStore.KeyCommitPublicationPermit?
     private let cloudSaveOperation: CloudSaveOperation
     private let conflictCopyEncryptionOperation: ConflictCopyEncryptionOperation
     private let localConflictCopyOperation: LocalConflictCopyOperation
@@ -704,6 +708,8 @@ final class DatabaseViewModel {
             try await DatabaseViewModel.readLocalDatabase(reference: reference)
         },
         pendingLocalStorageIO: PendingLocalSaveStore.StorageIO = .init(),
+        keyCommitPublicationIO: DatabaseListStore.KeyCommitPublicationIO = .init(),
+        keyCommitPublicationTimeout: Duration = .seconds(10),
         localSaveOperation: @escaping LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, newCompositeKey, encryptionSettings in
             try await LocalDatabaseSaver.save(
                 draft: draft,
@@ -808,6 +814,8 @@ final class DatabaseViewModel {
         self.localDatabaseReadOperation = localDatabaseReadOperation
         self.localSaveOperation = localSaveOperation
         self.pendingLocalStorageIO = pendingLocalStorageIO
+        self.keyCommitPublicationIO = keyCommitPublicationIO
+        self.keyCommitPublicationTimeout = keyCommitPublicationTimeout
         self.cloudSaveOperation = cloudSaveOperation
         self.conflictCopyEncryptionOperation = conflictCopyEncryptionOperation
         self.localConflictCopyOperation = localConflictCopyOperation
@@ -2756,9 +2764,16 @@ final class DatabaseViewModel {
         let association = PendingLocalSaveStore.KeyFileAssociation(bookmarkData: newKeyFileBookmarkData,
             filename: newKeyFileFilename, changedAt: nowProvider())
 
+        let actionID = UUID()
+        keyCommitPublicationActionID = actionID
         isSaving = true
         saveError = nil
         defer {
+            if keyCommitPublicationActionID == actionID {
+                keyCommitPublicationPermit?.close()
+                keyCommitPublicationPermit = nil
+                keyCommitPublicationActionID = nil
+            }
             isSaving = false
         }
 
@@ -2820,17 +2835,21 @@ final class DatabaseViewModel {
                 guard let localCommit else { throw SaveAssociationWarning(reason: .authorityChanged) }
                 let expected = databaseReference
                 let publication: (stored: Bool, hadStoredKey: Bool)
+                let saveExpressKey = expressUnlockKeySaveOperation
+                let hasStoredKey = storedKeyPresenceCheck
+                let storeKey = storedKeyStoreOperation
+                let deleteKey = storedKeyDeleteOperation
                 do {
-                    publication = try DatabaseListStore.withLocalKeyCommitPublication(for: expected, receipt: localCommit) {
-                        expressUnlockKeySaveOperation(nil, expected)
-                        return refreshStoredCompositeKeyItemsAfterRekey(newCompositeKey)
-                    }
-                } catch {
-                    refreshDatabaseReference()
-                    throw SaveAssociationWarning(reason: .authorityChanged)
-                }
+                    publication = try await publishLocalKeyCommit(reference: expected, receipt: localCommit, actionID: actionID,
+                        cleanup: { result in
+                            if result.hadStoredKey { _ = DatabaseListStore.clearLegacyKeychainFilename(for: expected) }
+                        }) {
+                            saveExpressKey(nil, expected)
+                            return Self.refreshStoredCompositeKeyItemsAfterRekey(newCompositeKey, reference: expected,
+                                hasStoredKey: hasStoredKey, storeKey: storeKey, deleteKey: deleteKey)
+                        }
+                } catch { throw SaveAssociationWarning(reason: .authorityChanged) }
                 storedNewKey = publication.stored
-                if publication.hadStoredKey { _ = DatabaseListStore.clearLegacyKeychainFilename(for: expected) }
             }
             let associationSaved: Bool
             var ownerResolution = PendingLocalSaveStore.ResolutionOutcome.resolved
@@ -2847,10 +2866,13 @@ final class DatabaseViewModel {
                             associationProof: proof, io: storageIO)) ?? .retainedForRecovery
                     }.value
                 } else { associationSaved = false; ownerResolution = .retainedForRecovery }
-                refreshDatabaseReference()
-                guard (try? DatabaseListStore.withLocalKeyCommitPublication(for: databaseReference, receipt: localCommit, { true })) == true else {
-                    throw SaveAssociationWarning(reason: .authorityChanged)
-                }
+                let refreshed = await Task.detached { DatabaseListStore.databases.first { $0.id == ref.id } }.value
+                guard keyCommitPublicationActionID == actionID else { throw SaveAssociationWarning(reason: .authorityChanged) }
+                let current = refreshed ?? ref
+                do {
+                    _ = try await publishLocalKeyCommit(reference: current, receipt: localCommit, actionID: actionID) { true }
+                } catch { throw SaveAssociationWarning(reason: .authorityChanged) }
+                databaseReference = current
                 databaseReference.keyFileBookmarkData = association.bookmarkData
                 databaseReference.keyFileFilename = association.filename
                 databaseReference.lastMasterKeyChangeAt = association.changedAt
@@ -2891,23 +2913,46 @@ final class DatabaseViewModel {
         }
     }
 
+    private func publishLocalKeyCommit<T: Sendable>(
+        reference: DatabaseReference, receipt: PendingLocalSaveStore.CommitReceipt, actionID: UUID,
+        cleanup: @escaping @Sendable (T) -> Void = { _ in }, _ effect: @escaping @Sendable () throws -> T
+    ) async throws -> T {
+        guard keyCommitPublicationActionID == actionID else { throw SaveAssociationWarning(reason: .authorityChanged) }
+        let permit = DatabaseListStore.KeyCommitPublicationPermit(actionID: actionID, lockCycleID: lockCycleID)
+        keyCommitPublicationPermit = permit
+        defer { if keyCommitPublicationPermit === permit { keyCommitPublicationPermit = nil } }
+        let io = keyCommitPublicationIO
+        let result = try await CoordinatedFileReader.performBlocking(timeout: keyCommitPublicationTimeout, onInterruption: { permit.close() }) {
+            defer { io.didFinish() }
+            let result = try DatabaseListStore.withLocalKeyCommitPublication(for: reference, receipt: receipt, permit: permit, io: io, effect)
+            cleanup(result)
+            return result
+        }
+        guard keyCommitPublicationActionID == permit.actionID else { throw SaveAssociationWarning(reason: .authorityChanged) }
+        return result
+    }
+
     /// Returns whether the quick-unlock item now holds `newCompositeKey`.
     @discardableResult
     private func refreshStoredCompositeKeyAfterRekey(_ newCompositeKey: SymmetricKey) -> Bool {
         let expected = databaseReference
-        let result = refreshStoredCompositeKeyItemsAfterRekey(newCompositeKey)
+        let result = Self.refreshStoredCompositeKeyItemsAfterRekey(newCompositeKey, reference: expected,
+            hasStoredKey: storedKeyPresenceCheck, storeKey: storedKeyStoreOperation, deleteKey: storedKeyDeleteOperation)
         if result.hadStoredKey { _ = DatabaseListStore.clearLegacyKeychainFilename(for: expected) }
         return result.stored
     }
 
-    private func refreshStoredCompositeKeyItemsAfterRekey(_ newCompositeKey: SymmetricKey) -> (stored: Bool, hadStoredKey: Bool) {
-        guard storedKeyPresenceCheck(databaseReference) else { return (false, false) }
+    nonisolated private static func refreshStoredCompositeKeyItemsAfterRekey(
+        _ newCompositeKey: SymmetricKey, reference: DatabaseReference,
+        hasStoredKey: StoredKeyPresenceCheck, storeKey: StoredKeyStoreOperation, deleteKey: StoredKeyDeleteOperation
+    ) -> (stored: Bool, hadStoredKey: Bool) {
+        guard hasStoredKey(reference) else { return (false, false) }
 
         do {
-            try storedKeyStoreOperation(newCompositeKey, databaseReference)
-            QuickUnlockKeychain.recordMasterKeyEntry(for: databaseReference.id)
+            try storeKey(newCompositeKey, reference)
+            QuickUnlockKeychain.recordMasterKeyEntry(for: reference.id)
 
-            if let legacyFilename = databaseReference.legacyKeychainFilename {
+            if let legacyFilename = reference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
             }
             return (true, true)
@@ -2916,8 +2961,8 @@ final class DatabaseViewModel {
             // so unlock falls back to the new password. The legacy entry must
             // go too — `QuickUnlockKeychain.retrieveStoredKey` falls back to
             // it otherwise.
-            storedKeyDeleteOperation(databaseReference)
-            if let legacyFilename = databaseReference.legacyKeychainFilename {
+            deleteKey(reference)
+            if let legacyFilename = reference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
             }
             return (false, true)
@@ -4386,6 +4431,7 @@ final class DatabaseViewModel {
     }
 
     private func beginNewLockCycle() {
+        if keyCommitPublicationPermit?.lockCycleID == lockCycleID { keyCommitPublicationPermit?.close() }
         authenticatedLocalCiphertext = nil
         lockCycleID += 1
     }
@@ -4582,6 +4628,8 @@ final class DatabaseViewModel {
 
     /// Starts an unlock attempt and returns its token for `finishUnlockAttempt`.
     private func prepareForUnlock() -> UUID {
+        keyCommitPublicationPermit?.close()
+        keyCommitPublicationActionID = nil
         authenticatedLocalCiphertext = nil
         let attempt = UUID()
         secretAccess.invalidate()

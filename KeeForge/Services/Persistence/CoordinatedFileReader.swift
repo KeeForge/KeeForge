@@ -16,25 +16,31 @@ enum CoordinatedFileReader {
     /// only the first completion resumes the caller.
     static func performBlocking<T: Sendable>(
         timeout: Duration,
+        onInterruption: (@Sendable () -> Void)? = nil,
         operation: @escaping @Sendable () throws -> T
     ) async throws -> T {
         let firstResult = FirstResult<T>()
-
-        Task.detached(priority: .userInitiated) {
-            let result = Result { try operation() }
-            await firstResult.complete(with: result)
-        }
-
-        Task.detached {
-            do {
-                try await Task.sleep(for: timeout)
-                await firstResult.complete(with: .failure(TimeoutError.timedOut))
-            } catch {
-                // A cancelled timeout must not replace the file operation's result.
+        return try await withTaskCancellationHandler {
+            if onInterruption != nil, Task.isCancelled { onInterruption?(); throw CancellationError() }
+            Task.detached(priority: .userInitiated) {
+                let result = Result { try operation() }
+                await firstResult.complete(with: result)
             }
+            Task.detached {
+                do {
+                    try await Task.sleep(for: timeout)
+                    onInterruption?()
+                    await firstResult.complete(with: .failure(TimeoutError.timedOut))
+                } catch {
+                    // A cancelled timeout must not replace the file operation's result.
+                }
+            }
+            return try await firstResult.value()
+        } onCancel: {
+            guard let onInterruption else { return }
+            onInterruption()
+            Task { await firstResult.complete(with: .failure(CancellationError())) }
         }
-
-        return try await firstResult.value()
     }
 
     static func readData(from url: URL, maximumByteCount: Int? = nil) throws -> Data {

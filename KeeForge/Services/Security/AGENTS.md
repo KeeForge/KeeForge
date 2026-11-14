@@ -69,3 +69,5 @@
 - `../../../KeeForgeMac/SECURITY.md`, `../../../docs/threat-model.md`
 
 - Local app unlock and AutoFill publish only Keychain items under list-lock then owner flock, using the read-bound target/SHA and pre-read reference epoch. The keychain-only body reaches Keychain, LocalAuthentication availability and shared-default getters only; it must never reenter the database list or owner. The app/cloud wrapper retains policy and interval behavior. Legacy reference cleanup runs afterwards by expected filename/reference CAS and cannot undo already-written keys.
+
+- Local rekey completion uses the existing Sendable express-item callback and a nonisolated keychain-only body on a worker, preserving presence/store-failure, interval and legacy-item behavior. No MainActor callback or list reentry is allowed under owner flock. Its immediate try-list exception follows combined target/registry coordination after provider reads, never waits on list contention, and keeps owner through any claimed Keychain effect; timeout/cancel cannot undo it. Legacy reference CAS cleanup runs outside owner and off MainActor.

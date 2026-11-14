@@ -183,9 +183,14 @@ ciphertext/epoch and cannot automatically drain under the new key.
 
 A rekey completion can publish or invalidate Keychain items only while its actual
 installed commit still owns the current admission or settled epoch and its exact
-ciphertext remains the current target. The registry reference, target identity
-and ciphertext are checked under list-lock then combined target/registry
-coordination then owner-lock, held through the keychain-only effect. The byte
+ciphertext remains the current target. Both completion checks run on a background
+worker. Snapshot the list briefly, release list lock before bookmark resolution,
+coordination and full ciphertext reads, then inside the protected target/registry
+accessor acquire list only by an immediate try and acquire owner. Contention
+rejects the attempt and releases resources without a blocking fallback or retry.
+This explicit coord -> try-list exception prevents waiting on a list holder that
+itself needs those coordinated resources. The registry reference, target identity
+and ciphertext are checked with coordination/list/owner held through the effect. The byte
 comparison uses the ciphertext already carried in the nonpersisted commit receipt,
 with no KDF, KDBX parsing or hashing in this fence; legacy field cleanup runs afterwards
 by CAS. Epoch/factor equality or inode equality alone does not authorize a completion.
@@ -195,6 +200,26 @@ from an earlier rekey cannot overwrite or delete a later epoch's composite or
 express key. Unknown local outcomes have no receipt authority to mutate those
 items. Association publication and later session application also reject a
 superseded receipt; a lock cycle alone is not cross-session authority.
+A thread-safe per-attempt RAM permit atomically transitions pending -> claimed or
+pending -> closed. Timeout/cancel closes pending before its result is delivered;
+a subsequent lock or new unlock also closes it. A worker reaching the real effect
+under owner after closure cannot write Keychain items. If already claimed,
+interruption is terminal uncertainty until evidence of worker completion, not
+cancellation/no-effect/retry proof: held resources remain owned until actual IO
+finishes and existing committed recovery ownership is not released by the wrapper.
+The worker never synchronously calls MainActor, including legacy cleanup. The
+interrupted MainActor path does not refresh the list and direct secret/timer lock
+never waits on worker/list/owner. Already-claimed synchronous Keychain IO can still
+hold list and delay other list consumers; this is not a global UI responsiveness
+or native/provider latency guarantee.
+
+The fence captures its cycle only after the saver returned a known commit. An
+earlier lock therefore still permits persistent-key reconciliation without session
+secret restoration. A later lock revokes pending permission; a new unlock also
+invalidates the original action UUID before refresh, preventing an old action from
+creating a permit on behalf of the new session. Original save-cycle checks remain
+mandatory for all session-secret application.
+
 After durable witness retirement, a fresh authenticated read of a restored file
 still follows main semantics. Only an old completion must match its own current
 receipt bytes; this check introduces no persistent target pin or restore barrier.

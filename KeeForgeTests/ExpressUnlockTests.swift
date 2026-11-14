@@ -1,5 +1,6 @@
 import CryptoKit
 import LocalAuthentication
+import os
 import Security
 import XCTest
 import KDBXKit
@@ -1004,13 +1005,10 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
     }
 }
 
-@MainActor
-private final class ExpressKeySaves {
-    private(set) var keys: [ExpressUnlockKey?] = []
-
-    func record(_ key: ExpressUnlockKey?) {
-        keys.append(key)
-    }
+private final class ExpressKeySaves: @unchecked Sendable {
+    private let storage = OSAllocatedUnfairLock(initialState: [ExpressUnlockKey?]())
+    var keys: [ExpressUnlockKey?] { storage.withLock { $0 } }
+    func record(_ key: ExpressUnlockKey?) { storage.withLock { $0.append(key) } }
 }
 
 @MainActor

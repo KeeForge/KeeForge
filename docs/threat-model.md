@@ -240,9 +240,17 @@ Initial admission publication retains its ownership token on observed rename wit
 unconfirmed sync/coordinator completion, stopping the action before encryption and
 showing recovery rather than promising retry. Rekey Keychain publication holds the
 current installed receipt/operation/epoch/revocation fence through keychain-only
-effects, including invalidation. Combined target/registry coordination precedes
-owner flock and protects an exact comparison of current target identity/bytes
-with the receipt ciphertext through the effect. A stale callback cannot overwrite
+effects, including invalidation. Provider work and both checks run off MainActor:
+list snapshot is brief, full provider reads precede an immediate coord -> try-list
+attempt, and owner flock follows only successful try-list. Contention rejects
+without waiting or retry. Coordination/list/owner protect the exact current target
+identity/bytes against the receipt through the effect. A RAM permit closes pending
+authority before timeout/cancel delivery or on subsequent lock/new unlock; claimed
+IO may finish and cannot be called cancelled or effect-free. No early wrapper
+result releases committed ownership or restores session secrets. Cleanup is off
+MainActor and outside owner. Direct secret/timer lock and interrupted completion
+do not wait on these locks, but already-claimed Keychain IO may delay other list
+consumers; no global UI or provider-latency guarantee is claimed. A stale callback cannot overwrite
 or delete newer items, including after same-epoch witness retirement and an
 in-place restore with unchanged inode; fresh authenticated restored-file reads
 remain allowed after retirement, without a permanent antirollback pin. Unknown callbacks lack that authority. Legacy reference

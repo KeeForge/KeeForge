@@ -7305,6 +7305,213 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: fixtureURL()), original)
     }
 
+    func testKeyPublicationProviderWaitTimeoutCancelAndClaimDoNotBlockSecretLockOrAuthorizeLateEffects() async throws {
+        for phase in 0..<6 {
+            let url = try makeRelinkTarget(copying: fixtureURL())
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            let reference = try DatabaseListStore.add(url: url)
+            let pause = KeyPublicationPause()
+            let effects = OSAllocatedUnfairLock(initialState: (crypto: 0, replace: 0, keys: 0, stored: Optional<SymmetricKey>.none))
+            let coordinates = OSAllocatedUnfairLock(initialState: 0)
+            let completions = OSAllocatedUnfairLock(initialState: 0)
+            let live = LocalDatabaseSaver.Environment.live
+            let native = DatabaseListStore.KeyCommitPublicationIO()
+            var io = native
+            io.coordinate = { target, registry, accessor in
+                XCTAssertFalse(Thread.isMainThread)
+                let call = coordinates.withLock { $0 += 1; return $0 }
+                if (phase < 2 && call == 1) || (phase == 4 && call == 2) { try pause.wait() }
+                try native.coordinate(target, registry, accessor)
+            }
+            if phase == 2 { io.beforeEffect = { try pause.wait() } }
+            if phase == 5 { io.read = { target in try pause.wait(); return try native.read(target) } }
+            io.didFinish = {
+                let call = completions.withLock { $0 += 1; return $0 }
+                if call == (phase == 4 ? 2 : 1) { pause.finished.fulfill() }
+            }
+            let vm = DatabaseViewModel(databaseReference: reference, keyCommitPublicationIO: io,
+                keyCommitPublicationTimeout: .seconds(1), localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+                    var environment = live
+                    environment.encryptDraft = { draft, key, header, policy in
+                        effects.withLock { $0.crypto += 1 }; return try live.encryptDraft(draft, key, header, policy)
+                    }
+                    environment.replaceFileAtomically = { data, target, baseline, authorization in
+                        effects.withLock { $0.replace += 1 }
+                        return try live.replaceFileAtomically(data, target, baseline, authorization)
+                    }
+                    return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                        openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                        newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+                }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in
+                    XCTAssertFalse(Thread.isMainThread)
+                    effects.withLock { $0.keys += 1 }
+                }, storedKeyPresenceCheck: { _ in true }, storedKeyStoreOperation: { key, _ in
+                    XCTAssertFalse(Thread.isMainThread)
+                    if phase == 3 { try pause.wait() }
+                    effects.withLock { $0.keys += 1; $0.stored = key }
+                }, storedKeyDeleteOperation: { _ in XCTFail("No failed store was injected") })
+            defer { vm.lock(); pause.resume() }
+            await vm.unlock(password: fixturePassword)
+            let action = Task { try await vm.changeMasterKey(newPassword: "provider key A", newKeyFileData: nil,
+                newKeyFileBookmarkData: nil, newKeyFileFilename: nil) }
+            await fulfillment(of: [pause.entered], timeout: 3)
+            XCTAssertLessThan(pause.elapsedSinceEntry, .seconds(1), "The paused worker must not occupy MainActor")
+            let heartbeat = expectation(description: "MainActor heartbeat")
+            Task { @MainActor in heartbeat.fulfill() }
+            await fulfillment(of: [heartbeat], timeout: 0.5)
+            if phase == 0 || phase == 1 || phase == 4 || phase == 5 {
+                let start = ContinuousClock.now
+                XCTAssertTrue(DatabaseListStore.databases.contains { $0.id == reference.id })
+                XCTAssertLessThan(start.duration(to: .now), .seconds(1), "Provider waits must not retain list lock")
+            }
+            if phase == 1 { action.cancel() }
+            if phase == 5 { vm.lock(); pause.resume() }
+            do { try await action.value; XCTFail("Interrupted fence must be terminal, never normal completion") }
+            catch { XCTAssertEqual((error as? SaveAssociationWarning)?.reason, .authorityChanged) }
+            let lockStarted = ContinuousClock.now
+            vm.lock()
+            XCTAssertLessThan(lockStarted.duration(to: .now), .seconds(1), "Secret lock does not join provider/Keychain IO")
+            XCTAssertEqual(vm.state, .locked)
+            XCTAssertNil(vm.sessionKey)
+            XCTAssertNil(vm.compositeKey)
+            XCTAssertNil(vm.authenticatedLocalCiphertext)
+            let beforeJoin = effects.withLock { $0 }
+            XCTAssertEqual(beforeJoin.keys, phase == 3 ? 1 : (phase == 4 ? 2 : 0))
+            pause.resume()
+            await fulfillment(of: [pause.finished], timeout: 6)
+            let afterJoin = effects.withLock { $0 }
+            XCTAssertEqual(afterJoin.keys, phase == 3 || phase == 4 ? 2 : 0)
+            XCTAssertEqual(afterJoin.crypto, 1)
+            XCTAssertEqual(afterJoin.replace, 1)
+            let expected = try KDBXCrypto.compositeKey(password: "provider key A", keyFileData: nil)
+            XCTAssertEqual(afterJoin.stored, phase == 3 || phase == 4 ? expected : nil)
+            _ = try KDBXParser.parse(data: Data(contentsOf: url), compositeKey: expected, sessionKey: SymmetricKey(size: .bits256))
+            let recovery = try PendingLocalSaveStore.recovery(for: reference.id)
+            if phase == 4 { XCTAssertNil(recovery.admission) }
+            else { XCTAssertNotNil(recovery.admission, "Timeout/cancel does not release the committed save's owner") }
+            XCTAssertEqual(vm.state, .locked, "A late worker never restores session secrets")
+        }
+    }
+
+    func testKeyPublicationTryListContentionRejectsWithoutWaitingOrDeadlock() async throws {
+        let reference = try DatabaseListStore.add(url: fixtureURL())
+        let pause = KeyPublicationPause()
+        let holder = KeyPublicationPause()
+        let effects = OSAllocatedUnfairLock(initialState: 0)
+        let native = DatabaseListStore.KeyCommitPublicationIO()
+        var io = native
+        io.read = { url in try pause.wait(); return try native.read(url) }
+        io.didFinish = { pause.finished.fulfill() }
+        let vm = DatabaseViewModel(databaseReference: reference, keyCommitPublicationIO: io,
+            keyCommitPublicationTimeout: .seconds(2), quickUnlockKeyPersistOperation: { _, _, _ in false },
+            expressUnlockKeySaveOperation: { _, _ in effects.withLock { $0 += 1 } },
+            storedKeyPresenceCheck: { _ in true }, storedKeyStoreOperation: { _, _ in effects.withLock { $0 += 1 } })
+        defer { vm.lock(); pause.resume(); holder.resume() }
+        await vm.unlock(password: fixturePassword)
+        let action = Task { try await vm.changeMasterKey(newPassword: "contended key", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil) }
+        await fulfillment(of: [pause.entered], timeout: 3)
+        let ownsList = Task.detached {
+            defer { holder.finished.fulfill() }
+            try DatabaseListStore.withLocalCacheReference(reference, allowNewReference: false) { try holder.wait() }
+        }
+        await fulfillment(of: [holder.entered], timeout: 2)
+        let start = ContinuousClock.now
+        pause.resume()
+        do { try await action.value; XCTFail("Busy try-list cannot publish") }
+        catch { XCTAssertEqual((error as? SaveAssociationWarning)?.reason, .authorityChanged) }
+        XCTAssertLessThan(start.duration(to: .now), .seconds(1), "A busy list must not fall back to blocking acquisition")
+        await fulfillment(of: [pause.finished], timeout: 0.5)
+        XCTAssertEqual(effects.withLock { $0 }, 0)
+        vm.lock()
+        XCTAssertNil(vm.sessionKey)
+        holder.resume()
+        await fulfillment(of: [holder.finished], timeout: 6)
+        try await ownsList.value
+        XCTAssertNotNil(try PendingLocalSaveStore.recovery(for: reference.id).admission)
+    }
+
+    func testNewUnlockInvalidatesOldRekeyActionBeforeAnyPublicationWorkerIsCreated() async throws {
+        let reference = try DatabaseListStore.add(url: fixtureURL())
+        let gate = InFlightSaveGate()
+        let effects = OSAllocatedUnfairLock(initialState: (io: 0, keys: 0))
+        var io = DatabaseListStore.KeyCommitPublicationIO()
+        io.resolve = { _ in effects.withLock { $0.io += 1 }; return nil }
+        let vm = DatabaseViewModel(databaseReference: reference, keyCommitPublicationIO: io, localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+            let result = try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                newCompositeKey: newKey, encryptionSettings: settings)
+            await gate.parkFirstCall()
+            return result
+        }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in
+            effects.withLock { $0.keys += 1 }
+        }, storedKeyPresenceCheck: { _ in true }, storedKeyStoreOperation: { _, _ in effects.withLock { $0.keys += 1 } })
+        defer { vm.lock() }
+        await vm.unlock(password: fixturePassword)
+        let oldAction = Task { try await vm.changeMasterKey(newPassword: "opened new session", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil) }
+        await gate.firstCallStarted()
+        vm.lock()
+        await vm.unlock(password: "opened new session")
+        XCTAssertEqual(vm.state, .unlocked)
+        let newSessionKey = vm.sessionKey
+        await gate.releaseFirstCall()
+        do { try await oldAction.value; XCTFail("Old action cannot mint a permit for this new session") }
+        catch { XCTAssertEqual((error as? SaveAssociationWarning)?.reason, .authorityChanged) }
+        XCTAssertEqual(effects.withLock { $0.io }, 0)
+        XCTAssertEqual(effects.withLock { $0.keys }, 0)
+        XCTAssertEqual(vm.sessionKey, newSessionKey)
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNotNil(try PendingLocalSaveStore.recovery(for: reference.id).admission)
+    }
+
+    func testClosedKeyPublicationPermitRejectsBeforeProviderWorkerEffects() async throws {
+        let reference = try DatabaseListStore.add(url: fixtureURL())
+        let receipt = OSAllocatedUnfairLock(initialState: Optional<PendingLocalSaveStore.CommitReceipt>.none)
+        let counts = OSAllocatedUnfairLock(initialState: (saver: 0, io: 0, keys: 0))
+        let gate = InFlightSaveGate()
+        let vm = DatabaseViewModel(databaseReference: reference, localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+            counts.withLock { $0.saver += 1 }
+            let result = try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                newCompositeKey: newKey, encryptionSettings: settings)
+            guard case .saved(_, _, let actual) = result else { throw SaveError.saveContextUnavailable }
+            receipt.withLock { $0 = actual }
+            await gate.parkFirstCall()
+            return result
+        }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in },
+            storedKeyPresenceCheck: { _ in false })
+        defer { vm.lock() }
+        await vm.unlock(password: fixturePassword)
+        let action = Task { try await vm.changeMasterKey(newPassword: "closed permit key", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil) }
+        await gate.firstCallStarted()
+        let actual = try XCTUnwrap(receipt.withLock { $0 })
+        let permit = DatabaseListStore.KeyCommitPublicationPermit(actionID: UUID(), lockCycleID: vm.lockCycleID)
+        permit.close()
+        XCTAssertEqual(permit.state, .closed)
+        var io = DatabaseListStore.KeyCommitPublicationIO()
+        io.resolve = { _ in counts.withLock { $0.io += 1 }; return nil }
+        let finished = expectation(description: "closed permit worker joined")
+        let closedIO = io
+        let rejected = Task.detached {
+            defer { finished.fulfill() }
+            try DatabaseListStore.withLocalKeyCommitPublication(for: reference, receipt: actual, permit: permit, io: closedIO) {
+                counts.withLock { $0.keys += 1 }
+            }
+        }
+        await fulfillment(of: [finished], timeout: 3)
+        do { try await rejected.value; XCTFail("Closed permission cannot be claimed") }
+        catch { XCTAssertEqual(error as? PendingLocalSaveStore.OwnershipError, .recoveryRequired) }
+        XCTAssertEqual(counts.withLock { $0.io }, 0)
+        XCTAssertEqual(counts.withLock { $0.keys }, 0)
+        XCTAssertEqual(permit.state, .closed)
+        XCTAssertFalse(permit.claim())
+        await gate.releaseFirstCall()
+        try await action.value
+        XCTAssertEqual(counts.withLock { $0.saver }, 1)
+    }
+
     func testInitialAdmissionWarningCompletesSettingsFormWithoutASecondInvocation() async throws {
         for postAccessor in [false, true] {
             let url = try makeRelinkTarget(copying: fixtureURL())
@@ -9667,4 +9874,23 @@ private actor SaveOutcomeSwitch {
         defer { failNext = false }
         return failNext
     }
+}
+
+private final class KeyPublicationPause: @unchecked Sendable {
+    let entered = XCTestExpectation(description: "publication boundary entered")
+    let finished = XCTestExpectation(description: "publication worker joined")
+    private let proceed = DispatchSemaphore(value: 0)
+    private let entry = OSAllocatedUnfairLock(initialState: Optional<ContinuousClock.Instant>.none)
+    var elapsedSinceEntry: Duration { entry.withLock { $0?.duration(to: .now) ?? .zero } }
+    func wait() throws {
+        let first = entry.withLock { value in
+            guard value == nil else { return false }
+            value = .now
+            return true
+        }
+        guard first else { return }
+        entered.fulfill()
+        guard proceed.wait(timeout: .now() + 5) == .success else { throw CocoaError(.fileReadUnknown) }
+    }
+    func resume() { proceed.signal() }
 }
