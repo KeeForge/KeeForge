@@ -1482,8 +1482,13 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        let vm = DatabaseViewModel(databaseReference: reference)
+        DatabaseListStore.update(reference)
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let vm = diagnosticViewModel(reference, trace: trace)
+        defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.state, .unlocked, trace.summary)
+        XCTAssertNil(vm.pendingUploadMergeFailure, trace.summary)
         let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
         try seedPendingSave(pending, for: reference)
         let changedElsewhere = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "Added In Another App")) }
@@ -1494,7 +1499,7 @@ final class PendingLocalSaveTests: XCTestCase {
         XCTAssertEqual(result, .fileChangedSinceOpen)
         XCTAssertEqual(try Data(contentsOf: databaseURL), changedElsewhere, "The file moved on since this session opened it")
         XCTAssertEqual(PendingLocalSaveStore.saves(for: reference.id).count, 1)
-        XCTAssertNil(vm.pendingUploadMergeFailure)
+        XCTAssertNil(vm.pendingUploadMergeFailure, trace.summary)
         XCTAssertNil(vm.saveConflict)
         XCTAssertFalse(vm.isSaving)
         XCTAssertFalse(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)).contains("New Passkey"))
