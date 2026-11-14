@@ -258,7 +258,7 @@ final class PendingLocalSaveTests: XCTestCase {
                 XCTAssertNotNil(try PendingLocalSaveStore.recovery(for: reference.id).retirementID)
             default: DatabaseListStore.remove(id: reference.id)
             }
-            let registry = AppGroupContainer.url.appendingPathComponent("Library/Application Support/database-list.json")
+            let registry = AppGroupContainer.url.appendingPathComponent("database-list.json")
             let registryBefore = try Data(contentsOf: registry)
             let cacheBefore: Data?
             if mode == "removal" {

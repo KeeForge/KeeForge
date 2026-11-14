@@ -997,7 +997,7 @@ final class DatabaseListStoreTests: XCTestCase {
             try FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
             let oldCache = Data("unchanged encrypted-cache fixture".utf8)
             try oldCache.write(to: cache, options: .atomicProtected)
-            let registry = AppGroupContainer.url.appendingPathComponent("Library/Application Support/database-list.json")
+            let registry = AppGroupContainer.url.appendingPathComponent("database-list.json")
             let owner = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(reference.id.uuidString)")
             let registryBefore = try Data(contentsOf: registry)
             XCTAssertFalse(FileManager.default.fileExists(atPath: owner.path))
