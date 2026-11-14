@@ -317,15 +317,19 @@ final class DatabaseListViewModelTests: XCTestCase {
         let database = DatabaseViewModel(databaseReference: reference, localSaveOperation: { draft, ref, key, hash, reconciled, newKey, settings in
             if newKey != nil { effects.withLock { $0.rekeys += 1 } }
             var environment = live
+            environment.localPublicationFailure = { stage, error in
+                TestDatabaseSupport.reportLocalPublicationFailure("preference-" + stage, error, reference: ref)
+            }
             environment.encryptDraft = { draft, key, header, policy in
                 effects.withLock { $0.encryptions += 1 }; return try live.encryptDraft(draft, key, header, policy)
             }
-            if denyTargetDirectorySync {
-                environment.replaceFileAtomically = { data, target, baseline, authorization in
-                    var io = LocalDatabaseSaver.ReplacementIO()
-                    io.synchronize = { _ in throw POSIXError(.EACCES) }
-                    return try LocalDatabaseSaver.replaceFileAtomically(data, at: target, expectedSHA512: baseline, authorization: authorization, io: io)
+            environment.replaceFileAtomically = { data, target, baseline, authorization in
+                var io = LocalDatabaseSaver.ReplacementIO()
+                io.observedFailure = { stage, error in
+                    TestDatabaseSupport.reportLocalPublicationFailure("preference-replacement-" + stage, error, reference: ref)
                 }
+                if denyTargetDirectorySync { io.synchronize = { _ in throw POSIXError(.EACCES) } }
+                return try LocalDatabaseSaver.replaceFileAtomically(data, at: target, expectedSHA512: baseline, authorization: authorization, io: io)
             }
             return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
                 openTimeSHA512: hash, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,

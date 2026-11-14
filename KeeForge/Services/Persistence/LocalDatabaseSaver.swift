@@ -1148,6 +1148,7 @@ enum LocalDatabaseSaver {
             if let coordinatorError { throw coordinatorError }
             try io.coordinationCompletion()
         } catch {
+            io.observedFailure("coordination-completion", error)
             if case .success(let outcome)? = result { return finalize(outcome, coordinationFailed: true) }
             if enteredReplacement { return .indeterminate }
             throw LocalSaveBeforeReplacementFailure(underlying: error)
