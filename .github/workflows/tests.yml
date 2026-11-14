@@ -129,7 +129,7 @@ jobs:
     # KeeForge.icon Icon Composer bundle for macOS. macos-26 ships Xcode 26.6,
     # the version Xcode Cloud builds the Mac archive with.
     runs-on: macos-26
-    timeout-minutes: 75
+    timeout-minutes: 90
     env:
       SCHEME: KeeForgeMac
       PROJECT: KeeForge.xcodeproj
