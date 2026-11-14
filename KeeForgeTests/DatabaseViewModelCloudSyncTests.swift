@@ -789,6 +789,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
     func testCancelUnlockAttemptIsRefusedWhileSyncNowReplacesTheTree() async throws {
         let vm = try await makeViewModelParsingANewerCopy()
         let trigger = triggerWhenParsing(vm) {
+            XCTAssertFalse(vm.canCancelUnlockAttempt)
             XCTAssertFalse(vm.cancelUnlockAttempt())
         }
 

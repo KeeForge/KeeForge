@@ -913,11 +913,17 @@ final class DatabaseViewModel {
         hardwareKeyTask?.cancel()
     }
 
+    /// An open is running that `cancelUnlockAttempt` would end; a reload or
+    /// Sync Now replacing the open tree is not one.
+    var canCancelUnlockAttempt: Bool {
+        state == .unlocking && isReplacingOpenDatabase == false && activeUnlockAttempt != nil
+    }
+
     /// Ends the open in progress (cloud read, KDF, biometric prompt or its
     /// prefetch) as a manual lock; the attempt's late result is dropped.
     @discardableResult
     func cancelUnlockAttempt() -> Bool {
-        guard state == .unlocking, isReplacingOpenDatabase == false, activeUnlockAttempt != nil else { return false }
+        guard canCancelUnlockAttempt else { return false }
         lock(manuallyTriggered: true)
         return true
     }
@@ -1042,6 +1048,13 @@ final class DatabaseViewModel {
             return
         }
         databaseReference = relinkedReference
+        canRemoveMissingDocumentsFile = false
+        state = .locked
+    }
+
+    /// Leaves an open failure for the unlock form, so the next attempt starts there.
+    func dismissOpenFailure() {
+        guard openFailure != nil else { return }
         canRemoveMissingDocumentsFile = false
         state = .locked
     }

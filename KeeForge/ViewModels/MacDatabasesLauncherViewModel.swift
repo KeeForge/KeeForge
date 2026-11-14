@@ -195,14 +195,13 @@ final class MacDatabasesLauncherViewModel {
 
     static func row(for reference: DatabaseReference, status: DatabaseRowStatus, isUnlocked: Bool,
                     lastOpened: String?) -> Row {
-        let location = reference.cloudProviderKind?.displayName ?? String(localized: "On This Mac")
         let summary = DatabaseRowStatusSummary(isReadOnly: reference.isReadOnly, isQuickLaunch: reference.isQuickLaunch,
             status: status)
         let detail = summary.notices.first.map { Row.Detail.problem($0.text) } ?? lastOpened.map(Row.Detail.lastOpened)
         return Row(
             id: reference.id,
             title: reference.displayName,
-            subtitle: [reference.filename, location].joined(separator: MacDatabaseStatus.separator),
+            subtitle: MacLockedDatabaseSummary.fileAndStorage(for: reference),
             storage: reference.isCloudBacked ? .server : .thisMac,
             detail: detail,
             isUnlocked: isUnlocked,

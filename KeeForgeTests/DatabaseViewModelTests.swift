@@ -217,11 +217,13 @@ final class DatabaseViewModelTests: XCTestCase {
         let unlock = Task { await vm.unlock(password: fixturePassword) }
         await gate.waitUntilHeld()
         XCTAssertState(vm.state, is: .unlocking)
+        XCTAssertTrue(vm.canCancelUnlockAttempt)
         let cycle = vm.lockCycleID
 
         XCTAssertTrue(vm.cancelUnlockAttempt())
 
         XCTAssertState(vm.state, is: .locked)
+        XCTAssertFalse(vm.canCancelUnlockAttempt)
         XCTAssertTrue(vm.didManuallyLock)
         XCTAssertEqual(vm.lockCycleID, cycle + 1)
         XCTAssertNil(vm.lastLockCause, "A session that never opened has no lock cause")
@@ -239,6 +241,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testCancelUnlockAttemptIsRefusedUnlessAnOpenIsRunning() async throws {
         let vm = try makeViewModel()
 
+        XCTAssertFalse(vm.canCancelUnlockAttempt)
         XCTAssertFalse(vm.cancelUnlockAttempt())
         XCTAssertFalse(vm.didManuallyLock)
         XCTAssertEqual(vm.lockCycleID, 0)
@@ -250,8 +253,29 @@ final class DatabaseViewModelTests: XCTestCase {
 
         await vm.unlock(password: "wrong")
         XCTAssertNotNil(vm.openFailure)
+        XCTAssertFalse(vm.canCancelUnlockAttempt)
         XCTAssertFalse(vm.cancelUnlockAttempt())
         XCTAssertNotNil(vm.openFailure)
+    }
+
+    func testDismissOpenFailureReturnsToTheFormOnlyFromAFailure() async throws {
+        let vm = try makeViewModel()
+        let cycle = vm.lockCycleID
+
+        vm.dismissOpenFailure()
+        XCTAssertState(vm.state, is: .locked)
+
+        await vm.unlock(password: "wrong")
+        XCTAssertNotNil(vm.openFailure)
+        vm.dismissOpenFailure()
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.openFailure)
+        XCTAssertEqual(vm.failedAttempts, 1, "Leaving the failure does not forgive the attempt")
+        XCTAssertEqual(vm.lockCycleID, cycle)
+
+        await vm.unlock(password: fixturePassword)
+        vm.dismissOpenFailure()
+        XCTAssertState(vm.state, is: .unlocked)
     }
 
     /// A biometric prompt answered after Cancel must not unlock either.
