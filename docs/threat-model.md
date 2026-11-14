@@ -280,3 +280,8 @@ workers separately report observed no-claim termination; a timeout, cancellation
 or claimed effect cannot be treated as that proof to reopen AutoFill actions.
 Session factors are applied before the unlock publication await, and later work
 requires the same action identity even when a concurrent rekey keeps the lock cycle.
+
+An early session update from a known local rekey receipt does not advance the
+registry observation used to remove legacy metadata. Cleanup uses the captured
+pre-save observation with the existing field CAS after the fenced Keychain effect;
+a later registry change can reject cleanup without undoing or repeating that effect.

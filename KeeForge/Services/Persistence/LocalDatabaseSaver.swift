@@ -366,11 +366,18 @@ enum LocalDatabaseSaver {
                 encryptionSettings: encryptionSettings,
                 environment: environment,
                 authorization: authorization
-            ) } catch let failure as LocalSaveBeforeReplacementFailure { throw failure }
+            ) } catch let failure as LocalSaveBeforeReplacementFailure {
+                environment.localPublicationFailure("save-before-replacement", failure.underlying)
+                throw failure
+            }
             catch let failure as PendingLocalSaveStore.AdmissionPublicationFailure {
+                environment.localPublicationFailure("save-admission-publication", failure)
                 throw LocalSaveBeforeReplacementFailure(underlying: SavePreReplacementRecoveryWarning(token: failure.token))
             }
-            catch { throw LocalSaveBeforeReplacementFailure(underlying: error) }
+            catch {
+                environment.localPublicationFailure("save-preparation", error)
+                throw LocalSaveBeforeReplacementFailure(underlying: error)
+            }
         }.value
     }
 
@@ -507,8 +514,10 @@ enum LocalDatabaseSaver {
                 localCommit = receipt; unconfirmed = true; warningScope = .recoveryRecord
             }
             if ordinaryToken != nil, !unconfirmed {
-                let completion = localCommit.map { completePendingMerge($0, reference: reference, io: environment.pendingLocalStorageIO) }
-                    ?? .retainedForRecovery
+                let completion = $scopedOriginalLocation.withValue(location) {
+                    localCommit.map { completePendingMerge($0, reference: reference, io: environment.pendingLocalStorageIO) }
+                        ?? .retainedForRecovery
+                }
                 if completion != .resolved { unconfirmed = true; warningScope = .recoveryRecord }
             }
             if ordinaryToken != nil, unconfirmed, let localCommit {
@@ -918,7 +927,8 @@ enum LocalDatabaseSaver {
     private static func withOriginalScope<T>(
         _ reference: DatabaseReference, scopeIO: SecurityScopeIO = .init(), _ body: (ResolvedLocation) throws -> T
     ) throws -> T {
-        guard let location = resolveLocation(for: reference, renewBookmark: false), !location.awaitsWriteBack else { throw SaveError.databaseLocationUnavailable }
+        guard let location = scopedOriginalLocation ?? resolveLocation(for: reference, renewBookmark: false),
+              !location.awaitsWriteBack else { throw SaveError.databaseLocationUnavailable }
         let access = location.usesSecurityScope && scopeIO.begin(location.url)
         defer { if access { scopeIO.end(location.url) } }
         return try body(location)

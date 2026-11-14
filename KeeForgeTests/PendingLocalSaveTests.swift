@@ -1003,7 +1003,9 @@ final class PendingLocalSaveTests: XCTestCase {
         let mergeable = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
         try seedPendingSave(diverged, for: reference, now: Date(timeIntervalSince1970: 1_800_000_000))
         try seedAcceptedSource(mergeable, for: reference.id, now: Date(timeIntervalSince1970: 1_800_000_060))
-        let vm = DatabaseViewModel(databaseReference: reference)
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let vm = diagnosticViewModel(reference, trace: trace)
+        defer { vm.lock() }
 
         await vm.unlock(password: fixturePassword)
 
@@ -1020,7 +1022,8 @@ final class PendingLocalSaveTests: XCTestCase {
         XCTAssertFalse(titles.contains("Entry With Attachment"))
         XCTAssertEqual(
             try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)),
-            try Data(contentsOf: databaseURL)
+            try Data(contentsOf: databaseURL),
+            "diverged-cache-byte-comparison boundaries=" + trace.summary
         )
     }
 
@@ -1094,18 +1097,25 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        let vm = DatabaseViewModel(databaseReference: reference)
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let vm = diagnosticViewModel(reference, trace: trace)
+        defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
         let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
         try seedPendingSave(pending, for: reference)
 
         DatabaseListStore.update(vm.databaseReference)
-        try await vm.changeMasterKey(
-            newPassword: "rotated-master",
-            newKeyFileData: nil,
-            newKeyFileBookmarkData: nil,
-            newKeyFileFilename: nil
-        )
+        do {
+            try await vm.changeMasterKey(
+                newPassword: "rotated-master",
+                newKeyFileData: nil,
+                newKeyFileBookmarkData: nil,
+                newKeyFileFilename: nil
+            )
+        } catch {
+            XCTFail(trace.failure(error, at: "pending-rekey"))
+            throw error
+        }
 
         let rekeyed = try Data(contentsOf: databaseURL)
         let reopened = try KDBXParser.parse(data: rekeyed, password: "rotated-master", sessionKey: SymmetricKey(size: .bits256))
@@ -1121,7 +1131,9 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        let vm = DatabaseViewModel(databaseReference: reference)
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let vm = diagnosticViewModel(reference, trace: trace)
+        defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
         let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
         try seedPendingSave(pending, for: reference)
@@ -1130,7 +1142,7 @@ final class PendingLocalSaveTests: XCTestCase {
 
         do {
             DatabaseListStore.update(vm.databaseReference)
-        try await vm.changeMasterKey(
+            try await vm.changeMasterKey(
                 newPassword: "rotated-master",
                 newKeyFileData: nil,
                 newKeyFileBookmarkData: nil,
@@ -1141,7 +1153,7 @@ final class PendingLocalSaveTests: XCTestCase {
             // Not `pendingUploadsExist`: its message tells the user to wait
             // for syncing, and no amount of waiting moves this session's
             // baseline past the change another app made.
-            XCTAssertEqual(error as? DatabaseViewModel.RekeyError, .conflict)
+            XCTAssertEqual(error as? DatabaseViewModel.RekeyError, .conflict, trace.failure(error, at: "pending-conflict-rekey"))
             XCTAssertEqual(
                 MasterKeyChangeViewModel.message(for: error),
                 String(localized: "The database file changed since it was opened. Reload the database and try again.")
@@ -1153,22 +1165,27 @@ final class PendingLocalSaveTests: XCTestCase {
 
         // Following that message works: the reload takes the other app's
         // change as the baseline, and the retry merges the save and rekeys.
-        try await vm.reloadDiscardingDraft()
-        DatabaseListStore.update(vm.databaseReference)
-        try await vm.changeMasterKey(
-            newPassword: "rotated-master",
-            newKeyFileData: nil,
-            newKeyFileBookmarkData: nil,
-            newKeyFileFilename: nil
-        )
+        do {
+            try await vm.reloadDiscardingDraft()
+            DatabaseListStore.update(vm.databaseReference)
+            try await vm.changeMasterKey(
+                newPassword: "rotated-master",
+                newKeyFileData: nil,
+                newKeyFileBookmarkData: nil,
+                newKeyFileFilename: nil
+            )
 
-        let reopened = try KDBXParser.parse(
-            data: try Data(contentsOf: databaseURL), password: "rotated-master", sessionKey: SymmetricKey(size: .bits256)
-        )
-        let titles = allEntryTitles(in: reopened)
-        XCTAssertTrue(titles.contains("New Passkey"))
-        XCTAssertTrue(titles.contains("Added In Another App"))
-        XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
+            let reopened = try KDBXParser.parse(
+                data: try Data(contentsOf: databaseURL), password: "rotated-master", sessionKey: SymmetricKey(size: .bits256)
+            )
+            let titles = allEntryTitles(in: reopened)
+            XCTAssertTrue(titles.contains("New Passkey"))
+            XCTAssertTrue(titles.contains("Added In Another App"))
+            XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
+        } catch {
+            XCTFail(trace.failure(error, at: "pending-reload-and-retry"))
+            throw error
+        }
     }
 
     func testChangingTheMasterKeyOffersRecoveryForAnUnknownPendingMergeOutcome() async throws {
@@ -1187,7 +1204,7 @@ final class PendingLocalSaveTests: XCTestCase {
 
         do {
             DatabaseListStore.update(vm.databaseReference)
-        try await vm.changeMasterKey(
+            try await vm.changeMasterKey(
                 newPassword: "rotated-master",
                 newKeyFileData: nil,
                 newKeyFileBookmarkData: nil,
@@ -1297,6 +1314,23 @@ final class PendingLocalSaveTests: XCTestCase {
     private func seedPendingSave(_ data: Data, for reference: DatabaseReference, now: Date = .now) throws {
         DatabaseListStore.update(reference)
         _ = try seedAcceptedSource(data, for: reference.id, now: now, masterKeyChangedAt: reference.lastMasterKeyChangeAt)
+    }
+
+    private func diagnosticViewModel(_ reference: DatabaseReference, trace: TestDatabaseSupport.LocalPublicationTrace) -> DatabaseViewModel {
+        DatabaseViewModel(databaseReference: reference, localPublicationFailure: { trace.record($0, $1) },
+            localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+                var environment = LocalDatabaseSaver.Environment.live
+                environment.localPublicationFailure = { trace.record($0, $1) }
+                environment.replaceFileAtomically = { bytes, target, baseline, authorization in
+                    var io = LocalDatabaseSaver.ReplacementIO()
+                    io.observedFailure = { trace.record("replacement-" + $0, $1) }
+                    return try LocalDatabaseSaver.replaceFileAtomically(bytes, at: target, expectedSHA512: baseline,
+                        authorization: authorization, io: io)
+                }
+                return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                    openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                    newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+            })
     }
 
     private func makeDirtySaveContext(data: Data, entryTitle: String) throws -> SaveContext {

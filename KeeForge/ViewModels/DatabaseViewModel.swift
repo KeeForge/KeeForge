@@ -2837,6 +2837,7 @@ final class DatabaseViewModel {
         }
 
         try await refreshSameEpochKeyFilePreference()
+        let legacyCleanupReference = databaseReference
         let saveResult: SaveResult
         do {
             switch databaseReference.source {
@@ -2917,13 +2918,16 @@ final class DatabaseViewModel {
                 do {
                     publication = try await publishLocalKeyCommit(reference: expected, receipt: localCommit, actionID: actionID,
                         cleanup: { result in
-                            if result.hadStoredKey { _ = DatabaseListStore.clearLegacyKeychainFilename(for: expected) }
+                            if result.hadStoredKey { _ = DatabaseListStore.clearLegacyKeychainFilename(for: legacyCleanupReference) }
                         }) {
                             saveExpressKey(nil, expected)
                             return Self.refreshStoredCompositeKeyItemsAfterRekey(newCompositeKey, reference: expected,
                                 hasStoredKey: hasStoredKey, storeKey: storeKey, deleteKey: deleteKey)
                         }
-                } catch { throw SaveAssociationWarning(reason: .authorityChanged) }
+                } catch {
+                    localPublicationFailure("rekey-key-publication", error)
+                    throw SaveAssociationWarning(reason: .authorityChanged)
+                }
                 storedNewKey = publication.stored
             }
             let associationSaved: Bool
@@ -2946,7 +2950,10 @@ final class DatabaseViewModel {
                 let current = refreshed ?? ref
                 do {
                     _ = try await publishLocalKeyCommit(reference: current, receipt: localCommit, actionID: actionID) { true }
-                } catch { throw SaveAssociationWarning(reason: .authorityChanged) }
+                } catch {
+                    localPublicationFailure("rekey-post-association-authority", error)
+                    throw SaveAssociationWarning(reason: .authorityChanged)
+                }
                 databaseReference = current
                 databaseReference.keyFileBookmarkData = association.bookmarkData
                 databaseReference.keyFileFilename = association.filename
@@ -3583,6 +3590,7 @@ final class DatabaseViewModel {
             }
             pendingSaves = loaded.1
         } catch {
+            localPublicationFailure("merge-owner-load", error)
             if expectedLockCycleID == lockCycleID { pendingUploadMergeFailure = .localSourceRecovery }
             return .settledOrDeferred
         }
@@ -3638,13 +3646,16 @@ final class DatabaseViewModel {
             let storageIO = pendingLocalStorageIO
             let receipts = mergedReceipts
             let token: PendingLocalSaveStore.Token
+            var admissionPhase = "merge-target-capture"
             do {
                 let target = try await Task.detached { try LocalDatabaseSaver.captureTarget(for: reference) }.value
+                admissionPhase = "merge-admission"
                 token = try await Task.detached {
                     try PendingLocalSaveStore.admit(receipts, for: reference.id, target: target,
                         baseline: openTimeSHA512, masterKeyChangedAt: reference.lastMasterKeyChangeAt, io: storageIO)
                 }.value
             } catch {
+                localPublicationFailure(admissionPhase, error)
                 if expectedLockCycleID == lockCycleID { pendingUploadMergeFailure = .localSourceRecovery }
                 return .settledOrDeferred
             }
@@ -3717,14 +3728,22 @@ final class DatabaseViewModel {
         // The unlock and the saver left the shared copy alone while saves were
         // pending. Bring it up to the file, unless another AutoFill save has
         // arrived in the meantime.
+        let failure = localPublicationFailure
         await Task.detached(priority: .userInitiated) {
-            guard PendingLocalSaveStore.hasSaves(for: reference.id) == false,
-                  let lease = try? PendingLocalSaveStore.captureCacheReadLease(for: reference),
-                  let url = DatabaseListStore.resolveDatabaseURL(for: reference),
-                  let data = try? Self.readSecurityScopedData(from: url) else {
-                return
-            }
-            try? LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, lease: lease)
+            guard PendingLocalSaveStore.hasSaves(for: reference.id) == false else { return }
+            var stage = "lease"
+            do {
+                var lease = try PendingLocalSaveStore.captureCacheReadLease(for: reference)
+                stage = "location"
+                guard let url = DatabaseListStore.resolveDatabaseURL(for: reference,
+                    onBookmarkRenewal: { lease.bookmarkRenewal = $0 }) else { throw SaveError.databaseLocationUnavailable }
+                stage = "read"
+                let data = try Self.readSecurityScopedData(from: url)
+                let renewed = lease.bookmarkRenewal != nil
+                try LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, lease: lease, onFailure: { phase, _ in
+                    stage = "cache-" + phase.rawValue + (renewed ? "-renewed" : "-original")
+                })
+            } catch { failure("merge-tail-" + stage, error) }
         }.value
         return .settledOrDeferred
     }
@@ -4931,7 +4950,10 @@ final class DatabaseViewModel {
         guard !databaseReference.isCloudBacked else { return }
         let cycle = lockCycleID
         let reference = databaseReference
-        let preference = try await Task.detached { try DatabaseListStore.currentSameEpochPreference(for: reference) }.value
+        let failure = localPublicationFailure
+        let preference = try await Task.detached {
+            try DatabaseListStore.currentSameEpochPreference(for: reference, onFailure: failure)
+        }.value
         guard cycle == lockCycleID, case .unlocked = state,
               databaseReference.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else { throw CancellationError() }
         databaseReference.keyFileBookmarkData = preference.bookmarkData

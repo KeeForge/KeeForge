@@ -523,36 +523,50 @@ enum DatabaseListStore {
         }
     }
 
-    static func currentSameEpochPreference(for reference: DatabaseReference) throws -> PendingLocalSaveStore.KeyFilePreference {
-        let owner = try PendingLocalSaveStore.recovery(for: reference.id)
-        guard !owner.ownerUnavailable, !owner.isRevoked else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
-        if owner.keyEvidence == nil {
-            guard let current = databases.first(where: { $0.id == reference.id }) else { return PendingLocalSaveStore.KeyFilePreference(reference) }
-            let preference = PendingLocalSaveStore.KeyFilePreference(current)
-            guard PendingLocalSaveStore.PreferenceObservation(reference).matches(current, preference: preference) else {
-                throw PendingLocalSaveStore.OwnershipError.sourceChanged
-            }
-            return preference
-        }
-        return try withStateLock {
-            var error: NSError?
-            var result: Result<PendingLocalSaveStore.KeyFilePreference, Error>?
-            NSFileCoordinator().coordinate(readingItemAt: databaseListURL, options: [], error: &error) { url in
-                result = Result {
-                    let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: url))
-                    guard let current = references.first(where: { $0.id == reference.id }),
-                          PendingLocalSaveStore.PreferenceObservation(reference).matches(current,
-                              preference: PendingLocalSaveStore.KeyFilePreference(current)) else {
-                        throw PendingLocalSaveStore.OwnershipError.sourceChanged
-                    }
-                    try PendingLocalSaveStore.validateReferenceAssociation(current)
-                    return PendingLocalSaveStore.KeyFilePreference(current)
+    static func currentSameEpochPreference(for reference: DatabaseReference,
+        onFailure: (String, Error) -> Void = { _, _ in }
+    ) throws -> PendingLocalSaveStore.KeyFilePreference {
+        var phase = "same-epoch-owner"
+        do {
+            let owner = try PendingLocalSaveStore.recovery(for: reference.id)
+            guard !owner.ownerUnavailable, !owner.isRevoked else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+            if owner.keyEvidence == nil {
+                phase = "same-epoch-reference"
+                guard let current = databases.first(where: { $0.id == reference.id }) else { return PendingLocalSaveStore.KeyFilePreference(reference) }
+                let preference = PendingLocalSaveStore.KeyFilePreference(current)
+                guard PendingLocalSaveStore.PreferenceObservation(reference).matches(current, preference: preference) else {
+                    throw PendingLocalSaveStore.OwnershipError.sourceChanged
                 }
+                return preference
             }
-            if let error { throw error }
-            guard let result else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
-            return try result.get()
-        }
+            phase = "same-epoch-registry"
+            return try withStateLock {
+                var error: NSError?
+                var result: Result<PendingLocalSaveStore.KeyFilePreference, Error>?
+                NSFileCoordinator().coordinate(readingItemAt: databaseListURL, options: [], error: &error) { url in
+                    result = Result {
+                        let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: url))
+                        guard let current = references.first(where: { $0.id == reference.id }),
+                              PendingLocalSaveStore.PreferenceObservation(reference).matches(current,
+                                  preference: PendingLocalSaveStore.KeyFilePreference(current)) else {
+                            throw PendingLocalSaveStore.OwnershipError.sourceChanged
+                        }
+                        try PendingLocalSaveStore.validateReferenceAssociation(current)
+                        return PendingLocalSaveStore.KeyFilePreference(current)
+                    }
+                }
+                if let error {
+                    switch result {
+                    case .success?: phase = "same-epoch-coordination-after-success"
+                    case .failure?: phase = "same-epoch-coordination-after-failure"
+                    case nil: phase = "same-epoch-coordination-before-accessor"
+                    }
+                    throw error
+                }
+                guard let result else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+                return try result.get()
+            }
+        } catch { onFailure(phase, error); throw error }
     }
 
     static func publishRegistryKeyFilePreference(

@@ -396,3 +396,17 @@ retirement, cache refresh and stale-cache invalidation, without renewing it duri
 the transition. The original-file coordination is released before cache publication
 takes registry authority. Injected scope-lifetime observations exercise this order
 with real storage; signed external-file sandbox grants remain device validation.
+
+During an ordinary save, completion observes the already granted resolved location
+of that same operation rather than choosing another location through a new bookmark
+resolution. A pending-merge follow-up read preserves only an actual durable renewal
+receipt from its own resolver; all source, epoch, target and reference guards still
+apply. Read-only replacement errors after entry can remain indeterminate with intact
+observable bytes and a retained admission: permission error types alone are not
+affirmative proof that replacement never happened, and a retry cannot encrypt again.
+
+Known rekey factors may reach the originating session before registry publication.
+Legacy metadata cleanup still compares its captured pre-save registry observation
+after the authorized Keychain effect, never the already updated RAM factors/date.
+The comparison may fail honestly after a concurrent change; it does not adopt that
+change or remove a newer alias.

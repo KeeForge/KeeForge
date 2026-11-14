@@ -1372,8 +1372,10 @@ final class LocalDatabaseSaverTests: XCTestCase {
         try FileManager.default.moveItem(at: old, to: moved)
         let context = try makeDirtySaveContext(databaseURL: moved, entryTitle: "Installed Once After Move")
         let counts = OSAllocatedUnfairLock(initialState: (encryptions: 0, replacements: 0, renewals: 0))
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
         let live = LocalDatabaseSaver.Environment.live
         var environment = live
+        environment.localPublicationFailure = { trace.record($0, $1) }
         environment.resolveLocation = { ref in
             guard case .available(let url)? = DatabaseListStore.locateDatabaseFile(for: ref,
                 resolveBookmark: { _ in (moved, true) }, renewBookmark: false,
@@ -1386,11 +1388,17 @@ final class LocalDatabaseSaverTests: XCTestCase {
         }
         environment.replaceFileAtomically = { data, url, baseline, authorization in
             counts.withLock { $0.replacements += 1 }
-            return try live.replaceFileAtomically(data, url, baseline, authorization)
+            var io = LocalDatabaseSaver.ReplacementIO()
+            io.observedFailure = { trace.record("replacement-" + $0, $1) }
+            return try LocalDatabaseSaver.replaceFileAtomically(data, at: url, expectedSHA512: baseline,
+                authorization: authorization, io: io)
         }
         let result = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference,
             compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512, environment: environment)
-        guard case .saved(let sha, _, let receipt) = result else { return XCTFail("Expected a known durable save; actual=\(saveOutcomeDescription(result))") }
+        guard case .saved(let sha, _, let receipt) = result else {
+            let effects = counts.withLock { $0 }
+            return XCTFail("Expected a known durable save; actual=\(saveOutcomeDescription(result)) crypto=\(effects.encryptions) replace=\(effects.replacements) renewals=\(effects.renewals) capturedTargetExists=\(FileManager.default.fileExists(atPath: moved.path)) boundaries=\(trace.summary)")
+        }
         let installed = try Data(contentsOf: moved)
         XCTAssertEqual(sha, FileDigest.sha512(installed))
         XCTAssertEqual(receipt?.encryptedSnapshot, installed)

@@ -226,12 +226,15 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertNotNil(viewModel.preparedDatabase)
         let prepared = try XCTUnwrap(viewModel.preparedDatabase)
         let destinationURL = try makeTemporaryFileURL(name: "Exported.kdbx", contents: Data())
-        XCTAssertThrowsError(try viewModel.completeExport(to: destinationURL)) { error in
-            XCTAssertEqual(error as? PendingLocalSaveStore.OwnershipError, .targetChanged)
+        for foreignBytes in [Data(), Data("another exported file".utf8)] {
+            try CoordinatedFileReader.writeData(foreignBytes, to: destinationURL, options: .atomicProtected)
+            XCTAssertThrowsError(try viewModel.completeExport(to: destinationURL)) { error in
+                XCTAssertEqual(error as? PendingLocalSaveStore.OwnershipError, .targetChanged)
+            }
+            XCTAssertEqual(viewModel.preparedDatabase?.encryptedBytes, prepared.encryptedBytes)
+            XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+            XCTAssertEqual(try Data(contentsOf: destinationURL), foreignBytes)
         }
-        XCTAssertNotNil(viewModel.preparedDatabase)
-        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
-        XCTAssertEqual(try Data(contentsOf: destinationURL), Data())
         let unregistered = try TestDatabaseSupport.makeReference(for: destinationURL, id: prepared.id)
         XCTAssertFalse(FileManager.default.fileExists(atPath: DatabaseListStore.cacheLocation(for: unregistered).path))
         try CoordinatedFileReader.writeData(prepared.encryptedBytes, to: destinationURL, options: .atomicProtected)

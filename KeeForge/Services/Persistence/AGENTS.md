@@ -104,3 +104,5 @@
 - A known write’s cache refresh or invalidation uses its exact installed target identity and ciphertext receipt while retaining registry/owner/source guards. The actual bookmark grant remains held through pending-source retirement and cache refresh/invalidation; a canonical receipt URL is identity evidence, never a security grant. Resolution does not renew a bookmark during this transition. An unknown outcome has no such authority.
 
 - Publication permits distinguish observed worker completion without claim from a pending or claimed effect. Only confirmed no-claim completion can release a transient UI latch; timeout or closing permission alone never proves worker termination.
+
+- Ordinary completion inside a live save reuses that operation’s already granted resolved location before any new bookmark resolution. Its receipt still must prove the actual installed identity and bytes. Diagnostics distinguish an outer coordination error after an accessor result from accessor failure; observers run after registry/owner resource release and do not change outcomes.

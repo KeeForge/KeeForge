@@ -3,9 +3,35 @@ import XCTest
 @testable import KeeForge
 
 enum TestDatabaseSupport {
+    final class LocalPublicationTrace: @unchecked Sendable {
+        private let lock = NSLock()
+        private var observations: [String] = []
+        func record(_ phase: String, _ error: Error) {
+            let value = Self.describe(error, phase: phase)
+            lock.lock(); defer { lock.unlock() }
+            observations.append(value)
+        }
+        var summary: String { lock.lock(); defer { lock.unlock() }; return observations.joined(separator: ",") }
+        func failure(_ error: Error, at phase: String) -> String {
+            let escaped = Self.describe(error, phase: phase)
+            lock.lock(); defer { lock.unlock() }
+            return escaped + "; boundaries=" + observations.joined(separator: ",")
+        }
+        private static func describe(_ error: Error, phase: String) -> String {
+            if let failure = error as? LocalSaveBeforeReplacementFailure {
+                return phase + "=LocalSaveBeforeReplacementFailure; " + describe(failure.underlying, phase: "underlying")
+            }
+            let value = error as NSError
+            let cause = (error as? PendingLocalSaveStore.OwnershipError).map { String(describing: $0) }
+                ?? "\(value.domain):\(value.code)"
+            let nested = (value.userInfo[NSUnderlyingErrorKey] as? NSError).map { "; underlying=\($0.domain):\($0.code)" } ?? ""
+            return phase + "=" + cause + nested
+        }
+    }
+
     static func reportLocalPublicationFailure(_ stage: String, _ error: Error, reference: DatabaseReference,
         file: StaticString = #filePath, line: UInt = #line) {
-        if stage.hasPrefix("read-key") {
+        if stage.hasPrefix("read-key") || stage.hasPrefix("rekey-") {
             let cause = (error as? PendingLocalSaveStore.OwnershipError).map { String(describing: $0) }
                 ?? "\((error as NSError).domain):\((error as NSError).code)"
             XCTFail("Local publication rejected stage=\(stage) cause=\(cause); registry observation omitted while another accessor may own it", file: file, line: line)

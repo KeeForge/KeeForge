@@ -6937,35 +6937,49 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testSettledExternalSameKeyConflictUsesExistingMergeReloadAndSaveWithoutAdoption() async throws {
-        let setup = try await makeLocalInteropSetup()
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let setup = try await makeLocalInteropSetup(trace: trace)
         defer { setup.vm.lock() }
-        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
-            draft: EntryDraftPayload(title: "Local Before Merge", password: "local")))
-        try await writeSameKeyExternalChange(setup, title: "External Before Merge")
-        try await setup.vm.save()
-        XCTAssertEqual(setup.vm.saveConflict?.requiresLocalRecovery, false)
-        try await setup.vm.mergeAndSave()
-        XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "Local Before Merge" } == true)
-        XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "External Before Merge" } == true)
-        XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).keyEvidence)
-        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
-            draft: EntryDraftPayload(title: "Deliberately Discard This Draft", password: "discard")))
-        try await writeSameKeyExternalChange(setup, title: "External Before Reload")
-        try await setup.vm.save()
-        XCTAssertEqual(setup.vm.saveConflict?.requiresLocalRecovery, false)
-        try await setup.vm.reloadDiscardingDraft()
-        XCTAssertFalse(setup.vm.isDirty)
-        XCTAssertFalse(setup.vm.rootGroup?.allEntries.contains { $0.title == "Deliberately Discard This Draft" } == true)
-        XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "External Before Reload" } == true)
-        try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
-            draft: EntryDraftPayload(title: "Explicit After Reload", password: "save")))
-        try await setup.vm.save()
-        let parsed = try KDBXParser.parse(data: Data(contentsOf: setup.url), compositeKey: XCTUnwrap(setup.vm.compositeKey),
-            sessionKey: XCTUnwrap(setup.vm.sessionKey), kdfPolicy: .mainApp)
-        XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "Explicit After Reload" })
-        XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "External Before Merge" })
-        XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "Local Before Merge" })
-        XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).keyEvidence)
+        var stage = "draft-edit"
+        do {
+            try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
+                draft: EntryDraftPayload(title: "Local Before Merge", password: "local")))
+            stage = "external-write"
+            try await writeSameKeyExternalChange(setup, title: "External Before Merge")
+            stage = "save"
+            try await setup.vm.save()
+            XCTAssertEqual(setup.vm.saveConflict?.requiresLocalRecovery, false)
+            stage = "merge-and-save"
+            try await setup.vm.mergeAndSave()
+            XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "Local Before Merge" } == true)
+            XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "External Before Merge" } == true)
+            XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).keyEvidence)
+            try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
+                draft: EntryDraftPayload(title: "Deliberately Discard This Draft", password: "discard")))
+            stage = "external-write"
+            try await writeSameKeyExternalChange(setup, title: "External Before Reload")
+            stage = "save"
+            try await setup.vm.save()
+            XCTAssertEqual(setup.vm.saveConflict?.requiresLocalRecovery, false)
+            stage = "reload"
+            try await setup.vm.reloadDiscardingDraft()
+            XCTAssertFalse(setup.vm.isDirty)
+            XCTAssertFalse(setup.vm.rootGroup?.allEntries.contains { $0.title == "Deliberately Discard This Draft" } == true)
+            XCTAssertTrue(setup.vm.rootGroup?.allEntries.contains { $0.title == "External Before Reload" } == true)
+            try setup.vm.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.vm.rootGroup)),
+                draft: EntryDraftPayload(title: "Explicit After Reload", password: "save")))
+            stage = "save"
+            try await setup.vm.save()
+            let parsed = try KDBXParser.parse(data: Data(contentsOf: setup.url), compositeKey: XCTUnwrap(setup.vm.compositeKey),
+                sessionKey: XCTUnwrap(setup.vm.sessionKey), kdfPolicy: .mainApp)
+            XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "Explicit After Reload" })
+            XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "External Before Merge" })
+            XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "Local Before Merge" })
+            XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.vm.databaseReference.id).keyEvidence)
+        } catch {
+            XCTFail(trace.failure(error, at: stage))
+            throw error
+        }
     }
 
     func testActiveUnconfirmedConflictCannotReloadDiscardOrMergeAwayTheDraft() async throws {
@@ -7939,6 +7953,7 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testCreatedAppOnlyDraftExportsFromItsAuthenticatedCreationCiphertextWithoutDiskOrBackup() async throws {
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
         for attemptsFirstSave in [false, true] {
             let created = try await DatabaseCreationService.create(request: DatabaseCreationRequest(
                 displayName: "Creation Recovery", destination: .appOnlyAcknowledged, password: "created key"))
@@ -7947,6 +7962,7 @@ final class DatabaseViewModelTests: XCTestCase {
             let live = LocalDatabaseSaver.Environment.live
             let vm = DatabaseViewModel(createdDatabase: created, localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
                 var environment = live
+                environment.localPublicationFailure = { trace.record($0, $1) }
                 // A real file where the backup directory belongs fails before any backup exists.
                 environment.backupDirectoryURL = { _ in cache }
                 return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
@@ -7954,31 +7970,43 @@ final class DatabaseViewModelTests: XCTestCase {
                     newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
             })
             defer { vm.lock() }
-            let root = try XCTUnwrap(vm.visibleRootGroupID)
-            try vm.applyEntryEdit(.createEntry(parentGroupID: root, draft: EntryDraftPayload(title: "Not Yet Saved", password: "draft secret",
-                attachments: [.new(name: "creation.bin", data: Data("creation binary".utf8))])))
-            if attemptsFirstSave {
-                do { try await vm.save(); XCTFail("The real backup-directory collision must fail") }
-                catch { XCTAssertTrue(error is LocalSaveBeforeReplacementFailure) }
+            var stage = "draft-edit"
+            do {
+                let root = try XCTUnwrap(vm.visibleRootGroupID)
+                try vm.applyEntryEdit(.createEntry(parentGroupID: root, draft: EntryDraftPayload(title: "Not Yet Saved", password: "draft secret",
+                    attachments: [.new(name: "creation.bin", data: Data("creation binary".utf8))])))
+                if attemptsFirstSave {
+                    do { try await vm.save(); XCTFail("The real backup-directory collision must fail") }
+                    catch { XCTAssertTrue(error is LocalSaveBeforeReplacementFailure) }
+                }
+                XCTAssertTrue(DatabaseListStore.recentBackups(for: created.reference).isEmpty)
+                let draft = try XCTUnwrap(vm.draft)
+                stage = "export-snapshot"
+                let expected = try recoveryExportSnapshot(of: draft)
+                stage = "remove-primary"
+                try FileManager.default.removeItem(at: cache)
+                XCTAssertTrue(vm.canExportLocalRecoveryDraft)
+                XCTAssertTrue(DatabaseDetailsView(reference: created.reference, sessionViewModel: vm).showsLocalDraftExport)
+                stage = "export-draft"
+                let copy = try await vm.makeLocalRecoveryExport()
+                stage = "reparse-export"
+                let parsed = try KDBXParser.parse(data: copy.data, compositeKey: created.compositeKey,
+                    sessionKey: draft.writerSessionKey, kdfPolicy: .mainApp)
+                let actual = try CompatibilitySnapshot(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: draft.writerSessionKey,
+                    binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields))
+                stage = "compare-export"
+                try KDBXCompatibilitySupport.assertWholeTreeUnchanged(before: expected, after: actual)
+                XCTAssertEqual(actual.binaryPoolDigest, expected.binaryPoolDigest)
+                XCTAssertEqual(vm.draft?.pendingEdits, draft.pendingEdits)
+                XCTAssertTrue(vm.isDirty)
+                XCTAssertFalse(FileManager.default.fileExists(atPath: cache.path))
+                vm.lock()
+                XCTAssertFalse(vm.canExportLocalRecoveryDraft)
+            } catch {
+                XCTFail(trace.failure(error, at: stage))
+                throw error
             }
-            XCTAssertTrue(DatabaseListStore.recentBackups(for: created.reference).isEmpty)
-            let draft = try XCTUnwrap(vm.draft)
-            let expected = try recoveryExportSnapshot(of: draft)
-            try FileManager.default.removeItem(at: cache)
-            XCTAssertTrue(vm.canExportLocalRecoveryDraft)
-            XCTAssertTrue(DatabaseDetailsView(reference: created.reference, sessionViewModel: vm).showsLocalDraftExport)
-            let copy = try await vm.makeLocalRecoveryExport()
-            let parsed = try KDBXParser.parse(data: copy.data, compositeKey: created.compositeKey,
-                sessionKey: draft.writerSessionKey, kdfPolicy: .mainApp)
-            let actual = try CompatibilitySnapshot(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: draft.writerSessionKey,
-                binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields))
-            try KDBXCompatibilitySupport.assertWholeTreeUnchanged(before: expected, after: actual)
-            XCTAssertEqual(actual.binaryPoolDigest, expected.binaryPoolDigest)
-            XCTAssertEqual(vm.draft?.pendingEdits, draft.pendingEdits)
-            XCTAssertTrue(vm.isDirty)
-            XCTAssertFalse(FileManager.default.fileExists(atPath: cache.path))
-            vm.lock()
-            XCTAssertFalse(vm.canExportLocalRecoveryDraft)
+
         }
     }
 
@@ -8193,7 +8221,9 @@ final class DatabaseViewModelTests: XCTestCase {
             binaryPool: BinaryPool(rawFields: draft.binaryPoolFields ?? []))
     }
 
-    private func makeLocalInteropSetup(unconfirmed: Bool = false) async throws -> LocalInteropSetup {
+    private func makeLocalInteropSetup(unconfirmed: Bool = false,
+        trace: TestDatabaseSupport.LocalPublicationTrace = .init()
+    ) async throws -> LocalInteropSetup {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: folder) }
@@ -8208,6 +8238,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let live = LocalDatabaseSaver.Environment.live
         let vm = try makeViewModel(reference: reference, localSaveOperation: { draft, ref, key, hash, reconciled, newKey, settings in
             var environment = live
+            environment.localPublicationFailure = { trace.record($0, $1) }
             environment.encryptDraft = { draft, key, header, policy in
                 effects.withLock { $0.crypto += 1 }
                 return try live.encryptDraft(draft, key, header, policy)
@@ -8216,6 +8247,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 effects.withLock { $0.replace += 1 }
                 var io = LocalDatabaseSaver.ReplacementIO()
                 io.observedFailure = { stage, error in
+                    trace.record("interop-replacement-" + stage, error)
                     TestDatabaseSupport.reportLocalPublicationFailure("interop-replacement-" + stage, error, reference: ref)
                 }
                 if unconfirmed { io.synchronize = { _ in throw POSIXError(.EACCES) } }
@@ -8225,7 +8257,7 @@ final class DatabaseViewModelTests: XCTestCase {
             return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
                 openTimeSHA512: hash, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
                 newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
-        }, conflictCopyEncryptionOperation: { draft, key, bytes in
+        }, localPublicationFailure: { trace.record($0, $1) }, conflictCopyEncryptionOperation: { draft, key, bytes in
             effects.withLock { $0.exports += 1 }
             return try await DatabaseViewModel.encryptConflictCopy(draft: draft, compositeKey: key, sourceData: bytes)
         })
@@ -8235,7 +8267,14 @@ final class DatabaseViewModelTests: XCTestCase {
                 newKeyFileBookmarkData: SecurityScopedBookmarkManager.makeBookmarkData(for: keyURL, readOnly: true),
                 newKeyFileFilename: keyURL.lastPathComponent)
             if unconfirmed { XCTFail("Expected target warning") }
-        } catch { if unconfirmed { XCTAssertTrue(error is SaveDurabilityWarning) } else { throw error } }
+        } catch {
+            if unconfirmed { XCTAssertTrue(error is SaveDurabilityWarning, trace.failure(error, at: "interop-rekey")) }
+            else {
+                XCTFail(trace.failure(error, at: "interop-rekey"))
+                vm.lock()
+                throw error
+            }
+        }
         return LocalInteropSetup(vm: vm, url: url, original: original, prior: try Data(contentsOf: url), effects: effects)
     }
 
@@ -9569,6 +9608,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 encryptionSettings: encryptionSettings
             )
         },
+        localPublicationFailure: @escaping @Sendable (String, Error) -> Void = { _, _ in },
         cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings in
             try await CloudDatabaseSaver.save(
                 draft: draft,
@@ -9683,6 +9723,7 @@ final class DatabaseViewModelTests: XCTestCase {
             databaseReference: resolvedReference,
             cloudSyncOperation: cloudSyncOperation,
             cloudRefreshOperation: cloudRefreshOperation,
+            localPublicationFailure: localPublicationFailure,
             localSaveOperation: localSaveOperation,
             cloudSaveOperation: cloudSaveOperation,
             conflictCopyEncryptionOperation: conflictCopyEncryptionOperation,
