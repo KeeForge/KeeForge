@@ -103,6 +103,11 @@ switches, and resolves usernames only for cells it draws. Selection follows
 come from `EntryRowActions`; Copy Password uses the menu-bar command's guarded
 path with this window's `isCurrent` recheck. Return and double-click open the
 editor through the workspace request; the table is disabled while saving.
+In Verification Codes each row shows the live code, its countdown and a copy
+button (the per-entry command, no prompt), with username and folder on one line.
+One timer redraws the visible rows each second, only while that list is on
+screen and the session is unlocked; `MacVerificationCodeClock` keeps only the
+codes shown and forgets them whenever the timer stops.
 
 The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, and
 the detail takes the remaining width. `NSSplitView` autosave owns widths and

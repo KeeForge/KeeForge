@@ -10,6 +10,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     NSMenuDelegate, NSMenuItemValidation {
     static let rowHeight: CGFloat = 40
     static let rowWithFolderHeight: CGFloat = 56
+    static let verificationCodeRowHeight: CGFloat = 64
 
     let session: DatabaseViewModel
     let tableView = MacEntryTableView()
@@ -31,6 +32,11 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     private let loadFavicon: @MainActor (String) async -> PlatformImage?
     private let passwordCopyAction = EntrySecretAction()
     private let observation = MacObservation()
+    private let codeClock: MacVerificationCodeClock
+    /// The one timer that redraws the visible codes while Verification Codes is on screen.
+    private(set) var verificationCodeTimer: Timer?
+    private var isOnScreen = false
+    private var isUnlocked = false
     private(set) var snapshot: MacEntryListSnapshot?
     private var rows: [MacEntryListSnapshot.Row] = []
     private var contentRevision: Int?
@@ -42,14 +48,20 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         presentation: MacWorkspacePresentation,
         currentSession: @escaping @MainActor () -> DatabaseViewModel?,
         showsResultCount: Bool = MacEntryListViewController.isUITestingResultCountEnabled,
+        codeClock: MacVerificationCodeClock = MacVerificationCodeClock(),
         loadFavicon: @escaping @MainActor (String) async -> PlatformImage? = { await FaviconService.favicon(for: $0) }
     ) {
         self.session = session
         self.presentation = presentation
         self.currentSession = currentSession
         self.showsResultCount = showsResultCount
+        self.codeClock = codeClock
         self.loadFavicon = loadFavicon
         super.init(nibName: nil, bundle: nil)
+    }
+
+    isolated deinit {
+        verificationCodeTimer?.invalidate()
     }
 
     @available(*, unavailable)
@@ -143,6 +155,18 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         })
     }
 
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        isOnScreen = true
+        updateVerificationCodeTimer()
+    }
+
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        isOnScreen = false
+        updateVerificationCodeTimer()
+    }
+
     // MARK: - Model
 
     private struct State {
@@ -151,6 +175,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         var entrySelection: Set<UUID>?
         var isSaving: Bool
         var isReadOnly: Bool
+        var isUnlocked: Bool
         var contentRevision: Int
     }
 
@@ -161,6 +186,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             entrySelection: session.workspace.entrySelection,
             isSaving: session.isSaving,
             isReadOnly: session.isReadOnly,
+            isUnlocked: session.state == .unlocked,
             contentRevision: session.contentRevision
         )
     }
@@ -171,7 +197,10 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         let old = snapshot
         let new = state.snapshot
         snapshot = new
-        let isNewList = old.map { Self.isSameList($0.mode, new.mode) == false } ?? true
+        isUnlocked = state.isUnlocked
+        let isNewList = old.map {
+            Self.isSameList($0.mode, new.mode) == false || $0.showsVerificationCodes != new.showsVerificationCodes
+        } ?? true
         if isNewList {
             rows = new.rows
             tableView.reloadData()
@@ -185,6 +214,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         selectModelRows()
         tableView.isEnabled = state.isSaving == false
         updateChrome(state)
+        updateVerificationCodeTimer()
     }
 
     /// Typing a query keeps the results' table; any other switch is a new list.
@@ -237,6 +267,48 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
                   let cell = rowView.view(atColumn: 0) as? MacEntryCellView else { return }
             self.configure(cell, row: rows[row], rowIdentifier: snapshot.rowIdentifier)
         }
+    }
+
+    // MARK: - Verification codes
+
+    private var shouldRunVerificationCodeTimer: Bool {
+        isOnScreen && isUnlocked && snapshot?.showsVerificationCodes == true
+    }
+
+    /// Starts the code timer with an immediate redraw, or stops it and forgets the codes shown.
+    private func updateVerificationCodeTimer() {
+        guard shouldRunVerificationCodeTimer else {
+            verificationCodeTimer?.invalidate()
+            verificationCodeTimer = nil
+            codeClock.reset()
+            return
+        }
+        guard verificationCodeTimer == nil else { return }
+        let nextSecond = Date(timeIntervalSince1970: (Date().timeIntervalSince1970 + 1).rounded(.down))
+        let timer = Timer(fire: nextSecond, interval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tickVerificationCodes() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        verificationCodeTimer = timer
+        tickVerificationCodes()
+    }
+
+    /// Redraws the codes of the rows in view; rows scrolled away update when they reappear.
+    func tickVerificationCodes() {
+        guard shouldRunVerificationCodeTimer else {
+            updateVerificationCodeTimer()
+            return
+        }
+        let visible = tableView.rows(in: tableView.visibleRect)
+        for row in visible.location..<(visible.location + visible.length) where rows.indices.contains(row) {
+            guard let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false)
+                as? MacVerificationCodeCellView else { continue }
+            cell.update(codeClock.display(for: rows[row].id, session: session))
+        }
+    }
+
+    func copyVerificationCode(entryID: UUID) {
+        DatabaseCommands(session: session).copyVerificationCode(entryID: entryID, copy: copyToClipboard)
     }
 
     private func selectModelRows() {
@@ -309,19 +381,36 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         guard rows.indices.contains(row) else { return Self.rowHeight }
+        if snapshot?.showsVerificationCodes == true { return Self.verificationCodeRowHeight }
         return rows[row].folderPath == nil ? Self.rowHeight : Self.rowWithFolderHeight
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard rows.indices.contains(row), let snapshot else { return nil }
-        let cell = tableView.makeView(withIdentifier: MacEntryCellView.reuseIdentifier, owner: self) as? MacEntryCellView
-            ?? MacEntryCellView(loadFavicon: loadFavicon)
+        let cell: MacEntryCellView
+        if snapshot.showsVerificationCodes {
+            let codeCell = tableView.makeView(withIdentifier: MacVerificationCodeCellView.codeReuseIdentifier,
+                                              owner: self) as? MacVerificationCodeCellView
+                ?? MacVerificationCodeCellView(loadFavicon: loadFavicon)
+            codeCell.onCopy = { [weak self] in self?.copyVerificationCode(entryID: $0) }
+            cell = codeCell
+        } else {
+            cell = tableView.makeView(withIdentifier: MacEntryCellView.reuseIdentifier, owner: self) as? MacEntryCellView
+                ?? MacEntryCellView(loadFavicon: loadFavicon)
+        }
         configure(cell, row: rows[row], rowIdentifier: snapshot.rowIdentifier)
         return cell
     }
 
     private func configure(_ cell: MacEntryCellView, row: MacEntryListSnapshot.Row, rowIdentifier: String) {
-        cell.configure(row, username: session.resolvingFieldReferences(row.rawUsername), rowIdentifier: rowIdentifier)
+        let username = session.resolvingFieldReferences(row.rawUsername)
+        if let codeCell = cell as? MacVerificationCodeCellView {
+            let detail = [username, row.folderPath ?? ""].filter { $0.isEmpty == false }.joined(separator: " · ")
+            codeCell.configure(row, detail: detail, rowIdentifier: rowIdentifier,
+                               display: codeClock.display(for: row.id, session: session))
+        } else {
+            cell.configure(row, username: username, rowIdentifier: rowIdentifier)
+        }
     }
 
     func tableView(_ tableView: NSTableView, typeSelectStringFor tableColumn: NSTableColumn?, row: Int) -> String? {
@@ -508,7 +597,7 @@ final class MacEntryTableView: NSTableView {
 
 // MARK: - Cells
 
-final class MacEntryCellView: NSTableCellView {
+class MacEntryCellView: NSTableCellView {
     static let reuseIdentifier = NSUserInterfaceItemIdentifier("entries.row")
     static let iconSize: CGFloat = 24
 
@@ -517,7 +606,11 @@ final class MacEntryCellView: NSTableCellView {
     let expiredGlyph = NSImageView()
     let passkeyGlyph = NSImageView()
     let verificationCodeGlyph = NSImageView()
-    private let folderRow: NSStackView
+    let folderRow: NSStackView
+    /// Title, username and folder, top to bottom.
+    let textStack: NSStackView
+    /// The trailing glyphs.
+    let accessoryStack: NSStackView
     private let faviconLoader: FaviconLoadModel
     private var faviconTask: Task<Void, Never>?
     private var requestedFaviconDomain: String?
@@ -531,12 +624,14 @@ final class MacEntryCellView: NSTableCellView {
         folderSymbol.setAccessibilityElement(false)
         folderSymbol.setContentHuggingPriority(.required, for: .horizontal)
         folderRow = NSStackView(views: [folderSymbol, folderField])
+        let title = NSTextField(labelWithString: "")
+        textStack = NSStackView(views: [title, usernameField, folderRow])
+        accessoryStack = NSStackView(views: [expiredGlyph, passkeyGlyph, verificationCodeGlyph])
         super.init(frame: .zero)
         identifier = Self.reuseIdentifier
 
         let image = NSImageView()
         image.imageScaling = .scaleProportionallyDown
-        let title = NSTextField(labelWithString: "")
         title.lineBreakMode = .byTruncatingTail
         for field in [usernameField, folderField] {
             field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
@@ -551,7 +646,7 @@ final class MacEntryCellView: NSTableCellView {
             field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         }
 
-        let text = NSStackView(views: [title, usernameField, folderRow])
+        let text = textStack
         text.orientation = .vertical
         text.alignment = .leading
         text.spacing = 1
@@ -563,7 +658,7 @@ final class MacEntryCellView: NSTableCellView {
                        identifier: "entry-row.passkey")
         configureGlyph(verificationCodeGlyph, symbol: "clock", label: String(localized: "Has a verification code"),
                        identifier: "entry-row.totp")
-        let glyphs = NSStackView(views: [expiredGlyph, passkeyGlyph, verificationCodeGlyph])
+        let glyphs = accessoryStack
         glyphs.orientation = .horizontal
         glyphs.spacing = 4
         glyphs.detachesHiddenViews = true
@@ -645,7 +740,7 @@ final class MacEntryCellView: NSTableCellView {
         }
     }
 
-    private func refreshAppearance() {
+    func refreshAppearance() {
         let emphasized = backgroundStyle == .emphasized
         imageView?.image = image(emphasized: emphasized)
         expiredGlyph.contentTintColor = emphasized ? .white : .systemRed
@@ -670,6 +765,138 @@ final class MacEntryCellView: NSTableCellView {
     private func standardImage(_ iconID: Int, emphasized: Bool) -> NSImage? {
         MacIconImages.standard(iconID, fallbackSymbol: "key.fill", fallbackPalette: .gold, pointSize: 18,
                                emphasized: emphasized)
+    }
+}
+
+// MARK: - Verification-code cells
+
+/// A Verification Codes row: the entry with its username and folder on one
+/// line, its live code under them, the countdown and a copy button.
+final class MacVerificationCodeCellView: MacEntryCellView {
+    static let codeReuseIdentifier = NSUserInterfaceItemIdentifier("entries.code-row")
+
+    let codeField = NSTextField(labelWithString: "")
+    let countdown = MacCountdownRingView()
+    let copyButton = NSButton()
+    var onCopy: (@MainActor (UUID) -> Void)?
+    private(set) var entryID: UUID?
+    private(set) var display: MacVerificationCodeClock.Display?
+
+    override init(loadFavicon: @escaping @MainActor (String) async -> PlatformImage?) {
+        super.init(loadFavicon: loadFavicon)
+        identifier = Self.codeReuseIdentifier
+        codeField.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize + 4, weight: .semibold)
+        codeField.lineBreakMode = .byClipping
+        // Read through the cell's value, digit by digit.
+        codeField.setAccessibilityElement(false)
+        textStack.addArrangedSubview(codeField)
+        textStack.setCustomSpacing(3, after: usernameField)
+
+        let label = String(localized: "Copy Verification Code")
+        copyButton.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: label)
+        copyButton.imagePosition = .imageOnly
+        copyButton.isBordered = false
+        copyButton.toolTip = label
+        copyButton.setAccessibilityLabel(label)
+        copyButton.setAccessibilityIdentifier("verification-code-row.copy")
+        copyButton.target = self
+        copyButton.action = #selector(copyCode(_:))
+        countdown.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            countdown.widthAnchor.constraint(equalToConstant: 22),
+            countdown.heightAnchor.constraint(equalToConstant: 22),
+        ])
+        accessoryStack.spacing = 8
+        accessoryStack.addArrangedSubview(countdown)
+        accessoryStack.addArrangedSubview(copyButton)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    func configure(_ row: MacEntryListSnapshot.Row, detail: String, rowIdentifier: String,
+                   display: MacVerificationCodeClock.Display?) {
+        configure(row, username: detail, rowIdentifier: rowIdentifier)
+        entryID = row.id
+        folderRow.isHidden = true
+        for glyph in [expiredGlyph, passkeyGlyph, verificationCodeGlyph] { glyph.isHidden = true }
+        update(display)
+    }
+
+    func update(_ display: MacVerificationCodeClock.Display?) {
+        self.display = display
+        codeField.stringValue = display?.grouped ?? ""
+        codeField.isHidden = display == nil
+        countdown.isHidden = display == nil
+        copyButton.isHidden = display == nil
+        countdown.update(seconds: display?.secondsRemaining ?? 0, progress: display?.progress ?? 0)
+        setAccessibilityValue(display.map { $0.code.map(String.init).joined(separator: " ") })
+    }
+
+    override func refreshAppearance() {
+        super.refreshAppearance()
+        let emphasized = backgroundStyle == .emphasized
+        codeField.textColor = emphasized ? .white : .controlAccentColor
+        copyButton.contentTintColor = emphasized ? .white : .secondaryLabelColor
+        countdown.isEmphasized = emphasized
+    }
+
+    @objc private func copyCode(_ sender: Any?) {
+        guard let entryID else { return }
+        onCopy?(entryID)
+    }
+}
+
+/// The seconds left in the code's period, inside a ring that empties with them.
+final class MacCountdownRingView: NSView {
+    private(set) var seconds = 0
+    private(set) var progress: Double = 0
+    var isEmphasized = false {
+        didSet { needsDisplay = true }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.staticText)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    func update(seconds: Int, progress: Double) {
+        guard seconds != self.seconds || progress != self.progress else { return }
+        self.seconds = seconds
+        self.progress = progress
+        setAccessibilityLabel(String(localized: "\(seconds) seconds remaining"))
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let lineWidth: CGFloat = 2
+        let rect = bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
+        let center = NSPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) / 2
+        let tint: NSColor = isEmphasized ? .white : .controlAccentColor
+        let track = NSBezierPath(ovalIn: NSRect(x: center.x - radius, y: center.y - radius,
+                                                width: radius * 2, height: radius * 2))
+        track.lineWidth = lineWidth
+        tint.withAlphaComponent(0.25).setStroke()
+        track.stroke()
+        let arc = NSBezierPath()
+        arc.appendArc(withCenter: center, radius: radius, startAngle: 90,
+                      endAngle: 90 - 360 * CGFloat(max(0, min(1, progress))), clockwise: true)
+        arc.lineWidth = lineWidth
+        arc.lineCapStyle = .round
+        tint.setStroke()
+        arc.stroke()
+
+        let text = NSAttributedString(string: "\(seconds)", attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize - 2, weight: .regular),
+            .foregroundColor: isEmphasized ? NSColor.white : NSColor.secondaryLabelColor,
+        ])
+        let size = text.size()
+        text.draw(at: NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
     }
 }
 

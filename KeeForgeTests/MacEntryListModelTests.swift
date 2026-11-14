@@ -382,6 +382,8 @@ final class MacEntryListModelTests: XCTestCase {
         XCTAssertNil(clock.display(for: entry.id, session: session))
         XCTAssertEqual(clock.cachedCodeCount, 0, "lock clears the cache")
         XCTAssertEqual(generated.count, 4)
+        session.workspace.selectedCollection = .verificationCodes
+        XCTAssertFalse(MacEntryListSnapshot.make(session: session).showsVerificationCodes, "no session key, no codes")
     }
 
     func testClockDefaultsToTheRealGenerator() async throws {

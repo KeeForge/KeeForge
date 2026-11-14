@@ -513,7 +513,194 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertTrue(controller.selectionBar.moveButton.isEnabled)
     }
 
+    // MARK: - Verification codes
+
+    func testCodeRowsShowOnlyInVerificationCodes() async throws {
+        let clock = MacVerificationCodeClock(now: { Date(timeIntervalSince1970: 1_000_000_005) },
+                                             generate: { _, _, _ in "123456" })
+        let (controller, session, _, tree) = try await makeController(codeClock: clock, configure: { _, entries in
+            entries[0].totpConfig = Self.fakeTOTP
+            entries[2].totpConfig = Self.fakeTOTP
+            entries[2].username = ""
+        })
+        let table = controller.tableView
+        controller.viewDidAppear()
+        XCTAssertNil(try XCTUnwrap(cell(controller, entryID: tree.work.entries[0].id)) as? MacVerificationCodeCellView)
+        XCTAssertNil(controller.verificationCodeTimer, "A group shows no codes")
+
+        session.workspace.selectedCollection = .verificationCodes
+        await settle()
+        XCTAssertEqual(titles(controller), ["Account 00", "Account 02"])
+        XCTAssertEqual(table.delegate?.tableView?(table, heightOfRow: 0), MacEntryListViewController.verificationCodeRowHeight)
+        let first = try XCTUnwrap(cell(controller, entryID: tree.work.entries[0].id) as? MacVerificationCodeCellView)
+        let second = try XCTUnwrap(cell(controller, entryID: tree.work.entries[2].id) as? MacVerificationCodeCellView)
+        XCTAssertEqual(first.codeField.stringValue, "123 456", "Grouped as the iOS code rows group it")
+        XCTAssertEqual(first.usernameField.stringValue,
+                       "user0 · \(try XCTUnwrap(session.folderPath(forEntryID: tree.work.entries[0].id)))")
+        XCTAssertEqual(second.usernameField.stringValue, session.folderPath(forEntryID: tree.work.entries[2].id))
+        XCTAssertTrue(first.folderRow.isHidden)
+        XCTAssertTrue(first.verificationCodeGlyph.isHidden, "The code replaces the glyph")
+        XCTAssertEqual(first.textField?.accessibilityIdentifier(), "entry.navlink")
+        XCTAssertEqual(first.accessibilityLabel(), "Account 00")
+        XCTAssertEqual(first.accessibilityValue() as? String, "1 2 3 4 5 6")
+        XCTAssertFalse(first.codeField.isAccessibilityElement())
+        XCTAssertEqual(first.copyButton.accessibilityIdentifier(), "verification-code-row.copy")
+        XCTAssertEqual(first.copyButton.accessibilityLabel(), String(localized: "Copy Verification Code"))
+        XCTAssertEqual(first.countdown.accessibilityLabel(), String(localized: "\(15) seconds remaining"))
+        XCTAssertEqual(first.countdown.seconds, 15)
+
+        session.workspace.selectedCollection = .allEntries
+        await settle()
+        XCTAssertNil(try XCTUnwrap(cell(controller, entryID: tree.work.entries[0].id)) as? MacVerificationCodeCellView)
+        XCTAssertEqual(table.delegate?.tableView?(table, heightOfRow: 0), MacEntryListViewController.rowWithFolderHeight)
+
+        let (readOnly, readOnlySession, _, readOnlyTree) = try await makeController(
+            readOnly: true, codeClock: MacVerificationCodeClock(generate: { _, _, _ in "123456" }),
+            configure: { _, entries in entries[1].totpConfig = Self.fakeTOTP }
+        )
+        readOnlySession.workspace.selectedCollection = .verificationCodes
+        await settle()
+        let readOnlyCell = try XCTUnwrap(cell(readOnly, entryID: readOnlyTree.work.entries[1].id)
+            as? MacVerificationCodeCellView)
+        XCTAssertEqual(readOnlyCell.codeField.stringValue, "123 456", "A read-only database shows codes, as the detail does")
+    }
+
+    func testOneCodeTimerRunsOnlyWhileTheCodesAreOnScreenAndUnlocked() async throws {
+        let clock = MacVerificationCodeClock(generate: { _, _, _ in "123456" })
+        let (controller, session, _, tree) = try await makeController(codeClock: clock, configure: { _, entries in
+            for index in entries.indices { entries[index].totpConfig = Self.fakeTOTP }
+        })
+        session.workspace.selectedCollection = .verificationCodes
+        await settle()
+        XCTAssertNil(controller.verificationCodeTimer, "Not on screen yet")
+
+        controller.view.layoutSubtreeIfNeeded()
+        controller.viewDidAppear()
+        let timer = try XCTUnwrap(controller.verificationCodeTimer)
+        XCTAssertTrue(timer.isValid)
+        XCTAssertGreaterThan(clock.cachedCodeCount, 0)
+        try replaceWork(in: session, tree: tree) { entries in
+            for index in entries.indices { entries[index].totpConfig = Self.fakeTOTP }
+            entries[0].title = "Account 00 renamed"
+        }
+        await settle()
+        controller.viewDidAppear()
+        XCTAssertTrue(controller.verificationCodeTimer === timer, "One timer per table")
+
+        session.workspace.selectedCollection = .allEntries
+        await settle()
+        XCTAssertNil(controller.verificationCodeTimer)
+        XCTAssertFalse(timer.isValid, "Leaving the codes stops the timer")
+        XCTAssertEqual(clock.cachedCodeCount, 0)
+
+        session.workspace.selectedCollection = .verificationCodes
+        await settle()
+        let restarted = try XCTUnwrap(controller.verificationCodeTimer)
+        controller.viewWillDisappear()
+        XCTAssertNil(controller.verificationCodeTimer)
+        XCTAssertFalse(restarted.isValid, "Disappearing stops the timer")
+        XCTAssertEqual(clock.cachedCodeCount, 0)
+
+        controller.viewDidAppear()
+        let beforeLock = try XCTUnwrap(controller.verificationCodeTimer)
+        session.lockRequest(force: true)
+        await settle()
+        XCTAssertNil(controller.verificationCodeTimer)
+        XCTAssertFalse(beforeLock.isValid, "Lock stops the timer")
+        XCTAssertEqual(clock.cachedCodeCount, 0, "Lock clears the codes shown")
+        controller.tickVerificationCodes()
+        XCTAssertEqual(clock.cachedCodeCount, 0)
+    }
+
+    func testTheCodeTimerCannotOutliveItsTable() async throws {
+        let (_, session, presentation, _) = try await makeController(configure: { _, entries in
+            entries[0].totpConfig = Self.fakeTOTP
+        })
+        session.workspace.selectedCollection = .verificationCodes
+        weak var released: MacEntryListViewController?
+        var timer: Timer?
+        autoreleasepool {
+            let controller = MacEntryListViewController(
+                session: session, presentation: presentation, currentSession: { session }, showsResultCount: false,
+                codeClock: MacVerificationCodeClock(generate: { _, _, _ in "123456" }), loadFavicon: { _ in nil }
+            )
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 300),
+                                  styleMask: [.titled], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentViewController = controller
+            controller.view.layoutSubtreeIfNeeded()
+            controller.viewDidAppear()
+            timer = controller.verificationCodeTimer
+            released = controller
+            window.contentViewController = nil
+            window.close()
+        }
+        await settle()
+        XCTAssertNil(released)
+        XCTAssertEqual(timer?.isValid, false)
+    }
+
+    func testATickRedrawsOnlyTheVisibleCodeRows() async throws {
+        var date = Date(timeIntervalSince1970: 1_000_000_005)
+        var generated = 0
+        let clock = MacVerificationCodeClock(now: { date }, generate: { _, _, _ in
+            generated += 1
+            return String(100_000 + generated)
+        })
+        let (controller, session, _, tree) = try await makeController(count: 60, height: 300, codeClock: clock,
+                                                                      configure: { _, entries in
+            for index in entries.indices { entries[index].totpConfig = Self.fakeTOTP }
+        })
+        session.workspace.selectedCollection = .verificationCodes
+        await settle()
+        controller.view.layoutSubtreeIfNeeded()
+        controller.viewDidAppear()
+        let table = controller.tableView
+        let visible = table.rows(in: table.visibleRect)
+        XCTAssertGreaterThan(visible.length, 0)
+        XCTAssertLessThan(visible.length, 60)
+        let firstEntry = tree.work.entries[visible.location].id
+        let before = try XCTUnwrap(cell(controller, entryID: firstEntry) as? MacVerificationCodeCellView).codeField.stringValue
+
+        let generatedBefore = generated
+        controller.tickVerificationCodes()
+        XCTAssertEqual(generated, generatedBefore, "Within one period the shown codes are reused")
+
+        date = date.addingTimeInterval(30)
+        controller.tickVerificationCodes()
+        XCTAssertEqual(generated - generatedBefore, visible.length, "Only the rows in view are regenerated")
+        let after = try XCTUnwrap(cell(controller, entryID: firstEntry) as? MacVerificationCodeCellView)
+        XCTAssertNotEqual(after.codeField.stringValue, before)
+        XCTAssertEqual(after.countdown.seconds, 15)
+    }
+
+    func testTheCopyButtonCopiesTheCodeThroughTheCommand() async throws {
+        var config: TOTPConfig?
+        let (controller, session, _, tree) = try await makeController(configure: { key, entries in
+            let totp = TOTPConfig(secret: try! EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: key))
+            config = totp
+            entries[1].totpConfig = totp
+        })
+        var copied: [String] = []
+        controller.copyToClipboard = { copied.append($0) }
+        session.workspace.selectedCollection = .verificationCodes
+        await settle()
+        let codeCell = try XCTUnwrap(cell(controller, entryID: tree.work.entries[1].id) as? MacVerificationCodeCellView)
+        let key = try XCTUnwrap(session.sessionKey)
+        let totp = try XCTUnwrap(config)
+
+        let before = TOTPGenerator.generateCode(config: totp, sessionKey: key)
+        codeCell.copyButton.performClick(nil)
+        let after = TOTPGenerator.generateCode(config: totp, sessionKey: key)
+        XCTAssertEqual(copied.count, 1)
+        XCTAssertTrue([before, after].contains(copied[0]))
+        XCTAssertNotEqual(copied.first, TOTPGenerator.placeholderCode)
+        XCTAssertEqual(session.workspace.selectedEntryID, nil, "Copying does not select the row")
+    }
+
     // MARK: - Helpers
+
+    private static let fakeTOTP = TOTPConfig(secret: EncryptedValue(sealedData: Data([0]), hasValue: true))
 
     private func makeController(
         count: Int = 3,
@@ -521,6 +708,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         readOnly: Bool = false,
         showsResultCount: Bool = false,
         currentSession: (@MainActor () -> DatabaseViewModel?)? = nil,
+        codeClock: MacVerificationCodeClock = MacVerificationCodeClock(),
         save: @escaping DatabaseViewModel.LocalSaveOperation = { _, _, _, hash, _, _, _ in .saved(newSHA512: hash) },
         configure: (SymmetricKey, inout [KPEntry]) -> Void = { _, _ in }
     ) async throws -> (MacEntryListViewController, DatabaseViewModel, MacWorkspacePresentation, Tree) {
@@ -549,6 +737,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
             presentation: presentation,
             currentSession: currentSession ?? { session },
             showsResultCount: showsResultCount,
+            codeClock: codeClock,
             loadFavicon: { _ in nil }
         )
         // Never ordered in: the table only needs a window to lay out its rows.

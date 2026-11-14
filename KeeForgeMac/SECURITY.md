@@ -299,6 +299,10 @@ and content revision after device-owner authentication. Detail and editor action
 also reject changed navigation, selection, or inputs; changing the selected entry
 conceals its fields. A successful prompt does not authorize a later session.
 
+The Verification Codes list shows each entry's live code; only the codes on
+screen are kept, and that cache is cleared when the list stops showing or the
+database locks.
+
 Custom-field drag reordering uses a native list of field names. Field values
 are not displayed in that list or its drag previews.
 
