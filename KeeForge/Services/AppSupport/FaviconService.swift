@@ -177,7 +177,16 @@ enum FaviconService: Sendable {
 
     // MARK: - Cached Image
 
+    /// A cache written before it was excluded from backups is served from
+    /// disk without ever being fetched into again, so the first read marks it.
+    private static let existingCacheExcludedFromBackup: Void = {
+        if FileManager.default.fileExists(atPath: cacheDirectory.path) {
+            prepareCacheDirectory(at: cacheDirectory)
+        }
+    }()
+
     static func cachedImage(for domain: String) -> PlatformImage? {
+        _ = existingCacheExcludedFromBackup
         let path = cachePath(for: domain)
         let fm = FileManager.default
 
