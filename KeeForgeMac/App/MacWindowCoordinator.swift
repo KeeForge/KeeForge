@@ -21,7 +21,12 @@ final class MacSystemWindowPresenter: MacWindowPresenting {
     }
 
     func requestClose(_ window: NSWindow) {
-        window.performClose(nil)
+        // performClose only beeps while a sheet disables the close button; the guard must still decide.
+        guard window.attachedSheet != nil else {
+            window.performClose(nil)
+            return
+        }
+        if window.delegate?.windowShouldClose?(window) ?? true { window.close() }
     }
 }
 
@@ -323,7 +328,13 @@ final class MacWindowCoordinator {
         controller.onWillClose = { [weak self] in self?.windowWillClose($0) }
         controller.loadWindow()
         guard let window = controller.window else { return }
-        if let restoredFrame { window.setFrame(restoredFrame, display: false) }
+        if let restoredFrame {
+            window.setFrame(restoredFrame, display: false)
+        } else if let previous = windowOrder.last.flatMap({ databaseWindows[$0]?.window }) {
+            // A new window cascades from the frontmost one instead of covering it.
+            let next = window.cascadeTopLeft(from: NSPoint(x: previous.frame.minX, y: previous.frame.maxY))
+            window.cascadeTopLeft(from: next)
+        }
         prepareWindow(window)
         databaseWindows[databaseID] = controller
         registry.register(window, databaseID: databaseID, isRestoring: restoredFrame != nil)

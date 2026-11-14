@@ -18,7 +18,6 @@ final class MacAppStoreScreenshots: MacUITestCase {
     private static let appBundleIdentifier = "com.keevault.app"
     private static let demoPassword = "demo"
     private static let windowSize = CGSize(width: 1440, height: 900)
-    private static let settingsWindowIdentifier = "settings"
 
     override var databaseFixtures: [DatabaseFixture] {
         [
@@ -42,7 +41,8 @@ final class MacAppStoreScreenshots: MacUITestCase {
         var arguments = [
             "-KeeForge.blockScreenCapture", "NO",
             "-KeeForge.appearanceMode", "light",
-            "-NSWindow Frame main-AppWindow-1", Self.mainWindowFrameDefault,
+            // XCUITest corner drags do not resize windows on macOS 27.
+            "-ui-testing-database-window-size", "\(Int(Self.windowSize.width))x\(Int(Self.windowSize.height))",
         ]
         if isPickerCapture {
             arguments += ["-autofill-picker-harness", "-autofill-picker-store"]
@@ -56,10 +56,10 @@ final class MacAppStoreScreenshots: MacUITestCase {
 
     func testCaptureStoreScreens() async {
         settle(2)
-        checkMainWindowSize()
 
         // 02: unlock screen with the password typed, before unlocking.
         openFirstDatabaseFromListIfNeeded()
+        checkMainWindowSize()
         let passwordField = app.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 15), "Password field did not appear")
         passwordField.click()
@@ -157,7 +157,7 @@ final class MacAppStoreScreenshots: MacUITestCase {
     private func captureSecuritySettings() async {
         let name = "06-settings-security"
         clickToolbarButton(identifier: "settings.button", overflowLabel: "Settings")
-        let settingsWindow = app.windows[Self.settingsWindowIdentifier].firstMatch
+        let settingsWindow = self.settingsWindow
         guard settingsWindow.waitForExistence(timeout: 8) else {
             noteSkip(name, reason: "the Settings window never opened")
             return
@@ -182,19 +182,6 @@ final class MacAppStoreScreenshots: MacUITestCase {
     }
 
     // MARK: - Window size
-
-    /// The main window's saved frame (`NSWindow Frame <autosave name>`, in
-    /// bottom-left screen coordinates), centered on the main screen. XCUITest
-    /// corner drags do not resize windows on macOS 27, and AppKit would
-    /// otherwise restore whatever frame the last run left.
-    private static var mainWindowFrameDefault: String {
-        let screen = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1920, height: 1050)
-        let x = screen.minX + max(0, (screen.width - windowSize.width) / 2)
-        let y = screen.minY + max(0, (screen.height - windowSize.height) / 2)
-        return [x, y, windowSize.width, windowSize.height, screen.minX, screen.minY, screen.width, screen.height]
-            .map { String(Int($0.rounded())) }
-            .joined(separator: " ")
-    }
 
     private func checkMainWindowSize() {
         guard let size = mainWindowElement?.frame.size,
@@ -244,10 +231,10 @@ final class MacAppStoreScreenshots: MacUITestCase {
             .processIdentifier
     }
 
+    /// The first database window; the walkthrough keeps one open.
     private var mainWindowElement: XCUIElement? {
-        app.windows.allElementsBoundByIndex
-            .filter { $0.identifier != Self.settingsWindowIdentifier }
-            .max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
+        let window = databaseWindow
+        return window.exists ? window : nil
     }
 
     private struct ScreenWindow {
@@ -370,7 +357,7 @@ final class MacAppStoreScreenshots: MacUITestCase {
         if sheet.exists, sheet.descendants(matching: .any)[identifier].exists {
             return sheet
         }
-        return app.windows.allElementsBoundByIndex.first {
+        return (app.windows.allElementsBoundByIndex + app.dialogs.allElementsBoundByIndex).first {
             $0.descendants(matching: .any)[identifier].exists
         }
     }

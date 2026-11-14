@@ -7,7 +7,7 @@ import XCTest
 /// navigation instead of swipe-based scrolling.
 @MainActor
 class MacUITestCase: XCTestCase {
-    private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
+    static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
     private static let uiTestKeyFileBase64Env = "UI_TEST_KEYFILE_BASE64"
     private static let uiTestKeyFileFilenameEnv = "UI_TEST_KEYFILE_FILENAME"
 
@@ -38,13 +38,10 @@ class MacUITestCase: XCTestCase {
         app = XCUIApplication()
         // -ApplePersistenceIgnoreState: macOS state restoration can restore a
         // "zero windows" session (e.g. after a killed run), leaving the app
-        // with no main window at all; every UI test needs a fresh window.
+        // with no window at all; every UI test needs a fresh window.
         // Auto-unlock would raise a Touch ID prompt XCUITest cannot answer.
-        // The empty split-view frames keep a sidebar collapsed by an earlier
-        // run from being restored.
         app.launchArguments += [
             "-ApplePersistenceIgnoreState", "YES",
-            "-NSSplitView Subview Frames MacDatabaseWorkspace", "()",
             "-KeeForge.autoUnlockWithFaceID", "NO",
             "-ui-testing",
         ]
@@ -90,34 +87,139 @@ class MacUITestCase: XCTestCase {
         return try Data(contentsOf: fixtureURL)
     }
 
-    // MARK: - Database list
+    // MARK: - Windows
 
-    func databaseRow(containing text: String) -> XCUIElement {
-        app.buttons.matching(
-            NSPredicate(format: "identifier == 'database.row' AND label CONTAINS[c] %@", text)
-        ).firstMatch
+    /// The Databases window, which holds the database list and nothing else.
+    var databasesWindow: XCUIElement {
+        app.windows.matching(identifier: "databases").firstMatch
     }
 
+    /// Every open database window (`database.<UUID>`, titled with the database name).
+    var databaseWindows: XCUIElementQuery {
+        app.windows.matching(NSPredicate(format: "identifier BEGINSWITH 'database.'"))
+    }
+
+    /// The open database window for `name`. The accessibility title adds the
+    /// unlocked window's subtitle after an en dash.
+    func databaseWindow(named name: String) -> XCUIElement {
+        databaseWindows.matching(NSPredicate(format: "title == %@ OR title BEGINSWITH %@", name, "\(name) – ")).firstMatch
+    }
+
+    /// Chooses a menu-bar command by its titles.
+    func chooseMenuItem(_ item: String, inMenu menu: String, file: StaticString = #filePath, line: UInt = #line) {
+        let menuBarItem = app.menuBars.menuBarItems[menu].firstMatch
+        XCTAssertTrue(menuBarItem.waitForExistence(timeout: 5), "No '\(menu)' menu", file: file, line: line)
+        menuBarItem.click()
+        let menuItem = menuBarItem.menuItems[item].firstMatch
+        XCTAssertTrue(menuItem.waitForExistence(timeout: 5), "No '\(item)' item in '\(menu)'", file: file, line: line)
+        menuItem.click()
+    }
+
+    /// Window > Databases, which fronts the Databases window.
+    func showDatabasesWindow(file: StaticString = #filePath, line: UInt = #line) {
+        chooseMenuItem("Databases", inMenu: "Window", file: file, line: line)
+        XCTAssertTrue(databasesWindow.waitForExistence(timeout: 10), "Window > Databases did not show the Databases window",
+            file: file, line: line)
+    }
+
+    /// The database window of a test that opens a single database.
+    var databaseWindow: XCUIElement {
+        databaseWindows.firstMatch
+    }
+
+    // MARK: - Database list
+
+    /// A Databases-window row showing `text`. Rows are list cells, not
+    /// buttons, and SwiftUI copies the identifier onto the row's text.
+    func databaseRow(containing text: String) -> XCUIElement {
+        databaseRowQuery(containing: text).firstMatch
+    }
+
+    private func databaseRowQuery(containing text: String?) -> XCUIElementQuery {
+        let rows = databasesWindow.descendants(matching: .any)
+        guard let text else { return rows.matching(identifier: "database.row") }
+        return rows.matching(NSPredicate(
+            format: "identifier == 'database.row' AND (label CONTAINS[c] %@ OR value CONTAINS[c] %@)", text, text
+        ))
+    }
+
+    /// Selects a Databases-window row with a single click, which never opens
+    /// it, and waits until the Open button reflects the selection.
+    @discardableResult
+    func selectDatabaseRow(
+        containing text: String? = nil,
+        timeout: TimeInterval = 15,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> XCUIElement? {
+        // The row's name text, not its icon, which shares the identifier.
+        let query = databaseRowQuery(containing: text).matching(NSPredicate(format: "elementType == %d",
+            XCUIElement.ElementType.staticText.rawValue))
+        let open = databasesWindow.buttons["databases.open"].firstMatch
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if let row = query.allElementsBoundByIndex.first(where: {
+                $0.exists && $0.isHittable && $0.frame.height > 1
+            }) {
+                row.click()
+                let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: open)
+                if XCTWaiter.wait(for: [selected], timeout: 2) == .completed { return row }
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+        XCTFail("Database list did not select a row for '\(text ?? "any database")'", file: file, line: line)
+        return nil
+    }
+
+    /// The Settings window. It can never become main, so it reports as a dialog.
+    var settingsWindow: XCUIElement {
+        app.dialogs["settings"].firstMatch
+    }
+
+    /// Opens a database from the Databases window (select, then Open) and
+    /// returns its window once it shows the unlock screen.
+    @discardableResult
+    func openDatabase(
+        named name: String,
+        timeout: TimeInterval = 15,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> XCUIElement {
+        let window = databaseWindow(named: name)
+        // An open database window can cover the Databases window's rows.
+        if databaseWindows.count > 0 { showDatabasesWindow(file: file, line: line) }
+        guard selectDatabaseRow(containing: name, timeout: timeout, file: file, line: line) != nil else { return window }
+        let open = databasesWindow.buttons["databases.open"].firstMatch
+        XCTAssertTrue(open.waitForExistence(timeout: 5), "The Databases window has no Open button", file: file, line: line)
+        waitUntilEnabled(open)
+        open.click()
+        XCTAssertTrue(window.waitForExistence(timeout: timeout), "No window opened for '\(name)'", file: file, line: line)
+        XCTAssertTrue(
+            window.secureTextFields["unlock.password.field"].waitForExistence(timeout: timeout),
+            "The window for '\(name)' did not show the unlock screen",
+            file: file,
+            line: line
+        )
+        return window
+    }
+
+    /// Opens the first listed database unless a database window is already
+    /// on its unlock screen.
     @discardableResult
     func openFirstDatabaseFromListIfNeeded(
         timeout: TimeInterval = 15,
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> Bool {
-        let passwordField = app.secureTextFields["unlock.password.field"]
+        let passwordField = databaseWindow.secureTextFields["unlock.password.field"]
         if passwordField.waitForExistence(timeout: 2) {
             return true
         }
-
-        let databaseRow = app.buttons["database.row"].firstMatch
-        XCTAssertTrue(
-            databaseRow.waitForExistence(timeout: timeout),
-            "Database list did not appear",
-            file: file,
-            line: line
-        )
-        databaseRow.click()
-
+        guard selectDatabaseRow(timeout: timeout, file: file, line: line) != nil else { return false }
+        let open = databasesWindow.buttons["databases.open"].firstMatch
+        XCTAssertTrue(open.waitForExistence(timeout: 5), "The Databases window has no Open button", file: file, line: line)
+        waitUntilEnabled(open)
+        open.click()
         XCTAssertTrue(
             passwordField.waitForExistence(timeout: timeout),
             "Password field did not appear after opening the database",
@@ -127,39 +229,64 @@ class MacUITestCase: XCTestCase {
         return true
     }
 
+    /// Keyboard focus is app-wide, so it also proves which window is key.
+    func waitForKeyboardFocus(_ element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while element.value(forKey: "hasKeyboardFocus") as? Bool != true {
+            guard Date() < deadline else { return false }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return true
+    }
+
+    func waitUntilEnabled(_ element: XCUIElement, timeout: TimeInterval = 5) {
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: element)
+        _ = XCTWaiter.wait(for: [enabled], timeout: timeout)
+    }
+
     // MARK: - Unlock
 
-    func unlock(password: String, file: StaticString = #filePath, line: UInt = #line) {
-        openFirstDatabaseFromListIfNeeded(file: file, line: line)
+    /// Unlocks `window`, or the only database window, opening the first
+    /// listed database when none is open.
+    func unlock(
+        password: String,
+        in window: XCUIElement? = nil,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        if window == nil { openFirstDatabaseFromListIfNeeded(file: file, line: line) }
+        let window = window ?? databaseWindow
 
-        let passwordField = app.secureTextFields["unlock.password.field"]
+        let passwordField = window.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 15), "Password field did not appear", file: file, line: line)
         passwordField.click()
         passwordField.typeText(password)
 
-        let unlockButton = app.buttons["unlock.button"]
+        let unlockButton = window.buttons["unlock.button"]
         XCTAssertTrue(unlockButton.waitForExistence(timeout: 5), "Unlock button did not appear", file: file, line: line)
         unlockButton.click()
     }
 
-    func unlockSuccessfully(file: StaticString = #filePath, line: UInt = #line) {
-        unlock(password: Self.fixturePassword, file: file, line: line)
-        waitForVaultToUnlock(file: file, line: line)
+    func unlockSuccessfully(in window: XCUIElement? = nil, file: StaticString = #filePath, line: UInt = #line) {
+        unlock(password: Self.fixturePassword, in: window, file: file, line: line)
+        waitForVaultToUnlock(in: window ?? databaseWindow, file: file, line: line)
     }
 
     @discardableResult
     func waitForVaultToUnlock(
+        in window: XCUIElement? = nil,
         timeout: TimeInterval = 30,
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> Bool {
+        let window = window ?? databaseWindow
         // On macOS the custom toolbar buttons (including lock.button) can
         // collapse into the "more toolbar items" overflow, so unlocked state
         // is detected via vault content (the root group list) instead.
-        let groupLink = app.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
-        let entryLink = app.descendants(matching: .any).matching(identifier: "entry.navlink").firstMatch
-        let lockButton = app.buttons["lock.button"].firstMatch
-        let errorLabel = app.staticTexts["unlock.error.label"]
+        let groupLink = window.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
+        let entryLink = window.descendants(matching: .any).matching(identifier: "entry.navlink").firstMatch
+        let lockButton = window.buttons["lock.button"].firstMatch
+        let errorLabel = window.staticTexts["unlock.error.label"]
         let deadline = Date().addingTimeInterval(timeout)
         var lastErrorMessage: String?
 
@@ -184,20 +311,16 @@ class MacUITestCase: XCTestCase {
         return false
     }
 
-    @discardableResult
-    func waitForLockedState(timeout: TimeInterval = 15) -> Bool {
-        let passwordField = app.secureTextFields["unlock.password.field"]
-        let databaseRow = app.buttons["database.row"].firstMatch
+    /// Whether `window` shows its database's unlock screen with no vault content.
+    func waitForLockedState(in window: XCUIElement, timeout: TimeInterval = 15) -> Bool {
+        let passwordField = window.secureTextFields["unlock.password.field"]
+        let groupLink = window.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
         let deadline = Date().addingTimeInterval(timeout)
-
         repeat {
-            if passwordField.exists || databaseRow.exists {
-                return true
-            }
+            if passwordField.exists, !groupLink.exists { return true }
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         } while Date() < deadline
-
-        return passwordField.exists || databaseRow.exists
+        return false
     }
 
     // MARK: - Navigation

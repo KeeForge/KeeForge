@@ -25,6 +25,8 @@ final class DatabasesWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.isRestorable = false
         window.restorationClass = nil
+        // Window > Databases already names it; AppKit's own entry would list it twice.
+        window.isExcludedFromWindowsMenu = true
         window.contentMinSize = Self.contentSize
         window.setContentSize(Self.contentSize)
         window.center()

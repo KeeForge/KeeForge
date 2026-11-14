@@ -575,6 +575,8 @@ struct DatabaseListView: View {
                 .accessibilityIdentifier("database.empty.add")
             }
         }
+        // Fills the window, so the action bar stays at its bottom edge.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// The Databases window's actions, below the list in every state.

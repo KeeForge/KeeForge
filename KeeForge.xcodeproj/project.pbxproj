@@ -312,6 +312,7 @@
 		499FB1A86178CDFBDC46124D /* AppSettingsCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761192478C291FBAE7135E0A /* AppSettingsCommands.swift */; };
 		4A0383F5EBA35EEC0148526A /* TOTPEnrollmentDestinationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F47964905A8FBC661633D39 /* TOTPEnrollmentDestinationView.swift */; };
 		4A3139BD312283F61022273A /* EncryptionSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4065659205645A44172E76A0 /* EncryptionSettingsViewModel.swift */; };
+		4B5C6B7DBAAE1205EEFBA03A /* MacWindowLifecycleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC25AD374A3BC126AA4C055F /* MacWindowLifecycleUITests.swift */; };
 		4B79D72F54953B359F935F15 /* AppRoutingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3F14CAB04F9CE313C7ABFC /* AppRoutingCoordinator.swift */; };
 		4C4EDBE16F8DD7B5062FB5B6 /* challenge-response-aeskdf.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = A1FDDC988393283520343838 /* challenge-response-aeskdf.kdbx */; };
 		4CCAE450D559610ADB561271 /* YubiKeyEmulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBD4DF577BC732FABCDA248F /* YubiKeyEmulator.swift */; };
@@ -1533,6 +1534,7 @@
 		DB2A4FFD19CB42ECEDDAA7B9 /* SecurityScopedBookmarkManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedBookmarkManagerTests.swift; sourceTree = "<group>"; };
 		DB6EEB0E46A9536FD3663EFB /* ExpressUnlockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpressUnlockTests.swift; sourceTree = "<group>"; };
 		DBA690A30702948674112D9A /* AutoFillTipUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillTipUITests.swift; sourceTree = "<group>"; };
+		DC25AD374A3BC126AA4C055F /* MacWindowLifecycleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWindowLifecycleUITests.swift; sourceTree = "<group>"; };
 		DCB1A8E988C494C7E2A4E3B0 /* SecretAccessGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretAccessGateTests.swift; sourceTree = "<group>"; };
 		DDEA3048149FA6E823621EA0 /* PasskeyCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyCrypto.swift; sourceTree = "<group>"; };
 		DE329B5193927500F922C84C /* EntryRowCopyActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryRowCopyActions.swift; sourceTree = "<group>"; };
@@ -1959,6 +1961,7 @@
 				BE3F7365E8B09C1E10D9EEBA /* MacUITestCase.swift */,
 				7B69F172792BCB6806380021 /* MacWebDAVSmokeUITests.swift */,
 				32D4BB41876D699E93EF6F80 /* MacWhatsNewUITests.swift */,
+				DC25AD374A3BC126AA4C055F /* MacWindowLifecycleUITests.swift */,
 			);
 			path = KeeForgeMacUITests;
 			sourceTree = "<group>";
@@ -3813,6 +3816,7 @@
 				FDD8325D11F3007AF254C73A /* MacUITestCase.swift in Sources */,
 				A3FB120A5FB52424A9EC9BD9 /* MacWebDAVSmokeUITests.swift in Sources */,
 				0331A923639F63C77C1A98B0 /* MacWhatsNewUITests.swift in Sources */,
+				4B5C6B7DBAAE1205EEFBA03A /* MacWindowLifecycleUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

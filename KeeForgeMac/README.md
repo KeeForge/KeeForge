@@ -31,7 +31,7 @@ queued and Quick Launch opens): each surviving database comes back locked in its
 own window, registered as restoring so automatic Touch ID waits until the user
 clicks or types in it or opens it explicitly, and the recorded frontmost is
 fronted. Quick Launch runs only when nothing was restored and no file arrived. New
-windows open at the default size; unit tests inject the store's defaults, screen
+windows open at the default size, a second one cascaded from the frontmost; unit tests inject the store's defaults, screen
 frames and the quit prompt. `-ui-testing` turns restoration and recording off, and
 `-ui-testing-database-window-size <w>x<h>` sets the database window's content size
 (`MacWindowLaunchOptions`).
@@ -84,12 +84,15 @@ database window, none, so database commands are disabled. Validation and dispatc
 both ask it when they run, through `AppDelegate.supplementalTarget` and each
 controller's `isCommandTarget` gate. File ▸ New Database, Open Database and
 Connect to Server are launcher operations and ignore every session's state.
-Window ▸ Databases shows the Databases window; AppKit's Window menu lists the open
-windows by database name. Settings is an auxiliary window that cannot become main
+Window ▸ Databases shows the Databases window, which AppKit's own window list
+leaves out; that list names each open database window, adding the unlocked
+window's subtitle in parentheses. Settings is an auxiliary window that cannot become main
 and chooses its own database where it needs one.
 
 Close Window, Close Database and Escape on the unlock screen all go through the
-window's guarded close (`MacWindowCloseGuard`). A committed close locks and
+window's guarded close (`MacWindowCloseGuard`); Close Window is disabled while a
+sheet is up, but Close Database still asks the guard, so an open editor answers
+with its own prompt. A committed close locks and
 retires exactly that session and releases its controller; cancel or a failed save
 keeps both. Lock keeps the window open on its unlock screen.
 

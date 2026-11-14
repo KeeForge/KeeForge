@@ -40,11 +40,17 @@ private extension CGRect {
 @MainActor
 final class MacScreenshotAuditUITests: MacUITestCase {
 
-    // The bundled test database under a presentable name, since the database
+    // The bundled test database under presentable names, since the database
     // list and window titles show the injected filename in listing captures.
     override var databaseFixtures: [DatabaseFixture] {
-        [DatabaseFixture(resourceName: "test", injectedFilename: "Personal.kdbx")]
+        if name.contains("EmptyDatabasesWindow") { return [] }
+        return [
+            DatabaseFixture(resourceName: "test", injectedFilename: "Personal.kdbx"),
+            DatabaseFixture(resourceName: "test", injectedFilename: "Work.kdbx"),
+        ]
     }
+
+    private static let databaseWindowSize = NSSize(width: 1080, height: 700)
 
     override func setUp() async throws {
         guard ProcessInfo.processInfo.environment["SCREENSHOT_AUDIT"] == "1" else {
@@ -68,7 +74,14 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         let appearance = ProcessInfo.processInfo.environment["SCREENSHOT_AUDIT_DARK"] == "1" ? "dark" : "light"
         insertLaunchArguments(["-KeeForge.appearanceMode", appearance], into: app)
 
-        insertLaunchArguments(["-NSWindow Frame main-AppWindow-1", Self.frameDefault(size: NSSize(width: 1080, height: 700))], into: app)
+        insertLaunchArguments([Self.windowSizeArgument, Self.sizeValue(Self.databaseWindowSize)], into: app)
+        insertLaunchArguments(["-KeeForge.macMenuBarQuickAccess", "YES"], into: app)
+        // Argument-domain only: SSH Agent's database picker shows only while the agent is on.
+        insertLaunchArguments(["-KeeForge.macSSHAgentEnabled", "YES"], into: app)
+        if name.contains("ServerDatabases") {
+            app.launchEnvironment["UI_TEST_CLOUD_ACCOUNTS_JSON"] = Self.serverAccountsJSON
+            app.launchEnvironment["UI_TEST_CLOUD_DATABASES_JSON"] = Self.serverDatabasesJSON
+        }
 
         // The `results:N` overlay is a UI-test hook, not app UI.
         app.launchEnvironment["UI_TEST_HIDE_SEARCH_RESULTS_COUNT"] = "1"
@@ -83,6 +96,23 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     }
 
     private static let appBundleIdentifier = "com.keevault.app"
+    private static let windowSizeArgument = "-ui-testing-database-window-size"
+
+    private static func sizeValue(_ size: NSSize) -> String {
+        "\(Int(size.width))x\(Int(size.height))"
+    }
+
+    // A WebDAV and an FTP row next to the local ones; nothing connects unless a row is opened.
+    private static let serverAccountsJSON = """
+    [{"id":"webdav-acct-1","displayName":"alex@cloud.example.com","provider":"webdav"},
+     {"id":"ftp-acct-1","displayName":"ftp.example.com","provider":"ftp"}]
+    """
+    private static let serverDatabasesJSON = """
+    [{"provider":"webdav","accountId":"webdav-acct-1","file":{"id":"/Vaults/Family.kdbx","name":"Family.kdbx",
+      "path":"/Vaults/Family.kdbx","isFolder":false,"modifiedDate":"2023-11-14T22:13:20Z","size":4096}},
+     {"provider":"ftp","accountId":"ftp-acct-1","file":{"id":"/backup/Archive.kdbx","name":"Archive.kdbx",
+      "path":"/backup/Archive.kdbx","isFolder":false,"modifiedDate":"2023-11-14T22:13:20Z","size":4096}}]
+    """
 
     /// PID of the running app-under-test.
     private var appProcessID: pid_t? {
@@ -109,7 +139,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     ///
     /// Without Screen Recording permission this list is trimmed to the caller's
     /// own windows, so the harness cannot assume it sees the whole screen.
-    private func orderedScreenWindows() -> [ScreenWindow] {
+    private func orderedScreenWindows(anyLayer: Bool = false) -> [ScreenWindow] {
         guard let list = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID
@@ -119,7 +149,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         return list.compactMap { info in
             guard let pid = info[kCGWindowOwnerPID as String] as? pid_t,
                   let id = info[kCGWindowNumber as String] as? CGWindowID,
-                  (info[kCGWindowLayer as String] as? Int) == 0,
+                  anyLayer || (info[kCGWindowLayer as String] as? Int) == 0,
                   let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
                   let rect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
                   rect.width > 1, rect.height > 1 else {
@@ -129,10 +159,11 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         }
     }
 
-    /// The window-server record for the app window at `rect`.
+    /// The window-server record for the app window at `rect`, at any level:
+    /// the quick-search panel and context menus float above normal windows.
     private func appScreenWindow(matching rect: CGRect) -> ScreenWindow? {
         guard let pid = appProcessID else { return nil }
-        return orderedScreenWindows().first {
+        return orderedScreenWindows(anyLayer: true).first {
             $0.pid == pid && abs($0.rect.origin.x - rect.origin.x) < 3
                 && abs($0.rect.origin.y - rect.origin.y) < 3
                 && abs($0.rect.width - rect.width) < 3
@@ -159,10 +190,8 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         isAppActiveApplication && isAppWindowFrontmost()
     }
 
-    /// The app window element with the largest frame (the main window).
-    private var mainWindowElement: XCUIElement? {
-        app.windows.allElementsBoundByIndex.max { $0.frame.area < $1.frame.area }
-    }
+    /// The database window the captures follow.
+    private var personalWindow: XCUIElement { databaseWindow(named: "Personal") }
 
     /// Raises the app over other apps as forcefully as the test process can:
     /// `XCUIApplication.activate()` plus `NSRunningApplication.activate()`.
@@ -253,8 +282,8 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         // Capture the parent window instead; the sheet remains visible in the
         // resulting image with its surrounding context.
         let captureElement: XCUIElement
-        if element.elementType == .sheet, let mainWindowElement {
-            captureElement = mainWindowElement
+        if element.elementType == .sheet, let parent = parentWindow(ofSheet: element) {
+            captureElement = parent
         } else {
             captureElement = element
         }
@@ -279,9 +308,16 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         add(attachment)
     }
 
-    /// Snaps the app's main window (largest app-owned window).
+    private func parentWindow(ofSheet sheet: XCUIElement) -> XCUIElement? {
+        let frame = sheet.frame
+        return app.windows.allElementsBoundByIndex.first {
+            $0.sheets.count > 0 && $0.frame.intersects(frame)
+        }
+    }
+
+    /// Snaps the Personal database window.
     private func snap(_ name: String) async {
-        await snapWindow(mainWindowElement, name)
+        await snapWindow(personalWindow, name)
     }
 
     /// The app window (or attached sheet) that hosts `identifier`.
@@ -290,11 +326,12 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     /// that returns the main window when the surface failed to open, so the
     /// capture silently mislabels the main window as "settings" or "editor".
     private func surface(hosting identifier: String) -> XCUIElement? {
-        let sheet = app.sheets.firstMatch
-        if sheet.exists, sheet.descendants(matching: .any)[identifier].exists {
+        if let sheet = app.sheets.allElementsBoundByIndex.first(where: {
+            $0.exists && $0.descendants(matching: .any)[identifier].exists
+        }) {
             return sheet
         }
-        return app.windows.allElementsBoundByIndex.first {
+        return (app.windows.allElementsBoundByIndex + app.dialogs.allElementsBoundByIndex).first {
             $0.descendants(matching: .any)[identifier].exists
         }
     }
@@ -329,14 +366,25 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         return true
     }
 
-    func testCaptureScreens() async {
-        // 1. Database list
+    func testCaptureEmptyDatabasesWindow() async {
         settle(2)
-        await snap("01-database-list")
+        await snapWindow(databasesWindow, "00a-databases-first-run")
+        attachCaptureReport()
+    }
+
+    func testCaptureServerDatabasesInTheDatabasesWindow() async {
+        settle(2)
+        await snapWindow(databasesWindow, "00b-databases-with-servers")
+        attachCaptureReport()
+    }
+
+    func testCaptureScreens() async {
+        // 1. The Databases window
+        settle(2)
+        await snapWindow(databasesWindow, "01-databases")
 
         // 1a. Database row context menu.
-        let databaseRow = app.buttons["database.row"].firstMatch
-        if databaseRow.waitForExistence(timeout: 5), databaseRow.isHittable {
+        if let databaseRow = selectDatabaseRow(containing: "Personal") {
             databaseRow.rightClick()
             let rowMenu = app.menus.firstMatch
             if rowMenu.waitForExistence(timeout: 3) {
@@ -351,13 +399,35 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip("01a-database-row-menu", reason: "the database row was not hittable")
         }
 
+        // 1b. Create New sheet on the Databases window.
+        await captureLauncherSheet(
+            opening: { self.databasesWindow.buttons["databases.create-new"].firstMatch.click() },
+            hosting: "database-create.cancel-button",
+            "01b-databases-create-new"
+        ) {
+            self.app.buttons["database-create.cancel-button"].firstMatch.click()
+        }
+
+        // 1c. Connect to Server > WebDAV sheet on the Databases window.
+        await captureLauncherSheet(
+            opening: {
+                self.databasesWindow.descendants(matching: .any)["databases.connect-server"].firstMatch.click()
+                let webDAV = self.app.menuItems["database.add.webdav"].firstMatch
+                if webDAV.waitForExistence(timeout: 3) { webDAV.click() }
+            },
+            hosting: nil,
+            "01c-databases-connect-webdav"
+        ) {
+            self.app.typeKey(.escape, modifierFlags: [])
+        }
+
         // 2. Unlock screen
-        _ = openFirstDatabaseFromListIfNeeded()
+        openDatabase(named: "Personal")
         settle()
         await snap("02-unlock")
 
         // 3. Unlocked vault root (three-column: groups / entries / detail)
-        unlockSuccessfully()
+        unlockSuccessfully(in: personalWindow)
         settle()
         await snap("03-vault-root")
 
@@ -399,7 +469,16 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip("06-search", reason: "⌘F could not be delivered")
         }
 
-        // 7. Settings window + each tab.
+        // 11. A second database window beside the first: one locked, one unlocked.
+        let workWindow = openDatabase(named: "Work")
+        settle()
+        await snapWindow(workWindow, "11a-second-window-locked")
+        await snap("11b-first-window-unlocked")
+        unlockSuccessfully(in: workWindow)
+        settle()
+
+        // 7. Settings window + each tab; SSH Agent shows its database picker
+        //    with both databases unlocked.
         if typeAppShortcut(",") {
             settle(1.5)
             await captureSettingsTabs()
@@ -410,6 +489,18 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             }
         } else {
             noteSkip("07-settings", reason: "⌘, could not be delivered")
+        }
+
+        // 12. The menu bar quick-search panel names the database it searches.
+        await captureQuickSearchPanel()
+
+        // Back to one database window, so the vault queries below are unambiguous.
+        // The close button needs neither the menu bar nor key focus.
+        waitForStableForeground()
+        let closeWork = workWindow.buttons[XCUIIdentifierCloseWindow].firstMatch
+        if closeWork.exists { closeWork.click() }
+        if workWindow.waitForNonExistence(timeout: 10) == false {
+            noteSkip("12-close-second-window", reason: "the Work window did not close")
         }
 
         // 8. Entry edit sheet (⌘N) — last, because presenting/dismissing it can
@@ -505,7 +596,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     }
 
     func testCaptureTOTPSetupLink() async {
-        unlockSuccessfully()
+        unlockSuccessfully(in: openDatabase(named: "Personal"))
         guard typeAppShortcut("n"),
               app.textFields["entry-edit.title-field"].waitForExistence(timeout: 8) else {
             XCTFail("The entry editor did not open")
@@ -590,37 +681,77 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         return skippedCaptures.contains(where: { $0.hasPrefix(name) }) == false
     }
 
-    private static func frameDefault(size: NSSize) -> String {
-        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1050)
-        let x = screen.minX + max(0, (screen.width - size.width) / 2)
-        let y = screen.minY + max(0, (screen.height - size.height) / 2)
-        return [x, y, size.width, size.height, screen.minX, screen.minY, screen.width, screen.height]
-            .map { String(Int($0.rounded())) }
-            .joined(separator: " ")
-    }
-
     private func shrinkMainWindowToMinimum() {
         // Corner drags do not resize windows on macOS 27.
+        let content = NSSize(width: 900, height: 620)
         let size = NSWindow.frameRect(
-            forContentRect: NSRect(x: 0, y: 0, width: 900, height: 620),
+            forContentRect: NSRect(origin: .zero, size: content),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         ).size
         app.terminate()
-        let argument = "-NSWindow Frame main-AppWindow-1"
-        if let index = app.launchArguments.firstIndex(of: argument) {
-            app.launchArguments[index + 1] = Self.frameDefault(size: size)
+        if let index = app.launchArguments.firstIndex(of: Self.windowSizeArgument) {
+            app.launchArguments[index + 1] = Self.sizeValue(content)
         }
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
-        unlockSuccessfully()
+        unlockSuccessfully(in: openDatabase(named: "Personal"))
         openGroup(named: "Social")
         openEntry(named: "Twitter")
-        guard let window = mainWindowElement else {
-            XCTFail("The minimum-size main window did not appear")
+        XCTAssertEqual(personalWindow.frame.width, size.width, accuracy: 2)
+        XCTAssertEqual(personalWindow.frame.height, size.height, accuracy: 2)
+    }
+
+    /// Opens a sheet on the Databases window, snaps it, and closes it.
+    private func captureLauncherSheet(
+        opening open: () -> Void,
+        hosting identifier: String?,
+        _ name: String,
+        closing close: () -> Void
+    ) async {
+        guard waitForStableForeground() else {
+            noteSkip(name, reason: "app never held the foreground")
             return
         }
-        XCTAssertEqual(window.frame.width, size.width, accuracy: 2)
-        XCTAssertEqual(window.frame.height, size.height, accuracy: 2)
+        open()
+        let sheet = databasesWindow.sheets.firstMatch
+        guard sheet.waitForExistence(timeout: 8),
+              identifier.map({ sheet.descendants(matching: .any)[$0].waitForExistence(timeout: 5) }) ?? true else {
+            noteSkip(name, reason: "the sheet never opened on the Databases window")
+            app.typeKey(.escape, modifierFlags: [])
+            return
+        }
+        settle(0.6)
+        await snapWindow(sheet, name)
+        close()
+        if sheet.waitForNonExistence(timeout: 5) == false {
+            app.typeKey(.escape, modifierFlags: [])
+        }
+        settle(0.4)
+    }
+
+    private func captureQuickSearchPanel() async {
+        let name = "12-quick-search-panel"
+        let statusItem = app.statusItems["menu-bar.quick-search.status-item"].firstMatch
+        guard statusItem.waitForExistence(timeout: 5) else {
+            noteSkip(name, reason: "the menu bar item did not appear")
+            return
+        }
+        statusItem.click()
+        let panel = app.dialogs["quick-search.panel"].firstMatch
+        guard panel.waitForExistence(timeout: 5),
+              panel.descendants(matching: .any)["quick-search.database-name"].waitForExistence(timeout: 5) else {
+            noteSkip(name, reason: "the panel did not show its database caption")
+            app.typeKey(.escape, modifierFlags: [])
+            return
+        }
+        settle(0.6)
+        await snapWindow(panel, name)
+        app.typeKey(.escape, modifierFlags: [])
+        _ = panel.waitForNonExistence(timeout: 5)
+        settle(0.4)
+        if isAppActiveApplication == false {
+            noteSkip("12-focus-after-quick-search", reason: "KeeForge was not the active app after Escape closed the panel")
+        }
     }
 
     /// Records which captures were skipped, so a short export is obviously a
@@ -655,7 +786,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             ("About", "settings.tab.about", "07e-settings-about"),
         ]
 
-        let settingsWindow = app.windows["settings"].firstMatch
+        let settingsWindow = self.settingsWindow
         guard settingsWindow.waitForExistence(timeout: 5) else {
             for (title, _, name) in tabs {
                 noteSkip(name, reason: "Settings window missing before selecting '\(title)'")
@@ -678,7 +809,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     /// Activating the app before sending ⌘W can raise the main window instead,
     /// leaving Settings open to interrupt the later sheet interactions.
     private func closeSettingsWindow() -> Bool {
-        let settingsWindow = app.windows["settings"].firstMatch
+        let settingsWindow = self.settingsWindow
         guard settingsWindow.exists else { return true }
 
         settingsWindow.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))

@@ -45,7 +45,7 @@ final class MacSmokeUITests: MacUITestCase {
         openGroup(named: "Social")
         restoreTestRow(identifier: "entry.navlink", named: "Discord").rightClick()
         clickRestoreTestMenu("entry-row.delete-context")
-        let delete = app.windows.buttons["Delete"].firstMatch
+        let delete = databaseWindow.buttons["Delete"].firstMatch
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
         delete.click()
         openGroup(named: "Recycle Bin")
@@ -59,7 +59,7 @@ final class MacSmokeUITests: MacUITestCase {
         unlockSuccessfully()
         restoreTestRow(identifier: "group.navlink", named: "Work").rightClick()
         clickRestoreTestMenu("group-row.delete-context")
-        let delete = app.windows.buttons["Delete"].firstMatch
+        let delete = databaseWindow.buttons["Delete"].firstMatch
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
         delete.click()
         openGroup(named: "Recycle Bin")
@@ -127,7 +127,7 @@ final class MacSmokeUITests: MacUITestCase {
     // Native split-item constraints are covered by MacWorkspaceSplitViewControllerTests.
     func testSidebarWidthSurvivesRepeatedLockUnlockCycles() throws {
         unlockSuccessfully()
-        let window = app.windows.firstMatch
+        let window = databaseWindow
         let originalWindowSize = window.frame.size
         let divider = try XCTUnwrap(sidebarDivider(), "The workspace sidebar divider is missing")
         let sidebarPosition = divider.frame.midX - window.frame.minX
@@ -306,7 +306,7 @@ final class MacSmokeUITests: MacUITestCase {
         // sits over the entry detail's. A row below its visible area still reports
         // isHittable, but a click there lands on the sheet's button bar, and a
         // control touching the window's bottom edge is not yet clickable.
-        let window = app.windows.firstMatch
+        let window = databaseWindow
         func reach(_ element: XCUIElement) {
             for _ in 0..<18 {
                 guard element.exists else {
@@ -369,7 +369,7 @@ final class MacSmokeUITests: MacUITestCase {
         func reach(_ element: XCUIElement) {
             for _ in 0..<18 {
                 if element.exists && element.isHittable { return }
-                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250)
+                databaseWindow.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250)
             }
             XCTAssertTrue(element.isHittable)
         }
@@ -494,11 +494,11 @@ final class MacSmokeUITests: MacUITestCase {
         XCTAssertFalse(titleField.exists, "Entry editor did not dismiss after Cancel")
     }
 
-    /// ⌘W closes the window when nothing is unsaved, and the vault locks
-    /// behind it without the app quitting. `MacWindowCloseGuard` proxies the
-    /// window delegate SwiftUI installs so it can hold a close open for unsaved
-    /// work; this is the check that an ordinary close still passes straight
-    /// through that proxy.
+    /// ⌘W closes the database window when nothing is unsaved, and its vault
+    /// locks without the app quitting: the Databases window reopens it on the
+    /// unlock screen. `MacWindowCloseGuard` proxies the window delegate so it
+    /// can hold a close open for unsaved work; this is the check that an
+    /// ordinary close still passes straight through that proxy.
     ///
     /// The decision itself is unit-tested (`MacWindowCloseGuardTests`,
     /// `DatabaseViewModelTests`'s window-close section, both headless). What no
@@ -506,15 +506,16 @@ final class MacSmokeUITests: MacUITestCase {
     /// `windowShouldClose(_:)` on a window this app actually put on screen.
     func testCommandWClosesTheWindowAndLeavesTheAppRunning() {
         unlockSuccessfully()
+        let window = databaseWindow
 
         typeCommandShortcut("w")
 
-        let deadline = Date().addingTimeInterval(15)
-        while app.windows.count > 0, Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
-        }
-        XCTAssertEqual(app.windows.count, 0, "⌘W did not close the window")
-        XCTAssertEqual(app.state, .runningForeground, "Closing the last window must not quit the app")
+        XCTAssertTrue(window.waitForNonExistence(timeout: 15), "⌘W did not close the database window")
+        XCTAssertEqual(databaseWindows.count, 0)
+        XCTAssertEqual(app.state, .runningForeground, "Closing a database window must not quit the app")
+
+        let reopened = openDatabase(named: "test")
+        XCTAssertTrue(waitForLockedState(in: reopened), "The closed window's database did not lock")
     }
 
     func testSettingsWindowOpensViaCommandComma() {
@@ -522,7 +523,7 @@ final class MacSmokeUITests: MacUITestCase {
 
         typeCommandShortcut(",")
 
-        let settingsWindow = app.windows["settings"]
+        let settingsWindow = self.settingsWindow
         XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15), "⌘, did not open the Settings window")
 
         // The window reopens on whichever tab was used last, which persists in
@@ -539,7 +540,7 @@ final class MacSmokeUITests: MacUITestCase {
     /// recorder removes its AppKit monitor; a controller test cannot reach it.
     func testDisablingMenuBarDuringShortcutRecordingRestoresWindowCommands() throws {
         typeCommandShortcut(",")
-        let settingsWindow = app.windows["settings"].firstMatch
+        let settingsWindow = self.settingsWindow
         XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15))
         XCTAssertTrue(selectSettingsTab(named: "Menu Bar"))
 
@@ -578,40 +579,34 @@ final class MacSmokeUITests: MacUITestCase {
 
     /// This verifies SwiftUI observes the deferred route after the editor
     /// settles a lock request; routing unit tests cover the decision itself.
-    func testCloseDatabaseWaitsForDirtyEditorAndReturnsToListAfterDiscard() {
+    func testCloseDatabaseWaitsForDirtyEditorAndClosesTheWindowAfterDiscard() {
         unlockSuccessfully()
+        let window = databaseWindow
         typeCommandShortcut("n")
-        let titleField = app.textFields["entry-edit.title-field"].firstMatch
+        let titleField = window.textFields["entry-edit.title-field"].firstMatch
         XCTAssertTrue(titleField.waitForExistence(timeout: 15))
         titleField.click()
         app.typeText("Unsaved Close Database Entry")
 
         typeCommandShortcut("w", modifiers: [.command, .shift])
-        let keepEditing = app.sheets.buttons["Keep Editing"].firstMatch
+        let keepEditing = window.sheets.buttons["Keep Editing"].firstMatch
         XCTAssertTrue(keepEditing.waitForExistence(timeout: 10), "Close Database did not prompt for the dirty editor")
         XCTAssertTrue(keepEditing.isHittable)
         keepEditing.click()
 
         XCTAssertTrue(titleField.waitForExistence(timeout: 5))
         XCTAssertEqual(titleField.value as? String, "Unsaved Close Database Entry")
-        let databasePlaceholder = app.staticTexts.matching(
-            NSPredicate(format: "label == %@ OR value == %@", "Select a Database", "Select a Database")
-        ).firstMatch
-        XCTAssertFalse(databasePlaceholder.exists, "Keep Editing closed the database")
+        XCTAssertTrue(window.exists, "Keep Editing closed the database window")
 
         typeCommandShortcut("w", modifiers: [.command, .shift])
-        let discard = app.sheets.buttons["Discard and Lock"].firstMatch
+        let discard = window.sheets.buttons["Discard and Lock"].firstMatch
         XCTAssertTrue(discard.waitForExistence(timeout: 10))
         XCTAssertTrue(discard.isHittable)
         discard.click()
 
-        XCTAssertTrue(
-            databasePlaceholder.waitForExistence(timeout: 15),
-            "Discarding the editor did not complete Close Database"
-        )
-        XCTAssertFalse(titleField.exists)
-        XCTAssertFalse(app.secureTextFields["unlock.password.field"].exists)
-        XCTAssertTrue(app.buttons["database.row"].firstMatch.exists)
+        XCTAssertTrue(window.waitForNonExistence(timeout: 15), "Discarding the editor did not complete Close Database")
+        XCTAssertEqual(databaseWindows.count, 0)
+        XCTAssertTrue(databaseRow(containing: "test").waitForExistence(timeout: 10), "The Databases window was not shown")
     }
 
     // MARK: - Unlock keyboard handling
@@ -623,7 +618,7 @@ final class MacSmokeUITests: MacUITestCase {
     func testOpeningDatabaseFocusesPasswordField() {
         openFirstDatabaseFromListIfNeeded()
 
-        let passwordField = app.secureTextFields["unlock.password.field"]
+        let passwordField = databaseWindow.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 15))
         XCTAssertTrue(waitForKeyboardFocus(passwordField), "Password field was not focused after opening the database")
 
@@ -638,32 +633,20 @@ final class MacSmokeUITests: MacUITestCase {
         waitForExpectations(timeout: 5)
     }
 
-    func testEscapeInUnlockReturnsToDatabaseList() {
+    func testEscapeInUnlockClosesTheWindowAndShowsDatabases() {
         openFirstDatabaseFromListIfNeeded()
+        let window = databaseWindow
 
-        let passwordField = app.secureTextFields["unlock.password.field"]
+        let passwordField = window.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 15))
         XCTAssertTrue(waitForKeyboardFocus(passwordField), "Password field was not focused after opening the database")
 
         app.typeKey(.escape, modifierFlags: [])
 
-        let placeholder = app.staticTexts["Select a Database"]
-        let deadline = Date().addingTimeInterval(10)
-        while passwordField.exists, Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        }
-        XCTAssertFalse(passwordField.exists, "Escape did not leave the unlock screen")
-        XCTAssertTrue(placeholder.waitForExistence(timeout: 10), "Database-list placeholder did not appear after Escape")
+        XCTAssertTrue(window.waitForNonExistence(timeout: 10), "Escape did not close the database window")
+        XCTAssertTrue(databaseRow(containing: "test").waitForExistence(timeout: 10), "The Databases window was not shown after Escape")
     }
 
-    private func waitForKeyboardFocus(_ element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while element.value(forKey: "hasKeyboardFocus") as? Bool != true {
-            guard Date() < deadline else { return false }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        }
-        return true
-    }
 }
 
 /// Reveal/copy-password authentication boundary.
@@ -750,27 +733,35 @@ final class MacDatabaseListUITests: MacUITestCase {
         ]
     }
 
+    /// A single click only selects; Return opens. Removing a database whose
+    /// window is open closes that window and leaves the other row.
     func testDatabaseListShowsSeededDatabasesAndRemovesOne() {
         let testRow = databaseRow(containing: "test")
         let demoRow = databaseRow(containing: "demo")
         XCTAssertTrue(testRow.waitForExistence(timeout: 15), "Seeded test.kdbx row missing")
         XCTAssertTrue(demoRow.waitForExistence(timeout: 15), "Seeded demo.kdbx row missing")
 
-        // Select the row first, so the removal happens while the detail column
-        // is showing that database's own session.
-        demoRow.click()
-        let passwordField = app.secureTextFields["unlock.password.field"]
-        XCTAssertTrue(passwordField.waitForExistence(timeout: 15), "Detail column did not open the selected database")
+        selectDatabaseRow(containing: "demo")
+        RunLoop.current.run(until: Date().addingTimeInterval(2))
+        XCTAssertEqual(databaseWindows.count, 0, "A single click on a database row opened it")
 
-        demoRow.rightClick()
+        app.typeKey(.return, modifierFlags: [])
+        let demoWindow = databaseWindow(named: "demo")
+        XCTAssertTrue(
+            demoWindow.secureTextFields["unlock.password.field"].waitForExistence(timeout: 15),
+            "Return did not open the selected database in its own window"
+        )
+
+        showDatabasesWindow()
+        selectDatabaseRow(containing: "demo")?.rightClick()
 
         let removeMenuItem = app.menuItems["Remove"].firstMatch
         XCTAssertTrue(removeMenuItem.waitForExistence(timeout: 10), "Remove context-menu item missing")
         removeMenuItem.click()
 
-        // Confirmation dialog. Scope to the window so the query cannot match
-        // Touch Bar elements (which XCUITest refuses to click).
-        let confirmRemove = app.windows.buttons["Remove"].firstMatch
+        // Scope to the window so the query cannot match Touch Bar elements
+        // (which XCUITest refuses to click).
+        let confirmRemove = databasesWindow.buttons["Remove"].firstMatch
         XCTAssertTrue(confirmRemove.waitForExistence(timeout: 10), "Remove confirmation did not appear")
         confirmRemove.click()
 
@@ -780,12 +771,7 @@ final class MacDatabaseListUITests: MacUITestCase {
         }
         XCTAssertFalse(demoRow.exists, "demo.kdbx row was not removed")
         XCTAssertTrue(testRow.exists, "test.kdbx row must survive the removal")
-
-        let detailDeadline = Date().addingTimeInterval(15)
-        while passwordField.exists, Date() < detailDeadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
-        }
-        XCTAssertFalse(passwordField.exists, "Detail column still showed the removed database")
+        XCTAssertTrue(demoWindow.waitForNonExistence(timeout: 15), "The removed database's window stayed open")
     }
 }
 

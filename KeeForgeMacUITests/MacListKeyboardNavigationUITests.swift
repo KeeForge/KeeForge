@@ -106,7 +106,7 @@ final class MacSearchResultsDeleteUITests: MacUITestCase {
 
         clickContextMenuItem(titled: "Delete")
 
-        let confirmDelete = app.windows.buttons["Delete"].firstMatch
+        let confirmDelete = databaseWindow.buttons["Delete"].firstMatch
         XCTAssertTrue(
             confirmDelete.waitForExistence(timeout: 10),
             "Delete confirmation did not present from the search results"
@@ -133,7 +133,7 @@ final class MacSearchResultsDeleteUITests: MacUITestCase {
 
         clickContextMenuItem(titled: "Delete")
 
-        let confirmDelete = app.windows.buttons["Delete"].firstMatch
+        let confirmDelete = databaseWindow.buttons["Delete"].firstMatch
         XCTAssertTrue(
             confirmDelete.waitForExistence(timeout: 10),
             "Delete confirmation did not present from the tag browser"
@@ -161,7 +161,7 @@ final class MacSearchResultsDeleteUITests: MacUITestCase {
 
         clickContextMenuItem(titled: "Delete")
 
-        let cancelButton = app.windows.buttons["Cancel"].firstMatch
+        let cancelButton = databaseWindow.buttons["Cancel"].firstMatch
         XCTAssertTrue(cancelButton.waitForExistence(timeout: 10), "Delete confirmation did not present")
         cancelButton.click()
 

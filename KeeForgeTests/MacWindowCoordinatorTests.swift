@@ -105,6 +105,7 @@ final class MacWindowCoordinatorTests: XCTestCase {
     func testOpeningSeveralDatabasesKeepsEachSessionAndADuplicateOpenFrontsTheSameWindow() async throws {
         start()
         XCTAssertTrue(presenter.shown.last === coordinator.databasesWindow, "No database window: Databases shows")
+        XCTAssertEqual(coordinator.databasesWindow?.isExcludedFromWindowsMenu, true, "Window > Databases is its only Window-menu entry")
         let (a, b, c) = (references[0], references[1], references[2])
         coordinator.open(a)
         let controllerA = try XCTUnwrap(coordinator.databaseWindows[a.id])
@@ -624,6 +625,55 @@ final class MacWindowCoordinatorTests: XCTestCase {
         let window = try XCTUnwrap(coordinator.databaseWindows[references[1].id]?.window)
         XCTAssertEqual(window.contentRect(forFrameRect: window.frame).size, NSSize(width: 1440, height: 900))
         XCTAssertEqual(restorationDefaults.data(forKey: MacWindowRestorationStore.storageKey), saved)
+    }
+
+    func testANewDatabaseWindowCascadesFromTheFrontmostOne() throws {
+        start()
+        coordinator.open(references[0])
+        let first = try XCTUnwrap(coordinator.databaseWindows[references[0].id]?.window)
+        let firstFrame = first.frame
+        coordinator.open(references[1])
+        let second = try XCTUnwrap(coordinator.databaseWindows[references[1].id]?.window)
+        XCTAssertEqual(first.frame, firstFrame, "Opening another window never moves this one")
+        XCTAssertEqual(second.frame.size, firstFrame.size)
+        XCTAssertGreaterThan(second.frame.minX, firstFrame.minX)
+        XCTAssertLessThan(second.frame.maxY, firstFrame.maxY)
+    }
+
+    func testSystemPresenterAsksTheCloseGuardWhileASheetIsAttached() throws {
+        final class Delegate: NSObject, NSWindowDelegate {
+            var allows = false
+            var asked = 0
+            func windowShouldClose(_ sender: NSWindow) -> Bool {
+                asked += 1
+                return allows
+            }
+        }
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let delegate = Delegate()
+        window.delegate = delegate
+        window.orderFront(nil)
+        let sheet = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 200, height: 100),
+            styleMask: [.titled], backing: .buffered, defer: false)
+        sheet.isReleasedWhenClosed = false
+        window.beginSheet(sheet)
+        defer {
+            window.endSheet(sheet)
+            window.close()
+        }
+        XCTAssertNotNil(window.attachedSheet)
+        let presenter = MacSystemWindowPresenter()
+
+        presenter.requestClose(window)
+        XCTAssertEqual(delegate.asked, 1, "Close Database must reach the guard even though the close button is disabled")
+        XCTAssertTrue(window.isVisible, "A held close keeps the window")
+
+        delegate.allows = true
+        presenter.requestClose(window)
+        XCTAssertEqual(delegate.asked, 2)
+        XCTAssertFalse(window.isVisible)
     }
 
     // MARK: - Helpers

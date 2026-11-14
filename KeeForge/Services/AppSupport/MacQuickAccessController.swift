@@ -295,7 +295,7 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
         background.layer?.cornerRadius = 12
         background.layer?.masksToBounds = true
 
-        let hosting = NSHostingView(rootView: MacQuickSearchView(model: searchModel))
+        let hosting = NSHostingView(rootView: MacQuickSearchView(model: searchModel).modifier(MacHostingAppearance()))
         hosting.frame = background.bounds
         hosting.autoresizingMask = [.width, .height]
         background.addSubview(hosting)
