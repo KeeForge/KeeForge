@@ -235,3 +235,14 @@ authorize cache repair when its owner publication fails. Failed pre-replacement
 release remains an actionable recovery error rather than a promise of safe retry.
 App unlock now also holds the final reference/owner fence through keychain-only
 publication; old parsed data remains readable without overwriting later keys.
+
+Initial admission publication retains its ownership token on observed rename with
+unconfirmed sync/coordinator completion, stopping the action before encryption and
+showing recovery rather than promising retry. Rekey Keychain publication holds the
+current installed receipt/operation/epoch/revocation fence through keychain-only
+effects, including invalidation; a stale callback cannot overwrite or delete a
+newer epoch's items. Unknown callbacks lack that authority. Legacy reference
+cleanup stays outside owner flock and uses field CAS. A created session also
+receives its already-authenticated creation ciphertext in the single current RAM
+context, so draft export remains available before a first backup or after a failed
+first save; lock clears that context and export never clears the draft.

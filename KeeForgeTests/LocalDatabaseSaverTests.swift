@@ -143,6 +143,72 @@ final class LocalDatabaseSaverTests: XCTestCase {
         }
     }
 
+    func testInitialAdmissionPublicationPreservesObservedOwnershipBeforeAnyEncryption() async throws {
+        for boundary in 0..<3 {
+            let url = try makeScratchDatabaseCopy()
+            let reference = try makeRegisteredReference(for: url)
+            let original = try Data(contentsOf: url)
+            try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+            let context = try makeDirtySaveContext(databaseURL: url, entryTitle: "Never Encrypted")
+            let crypto = WriteCounter()
+            let replacements = WriteCounter()
+            let live = LocalDatabaseSaver.Environment.live
+            var environment = live
+            environment.encryptDraft = { draft, key, header, policy in
+                crypto.increment(); return try live.encryptDraft(draft, key, header, policy)
+            }
+            environment.replaceFileAtomically = { data, target, baseline, authorization in
+                replacements.increment()
+                return try live.replaceFileAtomically(data, target, baseline, authorization)
+            }
+            environment.pendingLocalStorageIO.fileIO = { _ in
+                var writer = DurableFileWriteIO()
+                if boundary == 0 { writer.write = { _, _, _ in 0 } }
+                if boundary == 1 { writer.afterPublication = { _ in throw POSIXError(.EIO) } }
+                return writer
+            }
+            if boundary == 2 {
+                environment.pendingLocalStorageIO.admissionCoordinationCompletion = { throw CocoaError(.fileWriteUnknown) }
+            }
+            do {
+                _ = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference, compositeKey: context.compositeKey,
+                    openTimeSHA512: context.openTimeSHA512, environment: environment)
+                XCTFail("Admission boundary must stop this invocation")
+            } catch {
+                let failure = try XCTUnwrap(error as? LocalSaveBeforeReplacementFailure)
+                if boundary == 0 { XCTAssertFalse(failure.underlying is SavePreReplacementRecoveryWarning) }
+                else {
+                    let warning = try XCTUnwrap(failure.underlying as? SavePreReplacementRecoveryWarning)
+                    XCTAssertEqual(warning.token?.admission, try PendingLocalSaveStore.recovery(for: reference.id).admission)
+                    XCTAssertNotNil(warning.token)
+                }
+            }
+            XCTAssertEqual(try Data(contentsOf: url), original)
+            XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), original)
+            XCTAssertEqual(crypto.count, 0)
+            XCTAssertEqual(replacements.count, 0)
+            environment.pendingLocalStorageIO = .init()
+            if boundary == 0 {
+                XCTAssertNil(try PendingLocalSaveStore.recovery(for: reference.id).admission)
+                let retry = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference, compositeKey: context.compositeKey,
+                    openTimeSHA512: context.openTimeSHA512, environment: environment)
+                guard case .saved = retry else { return XCTFail("A genuinely unpublished admission permits a new operation") }
+                XCTAssertEqual(crypto.count, 1)
+                XCTAssertEqual(replacements.count, 1)
+            } else {
+                let retained = try XCTUnwrap(PendingLocalSaveStore.recovery(for: reference.id).admission)
+                do {
+                    _ = try await LocalDatabaseSaver.save(draft: context.draft, reference: reference, compositeKey: context.compositeKey,
+                        openTimeSHA512: context.openTimeSHA512, environment: environment)
+                    XCTFail("Published admission blocks another invocation")
+                } catch { XCTAssertTrue(error is LocalSaveBeforeReplacementFailure) }
+                XCTAssertEqual(try PendingLocalSaveStore.recovery(for: reference.id).admission, retained)
+                XCTAssertEqual(crypto.count, 0)
+                XCTAssertEqual(replacements.count, 0)
+            }
+        }
+    }
+
     func testFailedFutureSaveRestoresPreviousKnownUncertaintyButUnknownCannotReuseIt() async throws {
         let url = try makeScratchDatabaseCopy()
         let reference = try makeRegisteredReference(for: url)

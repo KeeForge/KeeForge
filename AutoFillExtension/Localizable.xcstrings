@@ -4984,6 +4984,64 @@
         }
       }
     },
+    "KeeForge could not verify the key record for this completion. Reopen the database before another operation, and review Database Details if recovery is still required." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge konnte den Schlüsseldatensatz für diesen Abschluss nicht überprüfen. Öffne die Datenbank vor einem weiteren Vorgang erneut und prüfe die Datenbankdetails, falls weiterhin eine Wiederherstellung erforderlich ist."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge could not verify the key record for this completion. Reopen the database before another operation, and review Database Details if recovery is still required."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no pudo verificar el registro de claves de esta operación finalizada. Vuelve a abrir la base de datos antes de realizar otra operación y revisa Detalles de la base de datos si aún se requiere recuperación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n’a pas pu vérifier le registre de clé pour cette opération terminée. Rouvrez la base de données avant toute autre opération et consultez les détails de la base de données si une récupération reste nécessaire."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non ha potuto verificare la registrazione della chiave al completamento di questa operazione. Riapri il database prima di un’altra operazione e controlla i dettagli del database se è ancora necessario il recupero."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForgeはこの処理の完了に対応するキーの記録を確認できませんでした。別の操作を行う前にデータベースを開き直し、復旧が引き続き必要な場合はデータベースの詳細を確認してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge не удалось проверить запись ключа при завершении этой операции. Перед следующей операцией откройте базу данных заново. Если восстановление всё ещё требуется, проверьте сведения о базе данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法验证此次操作完成时的密钥记录。请在进行其他操作前重新打开数据库；如果仍需恢复，请查看数据库详情。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法驗證此次操作完成時的金鑰記錄。請在進行其他操作前重新開啟資料庫；如果仍需復原，請查看資料庫詳細資訊。"
+          }
+        }
+      }
+    },
     "Key file hash verification failed — file may be corrupted" : {
       "localizations" : {
         "de" : {

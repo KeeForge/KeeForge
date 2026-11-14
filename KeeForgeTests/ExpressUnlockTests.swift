@@ -836,7 +836,14 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
             let vm = try makeViewModel(
                 data: try KDBXTestFixture.test.data(in: bundle),
                 persisted: PersistedKeys(),
-                localSave: { _, _, _, _, _, _, _ in .saved(newSHA512: Data("saved".utf8), expressKey: Self.savedVersionKey) },
+                localSave: { draft, reference, key, sha, reconciled, newKey, settings in
+                    if newKey != nil {
+                        return try await LocalDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                            openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                            newCompositeKey: newKey, encryptionSettings: settings)
+                    }
+                    return .saved(newSHA512: Data("saved".utf8), expressKey: Self.savedVersionKey)
+                },
                 storedKeyPresenceCheck: { _ in storesNewKey },
                 expressSaves: expressSaves
             )

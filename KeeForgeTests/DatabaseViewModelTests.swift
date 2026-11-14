@@ -7111,6 +7111,163 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(cold.isDirty)
     }
 
+    func testLateRekeyReceiptCannotPublishKeysAfterAnotherSessionRecoversAndRekeys() async throws {
+        let reference = try DatabaseListStore.add(url: fixtureURL())
+        let gate = InFlightSaveGate()
+        let keys = OSAllocatedUnfairLock(initialState: (composite: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil), express: Optional<ExpressUnlockKey>.none, writes: 0))
+        let crypto = OSAllocatedUnfairLock(initialState: 0)
+        let live = LocalDatabaseSaver.Environment.live
+        let save: DatabaseViewModel.LocalSaveOperation = { draft, ref, key, sha, reconciled, newKey, settings in
+            var environment = live
+            environment.encryptDraft = { draft, key, header, policy in
+                crypto.withLock { $0 += 1 }
+                return try live.encryptDraft(draft, key, header, policy)
+            }
+            return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+        }
+        let makeSession: @MainActor (DatabaseReference, Bool) throws -> DatabaseViewModel = { ref, pauses in
+            DatabaseViewModel(databaseReference: ref, localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+                let result = try await save(draft, ref, key, sha, reconciled, newKey, settings)
+                if pauses { await gate.parkFirstCall() }
+                return result
+            }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { key, _ in
+                keys.withLock { $0.express = key; $0.writes += 1 }
+            }, storedKeyPresenceCheck: { _ in true }, storedKeyStoreOperation: { key, _ in
+                keys.withLock { $0.composite = key; $0.writes += 1 }
+            }, storedKeyDeleteOperation: { _ in XCTFail("A stale callback must not delete current keys") })
+        }
+        let first = try makeSession(reference, true)
+        defer { first.lock() }
+        await first.unlock(password: fixturePassword)
+        let pendingA = Task { try await first.changeMasterKey(newPassword: "key A", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil) }
+        await gate.firstCallStarted()
+        let snapshotA = try PendingLocalSaveStore.recovery(for: reference.id)
+        XCTAssertNotNil(snapshotA.admission)
+        XCTAssertEqual(try LocalDatabaseSaver.confirmInstalledKeyChange(for: reference, snapshot: snapshotA), .resolved)
+        let referenceA = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        let second = try makeSession(referenceA, false)
+        defer { second.lock() }
+        await second.unlock(password: "key A")
+        XCTAssertEqual(second.state, .unlocked)
+        try await second.changeMasterKey(newPassword: "key B", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+        XCTAssertNil(try PendingLocalSaveStore.recovery(for: reference.id).keyEvidence)
+        second.draft = try makeDirtyDraft(from: second, entryTitle: "B has a current express key")
+        try await second.save()
+        let currentKeys = keys.withLock { $0 }
+        XCTAssertEqual(currentKeys.composite, try KDBXCrypto.compositeKey(password: "key B", keyFileData: nil))
+        XCTAssertNotNil(currentKeys.express)
+        let referenceB = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        let bytesB = try Data(contentsOf: fixtureURL())
+        await gate.releaseFirstCall()
+        do { try await pendingA.value; XCTFail("A receipt no longer owns key publication") }
+        catch { XCTAssertEqual((error as? SaveAssociationWarning)?.reason, .authorityChanged) }
+        XCTAssertEqual(keys.withLock { $0.composite }, currentKeys.composite)
+        XCTAssertEqual(keys.withLock { $0.express }, currentKeys.express)
+        XCTAssertEqual(keys.withLock { $0.writes }, currentKeys.writes)
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }, referenceB)
+        XCTAssertEqual(try Data(contentsOf: fixtureURL()), bytesB)
+        XCTAssertEqual(crypto.withLock { $0 }, 3)
+    }
+
+    func testInitialAdmissionWarningCompletesSettingsFormWithoutASecondInvocation() async throws {
+        for postAccessor in [false, true] {
+            let url = try makeRelinkTarget(copying: fixtureURL())
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            let reference = try DatabaseListStore.add(url: url)
+            let original = try Data(contentsOf: url)
+            let counts = OSAllocatedUnfairLock(initialState: (saver: 0, crypto: 0))
+            let live = LocalDatabaseSaver.Environment.live
+            let vm = try makeViewModel(reference: reference, localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+                counts.withLock { $0.saver += 1 }
+                var environment = live
+                environment.encryptDraft = { draft, key, header, policy in
+                    counts.withLock { $0.crypto += 1 }; return try live.encryptDraft(draft, key, header, policy)
+                }
+                if postAccessor {
+                    environment.pendingLocalStorageIO.admissionCoordinationCompletion = { throw CocoaError(.fileWriteUnknown) }
+                } else {
+                    environment.pendingLocalStorageIO.fileIO = { _ in
+                        var writer = DurableFileWriteIO()
+                        writer.afterPublication = { _ in throw POSIXError(.EIO) }
+                        return writer
+                    }
+                }
+                return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                    openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                    newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+            })
+            defer { vm.lock() }
+            await vm.unlock(password: fixturePassword)
+            let form = EncryptionSettingsViewModel(current: KDBXFileSummary(formatVersion: .kdbx4(minor: 0),
+                cipher: .aes256CBC, isCompressed: true, keyDerivation: .aesKDF(rounds: 60_000))) { cipher, kdf, compressed in
+                    try await vm.changeEncryptionSettings(cipher: cipher, keyDerivation: kdf, isCompressed: compressed)
+                }
+            form.isCompressed = false
+            let first = await form.performChange()
+            XCTAssertFalse(first)
+            XCTAssertTrue(form.hasCompleted)
+            XCTAssertNotNil(form.completedWarning)
+            XCTAssertFalse(form.canSave)
+            form.isCompressed = true
+            let second = await form.performChange()
+            XCTAssertFalse(second)
+            XCTAssertEqual(counts.withLock { $0.saver }, 1)
+            XCTAssertEqual(counts.withLock { $0.crypto }, 0)
+            XCTAssertEqual(try Data(contentsOf: url), original)
+            XCTAssertNotNil(try PendingLocalSaveStore.recovery(for: reference.id).admission)
+            XCTAssertEqual(vm.state, .unlocked)
+        }
+    }
+
+    func testCreatedAppOnlyDraftExportsFromItsAuthenticatedCreationCiphertextWithoutDiskOrBackup() async throws {
+        for attemptsFirstSave in [false, true] {
+            let created = try await DatabaseCreationService.create(request: DatabaseCreationRequest(
+                displayName: "Creation Recovery", destination: .appOnlyAcknowledged, password: "created key"))
+            let cache = DatabaseListStore.cacheLocation(for: created.reference)
+            XCTAssertEqual(created.encryptedSnapshot, try Data(contentsOf: cache))
+            let live = LocalDatabaseSaver.Environment.live
+            let vm = DatabaseViewModel(createdDatabase: created, localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+                var environment = live
+                // A real file where the backup directory belongs fails before any backup exists.
+                environment.backupDirectoryURL = { _ in cache }
+                return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                    openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                    newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+            })
+            defer { vm.lock() }
+            let root = try XCTUnwrap(vm.visibleRootGroupID)
+            try vm.applyEntryEdit(.createEntry(parentGroupID: root, draft: EntryDraftPayload(title: "Not Yet Saved", password: "draft secret",
+                attachments: [.new(name: "creation.bin", data: Data("creation binary".utf8))])))
+            if attemptsFirstSave {
+                do { try await vm.save(); XCTFail("The real backup-directory collision must fail") }
+                catch { XCTAssertTrue(error is LocalSaveBeforeReplacementFailure) }
+            }
+            XCTAssertTrue(DatabaseListStore.recentBackups(for: created.reference).isEmpty)
+            let draft = try XCTUnwrap(vm.draft)
+            let expected = try CompatibilitySnapshot(rootGroup: draft.rootGroup, meta: draft.meta, sessionKey: draft.writerSessionKey,
+                binaryPool: BinaryPool(rawFields: draft.binaryPoolFields ?? []))
+            try FileManager.default.removeItem(at: cache)
+            XCTAssertTrue(vm.canExportLocalRecoveryDraft)
+            XCTAssertTrue(DatabaseDetailsView(reference: created.reference, sessionViewModel: vm).showsLocalDraftExport)
+            let copy = try await vm.makeLocalRecoveryExport()
+            let parsed = try KDBXParser.parse(data: copy.data, compositeKey: created.compositeKey,
+                sessionKey: draft.writerSessionKey, kdfPolicy: .mainApp)
+            let actual = try CompatibilitySnapshot(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: draft.writerSessionKey,
+                binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields))
+            try KDBXCompatibilitySupport.assertWholeTreeUnchanged(before: expected, after: actual)
+            XCTAssertEqual(actual.binaryPoolDigest, expected.binaryPoolDigest)
+            XCTAssertEqual(vm.draft?.pendingEdits, draft.pendingEdits)
+            XCTAssertTrue(vm.isDirty)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: cache.path))
+            vm.lock()
+            XCTAssertFalse(vm.canExportLocalRecoveryDraft)
+        }
+    }
+
     func testKeeForgeOnlyUnconfirmedRekeyRetiresAfterExplicitDurableSameEpochSave() async throws {
         let created = try await DatabaseCreationService.create(request: DatabaseCreationRequest(
             displayName: "App Only Retirement", destination: .appOnlyAcknowledged, password: "original app-only key"))
@@ -7580,12 +7737,13 @@ final class DatabaseViewModelTests: XCTestCase {
     // MARK: - Change master key (#59)
 
     func testChangeMasterKeyToNewPasswordUpdatesSessionKeyAndHash() async throws {
-        let savedHash = Data("rekeyed-hash".utf8)
         let capturedKeys = RekeyedKeyCapture()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, compositeKey, _, _, newCompositeKey, _ in
+            localSaveOperation: { draft, reference, compositeKey, hash, reconciled, newCompositeKey, settings in
                 capturedKeys.record(oldKey: compositeKey, newKey: newCompositeKey)
-                return .saved(newSHA512: savedHash)
+                return try await LocalDatabaseSaver.save(draft: draft, reference: reference, compositeKey: compositeKey,
+                    openTimeSHA512: hash, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                    newCompositeKey: newCompositeKey, encryptionSettings: settings)
             }
         )
 
@@ -7605,7 +7763,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(capturedKeys.oldKey, oldCompositeKey)
         XCTAssertEqual(capturedKeys.newKey, expectedNewKey)
         XCTAssertEqual(vm.compositeKey, expectedNewKey)
-        XCTAssertEqual(vm.openTimeSHA512, savedHash)
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(try Data(contentsOf: fixtureURL())))
         XCTAssertNil(vm.draft)
         XCTAssertFalse(vm.isSaving)
         XCTAssertState(vm.state, is: .unlocked)
@@ -7615,9 +7773,6 @@ final class DatabaseViewModelTests: XCTestCase {
         let keyFileData = Data("rekey key file bytes".utf8)
         let bookmarkData = Data("rekey-bookmark".utf8)
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _, _ in
-                .saved(newSHA512: Data("rekeyed-hash".utf8))
-            }
         )
 
         await vm.unlock(password: fixturePassword)
@@ -7648,10 +7803,7 @@ final class DatabaseViewModelTests: XCTestCase {
         reference.keyFileFilename = "old.key"
         DatabaseListStore.update(reference)
         let vm = try makeViewModel(
-            reference: reference,
-            localSaveOperation: { _, _, _, _, _, _, _ in
-                .saved(newSHA512: Data("rekeyed-hash".utf8))
-            }
+            reference: reference
         )
 
         await vm.unlock(password: fixturePassword)
@@ -7878,8 +8030,10 @@ final class DatabaseViewModelTests: XCTestCase {
         let makeSession: @MainActor (DatabaseReference) -> DatabaseViewModel = { reference in
             DatabaseViewModel(
                 databaseReference: reference,
-                localSaveOperation: { _, _, _, _, _, _, _ in
-                    .saved(newSHA512: Data("rekeyed".utf8))
+                localSaveOperation: { draft, reference, key, hash, reconciled, newKey, settings in
+                    try await LocalDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                        openTimeSHA512: hash, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                        newCompositeKey: newKey, encryptionSettings: settings)
                 },
                 biometricCompositeKeyOperation: { reference, _ in
                     QuickUnlockKeys(storedKey: try XCTUnwrap(keys.withLock { $0[reference.id] }))
@@ -7940,9 +8094,6 @@ final class DatabaseViewModelTests: XCTestCase {
         let storedKeys = RekeyedKeyCapture()
         let deletions = CallTracker()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _, _ in
-                .saved(newSHA512: Data("rekeyed-hash".utf8))
-            },
             storedKeyPresenceCheck: { _ in true },
             storedKeyStoreOperation: { key, _ in storedKeys.record(oldKey: nil, newKey: key) },
             storedKeyDeleteOperation: { _ in deletions.recordCall() }
@@ -7967,9 +8118,6 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyWithoutStoredKeyDoesNotStoreOne() async throws {
         let storedKeyStores = CallTracker()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _, _ in
-                .saved(newSHA512: Data("rekeyed-hash".utf8))
-            },
             storedKeyPresenceCheck: { _ in false },
             storedKeyStoreOperation: { _, _ in storedKeyStores.recordCall() }
         )
@@ -7989,9 +8137,6 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyDeletesStoredKeyWhenRefreshFails() async throws {
         let deletions = CallTracker()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _, _ in
-                .saved(newSHA512: Data("rekeyed-hash".utf8))
-            },
             storedKeyPresenceCheck: { _ in true },
             storedKeyStoreOperation: { _, _ in
                 throw KeychainService.KeychainError.storeFailed(-1)
@@ -8068,14 +8213,16 @@ final class DatabaseViewModelTests: XCTestCase {
         }
         let box = Box()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, newCompositeKey, _ in
+            localSaveOperation: { draft, reference, key, hash, reconciled, newCompositeKey, settings in
                 if newCompositeKey != nil {
                     // An edit lands while the rekey save is in flight.
                     await MainActor.run { box.growDraft?() }
                 } else {
                     box.followUpDidRun = true
                 }
-                return .saved(newSHA512: Data("rekeyed-hash".utf8))
+                return try await LocalDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                    openTimeSHA512: hash, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                    newCompositeKey: newCompositeKey, encryptionSettings: settings)
             }
         )
         box.growDraft = { [weak vm, weak self] in

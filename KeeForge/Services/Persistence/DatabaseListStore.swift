@@ -900,6 +900,21 @@ enum DatabaseListStore {
         }
     }
 
+    static func withLocalKeyCommitPublication<T>(
+        for expected: DatabaseReference, receipt: PendingLocalSaveStore.CommitReceipt, _ publish: () throws -> T
+    ) throws -> T {
+        try withStateLock {
+            let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
+            guard let current = references.first(where: { $0.id == expected.id }), current.id == receipt.databaseID,
+                  !current.isCloudBacked, !expected.isCloudBacked,
+                  current.bookmarkData == expected.bookmarkData, current.hardwareKey == expected.hardwareKey,
+                  current.legacyKeychainFilename == expected.legacyKeychainFilename else {
+                throw PendingLocalSaveStore.OwnershipError.sourceChanged
+            }
+            return try PendingLocalSaveStore.withKeyCommitPublicationAuthorization(receipt, reference: current, publish)
+        }
+    }
+
     static func withLocalReadKeyPublication<T>(
         for expected: DatabaseReference, read: PendingLocalSaveStore.ReadKeyPublication, _ publish: () throws -> T
     ) throws -> T {

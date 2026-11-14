@@ -87,3 +87,5 @@
 - An empty ordinary admission may retain its known typed TargetCommit. Only an exact same-epoch baseline/identity permits a fresh explicit operation; unknown outcomes and receipt-bearing admissions never use that path. Cache effects use only its known bytes or the live matching commit receipt, preserving source ownership. A failed pre-replacement release is observable and cannot promise a safe retry.
 
 - A new ordinary attempt keeps one flat preceding known-commit proof for affirmative pre-replacement unwind. Restoring it preserves the previous uncertainty; a newer unknown attempt never inherits its retry permission. Successful known publication replaces that proof rather than growing a history chain.
+
+- Initial admission returns its token when publication was observed but durability/coordination was unconfirmed; callers must surface terminal recovery before crypto. Rekey Keychain effects require a current installed receipt under list/owner locks through the effect. Creation passes its already-authenticated ciphertext to the single session RAM context for pre-first-save draft export.

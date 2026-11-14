@@ -848,7 +848,8 @@ final class DatabaseViewModel {
                 meta: createdDatabase.meta,
                 formatVersion: createdDatabase.formatVersion,
                 openTimeSHA512: createdDatabase.openTimeSHA512,
-                binaryPool: BinaryPool(rawFields: [])
+                binaryPool: BinaryPool(rawFields: []),
+                encryptedSnapshot: createdDatabase.encryptedSnapshot
             ),
             compositeKey: createdDatabase.compositeKey,
             quickLaunchKey: createdDatabase.compositeKey,
@@ -2811,8 +2812,26 @@ final class DatabaseViewModel {
             // even if the session locked mid-flight; the in-memory secrets must
             // not resurrect behind the lock screen. The express item belonged
             // to the old key; the next unlock or save stores one again.
-            expressUnlockKeySaveOperation(nil, databaseReference)
-            let storedNewKey = refreshStoredCompositeKeyAfterRekey(newCompositeKey)
+            let storedNewKey: Bool
+            if databaseReference.isCloudBacked {
+                expressUnlockKeySaveOperation(nil, databaseReference)
+                storedNewKey = refreshStoredCompositeKeyAfterRekey(newCompositeKey)
+            } else {
+                guard let localCommit else { throw SaveAssociationWarning(reason: .authorityChanged) }
+                let expected = databaseReference
+                let publication: (stored: Bool, hadStoredKey: Bool)
+                do {
+                    publication = try DatabaseListStore.withLocalKeyCommitPublication(for: expected, receipt: localCommit) {
+                        expressUnlockKeySaveOperation(nil, expected)
+                        return refreshStoredCompositeKeyItemsAfterRekey(newCompositeKey)
+                    }
+                } catch {
+                    refreshDatabaseReference()
+                    throw SaveAssociationWarning(reason: .authorityChanged)
+                }
+                storedNewKey = publication.stored
+                if publication.hadStoredKey { _ = DatabaseListStore.clearLegacyKeychainFilename(for: expected) }
+            }
             let associationSaved: Bool
             var ownerResolution = PendingLocalSaveStore.ResolutionOutcome.resolved
             if let localCommit {
@@ -2829,6 +2848,9 @@ final class DatabaseViewModel {
                     }.value
                 } else { associationSaved = false; ownerResolution = .retainedForRecovery }
                 refreshDatabaseReference()
+                guard (try? DatabaseListStore.withLocalKeyCommitPublication(for: databaseReference, receipt: localCommit, { true })) == true else {
+                    throw SaveAssociationWarning(reason: .authorityChanged)
+                }
                 databaseReference.keyFileBookmarkData = association.bookmarkData
                 databaseReference.keyFileFilename = association.filename
                 databaseReference.lastMasterKeyChangeAt = association.changedAt
@@ -2854,12 +2876,15 @@ final class DatabaseViewModel {
                 Task { await self.saveHandlingError() }
             }
         case .indeterminate(let scope):
-            expressUnlockKeySaveOperation(nil, databaseReference)
-            storedKeyDeleteOperation(databaseReference)
-            quickUnlockItemHoldsSessionKey = false
-            if let legacyFilename = databaseReference.legacyKeychainFilename {
-                KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
+            // Without an installed receipt this callback has no authority over keys another session may have changed.
+            if databaseReference.isCloudBacked {
+                expressUnlockKeySaveOperation(nil, databaseReference)
+                storedKeyDeleteOperation(databaseReference)
+                if let legacyFilename = databaseReference.legacyKeychainFilename {
+                    KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
+                }
             }
+            quickUnlockItemHoldsSessionKey = false
             throw SaveUnknownOutcomeWarning(scope: scope)
         case .conflict:
             throw RekeyError.conflict
@@ -2869,7 +2894,14 @@ final class DatabaseViewModel {
     /// Returns whether the quick-unlock item now holds `newCompositeKey`.
     @discardableResult
     private func refreshStoredCompositeKeyAfterRekey(_ newCompositeKey: SymmetricKey) -> Bool {
-        guard storedKeyPresenceCheck(databaseReference) else { return false }
+        let expected = databaseReference
+        let result = refreshStoredCompositeKeyItemsAfterRekey(newCompositeKey)
+        if result.hadStoredKey { _ = DatabaseListStore.clearLegacyKeychainFilename(for: expected) }
+        return result.stored
+    }
+
+    private func refreshStoredCompositeKeyItemsAfterRekey(_ newCompositeKey: SymmetricKey) -> (stored: Bool, hadStoredKey: Bool) {
+        guard storedKeyPresenceCheck(databaseReference) else { return (false, false) }
 
         do {
             try storedKeyStoreOperation(newCompositeKey, databaseReference)
@@ -2877,9 +2909,8 @@ final class DatabaseViewModel {
 
             if let legacyFilename = databaseReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-                DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
             }
-            return true
+            return (true, true)
         } catch {
             // A stale stored key would break biometric unlock outright; drop it
             // so unlock falls back to the new password. The legacy entry must
@@ -2888,9 +2919,8 @@ final class DatabaseViewModel {
             storedKeyDeleteOperation(databaseReference)
             if let legacyFilename = databaseReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-                DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
             }
-            return false
+            return (false, true)
         }
     }
 

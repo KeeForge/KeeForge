@@ -289,6 +289,7 @@ enum PendingLocalSaveStore {
         var fileIO: @Sendable (URL) -> DurableFileWriteIO = { _ in .init() }
         var remove: @Sendable (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
         var synchronize: @Sendable (URL) throws -> Void = synchronizeDirectory
+        var admissionCoordinationCompletion: @Sendable () throws -> Void = {}
     }
 
     struct AdmissionPublicationFailure: Error {
@@ -531,8 +532,13 @@ enum PendingLocalSaveStore {
             let admission = Admission(operationID: UUID(), purpose: purpose, sources: receipts,
                 target: target, baseline: baseline, observedMasterKeyChangeAt: masterKeyChangedAt, previousKnown: previousKnown)
             state.operation = .admitted(admission)
-            try persist(state, databaseID: databaseID, io: io)
-            return Token(databaseID: databaseID, admission: admission)
+            let token = Token(databaseID: databaseID, admission: admission)
+            switch try publish(state, databaseID: databaseID, io: io) {
+            case .durable: return token
+            case .notPublished(let error): throw error
+            case .publishedWithoutConfirmedDurability(let error):
+                throw AdmissionPublicationFailure(token: token, underlying: error)
+            }
         }
     }
 
@@ -709,6 +715,34 @@ enum PendingLocalSaveStore {
         let target: TargetIdentity
         let sha512: Data
         let sharedCopy: Bool
+    }
+
+    static func withKeyCommitPublicationAuthorization<T>(
+        _ receipt: CommitReceipt, reference: DatabaseReference, _ publish: () throws -> T
+    ) throws -> T {
+        try withLock(for: receipt.databaseID) {
+            try requireNotRemoved(receipt.databaseID)
+            let state = try loadState(receipt.databaseID) ?? OwnerState(version: 1, removed: false)
+            guard state.version == receipt.ownerVersion, state.retirementID == nil,
+                  let admission = receipt.admission, case .masterKeyChange(let association?) = admission.purpose,
+                  let commit = receipt.targetCommit, commit.snapshot.sha512 == receipt.sha512,
+                  admission.intendedSHA512 == receipt.sha512,
+                  admission.target.canonicalPath == commit.snapshot.target.canonicalPath,
+                  admission.target.parent == commit.snapshot.target.parent else { throw OwnershipError.sourceChanged }
+            let ownsBarrier = state.operation.admission == admission
+            let ownsEpoch = state.operation == .idle && state.epoch.id == receipt.operationID
+                && state.keyEvidence?.pending == nil
+                && (state.associationVersion == nil || state.associationVersion == receipt.operationID)
+                && reference.lastMasterKeyChangeAt == association.changedAt
+                && reference.keyFileBookmarkData == association.bookmarkData && reference.keyFileFilename == association.filename
+            guard ownsBarrier || ownsEpoch else { throw OwnershipError.sourceChanged }
+            if !ownsBarrier, let evidence = state.keyEvidence {
+                guard evidence.epochID == receipt.operationID, evidence.targetState.snapshot == commit.snapshot else {
+                    throw OwnershipError.sourceChanged
+                }
+            }
+            return try publish()
+        }
     }
 
     static func withReadKeyPublicationAuthorization<T>(_ read: ReadKeyPublication, _ publish: () throws -> T) throws -> T {

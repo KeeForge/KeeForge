@@ -57,6 +57,7 @@ struct SaveUnknownOutcomeWarning: Error, LocalizedError, Sendable {
 }
 
 struct SavePreReplacementRecoveryWarning: Error, LocalizedError, Sendable {
+    var token: PendingLocalSaveStore.Token? = nil
     var errorDescription: String? {
         String(localized: "This save did not replace the database file, but KeeForge could not confirm that its recovery record was cleared. Open Database Details before trying a new operation.")
     }
@@ -75,8 +76,13 @@ struct SaveBookkeepingWarning: Error, LocalizedError, Sendable {
 }
 
 struct SaveAssociationWarning: Error, LocalizedError, Sendable {
+    enum Reason: Sendable, Equatable { case associationUnconfirmed, authorityChanged }
     var durabilityUnconfirmed = false
+    var reason: Reason = .associationUnconfirmed
     var errorDescription: String? {
+        if reason == .authorityChanged {
+            return String(localized: "KeeForge could not verify the key record for this completion. Reopen the database before another operation, and review Database Details if recovery is still required.")
+        }
         let association = String(localized: "The database already uses the new master key, but KeeForge could not confirm its key-file association or local key record. Keep the new password and key file and open Database Details to recover.")
         return durabilityUnconfirmed ? association + " " + SaveDurabilityWarning().localizedDescription : association
     }
@@ -353,6 +359,9 @@ enum LocalDatabaseSaver {
                 environment: environment,
                 authorization: authorization
             ) } catch let failure as LocalSaveBeforeReplacementFailure { throw failure }
+            catch let failure as PendingLocalSaveStore.AdmissionPublicationFailure {
+                throw LocalSaveBeforeReplacementFailure(underlying: SavePreReplacementRecoveryWarning(token: failure.token))
+            }
             catch { throw LocalSaveBeforeReplacementFailure(underlying: error) }
         }.value
     }
@@ -564,7 +573,14 @@ enum LocalDatabaseSaver {
                     masterKeyChangedAt: reference.lastMasterKeyChangeAt, purpose: .ordinarySave, io: io)
             }
         }
-        if let error { throw error }
+        do {
+            if let error { throw error }
+            try io.admissionCoordinationCompletion()
+        } catch {
+            if case .success(let token) = result { throw PendingLocalSaveStore.AdmissionPublicationFailure(token: token, underlying: error) }
+            if case .failure(let failure as PendingLocalSaveStore.AdmissionPublicationFailure) = result { throw failure }
+            throw error
+        }
         guard let result else { throw SaveError.databaseLocationUnavailable }
         return try result.get()
     }

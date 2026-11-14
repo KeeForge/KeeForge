@@ -112,6 +112,10 @@ and empty source receipts. Admission is durable before encryption and the final
 coordinated accessor validates its token, baseline, epoch and revocation. Opaque
 adapter errors and interrupted/cancelled operations retain recovery even when the
 old target is still observable; observing old bytes is not permission to resend.
+Initial admission distinguishes an unpublished write from an observed publication
+whose sync or coordinator completion failed. The latter retains its exact token
+and returns a terminal pre-replacement recovery warning before encryption; it is
+not a generic retryable failure. The same form invocation cannot submit again.
 An actual known replacement records its existing typed TargetCommit on that same
 empty admission. A future explicit save may replace it with a fresh operation UUID
 only after exact target identity/SHA, baseline, epoch and revocation checks. Known
@@ -176,6 +180,15 @@ A local master-key change starts with no pending sources/admission. Its last
 coordinated accessor repeats that check under the owner lock and publishes the
 key barrier before replacement. Sources arriving during it keep their original
 ciphertext/epoch and cannot automatically drain under the new key.
+
+A rekey completion can publish or invalidate Keychain items only while its actual
+installed commit still owns the current admission or settled epoch. The registry
+reference and owner are checked under list-lock then owner-lock, held through the
+keychain-only effect; legacy field cleanup runs afterwards by CAS. A late receipt
+from an earlier rekey cannot overwrite or delete a later epoch's composite or
+express key. Unknown local outcomes have no receipt authority to mutate those
+items. Association publication and later session application also reject a
+superseded receipt; a lock cycle alone is not cross-session authority.
 
 Target evidence is one typed state: confirmed, unconfirmed, planned or
 ready-to-retire. Live completion and recovery share the same final transition;
@@ -309,3 +322,10 @@ CAS outside flock. A late old parse remains readable but cannot publish stale ke
 after another session rekeys and retires; a fresh read after full settlement retains
 main semantics. Created-session initialization uses its verified creation snapshot
 and captures ownership before target observation; cloud publication is unchanged.
+
+Newly created sessions receive the exact ciphertext already authenticated by the
+creation service in the same single current RAM slot used by opened sessions.
+Encrypted draft export therefore works before the first save/backup, including a
+first-save failure before backup and subsequent loss of the primary cache. Export
+verifies the full snapshot and binary pool, preserves the draft, and clears the
+context on lock; it creates no additional persisted key or ciphertext history.
