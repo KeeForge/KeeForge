@@ -258,3 +258,13 @@ cleanup stays outside owner flock and uses field CAS. A created session also
 receives its already-authenticated creation ciphertext in the single current RAM
 context, so draft export remains available before a first backup or after a failed
 first save; lock clears that context and export never clears the draft.
+
+Master-entry timestamps in shared defaults retain their existing dictionary key
+and representation. A security-owned process-local leaf mutex now serializes all
+date snapshots, conditional insert/replacement and per-reference deletion, including
+list removal/clear, so a local rekey worker cannot overwrite a concurrent cloud
+unlock date in that process. It holds no Keychain/list/owner calls or awaits, and
+expiry deletes Keychain items only after releasing it. Missing-date and interval
+policies are unchanged. Separate app/extension processes still do not share that
+mutex: shared-UserDefaults RMW remains nontransactional across processes, and no
+atomic Keychain/date update or persistence-after-power-loss guarantee is claimed.

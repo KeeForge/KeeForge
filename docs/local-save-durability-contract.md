@@ -363,3 +363,14 @@ Encrypted draft export therefore works before the first save/backup, including a
 first-save failure before backup and subsequent loss of the primary cache. Export
 verifies the full snapshot and binary pool, preserves the draft, and clears the
 context on lock; it creates no additional persisted key or ciphertext history.
+
+Quick-unlock master-entry dates keep the shipped shared-UserDefaults dictionary
+format. Local worker rekey and app/cloud/extension persistence serialize all
+in-process date reads and read/modify/write operations through one security-owned
+leaf mutex, including conditional first entry and per-reference removal used by
+list clear. That mutex takes no list/owner lock and calls no Keychain operation;
+expiry releases it before deleting items. Missing dates retain their existing
+policy, and interval selection remains the separate shared setting. This is not
+cross-process atomicity: app and extensions have distinct mutexes, and the current
+UserDefaults dictionary can still lose simultaneous updates across processes.
+No cross-store Keychain/date transaction or durability/power-loss proof is added.

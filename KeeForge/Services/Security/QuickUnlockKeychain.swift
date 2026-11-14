@@ -96,6 +96,29 @@ enum QuickUnlockKeychain {
     // MARK: - Password interval
 
     private static let masterKeyEntriesKey = "KeeForge.quickUnlockMasterKeyEntries"
+    // Per-process leaf lock: preferences only, never Keychain, list or owner calls.
+    private static let masterKeyEntriesLock = NSLock()
+
+    struct MasterKeyEntryAccessObserver: Sendable {
+        enum Access: Sendable, Equatable { case record, remove, read }
+        var willAccess: @Sendable (UUID, Access) -> Void = { _, _ in }
+        var didRead: @Sendable (UUID, Access) -> Void = { _, _ in }
+        var didWrite: @Sendable (UUID, Access) -> Void = { _, _ in }
+    }
+    @TaskLocal static var masterKeyEntryAccessObserver = MasterKeyEntryAccessObserver()
+
+    private static func withMasterKeyEntries<T>(
+        for databaseID: UUID, access: MasterKeyEntryAccessObserver.Access, in defaults: UserDefaults,
+        _ body: ([String: Any]) -> T
+    ) -> T {
+        let observer = masterKeyEntryAccessObserver
+        observer.willAccess(databaseID, access)
+        masterKeyEntriesLock.lock()
+        defer { masterKeyEntriesLock.unlock() }
+        let entries = defaults.dictionary(forKey: masterKeyEntriesKey) ?? [:]
+        observer.didRead(databaseID, access)
+        return body(entries)
+    }
 
     static func recordMasterKeyEntry(
         for databaseID: UUID,
@@ -103,16 +126,22 @@ enum QuickUnlockKeychain {
         at date: Date = .now,
         in defaults: UserDefaults = AppGroupContainer.defaults
     ) {
-        var entries = defaults.dictionary(forKey: masterKeyEntriesKey) ?? [:]
-        guard replacingExisting || entries[databaseID.uuidString] == nil else { return }
-        entries[databaseID.uuidString] = date
-        defaults.set(entries, forKey: masterKeyEntriesKey)
+        withMasterKeyEntries(for: databaseID, access: .record, in: defaults) { existing in
+            var entries = existing
+            guard replacingExisting || entries[databaseID.uuidString] == nil else { return }
+            entries[databaseID.uuidString] = date
+            defaults.set(entries, forKey: masterKeyEntriesKey)
+            masterKeyEntryAccessObserver.didWrite(databaseID, .record)
+        }
     }
 
     static func removeMasterKeyEntry(for databaseID: UUID, in defaults: UserDefaults = AppGroupContainer.defaults) {
-        guard var entries = defaults.dictionary(forKey: masterKeyEntriesKey),
-              entries.removeValue(forKey: databaseID.uuidString) != nil else { return }
-        defaults.set(entries, forKey: masterKeyEntriesKey)
+        withMasterKeyEntries(for: databaseID, access: .remove, in: defaults) { existing in
+            var entries = existing
+            guard entries.removeValue(forKey: databaseID.uuidString) != nil else { return }
+            defaults.set(entries, forKey: masterKeyEntriesKey)
+            masterKeyEntryAccessObserver.didWrite(databaseID, .remove)
+        }
     }
 
     /// A clock set back past the interval counts as due too, so moving the
@@ -124,10 +153,9 @@ enum QuickUnlockKeychain {
         in defaults: UserDefaults = AppGroupContainer.defaults
     ) -> Bool {
         if interval == .always { return true }
-        guard let duration = interval.duration,
-              let enteredAt = defaults.dictionary(forKey: masterKeyEntriesKey)?[databaseID.uuidString] as? Date else {
-            return false
-        }
+        guard let duration = interval.duration else { return false }
+        let enteredAt = withMasterKeyEntries(for: databaseID, access: .read, in: defaults) { $0[databaseID.uuidString] as? Date }
+        guard let enteredAt else { return false }
         return abs(now.timeIntervalSince(enteredAt)) >= duration
     }
 
