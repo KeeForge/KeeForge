@@ -14,6 +14,8 @@ The threat model and the `i18n/` folder have no date prefix. The user-facing pri
 
 `design-system/` is **living**: it records the shipping iOS design (tokens, design rules and KeeForge's own components) for new screens and the Mac redesign. `KeeForge/Views/Components/Theme.swift`, `KeeForge/Resources/Theme.xcassets` and the views are its source; update it in the same change when they move.
 
+[cloud-journal-recovery-contract.md](cloud-journal-recovery-contract.md) describes the dependent cloud journal/creation draft and its remaining limits; [local-save-durability-contract.md](local-save-durability-contract.md) remains the local replacement contract.
+
 ## `specs/` — Feature Design Specs
 
 Design docs written before or during a feature's implementation. Multi-slice features live in a dated folder with an `epic.md` overview plus numbered slice docs.

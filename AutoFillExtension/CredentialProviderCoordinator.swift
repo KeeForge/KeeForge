@@ -357,7 +357,6 @@ final class CredentialProviderCoordinator {
     /// Writes an unlock's keys back and returns whether the quick-unlock item
     /// now holds the stored key. Injectable so tests can observe the write.
     var persistQuickUnlockKeys: @MainActor (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, masterKeyEntered in
-        if reference.isCloudBacked { return QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered) }
         return QuickUnlockKeychain.persistKeychainItems(keys, for: reference, masterKeyEntered: masterKeyEntered) == .stored
     }
 
@@ -1427,7 +1426,10 @@ final class CredentialProviderCoordinator {
     ) {
         let persisted: Bool
         if databaseReference.isCloudBacked {
-            persisted = persistQuickUnlockKeys(keys, databaseReference, masterKeyEntered)
+            guard let sha512 = openTimeSHA512 else { return }
+            persisted = (try? DatabaseListStore.withCloudKeyPublication(for: databaseReference, sha512: sha512) {
+                persistQuickUnlockKeys(keys, databaseReference, masterKeyEntered)
+            }) ?? false
         } else {
             guard let read = localReadKeyPublication, read.lease.reference.matches(databaseReference) else { return }
             persisted = (try? DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: read) {

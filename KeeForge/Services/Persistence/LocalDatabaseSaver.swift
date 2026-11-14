@@ -385,6 +385,12 @@ enum LocalDatabaseSaver {
             expectedMasterKeyChangeAt: authorization.expectedMasterKeyChangeAt, enforcesEpoch: authorization.enforcesEpoch,
             isMasterKeyChange: authorization.isMasterKeyChange, preparesSource: location.awaitsWriteBack)
 
+        if reference.isCloudBacked {
+            try PendingUploadQueue.assertCreationAllowsMutation(reference)
+            let markers = try PendingUploadQueue.readJournal(for: reference.id)
+            guard CloudJournalDecision.permitsMutation(markers.map(\.marker), changingKey: false) else { throw SaveError.saveContextUnavailable }
+        }
+
         let hasSecurityScope = location.usesSecurityScope
             ? location.url.startAccessingSecurityScopedResource()
             : false
@@ -475,7 +481,35 @@ enum LocalDatabaseSaver {
             let replaceOutcome: ReplaceOutcome
             do {
                 replacementMayHaveStarted = true
-                replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512, writeAuthorization)
+                if reference.isCloudBacked {
+                    replaceOutcome = try PendingUploadQueue.withCommitLock(for: reference.id) {
+                        guard let latest = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
+                              PendingUploadQueue.LocalCommitBaseline(reference: reference).hasCompatibleEpoch(latest) else { throw SaveError.saveContextUnavailable }
+                        var intent = try PendingUploadQueue.prepare(reference: latest, currentData: currentData,
+                            intendedData: newData, cacheURL: location.url)
+                        let outcome: ReplaceOutcome
+                        do { outcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512, writeAuthorization) }
+                        catch let failure as LocalSaveBeforeReplacementFailure {
+                            guard (try? PendingUploadQueue.dropIfUnchanged(intent)) == true else { return .indeterminate }
+                            throw failure
+                        }
+                        switch outcome {
+                        case .changed:
+                            _ = try PendingUploadQueue.dropIfUnchanged(intent)
+                        case .indeterminate: break
+                        case .replaced, .replacedWithoutConfirmedDurability, .replacedWithUnconfirmedBookkeeping:
+                            intent.marker.openTimeSHA512 = FileDigest.sha512(newData)
+                            guard let finalized = try? PendingUploadQueue.finalize(intent),
+                                  case .published? = try? PendingUploadQueue.recoverLocalCommit(finalized) else {
+                                return .replacedWithUnconfirmedBookkeeping()
+                            }
+                            PendingUploadQueue.postEnqueuedNotification()
+                        }
+                        return outcome
+                    }
+                } else {
+                    replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512, writeAuthorization)
+                }
             } catch let failure as LocalSaveBeforeReplacementFailure {
                 replacementMayHaveStarted = false
                 throw failure

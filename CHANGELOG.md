@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Draft: retain encrypted cloud save and creation attempts for recovery, queue cached changes durably, and avoid automatically resending uncertain requests.
+
 ### Changes
 
 - Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.

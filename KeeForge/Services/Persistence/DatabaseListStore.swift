@@ -277,15 +277,6 @@ enum DatabaseListStore {
         }
     }
 
-    static func addCreatedCloud(_ reference: DatabaseReference) throws {
-        try withStateLock {
-            var currentDatabases = loadDatabases()
-            try validateCreatedCloud(reference, in: currentDatabases)
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
-        }
-    }
-
     static func addAppOnlyCreatedLocal(_ reference: DatabaseReference, encryptedBytes: Data) throws {
         try withStateLock {
             var currentDatabases = loadDatabases()
@@ -322,8 +313,12 @@ enum DatabaseListStore {
     @discardableResult
     static func remove(id: UUID) -> Bool {
         withStateLock {
-            _ = loadDatabases()
+            let observedDatabases = loadDatabases()
             do {
+                if observedDatabases.first(where: { $0.id == id })?.isCloudBacked == true {
+                    guard try PendingUploadQueue.readJournal(for: id).isEmpty,
+                          try PendingUploadQueue.listCreations(for: id).isEmpty else { return false }
+                }
                 guard try PendingLocalSaveStore.revokeForRemoval(id) else { return false }
             } catch { return false }
             // Removal must distinguish an absent reference from an unreadable registry.
@@ -336,6 +331,10 @@ enum DatabaseListStore {
                 return true
             } catch { return false }
             guard let removedReference = currentDatabases.first(where: { $0.id == id }) else { return true }
+            if removedReference.isCloudBacked {
+                guard (try? PendingUploadQueue.readJournal(for: id).isEmpty) == true,
+                      (try? PendingUploadQueue.listCreations(for: id).isEmpty) == true else { return false }
+            }
             let wasActiveAutoFillDatabase = activeAutoFillDatabase?.id == id
             let remainingDatabases = currentDatabases.filter { $0.id != id }
             guard saveDatabases(remainingDatabases) else { return false }
@@ -728,25 +727,60 @@ enum DatabaseListStore {
     /// is unlisted, not cloud-backed, or the list failed to persist — a
     /// revision that never reached disk must not be acted on.
     @discardableResult
-    static func updateCloudSyncMetadata(
+    static func updateCloudSyncMetadata(for id: UUID, ifUnchangedFrom observed: CloudSyncMetadata,
+        mutate: (inout CloudSyncMetadata) -> Void) -> DatabaseReference? {
+        switch compareAndUpdateCloudSyncMetadata(for: id, ifUnchangedFrom: observed, mutate: mutate) {
+        case .published(let reference), .mismatch(let reference): reference
+        case .removed, .writeFailed: nil
+        }
+    }
+
+    enum CloudMetadataUpdateResult { case published(DatabaseReference), mismatch(DatabaseReference), removed, writeFailed }
+    private static func saveCloudRegistryDurably(_ references: [DatabaseReference]) -> Bool {
+        guard let anchor = AppGroupContainer.resolvedURL, let data = try? JSONEncoder().encode(references) else { return false }
+        if case .durable = writeWithDurabilityOutcome(data, to: databaseListURL, directoryAnchor: anchor) { return true }
+        return false
+    }
+
+    static func registerCloudCreation(_ reference: DatabaseReference, encryptedBytes: Data) throws -> DatabaseReference {
+        try withStateLock {
+            var references = FileManager.default.fileExists(atPath: databaseListURL.path)
+                ? try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL)) : []
+            if let current = references.first(where: { $0.id == reference.id }) {
+                guard current.cloudSyncMetadata?.provider == reference.cloudSyncMetadata?.provider,
+                      current.cloudSyncMetadata?.accountId == reference.cloudSyncMetadata?.accountId,
+                      current.cloudSyncMetadata?.fileId == reference.cloudSyncMetadata?.fileId,
+                      !PendingLocalSaveStore.isRevoked(current.id) else { throw SaveError.saveContextUnavailable }
+                guard saveCloudRegistryDurably(references) else { throw RecoveryRecordWarning() }
+                return current
+            }
+            guard !PendingLocalSaveStore.isRevoked(reference.id), let anchor = AppGroupContainer.resolvedURL else { throw SaveError.saveContextUnavailable }
+            try writeAtomicallyAndDurably(encryptedBytes, to: cacheLocation(for: reference), directoryAnchor: anchor)
+            references.append(reference)
+            guard saveCloudRegistryDurably(references) else { throw RecoveryRecordWarning() }
+            return reference
+        }
+    }
+
+    static func compareAndUpdateCloudSyncMetadata(
         for id: UUID,
         ifUnchangedFrom observed: CloudSyncMetadata,
         mutate: (inout CloudSyncMetadata) -> Void
-    ) -> DatabaseReference? {
+    ) -> CloudMetadataUpdateResult {
         withStateLock {
-            var currentDatabases = loadDatabases()
+            guard var currentDatabases = try? JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL)) else { return .writeFailed }
             guard let index = currentDatabases.firstIndex(where: { $0.id == id }),
                   let storedMetadata = currentDatabases[index].cloudSyncMetadata else {
-                return nil
+                return .removed
             }
 
             guard cloudRevisionIdentity(storedMetadata) == cloudRevisionIdentity(observed) else {
-                return currentDatabases[index]
+                return .mismatch(currentDatabases[index])
             }
 
             currentDatabases[index].updateCloudSyncMetadata(mutate)
-            guard saveDatabases(currentDatabases) else { return nil }
-            return currentDatabases[index]
+            guard saveCloudRegistryDurably(currentDatabases) else { return .writeFailed }
+            return .published(currentDatabases[index])
         }
     }
 
@@ -754,7 +788,56 @@ enum DatabaseListStore {
     /// references predating rev tracking carry only a content hash, which is
     /// then the entire signal that the remote moved.
     private static func cloudRevisionIdentity(_ metadata: CloudSyncMetadata) -> String {
-        "\(metadata.remoteRev ?? "")\u{1F}\(metadata.remoteContentHash ?? "")"
+        "\(metadata.remoteRev ?? "")\u{1F}\(metadata.remoteContentHash ?? "")\u{1F}\(metadata.localHeadOperationID?.uuidString ?? "")\u{1F}\(metadata.keyEpoch?.uuidString ?? "")"
+    }
+
+    /// Caller holds the database commit lock; only local publication fields may change.
+    static func publishCloudLocalCommit(
+        for id: UUID, operationID: UUID, baseline: PendingUploadQueue.LocalCommitBaseline
+    ) -> CloudMetadataUpdateResult {
+        withStateLock {
+            guard var references = try? JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL)) else { return .writeFailed }
+            guard let index = references.firstIndex(where: { $0.id == id }),
+                  references[index].isCloudBacked else { return .removed }
+            let current = references[index]
+            guard baseline.hasCompatibleEpoch(current) else { return .mismatch(current) }
+            if current.cloudSyncMetadata?.localHeadOperationID == operationID {
+                // A prior rename may be visible even though its directory sync failed.
+                guard saveCloudRegistryDurably(references) else { return .writeFailed }
+                return .published(current)
+            }
+            guard current.cloudSyncMetadata?.localHeadOperationID == baseline.headOperationID else {
+                return .mismatch(current)
+            }
+            references[index].updateCloudSyncMetadata {
+                $0.localHeadOperationID = operationID
+                $0.lastSyncedAt = nil
+            }
+            guard saveCloudRegistryDurably(references) else { return .writeFailed }
+            return .published(references[index])
+        }
+    }
+
+    @discardableResult
+    static func recordCloudLocalCommit(for id: UUID, operationID: UUID, rekey: PendingUploadQueue.KeyChange? = nil, committedAt: Date = .now) -> DatabaseReference? {
+        withStateLock {
+            guard var references = try? JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL)) else { return nil }
+            guard let index = references.firstIndex(where: { $0.id == id }), references[index].isCloudBacked else { return nil }
+            references[index].updateCloudSyncMetadata {
+                $0.localHeadOperationID = operationID
+                $0.lastSyncedAt = nil
+                if let rekey {
+                    $0.keyEpoch = rekey.epoch
+                }
+            }
+            if let rekey {
+                references[index].keyFileBookmarkData = rekey.keyFileBookmarkData
+                references[index].keyFileFilename = rekey.keyFileFilename
+                references[index].lastMasterKeyChangeAt = committedAt
+            }
+            guard saveCloudRegistryDurably(references) else { return nil }
+            return references[index]
+        }
     }
 
     static func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) {
@@ -987,6 +1070,37 @@ enum DatabaseListStore {
         throw coordinatorError ?? CocoaError(.fileReadUnknown)
     }
 
+    /// Cache coordination precedes an immediate list/commit-lock attempt; contention rejects publication.
+    static func withCloudKeyPublication<T>(
+        for expected: DatabaseReference, sha512: Data, _ publish: () throws -> T
+    ) throws -> T {
+        let cache = cacheLocation(for: expected)
+        var result: Result<T, Error>?
+        var coordinationError: NSError?
+        NSFileCoordinator().coordinate(readingItemAt: cache, error: &coordinationError) { protectedCache in
+            result = Result {
+                let bytes = try Data(contentsOf: protectedCache)
+                guard FileDigest.sha512(bytes) == sha512, stateLock.try() else { throw SaveError.saveContextUnavailable }
+                defer { stateLock.unlock() }
+                let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
+                guard let current = references.first(where: { $0.id == expected.id }),
+                      current.cloudSyncMetadata?.keyEpoch == expected.cloudSyncMetadata?.keyEpoch,
+                      current.lastMasterKeyChangeAt == expected.lastMasterKeyChangeAt,
+                      current.keyFileBookmarkData == expected.keyFileBookmarkData,
+                      current.keyFileFilename == expected.keyFileFilename,
+                      current.cloudSyncMetadata?.fileId == expected.cloudSyncMetadata?.fileId,
+                      current.cloudSyncMetadata?.accountId == expected.cloudSyncMetadata?.accountId,
+                      current.cloudSyncMetadata?.provider == expected.cloudSyncMetadata?.provider else { throw SaveError.saveContextUnavailable }
+                return try PendingUploadQueue.withCommitLock(for: current.id, nonBlocking: true) {
+                    guard try PendingUploadQueue.readJournal(for: current.id).isEmpty else { throw SaveError.saveContextUnavailable }
+                    return try PendingLocalSaveStore.withCachePublicationAuthorization(for: current.id, sha512: sha512, publish)
+                }
+            }
+        }
+        if let result { return try result.get() }
+        throw coordinationError ?? CocoaError(.fileReadUnknown)
+    }
+
     static func withLocalReadKeyPublication<T>(
         for expected: DatabaseReference, read: PendingLocalSaveStore.ReadKeyPublication, _ publish: () throws -> T
     ) throws -> T {
@@ -1031,8 +1145,29 @@ enum DatabaseListStore {
             return
         }
         let url = cacheLocation(for: reference)
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try CoordinatedFileReader.writeData(data, to: url, options: .atomicProtected)
+        guard let anchor = AppGroupContainer.resolvedURL else { throw CocoaError(.fileWriteNoPermission) }
+        try createDurableDirectory(at: url.deletingLastPathComponent(), anchor: anchor)
+        var result: Result<Void, Error>?
+        var coordinationError: NSError?
+        NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { protectedURL in
+            result = Result {
+                guard stateLock.try() else { throw SaveError.saveContextUnavailable }
+                defer { stateLock.unlock() }
+                if let current = loadDatabases().first(where: { $0.id == reference.id }) {
+                    guard current.cloudSyncMetadata?.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
+                          current.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else { throw SaveError.saveContextUnavailable }
+                }
+                try PendingUploadQueue.withCommitLock(for: reference.id, nonBlocking: true) {
+                    guard try PendingUploadQueue.readJournal(for: reference.id).isEmpty else { throw SaveError.saveContextUnavailable }
+                    try PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: FileDigest.sha512(data)) {
+                        guard let anchor = AppGroupContainer.resolvedURL else { throw CocoaError(.fileWriteNoPermission) }
+                        try writeAtomicallyAndDurably(data, to: protectedURL, directoryAnchor: anchor)
+                    }
+                }
+            }
+        }
+        if let result { return try result.get() }
+        throw coordinationError ?? CocoaError(.fileWriteUnknown)
     }
 
     static func cachedDatabaseURL(for databaseID: UUID) -> URL? {

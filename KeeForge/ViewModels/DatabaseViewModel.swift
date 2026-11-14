@@ -770,7 +770,6 @@ final class DatabaseViewModel {
             return try QuickUnlockKeychain.retrieve(for: reference, context: context)
         },
         quickUnlockKeyPersistOperation: @escaping QuickUnlockKeyPersistOperation = { keys, reference, masterKeyEntered in
-            if reference.isCloudBacked { return QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered) }
             return QuickUnlockKeychain.persistKeychainItems(keys, for: reference, masterKeyEntered: masterKeyEntered) == .stored
         },
         expressUnlockKeySaveOperation: @escaping ExpressUnlockKeySaveOperation = { key, reference in
@@ -2569,6 +2568,8 @@ final class DatabaseViewModel {
     func save() async throws {
         do {
             try await saveDraft()
+        } catch let warning as CloudSaveRecoveryWarning {
+            throw warning
         } catch let warning as SaveDurabilityWarning {
             throw warning
         } catch let warning as SaveUnknownOutcomeWarning {
@@ -2663,7 +2664,7 @@ final class DatabaseViewModel {
             switch saveResult {
             case .saved(let newSHA512, let expressKey, let localCommit),
                  .committedWithoutConfirmedDurability(let newSHA512, let expressKey, let localCommit, _):
-                replaceExpressUnlockKeyAfterSave(with: expressKey)
+                replaceExpressUnlockKeyAfterSave(with: expressKey, sha512: newSHA512)
                 rememberCommittedCiphertext(localCommit)
                 rootGroup = snapshot.rootGroup
                 unlockedMeta = snapshot.meta
@@ -2679,6 +2680,7 @@ final class DatabaseViewModel {
                 if saveResult.hasUnconfirmedDurability {
                     if self.draft?.pendingEdits == snapshot.pendingEdits { self.draft = nil }
                     lastSaveAttemptFailed = false
+                    if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
                     throw SaveDurabilityWarning(scope: saveResult.warningScope)
                 }
 
@@ -2698,6 +2700,7 @@ final class DatabaseViewModel {
                 }
                 snapshot = grown
             case .indeterminate(let scope):
+                if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
                 throw SaveUnknownOutcomeWarning(scope: scope)
             case .conflict(let remoteSHA512, let remoteData):
                 let requiresRecovery = await localConflictRequiresRecovery()
@@ -2778,6 +2781,7 @@ final class DatabaseViewModel {
         }
 
         try await refreshSameEpochKeyFilePreference()
+        let cloudKeyChange = PendingUploadQueue.KeyChange(keyFileBookmarkData: newKeyFileBookmarkData, keyFileFilename: newKeyFileFilename)
         let saveResult: SaveResult
         do {
             switch databaseReference.source {
@@ -2794,7 +2798,8 @@ final class DatabaseViewModel {
                     )
                 }
             case .cloud:
-                saveResult = try await cloudSaveOperation(
+                saveResult = try await CloudDatabaseSaver.$keyChange.withValue(cloudKeyChange) {
+                    try await cloudSaveOperation(
                     workingDraft,
                     databaseReference,
                     compositeKey,
@@ -2804,19 +2809,9 @@ final class DatabaseViewModel {
                     newCompositeKey,
                     nil
                 )
+                }
             }
         } catch SaveError.rekeyAppliedRemotely where databaseReference.isCloudBacked {
-            // The upload landed, so the cloud file already requires the new
-            // key even though the local apply failed. Point keychain and
-            // association at the key the remote now needs — the stale local
-            // cache reconciles through the normal sync-down path.
-            expressUnlockKeySaveOperation(nil, databaseReference)
-            quickUnlockItemHoldsSessionKey = false
-            refreshStoredCompositeKeyAfterRekey(newCompositeKey)
-            persistKeyFileAssociation(
-                bookmarkData: newKeyFileBookmarkData,
-                filename: newKeyFileFilename
-            )
             throw SaveError.rekeyAppliedRemotely
         }
 
@@ -2829,8 +2824,13 @@ final class DatabaseViewModel {
             // to the old key; the next unlock or save stores one again.
             let storedNewKey: Bool
             if databaseReference.isCloudBacked {
-                expressUnlockKeySaveOperation(nil, databaseReference)
-                storedNewKey = refreshStoredCompositeKeyAfterRekey(newCompositeKey)
+                let current = DatabaseListStore.databases.first { $0.id == databaseReference.id }
+                guard let current, current.cloudSyncMetadata?.keyEpoch == cloudKeyChange.epoch else { throw SaveAssociationWarning(reason: .authorityChanged) }
+                storedNewKey = (try? DatabaseListStore.withCloudKeyPublication(for: current, sha512: newSHA512) {
+                    expressUnlockKeySaveOperation(nil, current)
+                    return Self.refreshStoredCompositeKeyItemsAfterRekey(newCompositeKey, reference: current,
+                        hasStoredKey: storedKeyPresenceCheck, storeKey: storedKeyStoreOperation, deleteKey: storedKeyDeleteOperation).stored
+                }) ?? false
             } else {
                 guard let localCommit else { throw SaveAssociationWarning(reason: .authorityChanged) }
                 let expected = databaseReference
@@ -2876,9 +2876,14 @@ final class DatabaseViewModel {
                 databaseReference.keyFileBookmarkData = association.bookmarkData
                 databaseReference.keyFileFilename = association.filename
                 databaseReference.lastMasterKeyChangeAt = association.changedAt
+            } else if databaseReference.isCloudBacked {
+                let current = DatabaseListStore.databases.first { $0.id == databaseReference.id }
+                associationSaved = current?.cloudSyncMetadata?.keyEpoch == cloudKeyChange.epoch
+                    && current?.keyFileBookmarkData == newKeyFileBookmarkData && current?.keyFileFilename == newKeyFileFilename
+                if let current { databaseReference = current }
             } else {
                 associationSaved = persistKeyFileAssociation(bookmarkData: newKeyFileBookmarkData,
-                    filename: newKeyFileFilename, changedAt: databaseReference.isCloudBacked ? nil : association.changedAt)
+                    filename: newKeyFileFilename, changedAt: association.changedAt)
             }
             if expectedLockCycleID == lockCycleID {
                 rememberCommittedCiphertext(localCommit)
@@ -2892,22 +2897,17 @@ final class DatabaseViewModel {
                 // this function's defer resets `isSaving`.
             }
             if associationSaved == false { throw SaveAssociationWarning(durabilityUnconfirmed: saveResult.hasUnconfirmedDurability) }
-            if saveResult.hasUnconfirmedDurability { throw SaveDurabilityWarning(scope: saveResult.warningScope) }
+            if saveResult.hasUnconfirmedDurability { if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
+                    throw SaveDurabilityWarning(scope: saveResult.warningScope) }
             if ownerResolution != .resolved { throw SaveBookkeepingWarning() }
             if expectedLockCycleID == lockCycleID, draft?.isDirty == true {
                 Task { await self.saveHandlingError() }
             }
         case .indeterminate(let scope):
             // Without an installed receipt this callback has no authority over keys another session may have changed.
-            if databaseReference.isCloudBacked {
-                expressUnlockKeySaveOperation(nil, databaseReference)
-                storedKeyDeleteOperation(databaseReference)
-                if let legacyFilename = databaseReference.legacyKeychainFilename {
-                    KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-                }
-            }
             quickUnlockItemHoldsSessionKey = false
-            throw SaveUnknownOutcomeWarning(scope: scope)
+            if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
+                throw SaveUnknownOutcomeWarning(scope: scope)
         case .conflict:
             throw RekeyError.conflict
         }
@@ -2972,8 +2972,12 @@ final class DatabaseViewModel {
     /// For a save under the session's own composite key. Without a
     /// quick-unlock item holding that key the saved version's key would open
     /// what quick unlock cannot, so the stale item is only dropped.
-    private func replaceExpressUnlockKeyAfterSave(with key: ExpressUnlockKey?) {
-        expressUnlockKeySaveOperation(quickUnlockItemHoldsSessionKey ? key : nil, databaseReference)
+    private func replaceExpressUnlockKeyAfterSave(with key: ExpressUnlockKey?, sha512: Data) {
+        if databaseReference.isCloudBacked {
+            _ = try? DatabaseListStore.withCloudKeyPublication(for: databaseReference, sha512: sha512) {
+                expressUnlockKeySaveOperation(quickUnlockItemHoldsSessionKey ? key : nil, databaseReference)
+            }
+        } else { expressUnlockKeySaveOperation(quickUnlockItemHoldsSessionKey ? key : nil, databaseReference) }
     }
 
     @discardableResult
@@ -3068,7 +3072,11 @@ final class DatabaseViewModel {
             // The reference carries the new cloud revision, so it updates even
             // if the session locked mid-flight. The new KDF settings have no
             // express key until the next unlock or save stores one.
-            expressUnlockKeySaveOperation(nil, databaseReference)
+            if databaseReference.isCloudBacked {
+                _ = try? DatabaseListStore.withCloudKeyPublication(for: databaseReference, sha512: newSHA512) {
+                    expressUnlockKeySaveOperation(nil, databaseReference)
+                }
+            } else { expressUnlockKeySaveOperation(nil, databaseReference) }
             refreshDatabaseReference()
             if expectedLockCycleID == lockCycleID {
                 rememberCommittedCiphertext(localCommit)
@@ -3079,9 +3087,11 @@ final class DatabaseViewModel {
                     Task { await self.saveHandlingError() }
                 }
             }
-            if saveResult.hasUnconfirmedDurability { throw SaveDurabilityWarning(scope: saveResult.warningScope) }
+            if saveResult.hasUnconfirmedDurability { if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
+                    throw SaveDurabilityWarning(scope: saveResult.warningScope) }
         case .indeterminate(let scope):
-            throw SaveUnknownOutcomeWarning(scope: scope)
+            if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
+                throw SaveUnknownOutcomeWarning(scope: scope)
         case .conflict:
             throw EncryptionSettingsError.conflict
         }
@@ -3299,7 +3309,7 @@ final class DatabaseViewModel {
         switch saveResult {
         case .saved(let newSHA512, let expressKey, let localCommit),
                  .committedWithoutConfirmedDurability(let newSHA512, let expressKey, let localCommit, _):
-            replaceExpressUnlockKeyAfterSave(with: expressKey)
+            replaceExpressUnlockKeyAfterSave(with: expressKey, sha512: newSHA512)
             rememberCommittedCiphertext(localCommit)
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
@@ -3311,10 +3321,12 @@ final class DatabaseViewModel {
             refreshDatabaseReference()
             populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
             refreshPendingUploadConflict()
-            if saveResult.hasUnconfirmedDurability { throw SaveDurabilityWarning(scope: saveResult.warningScope) }
+            if saveResult.hasUnconfirmedDurability { if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
+                    throw SaveDurabilityWarning(scope: saveResult.warningScope) }
             mergeSummaryMessage = Self.mergeSummaryMessage(for: merged.summary)
         case .indeterminate(let scope):
-            throw SaveUnknownOutcomeWarning(scope: scope)
+            if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
+                throw SaveUnknownOutcomeWarning(scope: scope)
         case .conflict(let remoteSHA512, let remoteData):
             // Strictly different bytes from the conflict just merged — the gate
             // accepted those — so this is a value change the alert observes.
@@ -3435,16 +3447,19 @@ final class DatabaseViewModel {
         )
 
         switch saveResult {
-        case .saved(let newSHA512, let expressKey, _):
+        case .saved(let newSHA512, let expressKey, _),
+             .committedWithoutConfirmedDurability(let newSHA512, let expressKey, _, _):
             let resolvedMarkers = payloads.map(\.storedMarker)
-            // Not gated on the lock cycle: the upload already happened, and
-            // leaving the markers would only offer the same merge again.
-            await Task.detached(priority: .userInitiated) {
-                PendingUploadRecovery.dropMarkers(resolvedMarkers, environment: recovery)
+            let mergedReferenceID = databaseReference.id
+            let transferred = await Task.detached(priority: .userInitiated) {
+                do {
+                    try PendingUploadQueue.transferMergedSources(resolvedMarkers, toPayloadSHA512: newSHA512, for: mergedReferenceID)
+                    return true
+                } catch { return false }
             }.value
             guard expectedLockCycleID == lockCycleID else { return }
 
-            replaceExpressUnlockKeyAfterSave(with: expressKey)
+            replaceExpressUnlockKeyAfterSave(with: expressKey, sha512: newSHA512)
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
             binaryPool = localBinaryPoolFields.map(BinaryPool.init(rawFields:)) ?? binaryPool
@@ -3453,11 +3468,13 @@ final class DatabaseViewModel {
             refreshDatabaseReference()
             populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
             refreshPendingUploadConflict()
-            mergeSummaryMessage = String(localized: "The change saved through AutoFill was merged with the cloud copy and uploaded.")
-        case .committedWithoutConfirmedDurability:
-            throw SaveDurabilityWarning(scope: saveResult.warningScope)
+            if saveResult.hasUnconfirmedDurability { if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
+                    throw SaveDurabilityWarning(scope: saveResult.warningScope) }
+            if !transferred { throw SaveBookkeepingWarning() }
+            mergeSummaryMessage = String(localized: "The change saved through AutoFill was merged into the cached copy and queued for upload.")
         case .indeterminate(let scope):
-            throw SaveUnknownOutcomeWarning(scope: scope)
+            if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
+                throw SaveUnknownOutcomeWarning(scope: scope)
         case .conflict:
             guard expectedLockCycleID == lockCycleID else { return }
             pendingUploadMergeFailure = .cloudChanged
@@ -3603,7 +3620,7 @@ final class DatabaseViewModel {
             }
             guard expectedLockCycleID == lockCycleID else { return .settledOrDeferred }
 
-            replaceExpressUnlockKeyAfterSave(with: expressKey)
+            replaceExpressUnlockKeyAfterSave(with: expressKey, sha512: newSHA512)
             rememberCommittedCiphertext(localCommit)
             rootGroup = mergedDraft.rootGroup
             unlockedMeta = mergedDraft.meta
@@ -4715,8 +4732,12 @@ final class DatabaseViewModel {
         let mayPublish: Bool
         let storedQuickUnlockKey: Bool
         if databaseReference.isCloudBacked {
-            mayPublish = true
-            storedQuickUnlockKey = quickUnlockKeyPersistOperation(keys, databaseReference, masterKeyEntered)
+            let stored = try? DatabaseListStore.withCloudKeyPublication(for: databaseReference, sha512: payload.openTimeSHA512) {
+                quickUnlockKeyPersistOperation(keys, databaseReference, masterKeyEntered)
+            }
+            mayPublish = stored != nil
+            storedQuickUnlockKey = stored == true
+            if storedQuickUnlockKey { DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference) }
         } else if let localRead {
             let stored = try? DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: localRead) {
                 quickUnlockKeyPersistOperation(keys, databaseReference, masterKeyEntered)
@@ -5144,46 +5165,29 @@ final class DatabaseViewModel {
         }.value
     }
 
-    /// Writes the conflict copy create-only: it exists to preserve bytes, so
-    /// it must never overwrite. Do not go back to `upload(expectedRev: nil)` —
-    /// that is `WriteMode.overwrite` on Dropbox and `conflictBehavior=replace`
-    /// on OneDrive, and it destroyed an earlier copy of the same name.
-    /// `createFile` is required to be no-overwrite (`Cloud/AGENTS.md`) and
-    /// reports a collision as `.conflict`, which the retry answers by
-    /// numbering the name. `providerResolver` is injectable only so tests can
-    /// exercise this routing without a live provider.
+    /// An ambiguous create retains its ciphertext and never retries under another name.
     static func writeConflictCopyToCloud(
         reference: DatabaseReference,
         fileID: String,
         bytes: Data,
         providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:)
     ) async throws {
-        guard let metadata = reference.cloudSyncMetadata else {
-            throw SaveError.saveContextUnavailable
+        guard let metadata = reference.cloudSyncMetadata,
+              let provider = providerResolver(metadata.provider) else { throw CloudProviderError.notAuthenticated }
+        let operationID = UUID()
+        var template = DatabaseReference(id: operationID, nickname: nil,
+            filename: (fileID as NSString).lastPathComponent, bookmarkData: nil,
+            keyFileBookmarkData: reference.keyFileBookmarkData, keyFileFilename: reference.keyFileFilename,
+            isQuickLaunch: false, lastOpenedAt: nil, addedAt: .now, colorTag: reference.colorTag,
+            legacyKeychainFilename: nil, autoFillEnabled: reference.autoFillEnabled)
+        template.hardwareKey = reference.hardwareKey
+        var environment = CloudFileCreationCoordinator.Environment.live
+        environment.createFile = { _, accountID, path, data in
+            try await provider.createFile(accountId: accountID, path: path, data: data, progress: { _ in })
         }
-
-        guard let provider = providerResolver(metadata.provider) else {
-            throw CloudProviderError.notAuthenticated
-        }
-
-        for attempt in 1...conflictCopyNameAttemptLimit {
-            let path = attempt == 1 ? fileID : uniquifiedConflictCopyName(fileID, attempt: attempt)
-            do {
-                _ = try await provider.createFile(
-                    accountId: metadata.accountId,
-                    path: path,
-                    data: bytes,
-                    progress: { _ in }
-                )
-                return
-            } catch let error as CloudProviderError {
-                guard case .conflict = error, attempt < conflictCopyNameAttemptLimit else {
-                    throw error
-                }
-            }
-        }
-
-        throw CloudProviderError.conflict(remoteRev: nil)
+        _ = try await CloudFileCreationCoordinator.create(operationID: operationID, ownerDatabaseID: reference.id,
+            provider: metadata.provider, accountID: metadata.accountId, target: fileID, bytes: bytes,
+            referenceTemplate: template, isConflictCopy: true, environment: environment)
     }
 
     /// How many numbered names a conflict copy may try before giving up.

@@ -43,6 +43,11 @@ final class PendingUploadDrainer {
         var sha512: @Sendable (Data) -> Data
         var pushPendingUpload: @Sendable (DatabaseReference, Data, String?) async throws -> CloudDatabaseSaver.PendingUploadPushResult
 
+        var listCreations: (@Sendable (UUID?) throws -> [PendingUploadQueue.CreationIntent])?
+        var resumeCreation: (@Sendable (UUID) async throws -> DatabaseReference)?
+
+        var deliverMarker: (@Sendable (PendingUploadQueue.StoredMarker, DatabaseReference) async throws -> CloudDatabaseSaver.PendingUploadPushResult?)?
+
         static let live = Environment(
             beginBackgroundTask: LocalDatabaseSaver.Environment.live.beginBackgroundTask,
             endBackgroundTask: LocalDatabaseSaver.Environment.live.endBackgroundTask,
@@ -70,6 +75,11 @@ final class PendingUploadDrainer {
                     encryptedBytes: data,
                     expectedRev: expectedRev
                 )
+            },
+            listCreations: { try PendingUploadQueue.listCreations(for: $0) },
+            resumeCreation: { try await CloudFileCreationCoordinator.resume(operationID: $0, unpausing: false) },
+            deliverMarker: { stored, reference in
+                try await CloudDatabaseSaver.deliver(stored, reference: reference)
             }
         )
     }
@@ -177,6 +187,23 @@ final class PendingUploadDrainer {
         environment: Environment
     ) async -> DrainOutcome {
         var outcome = DrainOutcome()
+        if let list = environment.listCreations, let resume = environment.resumeCreation {
+            do {
+                for intent in try list(databaseId) where !intent.isPaused {
+                    do {
+                        _ = try await resume(intent.operationID)
+                        outcome.drainedDatabaseIDs.insert(intent.ownerDatabaseID)
+                    } catch {
+                        outcome.skippedDatabaseIDs.insert(intent.ownerDatabaseID)
+                        outcome.userIssue = UserIssue(databaseId: intent.ownerDatabaseID, kind: .message, message: error.localizedDescription)
+                    }
+                }
+            } catch {
+                if let databaseId {
+                    outcome.userIssue = UserIssue(databaseId: databaseId, kind: .message, message: error.localizedDescription)
+                }
+            }
+        }
         // Payload SHAs already pushed to the remote head in this pass, per
         // database. A later marker recording the same payload is dropped:
         // re-pushing it could only raise a spurious revision conflict.
@@ -193,6 +220,22 @@ final class PendingUploadDrainer {
                 continue
             }
 
+            if let deliver = environment.deliverMarker {
+                guard let current = environment.listMarkers(reference.id).first(where: { $0.id == storedMarker.id }) else { continue }
+                do {
+                    if let result = try await deliver(current, reference) {
+                        switch result {
+                        case .saved: outcome.drainedDatabaseIDs.insert(reference.id)
+                        case .retained: outcome.skippedDatabaseIDs.insert(reference.id)
+                        case .conflict: outcome.conflictDatabaseIDs.insert(reference.id)
+                        }
+                    } else { outcome.skippedDatabaseIDs.insert(reference.id) }
+                } catch {
+                    outcome.userIssue = UserIssue(databaseId: reference.id, kind: ((error as? CloudUploadFailure)?.underlying ?? (error as? CloudProviderError)).map(issueKind) ?? .message, message: error.localizedDescription)
+                }
+                continue
+            }
+
             // A marker enqueued while a master-key change was uploading holds
             // ciphertext under the old key; pushing it would revert the rekey
             // on the remote (rev-less providers) or strand an undecryptable
@@ -205,7 +248,7 @@ final class PendingUploadDrainer {
                 continue
             }
 
-            if storedMarker.marker.isPayloadFinalized != false,
+            if storedMarker.marker.isPayloadFinalized == true, storedMarker.marker.confirmedAt == nil,
                uploadedPayloadSHAs[reference.id]?.contains(storedMarker.marker.openTimeSHA512) == true {
                 try? environment.dropMarker(storedMarker)
                 outcome.drainedDatabaseIDs.insert(reference.id)
@@ -214,7 +257,7 @@ final class PendingUploadDrainer {
 
             let encryptedBytes: Data
             do {
-                encryptedBytes = try environment.readBytes(storedMarker.marker.encryptedBytesCacheURL)
+                encryptedBytes = try environment.readBytes(storedMarker.marker.intendedPayloadPath ?? storedMarker.marker.encryptedBytesCacheURL)
             } catch {
                 outcome.userIssue = UserIssue(
                     databaseId: reference.id,
@@ -237,7 +280,7 @@ final class PendingUploadDrainer {
                 continue
             }
 
-            guard storedMarker.marker.isPayloadFinalized != false else { continue }
+            guard storedMarker.marker.isPayloadFinalized == true else { continue }
 
             var didCompleteMarker = false
             for attempt in 0..<2 {
@@ -253,6 +296,9 @@ final class PendingUploadDrainer {
                         try environment.dropMarker(storedMarker)
                         outcome.drainedDatabaseIDs.insert(updatedReference.id)
                         uploadedPayloadSHAs[reference.id, default: []].insert(storedMarker.marker.openTimeSHA512)
+                        didCompleteMarker = true
+                    case .retained(let updatedReference):
+                        outcome.skippedDatabaseIDs.insert(updatedReference.id)
                         didCompleteMarker = true
                     case .conflict(let remoteRev):
                         if attempt == 0,

@@ -5997,32 +5997,23 @@ final class DatabaseViewModelTests: XCTestCase {
         )
     }
 
-    func testConflictCopyToCloudNumbersTheNameWhenItAlreadyExists() async throws {
+    func testConflictCopyToCloudRetainsGenericConflictWithoutNameRetry() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
         let provider = ConflictCopyCloudProvider()
-        // Two resolutions inside the same second: the first copy already
-        // occupies the name, so create-only rejects it.
-        provider.pathsRejectedAsExisting = [
-            "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
-            "/Vaults/vault (conflict 2026-04-07 161500) 2.kdbx",
-        ]
-
-        try await DatabaseViewModel.writeConflictCopyToCloud(
-            reference: reference,
-            fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
-            bytes: Data("conflict-copy".utf8),
-            providerResolver: { _ in provider }
-        )
-
-        XCTAssertEqual(
-            provider.createdPaths,
-            [
-                "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
-                "/Vaults/vault (conflict 2026-04-07 161500) 2.kdbx",
-                "/Vaults/vault (conflict 2026-04-07 161500) 3.kdbx",
-            ]
-        )
+        let target = "/Vaults/vault (conflict 2026-04-07 161500).kdbx"
+        let bytes = Data("conflict-copy".utf8)
+        provider.pathsRejectedAsExisting = [target]
+        do {
+            try await DatabaseViewModel.writeConflictCopyToCloud(reference: reference, fileID: target,
+                bytes: bytes, providerResolver: { _ in provider })
+            XCTFail("A generic conflict does not prove that no previous write committed")
+        } catch { XCTAssertTrue(error is CloudFileCreationCoordinator.RecoveryRequired) }
+        XCTAssertEqual(provider.createdPaths, [target])
         XCTAssertEqual(provider.uploadCallCount, 0)
+        let intent = try XCTUnwrap(PendingUploadQueue.listCreations(for: reference.id).first)
+        XCTAssertTrue(intent.isConflictCopy)
+        XCTAssertEqual(intent.phase, .attempting)
+        XCTAssertEqual(try CloudFileCreationCoordinator.export(intent), bytes)
     }
 
     func testConflictCopyToCloudSurfacesNonConflictFailuresImmediately() async throws {
@@ -6038,9 +6029,10 @@ final class DatabaseViewModelTests: XCTestCase {
                 providerResolver: { _ in provider }
             )
             XCTFail("Expected the provider error to surface.")
-        } catch let error as CloudProviderError {
-            XCTAssertEqual(error, .insufficientSpace)
-        }
+        } catch { XCTAssertTrue(error is CloudFileCreationCoordinator.RecoveryRequired) }
+        let retained = try XCTUnwrap(PendingUploadQueue.listCreations(for: reference.id).first)
+        XCTAssertEqual(retained.phase, .attempting)
+        XCTAssertEqual(try CloudFileCreationCoordinator.export(retained), Data("conflict-copy".utf8))
 
         XCTAssertEqual(provider.createdPaths.count, 1, "A real failure must not be retried under new names.")
     }

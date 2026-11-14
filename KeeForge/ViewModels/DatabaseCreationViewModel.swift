@@ -60,6 +60,7 @@ final class DatabaseCreationViewModel {
     private let environment: DatabaseCreationService.Environment
     private let preparationOperation: PreparationOperation
     private var isCancelled = false
+    private var cloudCreationTask: Task<CreatedDatabase, Error>?
 
     init(
         environment: DatabaseCreationService.Environment = .live,
@@ -208,8 +209,7 @@ final class DatabaseCreationViewModel {
         }
 
         do {
-            let created = try await DatabaseCreationService.create(
-                request: DatabaseCreationRequest(
+            let request = DatabaseCreationRequest(
                     displayName: databaseName,
                     destination: .cloud(
                         provider: provider,
@@ -222,9 +222,12 @@ final class DatabaseCreationViewModel {
                     keyFileFilename: keyFileFilename,
                     cipher: cipher,
                     kdfPreset: kdfPreset
-                ),
-                environment: environment
-            )
+                )
+            let creationEnvironment = environment
+            let worker = Task { try await DatabaseCreationService.create(request: request, environment: creationEnvironment) }
+            cloudCreationTask = worker
+            defer { cloudCreationTask = nil }
+            let created = try await worker.value
             guard isCancelled == false, Task.isCancelled == false else { return nil }
             clearSecrets()
             preparedDatabase = nil
@@ -248,6 +251,7 @@ final class DatabaseCreationViewModel {
 
     func cancelPendingCreation() {
         isCancelled = true
+        cloudCreationTask?.cancel()
         clearSecrets()
         clearPreparedDatabase()
     }

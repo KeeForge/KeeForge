@@ -375,15 +375,18 @@ final class ExpressUnlockTests: XCTestCase {
         let context = try makeSaveContext(data: try Data(contentsOf: cacheURL))
         let uploaded = UploadedBytes()
 
+        let environment = makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
         let result = try await CloudDatabaseSaver.save(
             draft: context.draft, reference: reference, compositeKey: context.compositeKey,
             openTimeSHA512: context.openTimeSHA512, expectedRev: "rev-1", kdfPolicy: .mainApp,
-            environment: makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
+            environment: environment
         )
 
         guard case .saved(_, let expressKey, _) = result else {
             return XCTFail("Expected save to succeed.")
         }
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first)
+        _ = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment)
         try assertOpensWithoutTheKDF(
             try XCTUnwrap(uploaded.data), expressKey: XCTUnwrap(expressKey), compositeKey: context.compositeKey
         )
@@ -493,7 +496,7 @@ final class ExpressUnlockTests: XCTestCase {
     }
 
     private func makeCloudReference() -> DatabaseReference {
-        DatabaseReference(
+        let reference = DatabaseReference(
             id: UUID(),
             nickname: nil,
             filename: "express.kdbx",
@@ -521,7 +524,10 @@ final class ExpressUnlockTests: XCTestCase {
                 )
             )
         )
+        DatabaseListStore.update(reference)
+        return reference
     }
+
 
     private func makeCloudEnvironment(cacheURL: URL, uploaded: UploadedBytes) -> CloudDatabaseSaver.Environment {
         let backupDirectory = cacheURL.deletingLastPathComponent().appendingPathComponent("Backups", isDirectory: true)
@@ -538,8 +544,10 @@ final class ExpressUnlockTests: XCTestCase {
             uploaded.record(data)
             return CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: nil, size: Int64(data.count), rev: "rev-2")
         }
-        environment.applyUploadedBytes = { reference, _, _ in reference }
-        environment.dropSupersededPendingUploads = { _, _ in }
+        environment.queue.appGroupContainerURL = { cacheURL.deletingLastPathComponent() }
+        environment.queue.createDirectory = { url in
+            try createDurableDirectory(at: url, anchor: cacheURL.deletingLastPathComponent())
+        }
         return environment
     }
 }

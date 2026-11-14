@@ -93,3 +93,5 @@
 - The optional interruption callback on blocking reads runs before timeout/cancel is delivered. It does not stop the underlying IO or prove no effects; mutation callers must revoke pending permission at the real effect boundary and keep committed ownership until affirmative completion/recovery. Read callers without that callback keep their existing cancellation behavior.
 
 - Successful reference removal and list clear delete quick-unlock master-entry dates only through the security owner’s process-wide leaf lock. Do not mutate its shared-defaults dictionary directly or acquire list/owner from that date lock. Shared UserDefaults still has no cross-process date transaction guarantee.
+
+- Cloud publication uses durable field-specific metadata updates without replacing local admission/rekey/preference logic. Cloud creation registers only after a confirmed create-only response, a durable encrypted cache and registry publication; an ambiguous response retains a paused creation intent. Cloud cache writers reject active journals, stale epochs and local tombstones. This slice does not add cross-process registry CAS.

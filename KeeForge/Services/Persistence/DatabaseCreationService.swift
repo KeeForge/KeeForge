@@ -199,7 +199,6 @@ enum DatabaseCreationService {
         var createCloudFile: @Sendable (String, String, String, Data, @escaping CloudProgressHandler) async throws -> CloudCreatedFile
         var cacheDatabaseCopy: @Sendable (Data, DatabaseReference) throws -> Void
         var addCreatedLocal: @Sendable (DatabaseReference) throws -> Void
-        var addCreatedCloud: @Sendable (DatabaseReference) throws -> Void
         var addAppOnlyCreatedLocal: @Sendable (DatabaseReference, Data) throws -> Void
         var validateCreatedCloud: @Sendable (String, String, String, String) throws -> Void
 
@@ -236,9 +235,6 @@ enum DatabaseCreationService {
             addCreatedLocal: { reference in
                 try DatabaseListStore.addCreatedLocal(reference)
             },
-            addCreatedCloud: { reference in
-                try DatabaseListStore.addCreatedCloud(reference)
-            },
             addAppOnlyCreatedLocal: { reference, data in
                 try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: data)
             },
@@ -264,7 +260,12 @@ enum DatabaseCreationService {
             }
         }
 
-        return try await Task.detached(priority: .utility) {
+        let worker = Task.detached(priority: .utility) {
+            if case .cloud(let provider, let accountID, let folder) = request.destination {
+                let filename = try normalizedFilename(for: request.displayName)
+                try CloudFileCreationCoordinator.assertDestinationAvailable(provider: provider, accountID: accountID,
+                    target: cloudFilePath(filename: filename, folderPath: folder))
+            }
             let prepared = try prepareOffMain(
                 request: DatabasePreparationRequest(
                     displayName: request.displayName,
@@ -282,7 +283,8 @@ enum DatabaseCreationService {
                 destination: request.destination,
                 environment: environment
             )
-        }.value
+        }
+        return try await withTaskCancellationHandler(operation: { try await worker.value }, onCancel: { worker.cancel() })
     }
 
     static func prepare(
@@ -420,22 +422,16 @@ enum DatabaseCreationService {
         case .cloud(let provider, let accountId, let folderPath):
             let filePath = cloudFilePath(filename: prepared.filename, folderPath: folderPath)
             try environment.validateCreatedCloud(provider, accountId, filePath, prepared.filename)
-            let createdFile = try await environment.createCloudFile(
-                provider,
-                accountId,
-                filePath,
-                prepared.encryptedBytes,
-                { _ in }
+            var creationEnvironment = CloudFileCreationCoordinator.Environment.live
+            creationEnvironment.createFile = { providerID, accountID, path, data in
+                try await environment.createCloudFile(providerID, accountID, path, data, { _ in })
+            }
+            let template = makeReference(prepared: prepared, bookmarkData: nil)
+            reference = try await CloudFileCreationCoordinator.create(
+                operationID: prepared.id, ownerDatabaseID: prepared.id, provider: provider,
+                accountID: accountId, target: filePath, bytes: prepared.encryptedBytes,
+                referenceTemplate: template, environment: creationEnvironment
             )
-            reference = makeCloudReference(
-                prepared: prepared,
-                provider: provider,
-                accountId: accountId,
-                file: createdFile.file,
-                metadata: createdFile.metadata
-            )
-            try environment.cacheDatabaseCopy(prepared.encryptedBytes, reference)
-            try environment.addCreatedCloud(reference)
         case .appOnlyAcknowledged:
             reference = makeReference(prepared: prepared, bookmarkData: nil)
             try DatabaseListStore.validateAppOnlyCreatedLocal(reference)
@@ -450,7 +446,7 @@ enum DatabaseCreationService {
             sessionKey: prepared.sessionKey,
             compositeKey: prepared.compositeKey,
             openTimeSHA512: prepared.openTimeSHA512,
-            encryptedSnapshot: reference.isCloudBacked ? nil : prepared.encryptedBytes
+            encryptedSnapshot: prepared.encryptedBytes
         )
     }
 
@@ -516,41 +512,7 @@ enum DatabaseCreationService {
         )
     }
 
-    private static func makeCloudReference(
-        prepared: PreparedDatabase,
-        provider: String,
-        accountId: String,
-        file: CloudFile,
-        metadata: CloudFileMetadata
-    ) -> DatabaseReference {
-        DatabaseReference(
-            id: prepared.id,
-            nickname: nil,
-            filename: prepared.filename,
-            bookmarkData: nil,
-            keyFileBookmarkData: prepared.keyFileBookmarkData,
-            keyFileFilename: prepared.keyFileFilename,
-            isQuickLaunch: false,
-            lastOpenedAt: nil,
-            addedAt: prepared.addedAt,
-            colorTag: nil,
-            legacyKeychainFilename: nil,
-            isReadOnly: false,
-            source: .cloud(
-                CloudSyncMetadata(
-                    provider: provider,
-                    accountId: accountId,
-                    fileId: file.id,
-                    displayPath: file.path,
-                    remoteContentHash: metadata.contentHash,
-                    remoteModifiedAt: metadata.modifiedDate,
-                    remoteRev: metadata.rev,
-                    lastSyncedAt: prepared.addedAt,
-                    lastSyncIssue: nil
-                )
-            )
-        )
-    }
+
 
     static func cloudFilePath(filename: String, folderPath: String?) -> String {
         let trimmedFolder = folderPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

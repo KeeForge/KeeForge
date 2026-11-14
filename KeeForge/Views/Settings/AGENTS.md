@@ -58,3 +58,5 @@
 - `../AGENTS.md`, `../Components/AGENTS.md` (`SettingsSummaryRow`, `tipBannerCard()`)
 - `../../ViewModels/AGENTS.md`, `../../Services/AutoFill/AGENTS.md`, `../../Services/AppSupport/AGENTS.md`
 - `../../../AutoFillExtension/AGENTS.md`: where macOS suggestions cannot aggregate across databases
+
+- Cloud account settings link to encrypted journal/creation recovery independently of the current database session. A failed export never clears a pending request.

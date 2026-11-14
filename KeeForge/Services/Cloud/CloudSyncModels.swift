@@ -303,6 +303,8 @@ struct CloudSyncMetadata: Codable, Hashable, Sendable {
     var remoteRev: String?
     var lastSyncedAt: Date?
     var lastSyncIssue: CloudSyncIssue?
+    var localHeadOperationID: UUID?
+    var keyEpoch: UUID?
 
     init(
         provider: String,

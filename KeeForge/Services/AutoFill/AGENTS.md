@@ -68,3 +68,5 @@
 - `../../../AutoFillExtension/AGENTS.md`: request handling and platform limits
 
 - Save outcomes distinguish a known installed change with unconfirmed durability from an indeterminate effect. Preserve known installed state, but do not publish identities, active-pointer success or registration completion for a warning. Provisional cloud markers are dropped only for affirmative local pre-replacement failure/conflict, never an opaque error; this does not prove a cloud upload had no effect.
+
+- Cloud AutoFill saves use the local saver’s extension-safe immutable cloud journal. The extension never performs provider IO; a pending key epoch or uncertain attempt blocks mutation while valid cached credentials can still fill. App reconciliation must not replace these snapshots with a mutable cache alias.

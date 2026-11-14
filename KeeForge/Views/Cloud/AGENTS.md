@@ -19,3 +19,7 @@
 ## See also
 
 - `../AGENTS.md`, `../../Services/Cloud/AGENTS.md`
+
+- Cloud Recovery is accessible from Cloud account settings even while databases are locked. Export verifies retained ciphertext without restoring secrets or granting deletion consent. Unknown remote attempts have no Retry/Forget action; only prepared or confirmed creation records offer explicit resume. Export errors retain every record and payload.
+
+- Reference-only recovery requires an explicit existing-file selection for the captured provider/account and an unchanged unknown intent. It does not create remotely, remove the attempt, synthesize a receipt or enable uploads.

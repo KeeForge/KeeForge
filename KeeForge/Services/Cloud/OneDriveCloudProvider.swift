@@ -208,6 +208,10 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         return Self.makeCloudFileMetadata(from: item)
     }
 
+    func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee {
+        expectedRev?.isEmpty == false && byteCount <= Self.simpleUploadByteLimit ? .serverConditional : .preflightOnly
+    }
+
     func upload(
         accountId: String,
         fileId: String,

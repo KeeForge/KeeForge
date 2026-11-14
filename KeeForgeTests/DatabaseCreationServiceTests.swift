@@ -405,6 +405,80 @@ final class DatabaseCreationServiceTests: XCTestCase {
         XCTAssertFalse(encryptedBytes.contains(Data("SecretName".utf8)))
     }
 
+    func testUncertainCreationKeepsPausedCiphertextWithoutIDAndExportsOriginalKey() async throws {
+        let recorder = CloudCreateRecorder(error: CloudProviderError.networkUnavailable)
+        do {
+            _ = try await DatabaseCreationService.create(request: .init(displayName: "Uncertain creation",
+                destination: .cloud(provider: CloudProviderKind.dropbox.rawValue, accountId: "creation-account", folderPath: nil),
+                password: "original creation key"), environment: cloudCreateEnvironment(recorder: recorder))
+            XCTFail("A lost create response cannot complete registration")
+        } catch { XCTAssertTrue(error is CloudFileCreationCoordinator.RecoveryRequired) }
+        let intent = try XCTUnwrap(PendingUploadQueue.listCreations().first)
+        XCTAssertEqual(intent.phase, .attempting)
+        XCTAssertTrue(intent.isPaused)
+        XCTAssertNil(intent.receipt)
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        let bytes = try CloudFileCreationCoordinator.export(intent)
+        XCTAssertEqual(bytes, recorder.uploadedData)
+        XCTAssertEqual(FileDigest.sha512(bytes), intent.payloadSHA512)
+        let reopened = try KDBXParser.parseWithMetaAndHeader(data: bytes, password: "original creation key",
+            sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertEqual(reopened.rootGroup.groups.first?.name, "Uncertain creation")
+        var resumeEnvironment = CloudFileCreationCoordinator.Environment.live
+        resumeEnvironment.createFile = { provider, accountID, path, data in
+            try await recorder.createFile(provider: provider, accountId: accountID, path: path, data: data, progress: { _ in })
+        }
+        for _ in 0..<2 {
+            do { _ = try await CloudFileCreationCoordinator.resume(operationID: intent.operationID, environment: resumeEnvironment); XCTFail("Uncertain create must never resend") }
+            catch { XCTAssertTrue(error is CloudFileCreationCoordinator.RecoveryRequired) }
+        }
+        XCTAssertEqual(recorder.callCount, 1)
+        XCTAssertEqual(try CloudFileCreationCoordinator.export(intent), bytes)
+        XCTAssertEqual(try PendingUploadQueue.listCreations().first?.phase, .attempting)
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        let selection = CloudDatabaseSelection(provider: intent.provider,
+            account: CloudAccount(id: intent.accountID, displayName: "Recovered account", provider: intent.provider),
+            file: CloudFile(id: "selected-file-id", name: intent.referenceTemplate.filename,
+                path: intent.target, isFolder: false, modifiedDate: nil, size: nil))
+        let reference = try CloudFileCreationCoordinator.addReferenceOnly(for: intent, selection: selection)
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [reference.id])
+        XCTAssertEqual(try PendingUploadQueue.listCreations().first, intent)
+        XCTAssertThrowsError(try PendingUploadQueue.assertCreationAllowsMutation(reference))
+        XCTAssertEqual(try CloudFileCreationCoordinator.export(intent), bytes)
+        XCTAssertEqual(recorder.callCount, 1)
+    }
+
+    func testCancelledForegroundCreationRetainsReceiptAndNeedsExplicitRegistration() async throws {
+        let recorder = CloudCreateRecorder()
+        let started = expectation(description: "Create reached provider")
+        let release = AsyncStream<Void>.makeStream()
+        var environment = cloudCreateEnvironment(recorder: recorder)
+        environment.createCloudFile = { provider, accountID, path, data, progress in
+            started.fulfill()
+            for await _ in release.stream { break }
+            return try await recorder.createFile(provider: provider, accountId: accountID, path: path, data: data, progress: progress)
+        }
+        let worker = Task {
+            try await DatabaseCreationService.create(request: .init(displayName: "Paused creation",
+                destination: .cloud(provider: CloudProviderKind.dropbox.rawValue, accountId: "paused-account", folderPath: nil),
+                password: "paused key"), environment: environment)
+        }
+        await fulfillment(of: [started], timeout: 15)
+        worker.cancel()
+        release.continuation.yield(())
+        do { _ = try await worker.value; XCTFail("Abandoned foreground cannot register its late response") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        let intent = try XCTUnwrap(PendingUploadQueue.listCreations().first)
+        XCTAssertEqual(intent.phase, .confirmed)
+        XCTAssertTrue(intent.isPaused)
+        XCTAssertNotNil(intent.receipt)
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        let registered = try await CloudFileCreationCoordinator.resume(operationID: intent.operationID)
+        XCTAssertEqual(registered.id, intent.referenceTemplate.id)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: registered)), recorder.uploadedData)
+        XCTAssertEqual(recorder.callCount, 1)
+    }
+
     func testCreateDropboxDatabaseUploadsCachesAndRegistersCloudReference() async throws {
         let recorder = CloudCreateRecorder()
         let environment = cloudCreateEnvironment(recorder: recorder)
@@ -528,9 +602,6 @@ final class DatabaseCreationServiceTests: XCTestCase {
             addCreatedLocal: { reference in
                 try DatabaseListStore.addCreatedLocal(reference)
             },
-            addCreatedCloud: { reference in
-                try DatabaseListStore.addCreatedCloud(reference)
-            },
             addAppOnlyCreatedLocal: { reference, data in
                 try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: data)
             },
@@ -561,9 +632,6 @@ final class DatabaseCreationServiceTests: XCTestCase {
             },
             addCreatedLocal: { reference in
                 try DatabaseListStore.addCreatedLocal(reference)
-            },
-            addCreatedCloud: { reference in
-                try DatabaseListStore.addCreatedCloud(reference)
             },
             addAppOnlyCreatedLocal: { reference, data in
                 try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: data)
@@ -600,9 +668,6 @@ final class DatabaseCreationServiceTests: XCTestCase {
             },
             addCreatedLocal: { reference in
                 try DatabaseListStore.addCreatedLocal(reference)
-            },
-            addCreatedCloud: { reference in
-                try DatabaseListStore.addCreatedCloud(reference)
             },
             addAppOnlyCreatedLocal: { reference, data in
                 try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: data)
@@ -653,6 +718,9 @@ private final class WriteRecorder: @unchecked Sendable {
 }
 
 private final class CloudCreateRecorder: @unchecked Sendable {
+    private let countLock = NSLock()
+    private var calls = 0
+    var callCount: Int { countLock.withLock { calls } }
     private let error: Error?
     private nonisolated(unsafe) var storageProvider: String?
     private nonisolated(unsafe) var storageAccountID: String?
@@ -686,6 +754,7 @@ private final class CloudCreateRecorder: @unchecked Sendable {
         data: Data,
         progress: @escaping DatabaseCreationService.CloudProgressHandler
     ) async throws -> CloudCreatedFile {
+        countLock.withLock { calls += 1 }
         storageProvider = provider
         storageAccountID = accountId
         storagePath = path

@@ -42,6 +42,7 @@ enum AutoFillSaveCoordinator {
         /// database with the given `DatabaseReference.id`.
         var populateCredentialStore: @Sendable (UUID, [KPEntry]) -> Void
         var now: @Sendable () -> Date
+        var saverOwnsCloudJournal = false
 
         static let live = Environment(
             generatePassword: {
@@ -103,7 +104,8 @@ enum AutoFillSaveCoordinator {
             populateCredentialStore: { databaseID, entries in
                 CredentialIdentityStoreManager.populate(with: entries, for: databaseID)
             },
-            now: { .now }
+            now: { .now },
+            saverOwnsCloudJournal: true
         )
     }
 
@@ -176,7 +178,7 @@ enum AutoFillSaveCoordinator {
         // and any older marker still uploading the base bytes; after
         // replacement, the SHA mismatch surfaces a visible conflict.
         var provisionalMarker: PendingUploadQueue.StoredMarker?
-        if reference.isCloudBacked {
+        if reference.isCloudBacked, !environment.saverOwnsCloudJournal {
             let cacheURL = DatabaseListStore.cacheLocation(for: reference)
             let relativePath = try environment.relativePathForURL(cacheURL)
             provisionalMarker = try await Task.detached(priority: .utility) {

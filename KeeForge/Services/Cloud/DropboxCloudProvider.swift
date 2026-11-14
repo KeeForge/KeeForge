@@ -224,6 +224,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
+    func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee {
+        expectedRev?.isEmpty == false ? .serverConditional : .preflightOnly
+    }
+
     func upload(
         accountId: String,
         fileId: String,
@@ -233,15 +237,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     ) async throws -> CloudFileMetadata {
         let client = try client(for: accountId)
 
-        return try await withRetry {
-            try await self.performUpload(
-                client: client,
-                fileId: fileId,
-                data: data,
-                expectedRev: expectedRev,
-                progress: progress
-            )
-        }
+        return try await performUpload(client: client, fileId: fileId, data: data, expectedRev: expectedRev, progress: progress)
     }
 
     func createFile(
@@ -252,9 +248,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     ) async throws -> CloudCreatedFile {
         let client = try client(for: accountId)
 
-        return try await withRetry {
-            try await self.performCreateFile(client: client, path: path, data: data, progress: progress)
-        }
+        return try await performCreateFile(client: client, path: path, data: data, progress: progress)
     }
 
     @MainActor
@@ -274,10 +268,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     // MARK: - Private
 
-    /// Repeats `operation` while Dropbox reports a transient failure. Every
-    /// route used here is safe to repeat: reads are idempotent and both writes
-    /// carry `strictConflict`, so a retried write either applies once or fails
-    /// as a conflict.
+    /// Only reads use retries; a lost write response must remain uncertain.
     private func withRetry<T>(_ operation: () async throws -> T) async throws -> T {
         var attempt = 1
 

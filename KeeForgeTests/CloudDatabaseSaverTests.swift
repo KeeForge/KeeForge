@@ -1377,6 +1377,104 @@ final class CloudDatabaseSaverTests: XCTestCase {
         )
     }
 
+    func testLostUploadAcknowledgementRetainsExactCiphertextAndNeverResends() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cache, entryTitle: "Retained journal entry")
+        let uploads = UploadRecorder()
+        var environment = makeEnvironment(getMetadata: { _ in
+            CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-A")
+        }, upload: { _, data, rev, _ in
+            await uploads.record(data: data, expectedRev: rev)
+            throw CloudProviderError.networkUnavailable
+        })
+        environment.downloadRemoteData = { _ in throw TestError.unexpectedRemoteDownload }
+        let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: reference,
+            compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A", kdfPolicy: .mainApp, environment: environment)
+        guard case .saved(let sha, _, _) = result else { return XCTFail("The durable shared copy completes the local save") }
+        let prepared = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        let ciphertext = try Data(contentsOf: cache)
+        XCTAssertEqual(FileDigest.sha512(ciphertext), sha)
+        XCTAssertEqual(CloudJournalDecision.state(of: prepared.marker), .ready)
+        do { _ = try await CloudDatabaseSaver.deliver(prepared, reference: reference, environment: environment); XCTFail("Lost acknowledgement must remain uncertain") }
+        catch { XCTAssertEqual(error as? CloudProviderError, .networkUnavailable) }
+        let uncertain = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: uncertain.marker), .attempting)
+        for _ in 0..<3 {
+            guard case .retained? = try await CloudDatabaseSaver.deliver(uncertain, reference: reference, environment: environment) else {
+                return XCTFail("An uncertain request cannot be redispatched")
+            }
+        }
+        XCTAssertFalse(try PendingUploadQueue.dropIfUnchanged(uncertain))
+        let payloadURL = PendingUploadQueue.resolveAppGroupURL(for: try XCTUnwrap(uncertain.marker.intendedPayloadPath))
+        XCTAssertEqual(try Data(contentsOf: payloadURL), ciphertext)
+        let opened = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: reference, providerResolver: { _ in nil })
+        XCTAssertEqual(opened.data, ciphertext)
+        let callCount = await uploads.callCount()
+        XCTAssertEqual(callCount, 1)
+        XCTAssertEqual(PendingUploadQueue.listMarkers(for: reference.id).count, 1)
+    }
+
+    func testJournalDecisionRejectsUncertaintyAndUnknownVersions() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let bytes = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        let marker = try PendingUploadQueue.withCommitLock(for: reference.id) {
+            try PendingUploadQueue.prepare(reference: reference, currentData: bytes, intendedData: bytes,
+                cacheURL: DatabaseListStore.cacheLocation(for: reference))
+        }
+        XCTAssertEqual(CloudJournalDecision.state(of: marker.marker), .prepared)
+        XCTAssertFalse(CloudJournalDecision.permitsMutation([marker.marker], changingKey: false))
+        var finalized = marker
+        finalized.marker.openTimeSHA512 = FileDigest.sha512(bytes)
+        finalized = try PendingUploadQueue.finalize(finalized)
+        XCTAssertEqual(CloudJournalDecision.transition(from: .ready, on: .dispatch)?.effects, [.persist, .upload])
+        XCTAssertNil(CloudJournalDecision.transition(from: .attempting, on: .dispatch))
+        finalized.marker.journalVersion = 900
+        let changed = try PendingUploadQueue.update(finalized)
+        XCTAssertEqual(CloudJournalDecision.state(of: changed.marker), .invalid)
+        XCTAssertThrowsError(try PendingUploadQueue.readJournal(for: reference.id))
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: reference, providerResolver: { _ in nil })
+        XCTAssertEqual(resolution.data, bytes)
+        var published = false
+        XCTAssertThrowsError(try DatabaseListStore.withCloudKeyPublication(for: reference, sha512: FileDigest.sha512(bytes)) { published = true })
+        XCTAssertFalse(published)
+    }
+
+    func testCloudRekeyRejectsOldReadEffectsAndKeepsFreshRestoreSemantics() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cache, entryTitle: "New key entry")
+        let changedKey = try KDBXCrypto.compositeKey(password: "new cloud key", keyFileData: nil)
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: nil)
+        let environment = makeEnvironment(getMetadata: { _ in
+            CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-A")
+        }, upload: { _, bytes, _, _ in
+            CloudFileMetadata(modifiedDate: .now, contentHash: "new-hash", size: Int64(bytes.count), rev: "rev-B")
+        }, downloadRemoteData: { _ in context.currentData })
+        let result = try await CloudDatabaseSaver.$keyChange.withValue(change) {
+            try await CloudDatabaseSaver.save(draft: context.draft, reference: reference,
+                compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+                expectedRev: "rev-A", kdfPolicy: .mainApp, newCompositeKey: changedKey, environment: environment)
+        }
+        guard case .saved(let sha, _, _) = result else { return XCTFail("Expected a confirmed rekey") }
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(current.cloudSyncMetadata?.keyEpoch, change.epoch)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: current.id).isEmpty)
+        let installed = try Data(contentsOf: cache)
+        _ = try KDBXParser.parseWithMetaAndHeader(data: installed, compositeKey: changedKey, sessionKey: SymmetricKey(size: .bits256))
+        var effects = 0
+        XCTAssertThrowsError(try DatabaseListStore.withCloudKeyPublication(for: reference, sha512: context.openTimeSHA512) { effects += 1 })
+        XCTAssertThrowsError(try DatabaseListStore.cacheDatabaseCopy(context.currentData, for: reference))
+        XCTAssertEqual(try Data(contentsOf: cache), installed)
+        // A fresh authenticated restore after settlement keeps the original supported behavior.
+        try context.currentData.write(to: cache)
+        _ = try KDBXParser.parseWithMetaAndHeader(data: context.currentData, compositeKey: context.compositeKey, sessionKey: SymmetricKey(size: .bits256))
+        try DatabaseListStore.withCloudKeyPublication(for: current, sha512: context.openTimeSHA512) { effects += 1 }
+        XCTAssertThrowsError(try DatabaseListStore.withCloudKeyPublication(for: current, sha512: sha) { effects += 1 })
+        XCTAssertEqual(effects, 1)
+    }
+
     private func makeRecordedMetadata(rev: String?, contentHash: String?) -> CloudSyncMetadata {
         CloudSyncMetadata(
             provider: CloudProviderKind.dropbox.rawValue,

@@ -78,6 +78,9 @@ struct DatabaseDetailsView: View {
                 headerSection
                 areasSection
                 localRecoverySection
+                if currentReference.isCloudBacked {
+                    Section { NavigationLink("Cloud Recovery") { CloudRecoveryView() } }
+                }
                 importSection
                 appSettingsSection
             }
