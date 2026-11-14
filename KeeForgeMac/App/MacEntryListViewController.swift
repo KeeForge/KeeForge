@@ -145,6 +145,10 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             footerField.bottomAnchor.constraint(equalTo: footer.bottomAnchor, constant: -14),
         ])
 
+        emptyView.onNewEntry = { [weak self] in
+            guard let self, snapshot?.offersNewEntry == true else { return }
+            presentation.beginNewEntry(in: session)
+        }
         header.onSortOrder = { [weak self] in self?.selectSortOrder($0) }
         header.onSortDirection = { [weak self] in self?.selectSortDirection($0) }
 
@@ -216,7 +220,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
 
     private func readState() -> State {
         State(
-            snapshot: MacEntryListSnapshot.make(session: session),
+            snapshot: MacEntryListSnapshot.make(session: session, isSidebarCollapsed: presentation.isSidebarCollapsed),
             selectedEntryID: session.workspace.selectedEntryID,
             entrySelection: session.workspace.entrySelection,
             isSaving: session.isSaving,
@@ -378,7 +382,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         let showsEmpty = snapshot.rows.isEmpty && snapshot.emptyState != nil
         scrollView.isHidden = showsEmpty
         emptyView.isHidden = showsEmpty == false
-        emptyView.update(showsEmpty ? snapshot.emptyState : nil)
+        emptyView.update(showsEmpty ? snapshot.emptyState : nil, offersNewEntry: showsEmpty && snapshot.offersNewEntry)
         tableView.setAccessibilityIdentifier(snapshot.containerIdentifier)
         if showsResultCount, let count = snapshot.resultCount {
             resultCountField.stringValue = String(localized: "results:\(count)")
@@ -559,11 +563,13 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             item.representedObject = entryID
             groups[group].append(item)
         }
-        if actions.canCopyUsername {
+        // The bin's rows offer only Restore and Delete Permanently, as RowMenus draws them.
+        let isRecycled = session.isEntryInRecycleBin(entryID: entryID)
+        if actions.canCopyUsername, isRecycled == false {
             add(0, String(localized: "Copy Username"), EntryRowActions.copyUsernameIdentifier, #selector(copyRowUsername(_:)),
                 key: "b", modifiers: [.command, .shift])
         }
-        if actions.canCopyPassword {
+        if actions.canCopyPassword, isRecycled == false {
             add(0, String(localized: "Copy Password"), EntryRowActions.copyPasswordIdentifier, #selector(copyRowPassword(_:)),
                 key: "c", modifiers: [.command, .shift])
         }
@@ -726,6 +732,7 @@ class MacEntryCellView: NSTableCellView {
                                          identifier: "entry-row.passkey")
     let verificationCodeGlyph = MacEntryBadgeView(.symbol("timer"), label: String(localized: "Has a verification code"),
                                                   identifier: "entry-row.totp")
+    let sshGlyph = MacEntryBadgeView(.ssh, label: String(localized: "Has an SSH key"), identifier: "entry-row.ssh")
     /// The tick a copy from this window leaves for `MacCopyFeedback.duration`.
     let copiedGlyph = NSImageView()
     private(set) var copiedField: MacCopyFeedback.Field?
@@ -744,7 +751,7 @@ class MacEntryCellView: NSTableCellView {
         folderRow = NSStackView(views: [folderField])
         let title = NSTextField(labelWithString: "")
         textStack = NSStackView(views: [title, usernameField, folderRow])
-        accessoryStack = NSStackView(views: [expiredGlyph, passkeyGlyph, verificationCodeGlyph, copiedGlyph])
+        accessoryStack = NSStackView(views: [expiredGlyph, passkeyGlyph, verificationCodeGlyph, sshGlyph, copiedGlyph])
         super.init(frame: .zero)
         identifier = Self.reuseIdentifier
 
@@ -827,6 +834,7 @@ class MacEntryCellView: NSTableCellView {
         expiredGlyph.isHidden = row.isExpired == false
         passkeyGlyph.isHidden = row.hasPasskey == false
         verificationCodeGlyph.isHidden = row.hasVerificationCode == false
+        sshGlyph.isHidden = row.hasSSHKey == false
         toolTip = row.title
         // XCUITest drops a table cell's own identifier, so the title carries it.
         textField?.setAccessibilityIdentifier(rowIdentifier)
@@ -853,7 +861,7 @@ class MacEntryCellView: NSTableCellView {
     func refreshAppearance() {
         let emphasized = backgroundStyle == .emphasized
         imageView?.image = image(emphasized: emphasized)
-        for badge in [expiredGlyph, passkeyGlyph, verificationCodeGlyph] { badge.isEmphasized = emphasized }
+        for badge in [expiredGlyph, passkeyGlyph, verificationCodeGlyph, sshGlyph] { badge.isEmphasized = emphasized }
         copiedGlyph.contentTintColor = emphasized ? .white : .systemGreen
     }
 
@@ -885,11 +893,13 @@ class MacEntryCellView: NSTableCellView {
 
 // MARK: - Badges
 
-/// A row's trailing badge: the red "EXPIRED" pill, or a symbol in a tinted round badge.
+/// A row's trailing badge: the red "EXPIRED" pill, a symbol in a tinted round
+/// badge, or the plain monospaced "SSH".
 final class MacEntryBadgeView: NSView {
     enum Style: Equatable {
         case expired
         case symbol(String)
+        case ssh
     }
 
     static let diameter: CGFloat = 18
@@ -913,6 +923,11 @@ final class MacEntryBadgeView: NSView {
         case .expired:
             textField.stringValue = label.localizedUppercase
             textField.font = .systemFont(ofSize: 10, weight: .bold)
+            textField.setAccessibilityElement(false)
+            content = textField
+        case .ssh:
+            textField.stringValue = String(localized: "SSH")
+            textField.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
             textField.setAccessibilityElement(false)
             content = textField
         case .symbol(let name):
@@ -944,6 +959,9 @@ final class MacEntryBadgeView: NSView {
         case .expired:
             let text = textField.intrinsicContentSize
             return NSSize(width: ceil(text.width) + 12, height: ceil(text.height) + 2)
+        case .ssh:
+            let text = textField.intrinsicContentSize
+            return NSSize(width: ceil(text.width), height: ceil(text.height))
         case .symbol:
             return NSSize(width: Self.diameter, height: Self.diameter)
         }
@@ -964,11 +982,19 @@ final class MacEntryBadgeView: NSView {
 
     private var tintColor: NSColor {
         if isEmphasized { return .white }
-        return style == .expired ? .systemRed : .controlAccentColor
+        return switch style {
+        case .expired: .systemRed
+        case .symbol: .controlAccentColor
+        case .ssh: .secondaryLabelColor
+        }
     }
 
     private var fillColor: NSColor {
-        tintColor.withAlphaComponent(isEmphasized ? 0.22 : (style == .expired ? 0.12 : 0.14))
+        switch style {
+        case .ssh: .clear
+        case .expired: tintColor.withAlphaComponent(isEmphasized ? 0.22 : 0.12)
+        case .symbol: tintColor.withAlphaComponent(isEmphasized ? 0.22 : 0.14)
+        }
     }
 
     private func refreshColors() {
@@ -1122,11 +1148,14 @@ final class MacCountdownRingView: NSView {
 
 // MARK: - Empty state
 
-/// The native counterpart of `ContentUnavailableView`: a symbol, a title and a message.
+/// The native counterpart of `ContentUnavailableView`: a symbol, a title, a
+/// message, and New Entry under an empty group's message.
 final class MacEntryListEmptyView: NSView {
     let imageView = NSImageView()
     let titleField = NSTextField(labelWithString: "")
     let messageField = NSTextField(wrappingLabelWithString: "")
+    let newEntryButton = NSButton(title: "", target: nil, action: nil)
+    var onNewEntry: (@MainActor () -> Void)?
     private(set) var state: MacEntryListSnapshot.EmptyState?
 
     init() {
@@ -1140,11 +1169,21 @@ final class MacEntryListEmptyView: NSView {
         messageField.alignment = .center
         // The column is never narrower than 260 pt; a fixed wrap width keeps layout to one pass.
         messageField.preferredMaxLayoutWidth = 220
-        let stack = NSStackView(views: [imageView, titleField, messageField])
+        newEntryButton.bezelStyle = .push
+        newEntryButton.controlSize = .small
+        newEntryButton.attributedTitle = Self.newEntryTitle
+        newEntryButton.setAccessibilityLabel(String(localized: "New Entry"))
+        newEntryButton.setAccessibilityIdentifier("entry-list.empty.new-entry")
+        newEntryButton.target = self
+        newEntryButton.action = #selector(newEntry(_:))
+        newEntryButton.isHidden = true
+        let stack = NSStackView(views: [imageView, titleField, messageField, newEntryButton])
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = 8
+        stack.detachesHiddenViews = true
         stack.setCustomSpacing(12, after: imageView)
+        stack.setCustomSpacing(14, after: messageField)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
@@ -1160,7 +1199,26 @@ final class MacEntryListEmptyView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    func update(_ state: MacEntryListSnapshot.EmptyState?) {
+    /// "New Entry" with the menu bar's ⌘N after it, dimmed as a hint.
+    private static var newEntryTitle: NSAttributedString {
+        let font = NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small))
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        let title = NSMutableAttributedString(string: String(localized: "New Entry"), attributes: [
+            .font: font, .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph,
+        ])
+        title.append(NSAttributedString(string: "  ⌘N", attributes: [
+            .font: font, .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: paragraph,
+        ]))
+        return title
+    }
+
+    @objc private func newEntry(_ sender: Any?) {
+        onNewEntry?()
+    }
+
+    func update(_ state: MacEntryListSnapshot.EmptyState?, offersNewEntry: Bool = false) {
+        newEntryButton.isHidden = offersNewEntry == false
         guard state != self.state else { return }
         self.state = state
         imageView.image = state.flatMap { NSImage(systemSymbolName: $0.systemImage, accessibilityDescription: nil) }

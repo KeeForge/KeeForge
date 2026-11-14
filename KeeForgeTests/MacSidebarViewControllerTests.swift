@@ -54,7 +54,7 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
 
     // MARK: - Structure
 
-    func testRowsFollowTheSnapshotWithHeadersOverLibraryGroupsAndTags() async throws {
+    func testRowsFollowTheSnapshotWithHeadersOverLibraryGroupsTagsAndTheRecycleBin() async throws {
         let tree = Tree()
         let (controller, session, _) = try await makeController(tree)
         let outline = controller.outlineView
@@ -63,28 +63,29 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         let topLevel = (0..<outline.numberOfChildren(ofItem: nil)).compactMap {
             (outline.child($0, ofItem: nil) as? MacSidebarOutlineItem)?.id
         }
-        XCTAssertEqual(topLevel, [.section(.library), .section(.groups), .section(.tags), .group(tree.recycleBin.id)])
+        XCTAssertEqual(topLevel, [.section(.library), .section(.groups), .section(.tags), .section(.recycleBin)])
         XCTAssertEqual(titles(outline, under: .section(.library)),
                        [DatabaseCollection.allEntries.title, DatabaseCollection.verificationCodes.title,
                         DatabaseCollection.passkeys.title])
         XCTAssertEqual(titles(outline, under: .section(.groups)), ["Root"])
         XCTAssertEqual(titles(outline, under: .section(.tags)), ["Home", "Work"])
-        XCTAssertEqual(titles(outline, under: .group(tree.recycleBin.id)), ["Old"])
+        XCTAssertEqual(titles(outline, under: .section(.recycleBin)), [String(localized: "Deleted Entries"), "Old"])
         XCTAssertFalse(titles(outline, under: .group(tree.root.id)).contains("Recycle Bin"))
 
-        let headers = try [MacSidebarItemID.section(.library), .section(.groups), .section(.tags)].map {
-            try XCTUnwrap(controller.item(for: $0))
-        }
+        let headers = try [MacSidebarItemID.section(.library), .section(.groups), .section(.tags), .section(.recycleBin)]
+            .map { try XCTUnwrap(controller.item(for: $0)) }
         XCTAssertEqual(headers.map { cell(outline, $0)?.textField?.stringValue },
-                       [String(localized: "Library"), String(localized: "Groups"), String(localized: "Tags")])
+                       [String(localized: "Library"), String(localized: "Groups"), String(localized: "Tags"),
+                        String(localized: "Recycle Bin")])
         XCTAssertEqual(outline.level(forItem: controller.item(for: .group(tree.root.id))), 1)
-        XCTAssertEqual(outline.level(forItem: controller.item(for: .group(tree.recycleBin.id))), 0)
+        XCTAssertEqual(outline.level(forItem: controller.item(for: .group(tree.recycleBin.id))), 1)
+        XCTAssertEqual(outline.level(forItem: controller.item(for: .group(tree.old.id))), 1)
         XCTAssertEqual(outline.style, .sourceList)
         XCTAssertEqual(outline.numberOfColumns, 1)
         XCTAssertNil(outline.headerView)
     }
 
-    func testHeadersAreGroupRowsThatCannotBeSelectedOrFolded() async throws {
+    func testHeadersAreGroupRowsThatCannotBeSelectedAndDrawTheirOwnChevron() async throws {
         let tree = Tree()
         let (controller, _, _) = try await makeController(tree)
         let outline = controller.outlineView
@@ -95,13 +96,16 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertTrue(controller.outlineView(outline, isGroupItem: header))
         XCTAssertFalse(controller.outlineView(outline, shouldSelectItem: header))
         XCTAssertFalse(controller.outlineView(outline, shouldShowOutlineCellForItem: header))
-        XCTAssertFalse(controller.outlineView(outline, shouldCollapseItem: header))
         XCTAssertTrue(outline.isItemExpanded(header))
+        let headerCell = try XCTUnwrap(cell(outline, header) as? MacSidebarHeaderCellView)
+        XCTAssertFalse(headerCell.isFolded)
+        XCTAssertTrue(headerCell.showButton.isHidden)
+        XCTAssertEqual(headerCell.disclosureButton.accessibilityLabel(), String(localized: "Hide"))
         for item in [group, tag] {
             XCTAssertFalse(controller.outlineView(outline, isGroupItem: item))
             XCTAssertTrue(controller.outlineView(outline, shouldSelectItem: item))
+            XCTAssertTrue(controller.outlineView(outline, shouldShowOutlineCellForItem: item))
         }
-        XCTAssertTrue(controller.outlineView(outline, shouldCollapseItem: group))
     }
 
     // MARK: - Selection
@@ -168,7 +172,6 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         session.workspace.selectedGroupID = tree.work.id
         await settle()
         XCTAssertEqual(selectedID(outline), .group(tree.work.id))
-        XCTAssertFalse(outline.allowsEmptySelection)
 
         outline.deselectAll(nil)
         XCTAssertEqual(selectedID(outline), .group(tree.work.id))
@@ -217,7 +220,7 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         await settle()
         assertKept("recycle")
         XCTAssertEqual(titles(outline, under: .group(tree.work.id)), ["Hosts"])
-        XCTAssertEqual(Set(titles(outline, under: .group(tree.recycleBin.id))), ["Alpha", "Old"])
+        XCTAssertEqual(titles(outline, under: .section(.recycleBin)), [String(localized: "Deleted Entries"), "Alpha", "Old"])
 
         try session.moveGroup(groupID: tree.servers.id, toGroupID: tree.root.id)
         await settle()
@@ -259,6 +262,70 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertFalse(rebuilt.outlineView.isItemExpanded(rebuilt.item(for: .group(tree.work.id))),
                        "A rebuilt sidebar in the same window reads the folded set")
         XCTAssertTrue(rebuilt.outlineView.isItemExpanded(rebuilt.item(for: .group(tree.personal.id))))
+    }
+
+    func testSectionsFoldPerWindowAndASelectionInsideStaysWithNoRowSelected() async throws {
+        let tree = Tree()
+        let (controller, session, presentation) = try await makeController(tree)
+        let outline = controller.outlineView
+        let tags = try XCTUnwrap(controller.item(for: .section(.tags)))
+        select(.tag("Work"), in: controller)
+        await settle()
+
+        let headerCell = try XCTUnwrap(cell(outline, tags) as? MacSidebarHeaderCellView)
+        headerCell.disclosureButton.performClick(nil)
+        await settle()
+        XCTAssertFalse(outline.isItemExpanded(tags))
+        XCTAssertEqual(presentation.collapsedSidebarSections, [.tags])
+        XCTAssertTrue(headerCell.isFolded)
+        XCTAssertFalse(headerCell.showButton.isHidden, "A folded section says Show")
+        XCTAssertEqual(headerCell.showButton.title, String(localized: "Show"))
+        XCTAssertEqual(session.workspace.selectedTag, "Work", "Folding keeps the list")
+        XCTAssertEqual(outline.selectedRow, -1, "The folded row is not replaced by another")
+        XCTAssertEqual(visibleRowIDs(outline), expectedVisibleIDs(session, collapsed: [], sections: [.tags]))
+
+        presentation.reset()
+        await settle()
+        XCTAssertEqual(presentation.collapsedSidebarSections, [.tags], "The fold lasts for the window")
+        let rebuilt = await host(session, presentation)
+        XCTAssertFalse(rebuilt.outlineView.isItemExpanded(rebuilt.item(for: .section(.tags))))
+
+        headerCell.showButton.performClick(nil)
+        await settle()
+        XCTAssertTrue(outline.isItemExpanded(tags))
+        XCTAssertEqual(presentation.collapsedSidebarSections, [])
+        XCTAssertEqual(selectedID(outline), .tag("Work"), "Unfolding shows the selection again")
+
+        controller.toggleSection(.groups)
+        await settle()
+        XCTAssertEqual(presentation.collapsedSidebarSections, [.groups])
+        XCTAssertEqual(presentation.collapsedGroupIDs, [], "Folding a section keeps its groups' own folds")
+        XCTAssertEqual(session.workspace.selectedTag, "Work")
+        session.workspace.selectedGroupID = tree.family.id
+        await settle()
+        XCTAssertEqual(presentation.collapsedSidebarSections, [], "A new selection inside unfolds its section")
+        XCTAssertEqual(selectedID(outline), .group(tree.family.id))
+        XCTAssertTrue(outline.isItemExpanded(controller.item(for: .group(tree.work.id))), "Its groups reopen as they were")
+    }
+
+    func testTheBinSectionDimsDeletedGroupsAndLeavesWhenTheBinEmpties() async throws {
+        let tree = Tree()
+        let (controller, session, _) = try await makeController(tree)
+        let outline = controller.outlineView
+        let old = try XCTUnwrap(cell(outline, controller.item(for: .group(tree.old.id))) as? MacSidebarCellView)
+        let work = try XCTUnwrap(cell(outline, controller.item(for: .group(tree.work.id))) as? MacSidebarCellView)
+        let deletedEntries = try XCTUnwrap(cell(outline, controller.item(for: .group(tree.recycleBin.id)))
+            as? MacSidebarCellView)
+        XCTAssertEqual(old.textField?.textColor, .secondaryLabelColor)
+        XCTAssertEqual(work.textField?.textColor, .labelColor)
+        XCTAssertEqual(deletedEntries.textField?.stringValue, String(localized: "Deleted Entries"))
+        XCTAssertEqual(deletedEntries.countField.stringValue, 0.formatted())
+
+        try session.deleteGroup(tree.old.id, sendToRecycleBin: false)
+        await settle()
+        XCTAssertNil(controller.item(for: .section(.recycleBin)), "An empty bin has no section")
+        XCTAssertNil(controller.item(for: .group(tree.recycleBin.id)))
+        XCTAssertEqual(visibleRowIDs(outline), expectedVisibleIDs(session, collapsed: []))
     }
 
     // MARK: - Context menu
@@ -444,6 +511,10 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertNotNil(MacSidebarCellView.image(for: .standard(43), emphasized: false))
         XCTAssertNotNil(MacSidebarCellView.image(for: .standard(-1), emphasized: true))
         XCTAssertEqual(MacSidebarCellView.image(for: .symbol("tag"), emphasized: false)?.isTemplate, true)
+        let bin = try XCTUnwrap(MacSidebarCellView.image(for: .recycleBin, emphasized: false))
+        XCTAssertEqual(bin.size, NSSize(width: MacSidebarCellView.iconSize, height: MacSidebarCellView.iconSize))
+        XCTAssertFalse(bin.isTemplate, "The bin's tile keeps its orange")
+        XCTAssertNotNil(bin.cgImage(forProposedRect: nil, context: nil, hints: nil))
         let tag = try XCTUnwrap(MacSidebarCellView.image(for: .tag, emphasized: false))
         XCTAssertEqual(tag.size, NSSize(width: MacSidebarCellView.iconSize, height: MacSidebarCellView.iconSize))
         XCTAssertFalse(tag.isTemplate, "The \"#\" keeps the accent colour")
@@ -598,7 +669,11 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
     }
 
     /// The rows a fresh outline of the current snapshot shows with `collapsed` folded.
-    private func expectedVisibleIDs(_ session: DatabaseViewModel, collapsed: Set<UUID>) -> [MacSidebarItemID] {
+    private func expectedVisibleIDs(
+        _ session: DatabaseViewModel,
+        collapsed: Set<UUID>,
+        sections: Set<MacSidebarSnapshot.SectionKind> = []
+    ) -> [MacSidebarItemID] {
         func walk(_ nodes: [MacSidebarSnapshot.Node]) -> [MacSidebarItemID] {
             nodes.flatMap { node -> [MacSidebarItemID] in
                 if case .group(let groupID) = node.id, collapsed.contains(groupID) { return [node.id] }
@@ -606,8 +681,7 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
             }
         }
         return MacSidebarSnapshot.make(session: session).sections.flatMap { section -> [MacSidebarItemID] in
-            let rows = walk(section.nodes)
-            return MacSidebarViewController.headerTitle(for: section.kind) == nil ? rows : [section.id] + rows
+            sections.contains(section.kind) ? [section.id] : [section.id] + walk(section.nodes)
         }
     }
 

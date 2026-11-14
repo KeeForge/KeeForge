@@ -69,7 +69,6 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
         let snapshot = MacSidebarSnapshot.make(session: session)
 
         XCTAssertEqual(snapshot.sections.map(\.kind), [.library, .groups, .tags, .recycleBin])
-        XCTAssertEqual(snapshot.sections.map(\.kind.showsHeader), [true, true, true, false])
 
         let library = try XCTUnwrap(snapshot.section(.library)).nodes
         XCTAssertEqual(library.map(\.id), [.collection(.allEntries), .collection(.verificationCodes), .collection(.passkeys)])
@@ -99,15 +98,41 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
         XCTAssertEqual(tags.map(\.icon), [.tag, .tag])
 
         let bin = try XCTUnwrap(snapshot.section(.recycleBin)).nodes
-        XCTAssertEqual(bin.map(\.id), [.group(recycleBin.id)])
-        XCTAssertEqual(bin[0].icon, .standard(43))
-        XCTAssertEqual(bin[0].title, "Recycle Bin")
+        XCTAssertEqual(bin.map(\.id), [.group(recycleBin.id), .group(recycled.id)],
+                       "Deleted Entries, then the deleted groups as its siblings")
+        XCTAssertEqual(bin[0].icon, .recycleBin)
+        XCTAssertEqual(bin[0].title, String(localized: "Deleted Entries"))
         XCTAssertEqual(bin[0].selection, .group(recycleBin.id))
         XCTAssertEqual(bin[0].accessibilityIdentifier, "group.navlink")
-        XCTAssertEqual(bin[0].children.map(\.id), [.group(recycled.id)])
-        XCTAssertEqual(bin[0].count, 0, "The bin counts only its own entries, which its list shows")
-        XCTAssertEqual(bin[0].children.map(\.count), [1])
+        XCTAssertEqual(bin[0].children, [])
+        XCTAssertEqual(bin[0].count, 0, "Deleted Entries counts only the bin's own entries, which its list shows")
+        XCTAssertFalse(bin[0].isDeleted)
         XCTAssertTrue(bin[0].isSelectable)
+        XCTAssertEqual(bin[1].title, "Old")
+        XCTAssertEqual(bin[1].count, 1)
+        XCTAssertEqual(bin[1].accessibilityIdentifier, "group.navlink")
+        XCTAssertTrue(bin[1].isDeleted, "A deleted group is drawn dimmed")
+        XCTAssertFalse(groups[0].isDeleted)
+    }
+
+    func testAnEmptyBinLeavesNoSection() async throws {
+        let recycleBin = KPGroup(name: "Recycle Bin")
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "Work"), recycleBin], recycleBinUUID: recycleBin.id)
+        let session = try await makeSidebarSession(root: root)
+        XCTAssertNil(MacSidebarSnapshot.make(session: session).section(.recycleBin), "An empty bin has no rows")
+    }
+
+    func testABinHoldingOnlyGroupsKeepsDeletedEntries() async throws {
+        let flights = KPGroup(name: "Flights")
+        let travel = KPGroup(name: "Travel 2024", groups: [flights])
+        let groupOnlyBin = KPGroup(name: "Recycle Bin", groups: [travel])
+        let session = try await makeSidebarSession(root: KPGroup(name: "Root", groups: [KPGroup(name: "Work"), groupOnlyBin],
+                                                               recycleBinUUID: groupOnlyBin.id))
+        let nodes = try XCTUnwrap(MacSidebarSnapshot.make(session: session).section(.recycleBin)).nodes
+        XCTAssertEqual(nodes.map(\.id), [.group(groupOnlyBin.id), .group(travel.id)])
+        XCTAssertEqual(nodes[0].count, 0, "Deleted Entries stays while the bin holds only groups")
+        XCTAssertEqual(nodes[1].children.map(\.id), [.group(flights.id)])
+        XCTAssertTrue(nodes[1].children[0].isDeleted)
     }
 
     func testGroupsCountTheirWholeSubtreeAndPasskeysCountLiveEntriesWithAPasskey() async throws {
@@ -136,9 +161,8 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
         let counts = Dictionary(uniqueKeysWithValues: personal.children.flatMap { [$0] + $0.children }.map { ($0.title, $0.count) })
         XCTAssertEqual(counts, ["Email": 1, "Work": 4, "Development": 2, "Infrastructure": 1])
         XCTAssertEqual(snapshot.section(.library)?.nodes.map(\.count), [5, 0, 2])
-        let bin = try XCTUnwrap(snapshot.section(.recycleBin)?.nodes.first)
-        XCTAssertEqual(bin.count, 2)
-        XCTAssertEqual(bin.children.map(\.count), [2])
+        let bin = try XCTUnwrap(snapshot.section(.recycleBin)?.nodes)
+        XCTAssertEqual(bin.map(\.count), [2, 2])
         XCTAssertEqual(Set(session.entries(for: .collection(.passkeys)).map(\.title)), ["GitHub", "Proton"],
                        "The recycle bin's passkeys are left out")
     }
@@ -195,11 +219,11 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
         let session = try await makeSidebarSession(root: root)
 
         XCTAssertEqual(MacSidebarSnapshot.make(session: session).collapsibleGroupIDs,
-                       [root.id, work.id, recycleBin.id, old.id])
+                       [root.id, work.id, old.id])
     }
 
     func testABinNestedDeeperIsLiftedOutOfGroups() async throws {
-        let recycleBin = KPGroup(name: "Trash")
+        let recycleBin = KPGroup(name: "Trash", entries: [KPEntry(title: "Gone")])
         let archive = KPGroup(name: "Archive", groups: [recycleBin])
         let root = KPGroup(name: "Root", groups: [archive, KPGroup(name: "Other")], recycleBinUUID: recycleBin.id)
         let session = try await makeSidebarSession(root: root)
@@ -212,7 +236,7 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
     }
 
     func testAWrapperHoldingOnlyTheBinKeepsTheWrapperAsGroupsRoot() async throws {
-        let recycleBin = KPGroup(name: "Recycle Bin")
+        let recycleBin = KPGroup(name: "Recycle Bin", entries: [KPEntry(title: "Gone")])
         let root = KPGroup(name: "Root", groups: [recycleBin], recycleBinUUID: recycleBin.id)
         let session = try await makeSidebarSession(root: root)
 
@@ -253,7 +277,8 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
         let customID = UUID()
         let custom = KPGroup(name: "Banking", iconID: 0, customIconUUID: customID)
         let missing = KPGroup(name: "Missing", iconID: 5, customIconUUID: UUID())
-        let recycleBin = KPGroup(name: "Recycle Bin", iconID: 0, customIconUUID: customID)
+        let recycleBin = KPGroup(name: "Recycle Bin", iconID: 0, customIconUUID: customID,
+                                 entries: [KPEntry(title: "Gone")])
         let root = KPGroup(name: "Root", groups: [custom, missing, recycleBin], recycleBinUUID: recycleBin.id)
         let session = try await makeSidebarSession(root: root, customIcons: [customID: Data([1, 2, 3])])
 
@@ -262,7 +287,7 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
 
         XCTAssertEqual(children.first { $0.title == "Banking" }?.icon, .custom(Data([1, 2, 3]), standardIconID: 0))
         XCTAssertEqual(children.first { $0.title == "Missing" }?.icon, .standard(5))
-        XCTAssertEqual(snapshot.section(.recycleBin)?.nodes.first?.icon, .standard(43))
+        XCTAssertEqual(snapshot.section(.recycleBin)?.nodes.first?.icon, .recycleBin, "The board's tile, not the bin's icon")
     }
 
     func testReplacingACustomIconsImageUnderItsUUIDChangesTheSnapshot() async throws {

@@ -221,7 +221,8 @@ final class MacWorkspacePresentationTests: XCTestCase {
     }
 
     func testAWrapperHoldingOnlyTheRecycleBinStaysTheMacWorkspaceRoot() async throws {
-        let recycleBin = KPGroup(name: "Recycle Bin")
+        let gone = KPEntry(title: "Gone")
+        let recycleBin = KPGroup(name: "Recycle Bin", entries: [gone])
         let root = KPGroup(name: "Root", groups: [recycleBin], recycleBinUUID: recycleBin.id)
         let database = try await makeDatabase(root: root)
         defer { database.lock() }
@@ -234,6 +235,11 @@ final class MacWorkspacePresentationTests: XCTestCase {
         _ = MacWorkspaceSplitViewController(session: database, presentation: presentation, currentSession: { nil })
         XCTAssertEqual(database.workspace.selectedGroupID, root.id, "The window opened on the Recycle Bin")
         XCTAssertEqual(MacWindowWorkspace.subtitle(for: database), "Root")
+        XCTAssertEqual(database.restoreDestinationOptions(for: .entry(gone.id)).map(\.id), [root.id],
+                       "The restore picker offers the wrapper")
+        database.workspace.selectedGroupID = recycleBin.id
+        XCTAssertEqual(MacWindowWorkspace.subtitle(for: database), String(localized: "Deleted Entries"))
+        database.workspace.selectedGroupID = root.id
 
         database.workspace.selectedCollection = .allEntries
         presentation.beginNewGroup()
@@ -271,6 +277,8 @@ final class MacWorkspacePresentationTests: XCTestCase {
             from: Data("Title,URL,Username,Password,Notes,OTPAuth\nImported,https://a.example,user,secret,,\n".utf8)
         ).items.map(\.draft)
         let destination = try XCTUnwrap(database.workspaceRootGroupID)
+        XCTAssertEqual(database.groupDestinationOptions(currentGroupID: destination).map(\.id), [root.id],
+                       "The import picker offers the wrapper, never the bin")
 
         let outcome = try await database.importEntries(drafts, into: destination)
 
@@ -297,6 +305,8 @@ final class MacWorkspacePresentationTests: XCTestCase {
         database.workspace.selectedGroupID = group.id
         presentation.beginSelectionDeletion(in: database)
         presentation.collapsedGroupIDs = [group.id]
+        presentation.collapsedSidebarSections = [.tags]
+        presentation.isSidebarCollapsed = true
         presentation.isShowingDatabaseDetails = true
         presentation.presentedSaveError = .networkUnavailable
         presentation.isCloudReconnectInFlight = true
@@ -315,6 +325,8 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertNil(presentation.pendingMove)
         XCTAssertNil(presentation.pendingDeletion)
         XCTAssertEqual(presentation.collapsedGroupIDs, [group.id], "Expansion lasts for the window's life")
+        XCTAssertEqual(presentation.collapsedSidebarSections, [.tags], "So do folded sections")
+        XCTAssertTrue(presentation.isSidebarCollapsed, "The split view still owns the sidebar's collapse")
         XCTAssertFalse(presentation.isShowingDatabaseDetails)
         XCTAssertNil(presentation.presentedSaveError)
         XCTAssertFalse(presentation.isCloudReconnectInFlight)

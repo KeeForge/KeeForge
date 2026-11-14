@@ -12,7 +12,8 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
             autosaveName: autosaveName, currentSession: { nil })
         XCTAssertEqual(named.splitView.autosaveName, autosaveName)
         // Unnamed, so toggling below writes nothing into the host app's defaults.
-        let controller = MacWorkspaceSplitViewController(session: session, presentation: MacWorkspacePresentation(),
+        let presentation = MacWorkspacePresentation()
+        let controller = MacWorkspaceSplitViewController(session: session, presentation: presentation,
             currentSession: { nil })
         XCTAssertEqual(controller.splitViewItems.count, 3)
         let sidebar = controller.splitViewItems[0]
@@ -34,10 +35,13 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         XCTAssertNil(controller.splitView.autosaveName)
         XCTAssertTrue(controller.splitView.isVertical)
         sidebar.isCollapsed = false
+        XCTAssertFalse(presentation.isSidebarCollapsed)
         controller.toggleSidebar(nil)
         XCTAssertTrue(sidebar.isCollapsed)
+        XCTAssertTrue(presentation.isSidebarCollapsed, "The list header learns the sidebar is hidden")
         controller.toggleSidebar(nil)
         XCTAssertFalse(sidebar.isCollapsed)
+        XCTAssertFalse(presentation.isSidebarCollapsed)
     }
 
     func testWindowKeepsControllerUntilSessionChangesThenReleasesIt() throws {

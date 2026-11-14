@@ -155,7 +155,8 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         let (session, presentation, tree) = try await makeSession()
         let commands = MacWorkspaceCommands(session: session, presentation: presentation)
         let collapsible = MacSidebarSnapshot.make(session: session).collapsibleGroupIDs
-        XCTAssertTrue(collapsible.isSuperset(of: [tree.root.id, tree.work.id, tree.recycleBin.id]))
+        XCTAssertTrue(collapsible.isSuperset(of: [tree.root.id, tree.work.id]))
+        XCTAssertFalse(collapsible.contains(tree.recycleBin.id), "Deleted Entries has no subgroups to fold")
         XCTAssertFalse(collapsible.contains(tree.servers.id), "A group without subgroups has nothing to fold")
         XCTAssertFalse(commands.canExpandAllGroups)
         XCTAssertTrue(commands.canCollapseAllGroups)

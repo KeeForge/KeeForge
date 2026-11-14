@@ -10,6 +10,7 @@ final class MacSidebarOutlineItem: NSObject {
         var icon: MacSidebarIcon?
         var count: Int?
         var accessibilityIdentifier: String?
+        var isDeleted = false
     }
 
     let id: MacSidebarItemID
@@ -58,6 +59,11 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
     private var items: [MacSidebarItemID: MacSidebarOutlineItem] = [:]
     private var isApplyingModel = false
     private var isUserCollapsing = false
+    /// The workspace selection the outline last showed; a new one unfolds its section.
+    private var appliedSelection: MacSidebarSelection?
+    private var hasAppliedSelection = false
+    /// Folding a section also reports its open groups as collapsing; those are not the user's folds.
+    private var isTogglingSection = false
 
     init(session: DatabaseViewModel, presentation: MacWorkspacePresentation) {
         self.session = session
@@ -78,7 +84,8 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         outlineView.rowSizeStyle = .default
         outlineView.floatsGroupRows = false
         outlineView.allowsMultipleSelection = false
-        outlineView.allowsEmptySelection = false
+        // A selection inside a folded section leaves no row selected.
+        outlineView.allowsEmptySelection = true
         outlineView.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
         outlineView.setAccessibilityIdentifier(Self.outlineIdentifier)
         outlineView.dataSource = self
@@ -131,6 +138,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
     private struct State {
         var snapshot: MacSidebarSnapshot
         var collapsedGroupIDs: Set<UUID>
+        var collapsedSections: Set<MacSidebarSnapshot.SectionKind>
         var isSaving: Bool
         var status: MacDatabaseStatus?
         var selection: MacSidebarSelection?
@@ -140,6 +148,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         State(
             snapshot: MacSidebarSnapshot.make(session: session),
             collapsedGroupIDs: presentation.collapsedGroupIDs,
+            collapsedSections: presentation.collapsedSidebarSections,
             isSaving: session.isSaving,
             status: MacDatabaseStatus.make(session: session),
             selection: MacSidebarSelection(workspace: session.workspace)
@@ -154,7 +163,11 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
             snapshot = state.snapshot
         }
         applyExpansion(to: rootItems, collapsed: state.collapsedGroupIDs)
-        selectModelRow()
+        // A rebuilt sidebar keeps the window's folds, even around its selection.
+        let isNewSelection = hasAppliedSelection && state.selection != appliedSelection
+        appliedSelection = state.selection
+        hasAppliedSelection = true
+        selectModelRow(revealing: isNewSelection)
         outlineView.isEnabled = state.isSaving == false
         statusCard.update(state.status)
     }
@@ -167,12 +180,12 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         let children: [Node]
     }
 
-    static func headerTitle(for kind: MacSidebarSnapshot.SectionKind) -> String? {
+    static func headerTitle(for kind: MacSidebarSnapshot.SectionKind) -> String {
         switch kind {
         case .library: String(localized: "Library")
         case .groups: String(localized: "Groups")
         case .tags: String(localized: "Tags")
-        case .recycleBin: nil
+        case .recycleBin: String(localized: "Recycle Bin")
         }
     }
 
@@ -181,14 +194,13 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
             Node(
                 id: node.id,
                 content: .init(title: node.title, icon: node.icon, count: node.count,
-                               accessibilityIdentifier: node.accessibilityIdentifier),
+                               accessibilityIdentifier: node.accessibilityIdentifier, isDeleted: node.isDeleted),
                 children: node.children.map(convert)
             )
         }
-        return snapshot.sections.flatMap { section -> [Node] in
-            let nodes = section.nodes.map(convert)
-            guard let title = headerTitle(for: section.kind) else { return nodes }
-            return [Node(id: section.id, content: .init(title: title), children: nodes)]
+        return snapshot.sections.map { section in
+            Node(id: section.id, content: .init(title: headerTitle(for: section.kind)),
+                 children: section.nodes.map(convert))
         }
     }
 
@@ -309,7 +321,11 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
     // MARK: - Expansion and selection
 
     private func shouldExpand(_ item: MacSidebarOutlineItem, collapsed: Set<UUID>) -> Bool {
-        if case .group(let groupID) = item.id { collapsed.contains(groupID) == false } else { true }
+        switch item.id {
+        case .group(let groupID): collapsed.contains(groupID) == false
+        case .section(let kind): presentation.collapsedSidebarSections.contains(kind) == false
+        default: true
+        }
     }
 
     private func applyExpansion(to items: [MacSidebarOutlineItem], collapsed: Set<UUID>) {
@@ -318,8 +334,33 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
                 if outlineView.isItemExpanded(item) == false { outlineView.expandItem(item) }
                 applyExpansion(to: item.children, collapsed: collapsed)
             } else if outlineView.isItemExpanded(item) {
+                let wasToggling = isTogglingSection
+                isTogglingSection = item.isHeader || wasToggling
                 outlineView.collapseItem(item)
+                isTogglingSection = wasToggling
             }
+            if item.isHeader { refreshHeader(item) }
+        }
+    }
+
+    private func refreshHeader(_ item: MacSidebarOutlineItem) {
+        let row = outlineView.row(forItem: item)
+        guard row >= 0,
+              let cell = outlineView.view(atColumn: 0, row: row, makeIfNecessary: false) as? MacSidebarHeaderCellView else {
+            return
+        }
+        cell.isFolded = outlineView.isItemExpanded(item) == false
+    }
+
+    /// Folds or unfolds a section, as its header's chevron and Show button do.
+    func toggleSection(_ kind: MacSidebarSnapshot.SectionKind) {
+        guard let item = items[.section(kind)], item.children.isEmpty == false else { return }
+        isTogglingSection = true
+        defer { isTogglingSection = false }
+        if outlineView.isItemExpanded(item) {
+            outlineView.collapseItem(item)
+        } else {
+            outlineView.expandItem(item)
         }
     }
 
@@ -328,8 +369,13 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
     }
 
     /// Selects the workspace's row, unfolding its ancestors so a reveal shows it.
-    private func selectModelRow() {
-        guard let item = modelItem else { return }
+    /// A folded section opens only for a new selection; otherwise its row stays
+    /// hidden and nothing is selected.
+    private func selectModelRow(revealing: Bool = false) {
+        guard let item = modelItem else {
+            outlineView.deselectAll(nil)
+            return
+        }
         var ancestors: [MacSidebarOutlineItem] = []
         var current = item.parent
         while let ancestor = current {
@@ -337,11 +383,27 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
             current = ancestor.parent
         }
         var collapsed = presentation.collapsedGroupIDs
+        var collapsedSections = presentation.collapsedSidebarSections
         for ancestor in ancestors {
-            if case .group(let groupID) = ancestor.id { collapsed.remove(groupID) }
+            switch ancestor.id {
+            case .group(let groupID):
+                collapsed.remove(groupID)
+            case .section(let kind) where collapsedSections.contains(kind):
+                guard revealing else {
+                    outlineView.deselectAll(nil)
+                    return
+                }
+                collapsedSections.remove(kind)
+            default:
+                break
+            }
             if outlineView.isItemExpanded(ancestor) == false { outlineView.expandItem(ancestor) }
+            if ancestor.isHeader { refreshHeader(ancestor) }
         }
         if collapsed != presentation.collapsedGroupIDs { presentation.collapsedGroupIDs = collapsed }
+        if collapsedSections != presentation.collapsedSidebarSections {
+            presentation.collapsedSidebarSections = collapsedSections
+        }
         let row = outlineView.row(forItem: item)
         guard row >= 0, outlineView.selectedRowIndexes != IndexSet(integer: row) else { return }
         outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
@@ -379,12 +441,10 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         (item as? MacSidebarOutlineItem)?.id.selection != nil
     }
 
+    /// A header draws its own chevron after the title, as the boards do. AppKit
+    /// will not collapse a row without an outline cell, so a toggle shows it for the call.
     func outlineView(_ outlineView: NSOutlineView, shouldShowOutlineCellForItem item: Any) -> Bool {
-        (item as? MacSidebarOutlineItem)?.isHeader == false
-    }
-
-    func outlineView(_ outlineView: NSOutlineView, shouldCollapseItem item: Any) -> Bool {
-        (item as? MacSidebarOutlineItem)?.isHeader == false
+        isTogglingSection || (item as? MacSidebarOutlineItem)?.isHeader == false
     }
 
     func outlineView(_ outlineView: NSOutlineView, typeSelectStringFor tableColumn: NSTableColumn?, item: Any) -> String? {
@@ -403,6 +463,10 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
             let cell = outlineView.makeView(withIdentifier: MacSidebarHeaderCellView.reuseIdentifier, owner: self)
                 as? MacSidebarHeaderCellView ?? MacSidebarHeaderCellView()
             cell.textField?.stringValue = item.content.title
+            cell.isFolded = outlineView.isItemExpanded(item) == false
+            if case .section(let kind) = item.id {
+                cell.onToggle = { [weak self] in self?.toggleSection(kind) }
+            }
             return cell
         }
         if item.isCaption {
@@ -418,7 +482,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {
-        guard isApplyingModel == false, isUserCollapsing == false else { return }
+        guard isApplyingModel == false, isUserCollapsing == false, isTogglingSection == false else { return }
         let row = outlineView.selectedRow
         guard row >= 0, let selection = (outlineView.item(atRow: row) as? MacSidebarOutlineItem)?.id.selection else {
             restoreModelSelection()
@@ -431,12 +495,18 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
 
     func outlineViewItemDidExpand(_ notification: Notification) {
         guard isApplyingModel == false,
-              let item = notification.userInfo?["NSObject"] as? MacSidebarOutlineItem,
-              case .group(let groupID) = item.id else { return }
-        presentation.collapsedGroupIDs.remove(groupID)
+              let item = notification.userInfo?["NSObject"] as? MacSidebarOutlineItem else { return }
+        switch item.id {
+        case .group(let groupID): presentation.collapsedGroupIDs.remove(groupID)
+        case .section(let kind):
+            presentation.collapsedSidebarSections.remove(kind)
+            refreshHeader(item)
+        default: return
+        }
         isApplyingModel = true
         defer { isApplyingModel = false }
         applyExpansion(to: item.children, collapsed: presentation.collapsedGroupIDs)
+        selectModelRow()
     }
 
     func outlineViewItemWillCollapse(_ notification: Notification) {
@@ -444,15 +514,24 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         isUserCollapsing = true
     }
 
-    /// A selection folded away moves to the folded group, as Finder and Mail do.
+    /// A selection folded away moves to the folded group, as Finder and Mail
+    /// do; a folded section keeps the selection with no row selected.
     func outlineViewItemDidCollapse(_ notification: Notification) {
         guard isApplyingModel == false else { return }
         isUserCollapsing = false
-        guard let item = notification.userInfo?["NSObject"] as? MacSidebarOutlineItem,
-              case .group(let groupID) = item.id else { return }
-        presentation.collapsedGroupIDs.insert(groupID)
-        if let selected = modelItem, selected.isDescendant(of: item) {
-            MacSidebarSelection.group(groupID).apply(to: session.workspace)
+        guard let item = notification.userInfo?["NSObject"] as? MacSidebarOutlineItem else { return }
+        switch item.id {
+        case .group(let groupID):
+            guard isTogglingSection == false else { return }
+            presentation.collapsedGroupIDs.insert(groupID)
+            if let selected = modelItem, selected.isDescendant(of: item) {
+                MacSidebarSelection.group(groupID).apply(to: session.workspace)
+            }
+        case .section(let kind):
+            presentation.collapsedSidebarSections.insert(kind)
+            refreshHeader(item)
+        default:
+            return
         }
         restoreModelSelection()
     }
@@ -555,8 +634,17 @@ private extension MacSidebarSelection {
 
 // MARK: - Cells
 
+/// A section header: its title, a chevron after it that folds the section,
+/// and "Show" at the trailing edge while it is folded.
 final class MacSidebarHeaderCellView: NSTableCellView {
     static let reuseIdentifier = NSUserInterfaceItemIdentifier("sidebar.header")
+
+    let disclosureButton = NSButton()
+    let showButton = NSButton(title: String(localized: "Show"), target: nil, action: nil)
+    var onToggle: (@MainActor () -> Void)?
+    var isFolded = false {
+        didSet { refreshDisclosure() }
+    }
 
     init() {
         super.init(frame: .zero)
@@ -565,18 +653,49 @@ final class MacSidebarHeaderCellView: NSTableCellView {
         field.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
         field.textColor = .secondaryLabelColor
         field.lineBreakMode = .byTruncatingTail
-        field.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(field)
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        disclosureButton.isBordered = false
+        disclosureButton.imagePosition = .imageOnly
+        disclosureButton.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 8, weight: .bold)
+        disclosureButton.contentTintColor = .secondaryLabelColor
+        disclosureButton.target = self
+        disclosureButton.action = #selector(toggle(_:))
+        showButton.isBordered = false
+        showButton.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        showButton.contentTintColor = .secondaryLabelColor
+        showButton.target = self
+        showButton.action = #selector(toggle(_:))
+        for view in [field, disclosureButton, showButton] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+        }
         textField = field
         NSLayoutConstraint.activate([
             field.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-            field.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4),
             field.centerYAnchor.constraint(equalTo: centerYAnchor),
+            disclosureButton.leadingAnchor.constraint(equalTo: field.trailingAnchor, constant: 4),
+            disclosureButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            showButton.leadingAnchor.constraint(greaterThanOrEqualTo: disclosureButton.trailingAnchor, constant: 4),
+            showButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            showButton.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
+        refreshDisclosure()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    private func refreshDisclosure() {
+        let title = isFolded ? String(localized: "Show") : String(localized: "Hide")
+        disclosureButton.image = NSImage(systemSymbolName: isFolded ? "chevron.right" : "chevron.down",
+                                         accessibilityDescription: title)
+        disclosureButton.setAccessibilityLabel(title)
+        showButton.isHidden = isFolded == false
+    }
+
+    @objc private func toggle(_ sender: Any?) {
+        onToggle?()
+    }
 }
 
 /// A section's explanatory line, such as the Tags section's while there are no tags.
@@ -618,6 +737,7 @@ final class MacSidebarCellView: NSTableCellView {
 
     let countField = NSTextField(labelWithString: "")
     private var icon: MacSidebarIcon?
+    private var isDeleted = false
 
     init() {
         super.init(frame: .zero)
@@ -661,6 +781,7 @@ final class MacSidebarCellView: NSTableCellView {
 
     func configure(_ content: MacSidebarOutlineItem.Content) {
         icon = content.icon
+        isDeleted = content.isDeleted
         textField?.stringValue = content.title
         countField.stringValue = content.count?.formatted() ?? ""
         countField.isHidden = content.count == nil
@@ -673,18 +794,20 @@ final class MacSidebarCellView: NSTableCellView {
     }
 
     private func refreshIcon() {
-        imageView?.image = icon.flatMap {
-            Self.image(for: $0, emphasized: backgroundStyle == .emphasized)
-        }
+        let emphasized = backgroundStyle == .emphasized
+        imageView?.image = icon.flatMap { Self.image(for: $0, emphasized: emphasized) }
+        textField?.textColor = isDeleted && emphasized == false ? .secondaryLabelColor : .labelColor
     }
 
-    /// The recycle bin and missing custom images fall back as `GroupIconView` does.
+    /// Missing custom images fall back as `GroupIconView` does.
     static func image(for icon: MacSidebarIcon, emphasized: Bool) -> NSImage? {
         switch icon {
         case .symbol(let name):
             return NSImage(systemSymbolName: name, accessibilityDescription: nil)
         case .tag:
             return tagImage(emphasized: emphasized)
+        case .recycleBin:
+            return recycleBinImage()
         case .standard(let iconID):
             return standardImage(iconID, emphasized: emphasized)
         case .custom(let data, let standardIconID):
@@ -695,6 +818,26 @@ final class MacSidebarCellView: NSTableCellView {
     private static func standardImage(_ iconID: Int, emphasized: Bool) -> NSImage? {
         MacIconImages.standard(iconID, fallbackSymbol: "folder.fill", fallbackPalette: .blue, pointSize: 14,
                                emphasized: emphasized)
+    }
+
+    /// The board's orange tile with a white trash glyph.
+    private static func recycleBinImage() -> NSImage {
+        let glyph = NSImage(systemSymbolName: "trash.fill", accessibilityDescription: nil)?.withSymbolConfiguration(
+            NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+                .applying(NSImage.SymbolConfiguration(paletteColors: [.white]))
+        )
+        let image = NSImage(size: NSSize(width: iconSize, height: iconSize), flipped: false) { rect in
+            NSColor.systemOrange.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 4.5, yRadius: 4.5).fill()
+            if let glyph {
+                let size = glyph.size
+                glyph.draw(in: NSRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2,
+                                      width: size.width, height: size.height))
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     /// A semibold "#" in the accent colour, drawn when shown so it follows appearance and accent changes.

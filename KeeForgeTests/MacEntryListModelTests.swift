@@ -259,7 +259,8 @@ final class MacEntryListModelTests: XCTestCase {
     func testTagAndRecycleBinCountLinesUseTheirSingulars() async throws {
         let solo = KPEntry(title: "Solo", tags: ["One"])
         let gone = KPEntry(title: "Gone")
-        let recycleBin = KPGroup(name: "Recycle Bin", entries: [gone])
+        let oldProjects = KPGroup(name: "Old Projects", entries: [KPEntry(title: "A"), KPEntry(title: "B")])
+        let recycleBin = KPGroup(name: "Recycle Bin", entries: [gone], groups: [oldProjects])
         let work = KPGroup(name: "Work", entries: [solo])
         let session = try await makeSession(root: KPGroup(name: "Root", groups: [work, recycleBin],
                                                           recycleBinUUID: recycleBin.id))
@@ -267,7 +268,59 @@ final class MacEntryListModelTests: XCTestCase {
         XCTAssertEqual(MacEntryListSnapshot.make(session: session).header?.subtitle, "Tag · 1 entry in 1 group")
         session.workspace.selectedGroupID = recycleBin.id
         XCTAssertEqual(MacEntryListSnapshot.make(session: session).header,
-                       .init(title: "Recycle Bin", isTag: false, subtitle: "Entry List · 1 deleted entry"))
+                       .init(title: "Deleted Entries", isTag: false, subtitle: "Recycle Bin · 1 entry"))
+        session.workspace.selectedGroupID = oldProjects.id
+        XCTAssertEqual(MacEntryListSnapshot.make(session: session, isSidebarCollapsed: true).header,
+                       .init(title: "Old Projects", isTag: false, subtitle: "Recycle Bin · 2 entries"))
+    }
+
+    func testAHiddenSidebarPutsTheGroupsParentsInItsCountLine() async throws {
+        let development = KPGroup(name: "Development", entries: [KPEntry(title: "GitHub")])
+        let work = KPGroup(name: "Work", groups: [development])
+        let root = KPGroup(name: "Personal", groups: [work, KPGroup(name: "Email")])
+        let session = try await makeSession(root: root)
+        func subtitle(_ collapsed: Bool) -> String? {
+            MacEntryListSnapshot.make(session: session, isSidebarCollapsed: collapsed).header?.subtitle
+        }
+
+        session.workspace.selectedGroupID = development.id
+        XCTAssertEqual(subtitle(false), "Entry List · 1 entry")
+        XCTAssertEqual(subtitle(true), "Personal › Work · 1 entry")
+        session.workspace.selectedGroupID = work.id
+        XCTAssertEqual(subtitle(true), "Personal · 0 entries", "Work's own entries")
+        session.workspace.selectedGroupID = root.id
+        XCTAssertEqual(subtitle(true), "Entry List · 0 entries", "The root has no parents")
+        session.workspace.selectedCollection = .allEntries
+        XCTAssertEqual(subtitle(true), "Entry List · 1 entry")
+    }
+
+    func testRowsFlagSSHKeysByAttachmentNameAndEmptyGroupsOfferNewEntry() async throws {
+        let agent = KPEntry(title: "Staging Box", attachments: [
+            KPAttachment(name: "id_ed25519", ref: 0), KPAttachment(name: "KeeAgent.settings", ref: 1),
+        ])
+        let keyOnly = KPEntry(title: "GitHub", attachments: [KPAttachment(name: "id_ed25519_ci", ref: 2)])
+        let empty = KPGroup(name: "Empty")
+        let binGroup = KPGroup(name: "Old")
+        let recycleBin = KPGroup(name: "Recycle Bin", groups: [binGroup])
+        let work = KPGroup(name: "Work", entries: [agent, keyOnly])
+        let session = try await makeSession(root: KPGroup(name: "Root", groups: [work, empty, recycleBin],
+                                                          recycleBinUUID: recycleBin.id))
+
+        session.workspace.selectedGroupID = work.id
+        let snapshot = MacEntryListSnapshot.make(session: session)
+        XCTAssertEqual(Dictionary(uniqueKeysWithValues: snapshot.rows.map { ($0.title, $0.hasSSHKey) }),
+                       ["Staging Box": true, "GitHub": false], "Only KeeAgent's settings mark an SSH entry")
+        XCTAssertFalse(snapshot.offersNewEntry, "A group with rows needs no button")
+
+        session.workspace.selectedGroupID = empty.id
+        XCTAssertEqual(MacEntryListSnapshot.make(session: session).emptyState, .noGroupEntries)
+        XCTAssertTrue(MacEntryListSnapshot.make(session: session).offersNewEntry)
+        session.workspace.selectedGroupID = binGroup.id
+        XCTAssertFalse(MacEntryListSnapshot.make(session: session).offersNewEntry, "Not inside the recycle bin")
+        session.workspace.selectedGroupID = recycleBin.id
+        XCTAssertFalse(MacEntryListSnapshot.make(session: session).offersNewEntry)
+        session.workspace.selectedCollection = .passkeys
+        XCTAssertFalse(MacEntryListSnapshot.make(session: session).offersNewEntry, "Filters take no buttons")
     }
 
     func testFooterIsTheSelectionHintThenTheCodesOrSearchHintWhenThereAreRows() async throws {
@@ -626,7 +679,7 @@ final class MacEntryListModelTests: XCTestCase {
             MacEntryListSnapshot.Row(
                 id: UUID(), title: "Row \(index)", rawUsername: "", folderPath: nil, icon: .standard(0),
                 faviconDomain: nil, isExpired: false, hasPasskey: false, hasVerificationCode: false,
-                isMovable: immovable.contains(index) == false
+                hasSSHKey: false, isMovable: immovable.contains(index) == false
             )
         }
     }

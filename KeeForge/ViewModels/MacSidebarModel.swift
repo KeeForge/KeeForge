@@ -77,21 +77,20 @@ enum MacSidebarIcon: Hashable {
     case symbol(String)
     /// The "#" a tag row shows.
     case tag
+    /// The Deleted Entries row's trash tile.
+    case recycleBin
 }
 
 /// The Mac sidebar's rows, built from one session: Library, the group tree,
-/// tags (or a caption while there are none), and the Recycle Bin as a
-/// top-level row with its subtree.
+/// tags (or a caption while there are none), and a Recycle Bin section with a
+/// Deleted Entries row for the bin's own entries and the deleted groups
+/// beneath it, left out while the bin is empty or absent.
 struct MacSidebarSnapshot: Equatable {
     enum SectionKind: Hashable, CaseIterable {
         case library
         case groups
         case tags
         case recycleBin
-
-        var showsHeader: Bool {
-            self != .recycleBin
-        }
     }
 
     struct Section: Equatable, Identifiable {
@@ -110,6 +109,8 @@ struct MacSidebarSnapshot: Equatable {
         let count: Int?
         let children: [Node]
         let accessibilityIdentifier: String
+        /// A group inside the Recycle Bin, drawn dimmed.
+        var isDeleted = false
 
         var selection: MacSidebarSelection? {
             id.selection
@@ -147,26 +148,23 @@ struct MacSidebarSnapshot: Equatable {
         let recycleBinID = root.recycleBinUUID
         let customIcons = session.currentMeta?.customIcons ?? [:]
 
-        /// A group counts every entry in its subtree, the recycle bin's left out;
-        /// the bin itself counts only its own entries, the ones its list shows.
-        func node(for group: KPGroup) -> Node {
-            let isRecycleBin = group.id == recycleBinID
-            let icon: MacSidebarIcon = if isRecycleBin {
-                .standard(43)
-            } else if let customIconID = group.customIconUUID, let data = customIcons[customIconID] {
+        /// A group counts every entry in its subtree, the recycle bin's left out.
+        func node(for group: KPGroup, isDeleted: Bool = false) -> Node {
+            let icon: MacSidebarIcon = if let customIconID = group.customIconUUID, let data = customIcons[customIconID] {
                 .custom(data, standardIconID: group.iconID)
             } else {
                 .standard(group.iconID)
             }
-            let children = session.sortedGroups(group.groups).filter { $0.id != recycleBinID }.map(node(for:))
-            let count = isRecycleBin ? group.entries.count : children.reduce(group.entries.count) { $0 + ($1.count ?? 0) }
+            let children = session.sortedGroups(group.groups).filter { $0.id != recycleBinID }
+                .map { node(for: $0, isDeleted: isDeleted) }
             return Node(
                 id: .group(group.id),
                 title: group.name,
                 icon: icon,
-                count: count,
+                count: children.reduce(group.entries.count) { $0 + ($1.count ?? 0) },
                 children: children,
-                accessibilityIdentifier: "group.navlink"
+                accessibilityIdentifier: "group.navlink",
+                isDeleted: isDeleted
             )
         }
 
@@ -211,8 +209,18 @@ struct MacSidebarSnapshot: Equatable {
             ),
         ] : tagNodes))
 
-        if let recycleBin = session.recycleBinGroup {
-            sections.append(Section(kind: .recycleBin, nodes: [node(for: recycleBin)]))
+        // The bin's group row lists its own entries, as Deleted Entries.
+        if let recycleBin = session.recycleBinGroup, recycleBin.entries.isEmpty == false || recycleBin.groups.isEmpty == false {
+            let deletedEntries = Node(
+                id: .group(recycleBin.id),
+                title: String(localized: "Deleted Entries"),
+                icon: .recycleBin,
+                count: recycleBin.entries.count,
+                children: [],
+                accessibilityIdentifier: "group.navlink"
+            )
+            let deletedGroups = session.sortedGroups(recycleBin.groups).map { node(for: $0, isDeleted: true) }
+            sections.append(Section(kind: .recycleBin, nodes: [deletedEntries] + deletedGroups))
         }
         return MacSidebarSnapshot(sections: sections)
     }

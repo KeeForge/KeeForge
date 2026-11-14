@@ -1972,7 +1972,8 @@ final class DatabaseViewModel {
         prunedSubtreeID: UUID?,
         currentParentID: UUID?
     ) -> [MoveDestinationOption] {
-        guard let visibleRoot = visibleRootGroup else { return [] }
+        // The workspace root, so a Mac wrapper holding only the bin is still a destination.
+        guard let visibleRoot = workspaceRootGroupID.flatMap(group(withID:)) else { return [] }
         let recycleBinID = currentRootGroup?.recycleBinUUID
         var options: [MoveDestinationOption] = []
 

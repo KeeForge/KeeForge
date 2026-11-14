@@ -7,6 +7,7 @@ final class MacWindowWorkspace {
     private(set) var splitViewController: MacWorkspaceSplitViewController?
     private(set) var toolbar: MacWorkspaceToolbar?
     private let presentation: MacWorkspacePresentation
+    private var sidebarCollapseObservation: NSKeyValueObservation?
     private let splitAutosaveName: NSSplitView.AutosaveName?
     private let currentSession: @MainActor () -> DatabaseViewModel?
 
@@ -27,6 +28,7 @@ final class MacWindowWorkspace {
         if let tag = session.workspace.selectedTag { return tag }
         if let collection = session.workspace.selectedCollection { return collection.title }
         guard let groupID = session.workspace.selectedGroupID ?? session.workspaceRootGroupID else { return "" }
+        if groupID == session.currentRootGroup?.recycleBinUUID { return String(localized: "Deleted Entries") }
         return session.group(withID: groupID)?.name ?? ""
     }
 
@@ -47,6 +49,8 @@ final class MacWindowWorkspace {
 final class MacWorkspaceSplitViewController: NSSplitViewController {
     let session: DatabaseViewModel
     let entryList: MacEntryListViewController
+    private let presentation: MacWorkspacePresentation
+    private var sidebarCollapseObservation: NSKeyValueObservation?
 
     /// Each database keeps its own widths and collapse state; nil keeps the layout unsaved.
     init(
@@ -56,6 +60,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         currentSession: @escaping @MainActor () -> DatabaseViewModel?
     ) {
         self.session = session
+        self.presentation = presentation
         entryList = MacEntryListViewController(session: session, presentation: presentation, currentSession: currentSession)
         super.init(nibName: nil, bundle: nil)
         splitView.isVertical = true
@@ -67,6 +72,9 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         sidebar.maximumThickness = 340
         sidebar.preferredThicknessFraction = 240.0 / 1080.0
         addSplitViewItem(sidebar)
+        sidebarCollapseObservation = sidebar.observe(\.isCollapsed, options: [.initial, .new]) { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.noteSidebarCollapse() }
+        }
 
         let entries = NSSplitViewItem(contentListWithViewController: entryList)
         entries.minimumThickness = 260
@@ -89,6 +97,11 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    private func noteSidebarCollapse() {
+        let isCollapsed = splitViewItems.first?.isCollapsed ?? false
+        if presentation.isSidebarCollapsed != isCollapsed { presentation.isSidebarCollapsed = isCollapsed }
+    }
 
     private static func host<Content: View>(session: DatabaseViewModel, presentation: MacWorkspacePresentation, _ content: Content) -> NSViewController {
         let hosting = NSHostingController(rootView: MacWorkspaceHostedColumn(session: session, presentation: presentation, content: content))

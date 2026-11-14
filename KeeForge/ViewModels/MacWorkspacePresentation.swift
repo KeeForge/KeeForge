@@ -20,6 +20,11 @@ final class MacWorkspacePresentation {
     /// Sidebar groups the user folded. `reset()` keeps it, so it lasts for the
     /// window's life across lock and unlock; it is never written to disk.
     var collapsedGroupIDs: Set<UUID> = []
+    /// Sidebar sections the user folded, kept like `collapsedGroupIDs`.
+    var collapsedSidebarSections: Set<MacSidebarSnapshot.SectionKind> = []
+    /// Mirrors the split view's sidebar collapse, which AppKit owns and autosaves,
+    /// so the list header can show the group's path while the sidebar is hidden.
+    var isSidebarCollapsed = false
     var isShowingDatabaseDetails = false
     var presentedSaveError: DatabaseSaveError?
     var isCloudReconnectInFlight = false

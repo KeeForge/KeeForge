@@ -76,11 +76,16 @@ orders the window or assigns first responder.
 The split's sidebar and entries items are AppKit controllers
 (`MacSidebarViewController`, `MacEntryListViewController`); the detail item hosts
 one SwiftUI column. The sidebar renders
-`MacSidebarSnapshot` in a source-list `NSOutlineView` (Library, Groups and Tags
-headers, Tags keeping a caption row while there are none; the Recycle Bin a
-top-level row) with the status card beneath. Library is All Entries,
-Verification Codes and Passkeys; each group row counts every entry in its
-subtree, the Recycle Bin's left out, and the bin row counts its own entries. One
+`MacSidebarSnapshot` in a source-list `NSOutlineView` (Library, Groups, Tags and
+Recycle Bin headers, Tags keeping a caption row while there are none; the Recycle
+Bin section is a Deleted Entries row, which selects the bin group, then the
+deleted groups dimmed, and is left out while the bin is empty) with the status
+card beneath. Library is All Entries, Verification Codes and Passkeys; each group
+row counts every entry in its subtree, the Recycle Bin's left out, and Deleted
+Entries counts the bin's own entries. Each header folds from the chevron after its
+title or its "Show"; folded sections are the presentation's
+`collapsedSidebarSections`, and a selection inside one keeps the list with no
+row selected until a new selection unfolds it. One
 `MacObservation` rebuilds the snapshot and applies it per parent with insert,
 remove and move on row objects cached by `MacSidebarItemID`, never a full reload,
 so expansion and selection survive edits. Selection writes the workspace and

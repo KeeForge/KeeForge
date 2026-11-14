@@ -315,12 +315,10 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
             .contains(EntryRowActions.selectIdentifier), "Native multi-select replaces Select Entries")
 
         XCTAssertEqual(identifiers(controller.contextMenuItems(forEntryID: tree.gone.id)), [
-            EntryRowActions.copyUsernameIdentifier, EntryRowActions.copyPasswordIdentifier,
             EntryRowActions.restoreIdentifier, EntryRowActions.deletePermanentlyIdentifier,
-        ])
+        ], "The bin's rows offer only Restore and Delete Permanently")
         XCTAssertEqual(controller.contextMenuItems(forEntryID: tree.gone.id).map(\.title), [
-            String(localized: "Copy Username"), String(localized: "Copy Password"), "", String(localized: "Restore"), "",
-            String(localized: "Delete Permanently"),
+            String(localized: "Restore"), "", String(localized: "Delete Permanently"),
         ])
         XCTAssertEqual(controller.contextMenuItems(forEntryID: tree.gone.id).last?.keyEquivalent, "\u{8}")
 
@@ -328,9 +326,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(identifiers(readOnly.contextMenuItems(forEntryID: readOnlyTree.work.entries[0].id)), [
             EntryRowActions.copyUsernameIdentifier, EntryRowActions.copyPasswordIdentifier,
         ])
-        XCTAssertEqual(identifiers(readOnly.contextMenuItems(forEntryID: readOnlyTree.gone.id)), [
-            EntryRowActions.copyUsernameIdentifier, EntryRowActions.copyPasswordIdentifier,
-        ])
+        XCTAssertEqual(identifiers(readOnly.contextMenuItems(forEntryID: readOnlyTree.gone.id)), [])
     }
 
     func testAClickInsideAMultipleSelectionOffersMoveAndDelete() async throws {
@@ -494,6 +490,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
                 PasskeyCredential.userHandleKey: "aGFuZGxl",
             ]
             entries[1].passkeyPrivateKey = EncryptedValue(sealedData: Data([0]), hasValue: true)
+            entries[1].attachments = [KPAttachment(name: "KeeAgent.settings", ref: 0)]
             entries[2].username = ""
         })
         let first = try XCTUnwrap(cell(controller, entryID: tree.work.entries[0].id))
@@ -519,6 +516,12 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(glyphs.map { $0.accessibilityLabel() ?? "" },
                        [String(localized: "Expired"), String(localized: "Has a passkey"),
                         String(localized: "Has a verification code")])
+        XCTAssertTrue(first.sshGlyph.isHidden)
+        XCTAssertFalse(second.sshGlyph.isHidden, "KeeAgent's settings attachment marks an SSH key")
+        XCTAssertEqual(second.sshGlyph.style, .ssh)
+        XCTAssertEqual(second.sshGlyph.accessibilityIdentifier(), "entry-row.ssh")
+        XCTAssertEqual(second.sshGlyph.accessibilityLabel(), String(localized: "Has an SSH key"))
+        XCTAssertLessThan(second.sshGlyph.intrinsicContentSize.height, MacEntryBadgeView.diameter, "Plain mono text")
         XCTAssertEqual(first.folderField.accessibilityIdentifier(), "entry-row.folder")
         XCTAssertTrue(first.folderField.isHiddenOrHasHiddenAncestor, "A group lists no folder path")
         XCTAssertEqual(controller.tableView(controller.tableView, typeSelectStringFor: nil, row: 1), "Account 01")
@@ -553,7 +556,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
     // MARK: - Empty states, result count, saving
 
     func testEmptyStatesAndTheSearchResultCount() async throws {
-        let (controller, session, _, tree) = try await makeController(showsResultCount: true)
+        let (controller, session, presentation, tree) = try await makeController(showsResultCount: true)
         XCTAssertTrue(controller.emptyView.isHidden)
         XCTAssertTrue(controller.resultCountField.isHidden)
 
@@ -563,10 +566,18 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertTrue(controller.scrollView.isHidden)
         XCTAssertEqual(controller.emptyView.titleField.stringValue, String(localized: "No Entries"))
         XCTAssertEqual(controller.emptyView.messageField.stringValue, String(localized: "This group has no entries."))
+        let newEntry = controller.emptyView.newEntryButton
+        XCTAssertFalse(newEntry.isHidden, "An empty group offers New Entry")
+        XCTAssertEqual(newEntry.accessibilityIdentifier(), "entry-list.empty.new-entry")
+        XCTAssertEqual(newEntry.attributedTitle.string, String(localized: "New Entry") + "  ⌘N")
+        newEntry.performClick(nil)
+        XCTAssertEqual(presentation.commandEditor?.createDestinationGroupID, tree.other.id, "New Entry is created in the empty group")
+        presentation.commandEditor = nil
 
         session.searchText = "zzz"
         await settle()
         XCTAssertEqual(controller.emptyView.titleField.stringValue, String(localized: "No Results"))
+        XCTAssertTrue(controller.emptyView.newEntryButton.isHidden, "Search takes no buttons")
         XCTAssertEqual(controller.emptyView.accessibilityIdentifier(), "search.no-results")
         XCTAssertFalse(controller.resultCountField.isHidden)
         XCTAssertEqual(controller.resultCountField.accessibilityIdentifier(), "search.results.count")
@@ -589,6 +600,29 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         plainSession.searchText = "Account"
         await settle()
         XCTAssertTrue(plain.resultCountField.isHidden, "Outside UI testing the count stays hidden")
+
+        let (readOnly, readOnlySession, _, readOnlyTree) = try await makeController(readOnly: true)
+        readOnlySession.workspace.selectedGroupID = readOnlyTree.other.id
+        await settle()
+        XCTAssertFalse(readOnly.emptyView.isHidden)
+        XCTAssertTrue(readOnly.emptyView.newEntryButton.isHidden, "A read-only database offers no New Entry")
+    }
+
+    func testTheHeaderFollowsTheBinAndTheHiddenSidebar() async throws {
+        let (controller, session, presentation, tree) = try await makeController()
+        session.workspace.selectedGroupID = tree.recycleBin.id
+        await settle()
+        XCTAssertEqual(controller.header.titleField.stringValue, String(localized: "Deleted Entries"))
+        XCTAssertEqual(controller.header.subtitleField.stringValue,
+                       String(localized: "Recycle Bin") + " · " + String(localized: "\(1) entries"))
+
+        session.workspace.selectedGroupID = tree.work.id
+        await settle()
+        XCTAssertEqual(controller.header.subtitleField.stringValue,
+                       session.databaseDisplayName + " · " + String(localized: "\(3) entries"))
+        presentation.isSidebarCollapsed = true
+        await settle()
+        XCTAssertEqual(controller.header.subtitleField.stringValue, "Root · " + String(localized: "\(3) entries"))
     }
 
     func testSavingDisablesTheTableItsMenuAndSort() async throws {

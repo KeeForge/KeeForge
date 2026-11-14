@@ -43,6 +43,8 @@ struct MacEntryListSnapshot: Equatable {
         let isExpired: Bool
         let hasPasskey: Bool
         let hasVerificationCode: Bool
+        /// Read from the attachment names alone: KeeAgent's settings attachment marks an SSH key entry.
+        let hasSSHKey: Bool
         let isMovable: Bool
     }
 
@@ -144,6 +146,8 @@ struct MacEntryListSnapshot: Equatable {
     /// Nil while no group is selected.
     let header: Header?
     let footer: Footer?
+    /// An empty group outside the recycle bin offers New Entry when the database takes edits.
+    let offersNewEntry: Bool
 
     var rowIdentifier: String {
         switch mode {
@@ -196,6 +200,7 @@ struct MacEntryListSnapshot: Equatable {
     static func make(
         session: DatabaseViewModel,
         showsWebsiteIcons: Bool = SettingsService.showWebsiteIcons,
+        isSidebarCollapsed: Bool = false,
         now: Date = .now
     ) -> MacEntryListSnapshot {
         let mode = Self.mode(session: session)
@@ -236,6 +241,7 @@ struct MacEntryListSnapshot: Equatable {
                 isExpired: entry.isExpired(at: now),
                 hasPasskey: entry.hasPasskey,
                 hasVerificationCode: entry.totpConfig != nil,
+                hasSSHKey: entry.attachments.contains { $0.name == KeeAgentSettings.attachmentName },
                 isMovable: EntryRowActions(entryID: entry.id, session: session).canMove
             )
         }
@@ -251,22 +257,35 @@ struct MacEntryListSnapshot: Equatable {
         } else {
             nil
         }
+        let offersNewEntry: Bool = if emptyState == .noGroupEntries, case .group(let groupID) = mode {
+            session.isGroupInRecycleBin(groupID: groupID) == false && DatabaseCommands(session: session).canNewEntry
+        } else {
+            false
+        }
         return MacEntryListSnapshot(
             mode: mode,
             rows: rows,
             emptyState: emptyState,
             showsVerificationCodes: showsVerificationCodes,
             resultCount: resultCount,
-            header: header(mode: mode, entries: entries, session: session),
-            footer: footer
+            header: header(mode: mode, entries: entries, session: session, isSidebarCollapsed: isSidebarCollapsed),
+            footer: footer,
+            offersNewEntry: offersNewEntry
         )
     }
 
     /// The boards' wording: "Personal · 12 entries", "Tag · 14 entries in 5
-    /// groups", "Results: 5 · All of Personal", and "Personal · 3 of 12
-    /// selected" while several are picked.
+    /// groups", "Results: 5 · All of Personal", "Personal · 3 of 12 selected"
+    /// while several are picked, and in the bin "Deleted Entries" over
+    /// "Recycle Bin · 5 entries". With the sidebar hidden a group's line starts
+    /// with its parents' path instead ("Personal › Work · 12 entries").
     @MainActor
-    static func header(mode: Mode, entries: [KPEntry], session: DatabaseViewModel) -> Header? {
+    static func header(
+        mode: Mode,
+        entries: [KPEntry],
+        session: DatabaseViewModel,
+        isSidebarCollapsed: Bool = false
+    ) -> Header? {
         let databaseName = session.databaseDisplayName
         let count = entries.count
         let title: String
@@ -287,10 +306,18 @@ struct MacEntryListSnapshot: Equatable {
             title = collection.title
             countLine = String(localized: "\(count) entries")
         case .group(let groupID):
-            title = session.group(withID: groupID)?.name ?? ""
-            countLine = groupID == session.currentRootGroup?.recycleBinUUID
-                ? String(localized: "\(count) deleted entries")
-                : String(localized: "\(count) entries")
+            countLine = String(localized: "\(count) entries")
+            if groupID == session.currentRootGroup?.recycleBinUUID {
+                title = String(localized: "Deleted Entries")
+                prefix = String(localized: "Recycle Bin")
+            } else {
+                title = session.group(withID: groupID)?.name ?? ""
+                if session.isGroupInRecycleBin(groupID: groupID) {
+                    prefix = String(localized: "Recycle Bin")
+                } else if isSidebarCollapsed, let path = parentPath(ofGroupID: groupID, session: session) {
+                    prefix = path
+                }
+            }
         case .none:
             return nil
         }
@@ -302,6 +329,21 @@ struct MacEntryListSnapshot: Equatable {
         }
         if case .search = mode { return Header(title: title, isTag: false, subtitle: countLine) }
         return Header(title: title, isTag: isTag, subtitle: prefix + headerSeparator + countLine)
+    }
+
+    /// The names from the Groups root down to the group's parent ("Personal ›
+    /// Work"); nil for the root itself or a group outside the tree.
+    @MainActor
+    static func parentPath(ofGroupID groupID: UUID, session: DatabaseViewModel) -> String? {
+        guard let rootID = session.workspaceRootGroupID, let root = session.group(withID: rootID) else { return nil }
+        func path(in group: KPGroup, names: [String]) -> [String]? {
+            for child in group.groups {
+                if child.id == groupID { return names }
+                if let found = path(in: child, names: names + [child.name]) { return found }
+            }
+            return nil
+        }
+        return path(in: root, names: [root.name]).map { $0.joined(separator: folderPathSeparator) }
     }
 
     /// Each entry's path from the sidebar's Groups root, root name included
