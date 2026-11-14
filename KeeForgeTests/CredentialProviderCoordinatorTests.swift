@@ -3477,6 +3477,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     }
 
     func testLateOldLocalUnlockCannotOverwriteRekeyKeysAndStillFillsCredentials() async throws {
+        let selector = #function
         for unconfirmed in [true, false] {
             let trace = TestDatabaseSupport.LocalPublicationTrace()
             var database = try seedResolvableDefaultDatabase()
@@ -3498,10 +3499,10 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             let resume = DispatchSemaphore(value: 0)
             defer { resume.signal() }
             let lifecycle = OSAllocatedUnfairLock(initialState: (kdfEntered: false, kdfExited: false, taskFinished: false, publicationFinished: false))
-            let completed = expectation(description: "actual unlock Task completed")
-            let drained = expectation(description: "actual unlock Task completed after cleanup")
-            let published = expectation(description: "actual read publication worker completed")
-            let publicationDrained = expectation(description: "actual read publication worker completed after cleanup")
+            let completed = XCTestExpectation(description: "actual unlock Task completed")
+            let drained = XCTestExpectation(description: "actual unlock Task completed after cleanup")
+            let published = XCTestExpectation(description: "actual read publication worker completed")
+            let publicationDrained = XCTestExpectation(description: "actual read publication worker completed after cleanup")
             var readIO = DatabaseListStore.KeyCommitPublicationIO()
             readIO.didFinish = {
                 lifecycle.withLock { $0.publicationFinished = true }
@@ -3542,7 +3543,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
                 let observed = lifecycle.withLock { $0 }
                 guard result == .completed, observed.taskFinished,
                       !publicationMayHaveStarted || observed.publicationFinished else {
-                    let failure = "testLateOldLocalUnlock stage=\(stage) cleanupJoinTimeout=7 waiter=\(result) kdfEntered=\(observed.kdfEntered) kdfExited=\(observed.kdfExited) taskFinished=\(observed.taskFinished) publicationFinished=\(observed.publicationFinished)"
+                    let failure = "\(selector) stage=\(stage) cleanupJoinTimeout=7 waiter=\(result) kdfEntered=\(observed.kdfEntered) kdfExited=\(observed.kdfExited) taskFinished=\(observed.taskFinished) publicationFinished=\(observed.publicationFinished)"
                     XCTFail(failure)
                     // An unquiesced worker must not race tearDown or another test's shared-store reset.
                     fatalError(failure)
