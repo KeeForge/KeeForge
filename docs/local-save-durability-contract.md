@@ -187,7 +187,7 @@ ciphertext remains the current target. The registry reference, target identity
 and ciphertext are checked under list-lock then combined target/registry
 coordination then owner-lock, held through the keychain-only effect. The byte
 comparison uses the ciphertext already carried in the nonpersisted commit receipt,
-with no KDF, parsing or hashing in this fence; legacy field cleanup runs afterwards
+with no KDF, KDBX parsing or hashing in this fence; legacy field cleanup runs afterwards
 by CAS. Epoch/factor equality or inode equality alone does not authorize a completion.
 The same boundary protects the final session-application check after asynchronous
 association settlement. A late receipt
