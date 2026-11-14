@@ -286,6 +286,8 @@ struct PasswordImportView: View {
             String(localized: "Damaged quotation marks")
         case .noLoginData:
             String(localized: "No login data")
+        case .fieldReference:
+            String(localized: "Contains a field reference ({REF:…})")
         }
     }
 

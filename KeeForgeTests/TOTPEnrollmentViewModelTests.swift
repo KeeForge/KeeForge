@@ -148,6 +148,28 @@ final class TOTPEnrollmentViewModelTests: XCTestCase {
         XCTAssertNil(model.summarySubtitle)
     }
 
+    func testPrefillDropsFieldReferencesTheLinkSupplies() throws {
+        let model = TOTPEnrollmentViewModel(
+            uri: try makeURI("otpauth://totp/Bank:%7BREF:U@T:Bank%7D?secret=JBSWY3DPEHPK3PXP&issuer=%7BREF:P@T:Bank%7D"),
+            visibleRoot: nil,
+            recycleBinGroupID: nil
+        )
+
+        XCTAssertEqual(model.prefilledTitle, "")
+        XCTAssertEqual(model.prefilledUsername, "")
+    }
+
+    func testPrefillKeepsTheAccountNameWhenOnlyTheIssuerHasAFieldReference() throws {
+        let model = TOTPEnrollmentViewModel(
+            uri: try makeURI("otpauth://totp/alice?secret=JBSWY3DPEHPK3PXP&issuer=%7BREF:P@T:Bank%7D"),
+            visibleRoot: nil,
+            recycleBinGroupID: nil
+        )
+
+        XCTAssertEqual(model.prefilledTitle, "alice")
+        XCTAssertEqual(model.prefilledUsername, "alice")
+    }
+
     func testPrefillIsEmptyWithoutIssuerOrAccountName() throws {
         let model = TOTPEnrollmentViewModel(
             uri: try makeURI("otpauth://totp/?secret=JBSWY3DPEHPK3PXP"),
