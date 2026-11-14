@@ -103,6 +103,9 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         XCTAssertGreaterThan(split.splitViewItems[2].viewController.view.safeAreaInsets.top, 0,
                              "The detail column insets below the toolbar")
         XCTAssertTrue(split.entryList.scrollView.automaticallyAdjustsContentInsets)
+        let list = split.entryList.view
+        XCTAssertEqual(split.entryList.header.frame.maxY, list.bounds.maxY - list.safeAreaInsets.top, accuracy: 0.5,
+                       "The list header sits right under the toolbar")
 
         let outline = try XCTUnwrap((sidebar.viewController as? MacSidebarViewController)?.outlineView)
         XCTAssertTrue(window.makeFirstResponder(outline))

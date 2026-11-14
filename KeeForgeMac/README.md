@@ -78,7 +78,9 @@ The split's sidebar and entries items are AppKit controllers
 one SwiftUI column. The sidebar renders
 `MacSidebarSnapshot` in a source-list `NSOutlineView` (Library, Groups and Tags
 headers, Tags keeping a caption row while there are none; the Recycle Bin a
-top-level row) with the status card beneath. One
+top-level row) with the status card beneath. Library is All Entries,
+Verification Codes and Passkeys; each group row counts every entry in its
+subtree, the Recycle Bin's left out, and the bin row counts its own entries. One
 `MacObservation` rebuilds the snapshot and applies it per parent with insert,
 remove and move on row objects cached by `MacSidebarItemID`, never a full reload,
 so expansion and selection survive edits. Selection writes the workspace and
@@ -95,13 +97,15 @@ so a tall sidebar opens at its top. Each row's identifier sits on its title text
 because XCUITest drops a table cell's own identifier.
 
 The entry list renders `MacEntryListSnapshot` in a view-based inset `NSTableView`
-(no header; icon, title, username, the "Personal › Work" path across groups,
-and the EXPIRED pill and passkey and verification-code badges), with the empty state, the selection bar
-and, under `-ui-testing`, the `search.results.count` label. Its `MacObservation`
+(no column header; icon, title, username, the "Personal › Work" path across groups,
+and the EXPIRED pill and passkey and verification-code badges) under the list
+header (title, "Personal · 12 entries" count line, Sort), with the empty state,
+the footer hint and, under `-ui-testing`, the `search.results.count` label. Its `MacObservation`
 applies edits as row inserts, removes and moves, reloading only when the list
 switches, and resolves usernames only for cells it draws. Selection follows
 `MacEntryListSelection` both ways: several rows are the workspace's
-`entrySelection`, which the bar and the row menu's Move to Group act on. Row menus
+`entrySelection`, which the row menu's Move to Group… and Delete, the menu bar's
+Delete and the detail column's selection summary act on. Row menus
 come from `EntryRowActions`; Copy Password uses the menu-bar command's guarded
 path with this window's `isCurrent` recheck. Row-menu shortcuts are display
 only: the main menu answers the key first, and row and sidebar menu selectors
@@ -176,10 +180,10 @@ off and installs it as the window toolbar; on lock it removes it and turns
 bridging back on for the unlock screen. One source owns the bar in each state.
 Column hosts never bridge.
 
-Each item's identifier is also its view's accessibility identifier. The
-database-scoped items are navigational, so they
-lead before the window title; Edit and the search field sit at the trailing
-edge. Each item has a menu form for the overflow menu. The cloud sync controls
+Each item's identifier is also its view's accessibility identifier. Tracking
+separators on the split's two dividers put the search field and New Entry over
+the entry list and the database's items and Edit over the detail; the window
+title is hidden while this toolbar is installed, as the list header shows it. Each item has a menu form for the overflow menu. The cloud sync controls
 are the shared SwiftUI view in a hosting view; the others are AppKit controls.
 Enablement comes from `DatabaseCommands` where a rule exists, and the whole bar
 is disabled while saving.

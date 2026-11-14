@@ -50,7 +50,7 @@ struct DatabaseCommands {
         return switch session.deletableSelection {
         case .entry(let id): session.isEntryInRecycleBin(entryID: id)
         case .group(let id): session.isGroupInRecycleBin(groupID: id)
-        case nil: false
+        case .entries, nil: false
         }
     }
 

@@ -1414,7 +1414,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.group(withID: emptyGroup.id)?.entries.count, 0)
     }
 
-    func testSingleSelectionCommandsAreWithheldWhileEntriesAreBeingPicked() async throws {
+    func testSingleSelectionCommandsAreWithheldAndDeleteTakesThePicksWhileEntriesAreBeingPicked() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
         let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
@@ -1435,16 +1435,18 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertNil(vm.workspace.commandEntryID)
         XCTAssertFalse(vm.canEditSelectedEntry)
-        XCTAssertNil(vm.deletableSelection)
+        XCTAssertEqual(vm.deletableSelection, .entries([checked.id]), "Delete takes the picks, not the open entry")
         vm.requestEntryEdit()
         vm.requestDeleteSelection()
         XCTAssertEqual(vm.workspace.editEntryRequestID, 0)
-        XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 0)
+        XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
 
         // With no entry open, Delete must not reach for the selected group.
         vm.workspace.selectedEntryID = nil
         XCTAssertEqual(vm.workspace.selectedGroupID, socialGroup.id)
-        XCTAssertNil(vm.deletableSelection)
+        XCTAssertEqual(vm.deletableSelection, .entries([checked.id]))
+        vm.workspace.toggleEntrySelection(checked.id)
+        XCTAssertNil(vm.deletableSelection, "No picks, nothing to delete")
 
         vm.workspace.endEntrySelection()
         XCTAssertEqual(vm.deletableSelection, .group(socialGroup.id))

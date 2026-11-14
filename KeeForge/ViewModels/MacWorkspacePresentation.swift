@@ -114,6 +114,8 @@ final class MacWorkspacePresentation {
         case .group(let groupID):
             guard let pending = PendingGroupDeletion(groupID: groupID, viewModel: database) else { return }
             pendingDeletion = .group(pending)
+        case .entries(let entryIDs):
+            pendingDeletion = .entries(entryIDs)
         case nil:
             return
         }

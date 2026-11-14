@@ -120,45 +120,69 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
 
     // MARK: - Selection
 
-    func testModelSelectionDrivesTheTableAndTheBar() async throws {
+    func testModelSelectionDrivesTheTableTheHeaderAndTheFooter() async throws {
         let (controller, session, _, tree) = try await makeController()
         let entries = tree.work.entries
+        let name = session.databaseDisplayName
 
         session.workspace.selectedEntryID = entries[1].id
         await settle()
         XCTAssertEqual(controller.tableView.selectedRowIndexes, [1])
-        XCTAssertTrue(controller.selectionBar.isHidden)
+        XCTAssertEqual(controller.header.subtitleField.stringValue, "\(name) · \(String(localized: "\(3) entries"))")
+        XCTAssertTrue(try XCTUnwrap(controller.footerField.superview).isHidden)
 
         session.workspace.setEntrySelection([entries[0].id, entries[2].id, tree.gone.id])
         await settle()
         XCTAssertEqual(controller.tableView.selectedRowIndexes, [0, 2], "Only the visible picks are selected")
-        XCTAssertFalse(controller.selectionBar.isHidden)
-        XCTAssertEqual(controller.selectionBar.countField.stringValue, String(localized: "\(3) entries"))
-        XCTAssertTrue(controller.selectionBar.moveButton.isEnabled)
+        XCTAssertEqual(controller.header.subtitleField.stringValue, "\(name) · \(String(localized: "\(2) of \(3) selected"))")
+        XCTAssertFalse(try XCTUnwrap(controller.footerField.superview).isHidden)
+        XCTAssertEqual(controller.footerField.stringValue, MacEntryListSnapshot.Footer.multipleSelection.text)
+        XCTAssertEqual(controller.footerField.accessibilityIdentifier(), "entry-selection.hint")
 
         session.workspace.endEntrySelection()
         await settle()
         XCTAssertEqual(controller.tableView.selectedRowIndexes, [1])
-        XCTAssertTrue(controller.selectionBar.isHidden)
+        XCTAssertTrue(try XCTUnwrap(controller.footerField.superview).isHidden)
     }
 
-    func testTheSelectionBarFitsItsTextsInTheDefaultColumnWidth() {
-        let bar = MacEntrySelectionBarView()
-        bar.update(selection: Set((0..<12).map { _ in UUID() }), isReadOnly: false, isSaving: false)
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 200))
-        bar.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(bar)
-        NSLayoutConstraint.activate([
-            bar.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            bar.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            bar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
-        container.layoutSubtreeIfNeeded()
-        for view in [bar.countField, bar.cancelButton, bar.moveButton] {
-            XCTAssertGreaterThanOrEqual(view.frame.width + 0.5, view.intrinsicContentSize.width,
-                                        "\(view) is truncated")
-        }
-        XCTAssertLessThanOrEqual(bar.moveButton.frame.maxX, bar.frame.width)
+    func testTheHeaderShowsTheTitleCountAndAFlatSortMenuThatDimsWhenEmpty() async throws {
+        let (controller, session, _, tree) = try await makeController()
+        let header = controller.header
+        XCTAssertFalse(header.isHidden)
+        XCTAssertEqual(header.titleField.stringValue, "Work")
+        XCTAssertEqual(header.titleField.accessibilityIdentifier(), "entry-list.header.title")
+        XCTAssertEqual(header.subtitleField.accessibilityIdentifier(), "entry-list.header.subtitle")
+        XCTAssertEqual(header.frame.height, MacEntryListHeaderView.height)
+        let rows = controller.scrollView.convert(controller.scrollView.bounds, to: controller.view)
+        XCTAssertLessThanOrEqual(rows.maxY, header.frame.minY + 0.5, "The rows start under the header")
+        let sort = header.sortButton
+        XCTAssertEqual(sort.accessibilityIdentifier(), "sort.menu")
+        XCTAssertEqual(sort.accessibilityLabel(), String(localized: "Sort"))
+        let items = try XCTUnwrap(sort.menu?.items.dropFirst(), "The first item is the pull-down's face")
+        XCTAssertEqual(items.map(\.title), [String(localized: "Sort By")] + DatabaseViewModel.SortOrder.allCases.map(\.title)
+            + ["", String(localized: "Ascending"), String(localized: "Descending")])
+        XCTAssertTrue(try XCTUnwrap(items.first).isSectionHeader)
+        XCTAssertTrue(sort.isEnabled)
+        let states = { items.filter { $0.representedObject != nil }.map { $0.state == .on } }
+        XCTAssertEqual(states(), DatabaseViewModel.SortOrder.allCases.map { $0 == .title } + [true, false])
+
+        try perform(XCTUnwrap(header.sortOrderItems.first { $0.representedObject as? String == DatabaseViewModel.SortOrder.modifiedDate.rawValue }))
+        try perform(XCTUnwrap(header.sortDirectionItems.last))
+        XCTAssertEqual(session.sortOrder, .modifiedDate)
+        XCTAssertFalse(session.sortAscending)
+        await settle()
+        XCTAssertEqual(states(), DatabaseViewModel.SortOrder.allCases.map { $0 == .modifiedDate } + [false, true])
+
+        session.workspace.selectedGroupID = tree.other.id
+        await settle()
+        XCTAssertEqual(header.titleField.stringValue, "Other")
+        XCTAssertFalse(sort.isEnabled, "Sort is dimmed while the list is empty")
+
+        session.workspace.selectedTag = "missing"
+        await settle()
+        XCTAssertEqual(header.titleField.stringValue, "#\u{2009}missing", "A tag follows an accent #")
+        XCTAssertEqual(header.titleField.accessibilityLabel(), "missing")
+        XCTAssertEqual(header.subtitleField.stringValue, "\(String(localized: "Tag")) · \(String(localized: "\(0) entries"))")
     }
 
     func testTableSelectionWritesTheWorkspaceExtendingAndFiltering() async throws {
@@ -253,24 +277,13 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(session.workspace.editEntryRequestID, requests + 1, "A multiple selection opens nothing")
     }
 
-    func testEscapeAndCancelEndAMultipleSelection() async throws {
-        let (controller, session, presentation, tree) = try await makeController()
+    func testEscapeEndsAMultipleSelection() async throws {
+        let (controller, session, _, tree) = try await makeController()
         let ids = Set(tree.work.entries.prefix(2).map(\.id))
-        XCTAssertEqual(controller.selectionBar.cancelButton.keyEquivalent, "\u{1b}")
-
         session.workspace.setEntrySelection(ids)
         await settle()
         controller.tableView.cancelOperation(nil)
         XCTAssertNil(session.workspace.entrySelection)
-
-        session.workspace.setEntrySelection(ids)
-        await settle()
-        controller.selectionBar.moveButton.performClick(nil)
-        XCTAssertEqual(presentation.pendingMove?.id, PendingMove.entries(ids).id)
-        controller.selectionBar.cancelButton.performClick(nil)
-        XCTAssertNil(session.workspace.entrySelection)
-        await settle()
-        XCTAssertTrue(controller.selectionBar.isHidden)
     }
 
     // MARK: - Context menu
@@ -320,20 +333,27 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         ])
     }
 
-    func testAClickInsideAMultipleSelectionOffersOnlyMove() async throws {
+    func testAClickInsideAMultipleSelectionOffersMoveAndDelete() async throws {
         let (controller, session, presentation, tree) = try await makeController()
         let ids = Set(tree.work.entries.prefix(2).map(\.id))
         session.workspace.setEntrySelection(ids)
         await settle()
 
         let bulk = controller.contextMenuItems(forRow: 0)
-        XCTAssertEqual(identifiers(bulk), [EntryRowActions.moveIdentifier])
-        XCTAssertEqual(bulk.first?.title, String(localized: "Move to Group…"))
-        XCTAssertTrue(bulk.allSatisfy { controller.validateMenuItem($0) })
+        XCTAssertEqual(identifiers(bulk), [EntryRowActions.moveIdentifier, EntryRowActions.deleteIdentifier])
+        XCTAssertEqual(bulk.map(\.title), [String(localized: "Move to Group…"), "", String(localized: "Delete")])
+        XCTAssertEqual(bulk.last?.keyEquivalent, "\u{8}")
+        XCTAssertEqual(bulk.last?.keyEquivalentModifierMask, .command)
+        XCTAssertNotEqual(bulk.last?.action, #selector(DatabaseWindowController.deleteSelection(_:)),
+                          "The menu bar's Delete would reach the list first")
+        XCTAssertTrue(bulk.filter { $0.isSeparatorItem == false }.allSatisfy { controller.validateMenuItem($0) })
         XCTAssertEqual(identifiers(controller.contextMenuItems(forRow: 2)).first, EntryRowActions.copyUsernameIdentifier,
                        "A row outside the selection offers its own items")
         try perform(XCTUnwrap(bulk.first))
         XCTAssertEqual(presentation.pendingMove?.id, PendingMove.entries(ids).id)
+        try perform(XCTUnwrap(bulk.last))
+        XCTAssertEqual(presentation.pendingDeletion?.id, PendingDeletion.entries(ids).id)
+        XCTAssertEqual(presentation.pendingDeletion?.confirmationTitle, String(localized: "Delete \(2) Entries?"))
     }
 
     func testMenuActionsSetThePresentationAndCopyThroughTheCommands() async throws {
@@ -571,7 +591,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertTrue(plain.resultCountField.isHidden, "Outside UI testing the count stays hidden")
     }
 
-    func testSavingDisablesTheTableItsMenuAndTheBar() async throws {
+    func testSavingDisablesTheTableItsMenuAndSort() async throws {
         let gate = SaveGate()
         let (controller, session, _, tree) = try await makeController(save: { _, _, _, hash, _, _, _ in
             await gate.signalStarted()
@@ -590,14 +610,14 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertTrue(session.isSaving)
         XCTAssertFalse(controller.tableView.isEnabled)
         XCTAssertTrue(menuItems.allSatisfy { controller.validateMenuItem($0) == false })
-        XCTAssertFalse(controller.selectionBar.cancelButton.isEnabled)
-        XCTAssertFalse(controller.selectionBar.moveButton.isEnabled)
+        XCTAssertTrue(controller.contextMenuItems(forRow: 0).allSatisfy { controller.validateMenuItem($0) == false })
+        XCTAssertFalse(controller.header.sortButton.isEnabled)
 
         await gate.open()
         await save.value
         await settle()
         XCTAssertTrue(controller.tableView.isEnabled)
-        XCTAssertTrue(controller.selectionBar.moveButton.isEnabled)
+        XCTAssertTrue(controller.header.sortButton.isEnabled)
     }
 
     // MARK: - Verification codes
@@ -642,14 +662,15 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertFalse(first.countdown.isExpiring)
         XCTAssertEqual(first.countdown.arcColor, .controlAccentColor)
         XCTAssertEqual(codeColor(first), .controlAccentColor)
-        XCTAssertFalse(try XCTUnwrap(controller.verificationCodeHint.superview).isHidden)
-        XCTAssertEqual(controller.verificationCodeHint.accessibilityIdentifier(), "verification-codes.hint")
+        XCTAssertFalse(try XCTUnwrap(controller.footerField.superview).isHidden)
+        XCTAssertEqual(controller.footerField.accessibilityIdentifier(), "verification-codes.hint")
+        XCTAssertEqual(controller.footerField.stringValue, MacEntryListSnapshot.Footer.verificationCodes.text)
 
         session.workspace.selectedCollection = .allEntries
         await settle()
         XCTAssertNil(try XCTUnwrap(cell(controller, entryID: tree.work.entries[0].id)) as? MacVerificationCodeCellView)
         XCTAssertEqual(table.delegate?.tableView?(table, heightOfRow: 0), MacEntryListViewController.rowWithFolderHeight)
-        XCTAssertTrue(try XCTUnwrap(controller.verificationCodeHint.superview).isHidden, "The hint is for codes only")
+        XCTAssertTrue(try XCTUnwrap(controller.footerField.superview).isHidden, "The hint is for codes only")
 
         let (readOnly, readOnlySession, _, readOnlyTree) = try await makeController(
             readOnly: true, codeClock: MacVerificationCodeClock(generate: { _, _, _ in "123456" }),

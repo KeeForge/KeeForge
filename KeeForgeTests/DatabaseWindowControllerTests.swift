@@ -67,6 +67,8 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertTrue(windowA.toolbar === a.workspaceToolbar?.toolbar)
         XCTAssertNil(b.workspaceSplitViewController)
         XCTAssertNotEqual(windowB.toolbar?.identifier, MacWorkspaceToolbar.identifier)
+        XCTAssertEqual(windowA.titleVisibility, .hidden, "The list header carries the title")
+        XCTAssertEqual(windowB.titleVisibility, .visible, "The unlock screen keeps its title")
         XCTAssertTrue(a.validateMenuItem(item("newEntry:")))
         XCTAssertFalse(b.validateMenuItem(item("newEntry:")))
         XCTAssertTrue(b.validateMenuItem(item("closeDatabase:")))
@@ -107,6 +109,7 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertNil(a.workspaceSplitViewController)
         XCTAssertNil(a.workspaceToolbar)
         XCTAssertEqual(windowA.subtitle, "")
+        XCTAssertEqual(windowA.titleVisibility, .visible)
         XCTAssertEqual(windowA.title, "Window A Title", "A locked window keeps its database name")
         XCTAssertEqual(second.state, .unlocked)
         XCTAssertTrue(b.workspaceSplitViewController?.session === second)
@@ -249,7 +252,7 @@ final class DatabaseWindowControllerTests: XCTestCase {
         let selectors = ["copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "newEntry:",
                          "newGroup:", "saveDatabase:", "closeDatabase:", "editEntry:", "deleteSelection:",
                          "findEntry:", "lockDatabase:", "duplicateSelectedEntry:", "moveSelectedEntries:",
-                         "showAllEntries:", "showVerificationCodes:", "chooseSortOrder:", "chooseSortDirection:",
+                         "showAllEntries:", "showVerificationCodes:", "showPasskeys:", "chooseSortOrder:", "chooseSortDirection:",
                          "expandAllGroups:", "collapseAllGroups:", "syncNow:", "showDatabaseSettings:"]
         for name in selectors {
             let item = NSMenuItem(title: "", action: NSSelectorFromString(name), keyEquivalent: "")

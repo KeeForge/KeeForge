@@ -109,6 +109,7 @@ struct GroupListView: View {
         let entries: [KPEntry] = switch collection {
         case .allEntries: viewModel.allEntries
         case .verificationCodes: viewModel.verificationCodeEntries
+        case .passkeys: viewModel.passkeyEntries
         case .tags, .recycleBin: []
         case nil: visibleEntries
         }
@@ -530,6 +531,8 @@ struct GroupListView: View {
             return allEntriesSummary
         case .verificationCodes:
             return String(localized: "\(viewModel.collectionCounts.verificationCodes) entries")
+        case .passkeys:
+            return String(localized: "\(viewModel.collectionCounts.passkeys) entries")
         case .tags:
             return String(localized: "\(viewModel.collectionCounts.tags) tags in this database")
         case .recycleBin:
@@ -608,6 +611,13 @@ struct GroupListView: View {
                 ),
                 emptyTitle: "No Verification Codes",
                 emptyDescription: "Entries with a verification code appear here."
+            )
+        case .passkeys:
+            flatEntriesSection(
+                viewModel.passkeyEntries,
+                summary: String(localized: "Passkeys saved through AutoFill appear here."),
+                emptyTitle: "No Passkeys",
+                emptyDescription: "Passkeys saved through AutoFill appear here."
             )
         case .tags:
             TagListRows(viewModel: viewModel)

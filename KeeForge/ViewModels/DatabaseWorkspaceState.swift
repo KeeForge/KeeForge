@@ -11,12 +11,18 @@ enum DatabaseRoute: Hashable, Sendable {
     case editor
 }
 
-/// The database-wide lists the vault root's tiles open, in tile order.
-enum DatabaseCollection: String, CaseIterable, Hashable, Sendable {
+/// The database-wide lists: the vault root's tiles on iPhone and iPad, and
+/// the Mac sidebar's Library.
+enum DatabaseCollection: String, Hashable, Sendable {
     case allEntries
     case verificationCodes
+    /// Mac Library only; no vault tile opens it.
+    case passkeys
     case tags
     case recycleBin
+
+    /// The vault root's tiles, in order.
+    static let vaultTiles: [DatabaseCollection] = [.allEntries, .verificationCodes, .tags, .recycleBin]
 
     /// The shorter name on the root's tile.
     var tileTitle: String {
@@ -25,7 +31,7 @@ enum DatabaseCollection: String, CaseIterable, Hashable, Sendable {
             String(localized: "All")
         case .verificationCodes:
             String(localized: "Codes")
-        case .tags, .recycleBin:
+        case .passkeys, .tags, .recycleBin:
             title
         }
     }
@@ -36,6 +42,8 @@ enum DatabaseCollection: String, CaseIterable, Hashable, Sendable {
             String(localized: "All Entries")
         case .verificationCodes:
             String(localized: "Verification Codes")
+        case .passkeys:
+            String(localized: "Passkeys")
         case .tags:
             String(localized: "Tags")
         case .recycleBin:
@@ -49,6 +57,8 @@ enum DatabaseCollection: String, CaseIterable, Hashable, Sendable {
             "key"
         case .verificationCodes:
             "timer"
+        case .passkeys:
+            "person.badge.key"
         case .tags:
             "tag"
         case .recycleBin:
@@ -62,6 +72,7 @@ enum DatabaseCollection: String, CaseIterable, Hashable, Sendable {
 struct DatabaseCollectionCounts: Equatable, Sendable {
     var allEntries = 0
     var verificationCodes = 0
+    var passkeys = 0
     var tags = 0
     var recycleBin = 0
 
@@ -69,6 +80,7 @@ struct DatabaseCollectionCounts: Equatable, Sendable {
         switch collection {
         case .allEntries: allEntries
         case .verificationCodes: verificationCodes
+        case .passkeys: passkeys
         case .tags: tags
         case .recycleBin: recycleBin
         }

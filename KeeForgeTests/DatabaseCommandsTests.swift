@@ -81,7 +81,7 @@ final class DatabaseCommandsTests: XCTestCase {
             XCTAssertFalse(commands.canCopyURL)
             XCTAssertFalse(commands.canCopyVerificationCode)
             XCTAssertFalse(commands.canEditEntry)
-            XCTAssertFalse(commands.canDelete)
+            XCTAssertEqual(commands.canDelete, readOnly == false, "Delete takes the picks unless read-only")
         }
     }
 
@@ -242,6 +242,15 @@ final class DatabaseCommandsTests: XCTestCase {
             XCTAssertEqual(session.contentRevision, revision)
         }
         XCTAssertEqual(session.workspace.deleteSelectionRequestID, 2)
+
+        session.workspace.selectedGroupID = activeGroup.id
+        session.workspace.setEntrySelection([activeEntry.id, recycledEntry.id])
+        XCTAssertTrue(commands.canDelete)
+        XCTAssertFalse(commands.deletesPermanently, "Several picks are recycled: the menu reads Delete")
+        XCTAssertEqual(session.deletableSelection, .entries([activeEntry.id]))
+        commands.deleteSelection()
+        XCTAssertEqual(session.workspace.deleteSelectionRequestID, 3)
+        XCTAssertFalse(session.isEntryInRecycleBin(entryID: activeEntry.id), "Only the confirmation deletes")
     }
 
     func testACollectionSelectionKeepsCreationAndOffersOnlyEntryDeletion() async throws {

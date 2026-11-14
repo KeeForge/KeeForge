@@ -12,7 +12,8 @@ enum MacEntryIcon: Equatable {
 }
 
 /// The Mac entry list's rows for one session: search results, a tag, a
-/// collection or a group, with what each cell draws and the empty state.
+/// collection or a group, with what each cell draws, the header above the
+/// rows, the footer hint and the empty state.
 struct MacEntryListSnapshot: Equatable {
     enum Mode: Equatable {
         case search(String)
@@ -50,6 +51,7 @@ struct MacEntryListSnapshot: Equatable {
         case noResults(query: String)
         case noTagEntries
         case noVerificationCodes
+        case noPasskeys
         case noDatabaseEntries
         case noGroupEntries
         case recycleBinEmpty
@@ -61,6 +63,7 @@ struct MacEntryListSnapshot: Equatable {
             case .noResults: String(localized: "No Results")
             case .noTagEntries, .noDatabaseEntries, .noGroupEntries: String(localized: "No Entries")
             case .noVerificationCodes: String(localized: "No Verification Codes")
+            case .noPasskeys: String(localized: "No Passkeys")
             case .recycleBinEmpty: String(localized: "Recycle Bin Is Empty")
             case .noGroupSelected: String(localized: "Select a Group")
             }
@@ -72,6 +75,7 @@ struct MacEntryListSnapshot: Equatable {
             case .noResults(let query): String(localized: "No entries matched \"\(query)\".")
             case .noTagEntries: String(localized: "No entries carry this tag anymore.")
             case .noVerificationCodes: String(localized: "Entries with a verification code appear here.")
+            case .noPasskeys: String(localized: "Passkeys saved through AutoFill appear here.")
             case .noDatabaseEntries: String(localized: "This database has no entries.")
             case .noGroupEntries: String(localized: "This group has no entries.")
             case .recycleBinEmpty: String(localized: "Deleted entries and groups appear here.")
@@ -85,6 +89,7 @@ struct MacEntryListSnapshot: Equatable {
             case .noResults: "doc.text.magnifyingglass"
             case .noTagEntries: "tag.slash"
             case .noVerificationCodes: DatabaseCollection.verificationCodes.systemImage
+            case .noPasskeys: DatabaseCollection.passkeys.systemImage
             case .noDatabaseEntries, .noGroupEntries: "tray"
             case .recycleBinEmpty: "trash"
             case .noGroupSelected: "folder"
@@ -96,7 +101,39 @@ struct MacEntryListSnapshot: Equatable {
         }
     }
 
+    /// The title and count line above the rows.
+    struct Header: Equatable {
+        let title: String
+        /// A tag's title follows an accent "#".
+        let isTag: Bool
+        let subtitle: String
+    }
+
+    /// The caption under the rows.
+    enum Footer: Equatable {
+        case verificationCodes
+        case search
+        case multipleSelection
+
+        var text: String {
+            switch self {
+            case .verificationCodes: String(localized: "Click a code to copy it · ⇧⌘T copies the selected entry's code")
+            case .search: String(localized: "Search covers titles, usernames, URLs, notes and tags in every group.")
+            case .multipleSelection: String(localized: "Command-click or Shift-click to select several entries.")
+            }
+        }
+
+        var accessibilityIdentifier: String {
+            switch self {
+            case .verificationCodes: "verification-codes.hint"
+            case .search: "search.hint"
+            case .multipleSelection: "entry-selection.hint"
+            }
+        }
+    }
+
     static let folderPathSeparator = " › "
+    static let headerSeparator = " · "
 
     let mode: Mode
     let rows: [Row]
@@ -104,6 +141,9 @@ struct MacEntryListSnapshot: Equatable {
     let showsVerificationCodes: Bool
     /// The search's match count for the UI-test overlay; nil outside search.
     let resultCount: Int?
+    /// Nil while no group is selected.
+    let header: Header?
+    let footer: Footer?
 
     var rowIdentifier: String {
         switch mode {
@@ -169,7 +209,11 @@ struct MacEntryListSnapshot: Equatable {
         case .tag:
             emptyState = entries.isEmpty ? .noTagEntries : nil
         case .collection(let collection):
-            let empty: EmptyState = collection == .verificationCodes ? .noVerificationCodes : .noDatabaseEntries
+            let empty: EmptyState = switch collection {
+            case .verificationCodes: .noVerificationCodes
+            case .passkeys: .noPasskeys
+            case .allEntries, .tags, .recycleBin: .noDatabaseEntries
+            }
             emptyState = entries.isEmpty ? empty : nil
         case .group(let groupID):
             let isRecycleBin = groupID == session.currentRootGroup?.recycleBinUUID
@@ -195,27 +239,86 @@ struct MacEntryListSnapshot: Equatable {
                 isMovable: EntryRowActions(entryID: entry.id, session: session).canMove
             )
         }
+        let showsVerificationCodes = mode == .collection(.verificationCodes) && session.sessionKey != nil
+        let footer: Footer? = if session.workspace.entrySelection != nil {
+            .multipleSelection
+        } else if rows.isEmpty {
+            nil
+        } else if showsVerificationCodes {
+            .verificationCodes
+        } else if case .search = mode {
+            .search
+        } else {
+            nil
+        }
         return MacEntryListSnapshot(
             mode: mode,
             rows: rows,
             emptyState: emptyState,
-            showsVerificationCodes: mode == .collection(.verificationCodes) && session.sessionKey != nil,
-            resultCount: resultCount
+            showsVerificationCodes: showsVerificationCodes,
+            resultCount: resultCount,
+            header: header(mode: mode, entries: entries, session: session),
+            footer: footer
         )
     }
 
-    /// Each entry's path from the sidebar's Groups root, root name included
-    /// ("Personal › Work"). The shared `folderPath` leaves the root out and
-    /// joins with " / " for iOS, so the Mac formats its own.
+    /// The boards' wording: "Personal · 12 entries", "Tag · 14 entries in 5
+    /// groups", "Results: 5 · All of Personal", and "Personal · 3 of 12
+    /// selected" while several are picked.
     @MainActor
-    static func folderPaths(session: DatabaseViewModel) -> [UUID: String] {
+    static func header(mode: Mode, entries: [KPEntry], session: DatabaseViewModel) -> Header? {
+        let databaseName = session.databaseDisplayName
+        let count = entries.count
+        let title: String
+        var prefix = databaseName
+        let countLine: String
+        switch mode {
+        case .search:
+            title = String(localized: "Search")
+            countLine = String(localized: "Results: \(count) · All of \(databaseName)")
+        case .tag(let tag):
+            title = tag
+            prefix = String(localized: "Tag")
+            let groupCount = Set(entries.compactMap { session.parentGroupID(forEntryID: $0.id) }).count
+            countLine = count == 0
+                ? String(localized: "\(count) entries")
+                : String(localized: "\(count) entries in \(groupCount) groups")
+        case .collection(let collection):
+            title = collection.title
+            countLine = String(localized: "\(count) entries")
+        case .group(let groupID):
+            title = session.group(withID: groupID)?.name ?? ""
+            countLine = groupID == session.currentRootGroup?.recycleBinUUID
+                ? String(localized: "\(count) deleted entries")
+                : String(localized: "\(count) entries")
+        case .none:
+            return nil
+        }
+        let isTag = if case .tag = mode { true } else { false }
+        if let picked = session.workspace.entrySelection {
+            let pickedCount = entries.reduce(0) { $0 + (picked.contains($1.id) ? 1 : 0) }
+            let selected = String(localized: "\(pickedCount) of \(count) selected")
+            return Header(title: title, isTag: isTag, subtitle: prefix + headerSeparator + selected)
+        }
+        if case .search = mode { return Header(title: title, isTag: false, subtitle: countLine) }
+        return Header(title: title, isTag: isTag, subtitle: prefix + headerSeparator + countLine)
+    }
+
+    /// Each entry's path from the sidebar's Groups root, root name included
+    /// ("Personal › Work") unless `includingRoot` is off, when an entry at the
+    /// root has none. The shared `folderPath` joins with " / " for iOS, so the
+    /// Mac formats its own.
+    @MainActor
+    static func folderPaths(session: DatabaseViewModel, includingRoot: Bool = true) -> [UUID: String] {
         guard let rootID = session.workspaceRootGroupID, let root = session.group(withID: rootID) else { return [:] }
         var paths: [UUID: String] = [:]
-        func visit(_ group: KPGroup, path: String) {
-            for entry in group.entries { paths[entry.id] = path }
-            for child in group.groups { visit(child, path: path + folderPathSeparator + child.name) }
+        func visit(_ group: KPGroup, path: [String]) {
+            if path.isEmpty == false {
+                for entry in group.entries { paths[entry.id] = path.joined(separator: folderPathSeparator) }
+            }
+            for child in group.groups { visit(child, path: path + [child.name]) }
         }
-        visit(root, path: root.name)
+        visit(root, path: includingRoot ? [root.name] : [])
         return paths
     }
 }
@@ -256,8 +359,8 @@ enum MacEntryListSelection {
         }
     }
 
-    /// Several rows may be picked only to move them, so a multiple proposal
-    /// keeps the movable rows, and a read-only database keeps one row.
+    /// Several rows may be picked only to move or recycle them, so a multiple
+    /// proposal keeps the movable rows, and a read-only database keeps one row.
     static func proposedSelection(
         _ proposed: IndexSet,
         current: IndexSet,

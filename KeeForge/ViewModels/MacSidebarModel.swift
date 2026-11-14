@@ -36,6 +36,7 @@ extension DatabaseViewModel {
         let entries: [KPEntry] = switch selection {
         case .collection(.allEntries): allEntries
         case .collection(.verificationCodes): verificationCodeEntries
+        case .collection(.passkeys): passkeyEntries
         // The Mac sidebar selects tags and the Recycle Bin as their own rows.
         case .collection(.tags), .collection(.recycleBin): []
         case .group(let groupID): group(withID: groupID)?.entries ?? []
@@ -119,7 +120,7 @@ struct MacSidebarSnapshot: Equatable {
         }
     }
 
-    static let libraryCollections: [DatabaseCollection] = [.allEntries, .verificationCodes]
+    static let libraryCollections: [DatabaseCollection] = [.allEntries, .verificationCodes, .passkeys]
 
     let sections: [Section]
 
@@ -146,6 +147,8 @@ struct MacSidebarSnapshot: Equatable {
         let recycleBinID = root.recycleBinUUID
         let customIcons = session.currentMeta?.customIcons ?? [:]
 
+        /// A group counts every entry in its subtree, the recycle bin's left out;
+        /// the bin itself counts only its own entries, the ones its list shows.
         func node(for group: KPGroup) -> Node {
             let isRecycleBin = group.id == recycleBinID
             let icon: MacSidebarIcon = if isRecycleBin {
@@ -155,12 +158,14 @@ struct MacSidebarSnapshot: Equatable {
             } else {
                 .standard(group.iconID)
             }
+            let children = session.sortedGroups(group.groups).filter { $0.id != recycleBinID }.map(node(for:))
+            let count = isRecycleBin ? group.entries.count : children.reduce(group.entries.count) { $0 + ($1.count ?? 0) }
             return Node(
                 id: .group(group.id),
                 title: group.name,
                 icon: icon,
-                count: nil,
-                children: session.sortedGroups(group.groups).filter { $0.id != recycleBinID }.map(node(for:)),
+                count: count,
+                children: children,
                 accessibilityIdentifier: "group.navlink"
             )
         }

@@ -47,6 +47,8 @@ extension PendingGroupDeletion {
 enum PendingDeletion: Identifiable {
     case entry(PendingEntryDeletion)
     case group(PendingGroupDeletion)
+    /// Several picked entries, all sent to the recycle bin (Mac multiple selection).
+    case entries(Set<UUID>)
 
     var id: String {
         switch self {
@@ -54,6 +56,9 @@ enum PendingDeletion: Identifiable {
             "entry-\(action.id)"
         case .group(let action):
             "group-\(action.id)"
+        case .entries:
+            // A session has one selection, so it has one such deletion at a time.
+            "entries"
         }
     }
 }
@@ -71,6 +76,8 @@ extension PendingDeletion {
             action.sendToRecycleBin
                 ? String(localized: "Delete Group?")
                 : String(localized: "Delete Permanently?")
+        case .entries(let entryIDs):
+            String(localized: "Delete \(entryIDs.count) Entries?")
         }
     }
 
@@ -82,6 +89,8 @@ extension PendingDeletion {
             sendToRecycleBin = action.sendToRecycleBin
         case .group(let action):
             sendToRecycleBin = action.sendToRecycleBin
+        case .entries:
+            sendToRecycleBin = true
         }
         return sendToRecycleBin ? String(localized: "Delete") : String(localized: "Delete Permanently")
     }
@@ -95,6 +104,8 @@ extension PendingDeletion {
                 : String(localized: "This entry will be removed immediately and cannot be restored from KeeForge.")
         case .group(let action):
             Self.groupDeletionMessage(for: action)
+        case .entries:
+            String(localized: "The selected entries will be moved to the recycle bin.")
         }
     }
 
@@ -108,6 +119,9 @@ extension PendingDeletion {
                 try viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
             case .group(let action):
                 try viewModel.deleteGroup(action.groupID, sendToRecycleBin: action.sendToRecycleBin)
+            case .entries(let entryIDs):
+                try viewModel.recycleEntries(entryIDs: entryIDs)
+                viewModel.workspace.endEntrySelection()
             }
             Task { await viewModel.saveHandlingError() }
         } catch {

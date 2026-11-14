@@ -133,14 +133,17 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
 
     /// The locked screens keep the root's bridged SwiftUI toolbar; the unlocked
     /// workspace replaces it with its own, so exactly one source owns the bar.
+    /// The workspace hides the title, which its list header shows instead.
     private func installToolbar() {
         guard let window else { return }
         if let toolbar = workspace.toolbar?.toolbar {
             guard window.toolbar !== toolbar else { return }
             setRootToolbarBridging?(false)
             window.toolbar = toolbar
+            window.titleVisibility = .hidden
         } else if window.toolbar?.identifier == MacWorkspaceToolbar.identifier {
             window.toolbar = nil
+            window.titleVisibility = .visible
             setRootToolbarBridging?(true)
         }
     }
@@ -204,6 +207,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     @objc func moveSelectedEntries(_ sender: Any?) { workspaceCommands.moveToGroup() }
     @objc func showAllEntries(_ sender: Any?) { workspaceCommands.show(.allEntries) }
     @objc func showVerificationCodes(_ sender: Any?) { workspaceCommands.show(.verificationCodes) }
+    @objc func showPasskeys(_ sender: Any?) { workspaceCommands.show(.passkeys) }
     @objc func chooseSortOrder(_ sender: NSMenuItem) {
         guard let order = (sender.representedObject as? String).flatMap(DatabaseViewModel.SortOrder.init(rawValue:)) else {
             return
@@ -243,6 +247,9 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             return workspaceCommands.canShowCollection
         case #selector(showVerificationCodes):
             item.state = workspaceCommands.isShowing(.verificationCodes) ? .on : .off
+            return workspaceCommands.canShowCollection
+        case #selector(showPasskeys):
+            item.state = workspaceCommands.isShowing(.passkeys) ? .on : .off
             return workspaceCommands.canShowCollection
         case #selector(chooseSortOrder):
             item.state = isCommandTarget() && item.representedObject as? String == session.sortOrder.rawValue ? .on : .off

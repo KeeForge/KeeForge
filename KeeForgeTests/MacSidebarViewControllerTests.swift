@@ -65,7 +65,8 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         }
         XCTAssertEqual(topLevel, [.section(.library), .section(.groups), .section(.tags), .group(tree.recycleBin.id)])
         XCTAssertEqual(titles(outline, under: .section(.library)),
-                       [DatabaseCollection.allEntries.title, DatabaseCollection.verificationCodes.title])
+                       [DatabaseCollection.allEntries.title, DatabaseCollection.verificationCodes.title,
+                        DatabaseCollection.passkeys.title])
         XCTAssertEqual(titles(outline, under: .section(.groups)), ["Root"])
         XCTAssertEqual(titles(outline, under: .section(.tags)), ["Home", "Work"])
         XCTAssertEqual(titles(outline, under: .group(tree.recycleBin.id)), ["Old"])
@@ -114,6 +115,8 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         select(.collection(.verificationCodes), in: controller)
         XCTAssertEqual(session.workspace.selectedCollection, .verificationCodes)
         XCTAssertNil(session.workspace.selectedTag)
+        select(.collection(.passkeys), in: controller)
+        XCTAssertEqual(session.workspace.selectedCollection, .passkeys)
         select(.group(tree.recycleBin.id), in: controller)
         XCTAssertEqual(session.workspace.selectedGroupID, tree.recycleBin.id)
         XCTAssertNil(session.workspace.selectedCollection)
@@ -414,6 +417,15 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         }
         let work = try XCTUnwrap(cell(outline, controller.item(for: .tag("Work"))) as? MacSidebarCellView)
         XCTAssertEqual(work.countField.stringValue, 1.formatted())
+        let groupCounts = try [tree.root, tree.work, tree.servers, tree.personal].map { group in
+            try XCTUnwrap(cell(outline, controller.item(for: .group(group.id))) as? MacSidebarCellView)
+        }
+        XCTAssertEqual(groupCounts.map(\.countField.stringValue), [2, 1, 1, 1].map { $0.formatted() },
+                       "A group counts its whole subtree")
+        XCTAssertEqual(groupCounts.map { $0.accessibilityValue() as? String }, [2, 1, 1, 1].map { $0.formatted() })
+        let passkeys = try XCTUnwrap(cell(outline, controller.item(for: .collection(.passkeys))) as? MacSidebarCellView)
+        XCTAssertEqual(passkeys.textField?.accessibilityIdentifier(), "sidebar.collection.passkeys")
+        XCTAssertEqual(passkeys.countField.stringValue, 0.formatted())
         XCTAssertEqual(cell(outline, controller.item(for: .group(tree.work.id)))?.textField?.accessibilityIdentifier(),
                        "group.navlink")
         XCTAssertEqual(cell(outline, controller.item(for: .group(tree.recycleBin.id)))?.textField?.accessibilityIdentifier(),

@@ -63,6 +63,7 @@ enum MainMenu {
         view.addItem(.separator())
         add(DatabaseCollection.allEntries.title, #selector(DatabaseWindowController.showAllEntries), key: "1", to: view)
         add(DatabaseCollection.verificationCodes.title, #selector(DatabaseWindowController.showVerificationCodes), key: "2", to: view)
+        add(DatabaseCollection.passkeys.title, #selector(DatabaseWindowController.showPasskeys), key: "3", to: view)
         view.addItem(.separator())
         view.addItem(.sectionHeader(title: String(localized: "Sort By")))
         for order in DatabaseViewModel.SortOrder.allCases {

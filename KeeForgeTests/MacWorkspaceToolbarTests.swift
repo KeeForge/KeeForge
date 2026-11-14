@@ -6,17 +6,23 @@ import XCTest
 @MainActor
 final class MacWorkspaceToolbarTests: XCTestCase {
     func testItemsKeepTheWorkspaceToolbarIdentifiersLabelsAndOrder() async throws {
-        let (toolbar, window) = try await makeToolbar()
+        let (toolbar, window, splitView) = try await makeToolbarAndSplitView()
         defer { window.close() }
         XCTAssertEqual(toolbar.toolbar.items.map(\.itemIdentifier.rawValue), [
-            "sidebar.left", "lock.button", "database.cloud-sync-status",
-            "database.read-only-indicator", "entry-list.add-entry", "sort.menu", "database-details.button",
-            "settings.button", NSToolbarItem.Identifier.flexibleSpace.rawValue, "entry-detail.edit", "workspace.search",
+            "sidebar.left", "workspace.sidebar-separator", "workspace.search", "entry-list.add-entry",
+            "workspace.list-separator", "lock.button", "database.cloud-sync-status", "database.read-only-indicator",
+            "database-details.button", "settings.button", NSToolbarItem.Identifier.flexibleSpace.rawValue,
+            "entry-detail.edit",
         ])
+        let separators = [MacWorkspaceToolbar.Item.sidebarSeparator, MacWorkspaceToolbar.Item.listSeparator]
+            .compactMap { toolbar.items[$0] as? NSTrackingSeparatorToolbarItem }
+        XCTAssertEqual(separators.map(\.dividerIndex), [0, 1], "Search and New Entry sit over the entry list")
+        XCTAssertTrue(separators.allSatisfy { $0.splitView === splitView })
+        XCTAssertNil(toolbar.items[NSToolbarItem.Identifier("sort.menu")], "Sort moved to the list header")
         let labels = [
             "sidebar.left": "Show Sidebar", "lock.button": "Lock Database",
-            "database.read-only-indicator": "Read-only database", "entry-list.add-entry": "Add Entry or Group",
-            "sort.menu": "Sort", "database-details.button": "Database Details", "settings.button": "Settings",
+            "database.read-only-indicator": "Read-only database", "entry-list.add-entry": "New Entry",
+            "database-details.button": "Database Details", "settings.button": "Settings",
             "entry-detail.edit": "Edit",
         ]
         for (identifier, label) in labels {
@@ -25,7 +31,7 @@ final class MacWorkspaceToolbarTests: XCTestCase {
             XCTAssertEqual(item.toolTip, localized(label), identifier)
             XCTAssertEqual(item.view?.accessibilityIdentifier(), identifier)
             XCTAssertEqual(item.menuFormRepresentation?.title, localized(label), identifier)
-            XCTAssertEqual(item.isNavigational, identifier != "entry-detail.edit", identifier)
+            XCTAssertFalse(item.isNavigational, identifier)
         }
         XCTAssertEqual(toolbar.searchItem.searchField.placeholderString,
                        String(localized: "Search \(toolbar.session.databaseDisplayName)"))
@@ -67,40 +73,22 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         }
     }
 
-    func testTheSortMenuIsFlatAndDimsWhileTheListIsEmpty() async throws {
-        let savedSort = ["KeeForge.sortOrder", "KeeForge.sortAscending"].map { ($0, UserDefaults.standard.object(forKey: $0)) }
-        addTeardownBlock { for (key, value) in savedSort { UserDefaults.standard.set(value, forKey: key) } }
+    func testNewEntryIsOneButtonThatCreatesAnEntry() async throws {
         let (toolbar, window) = try await makeToolbar()
         defer { window.close() }
-        let session = toolbar.session
-        let item = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.sort])
-        let popUp = try XCTUnwrap(item.view as? NSPopUpButton)
-        let items = try XCTUnwrap(popUp.menu?.items.dropFirst(), "The first item is the pull-down's face")
-        XCTAssertTrue(items.allSatisfy { $0.submenu == nil }, "No submenus")
-        XCTAssertEqual(items.map(\.title), [localized("Sort By")] + DatabaseViewModel.SortOrder.allCases.map(\.title)
-            + ["", localized("Ascending"), localized("Descending")])
-        XCTAssertTrue(try XCTUnwrap(items.first).isSectionHeader)
-        XCTAssertTrue(items[items.startIndex + 4].isSeparatorItem)
-        XCTAssertEqual(item.menuFormRepresentation?.submenu?.items.map(\.title), items.map(\.title))
-
-        session.workspace.selectedCollection = .allEntries
-        session.sortOrder = .modifiedDate
-        session.sortAscending = false
-        await Task { @MainActor in }.value
-        let states = items.filter { $0.representedObject != nil }.map { $0.state == .on }
-        XCTAssertEqual(states, DatabaseViewModel.SortOrder.allCases.map { $0 == .modifiedDate } + [false, true])
-        XCTAssertTrue(popUp.isEnabled)
-
-        session.searchText = "no entry matches this"
-        await Task { @MainActor in }.value
-        XCTAssertFalse(popUp.isEnabled, "Sort is dimmed while the list is empty")
-        XCTAssertEqual(item.menuFormRepresentation?.isEnabled, false)
-        session.searchText = ""
-        await Task { @MainActor in }.value
-        XCTAssertTrue(popUp.isEnabled)
+        let button = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.add]?.view as? NSButton)
+        XCTAssertFalse(button is NSPopUpButton, "No New Group in a pull-down: the File menu and sidebar have it")
+        let requests = toolbar.session.workspace.newEntryRequestID
+        button.performClick(nil)
+        XCTAssertEqual(toolbar.session.workspace.newEntryRequestID, requests + 1)
     }
 
     private func makeToolbar(readOnly: Bool = false) async throws -> (MacWorkspaceToolbar, NSWindow) {
+        let (toolbar, window, _) = try await makeToolbarAndSplitView(readOnly: readOnly)
+        return (toolbar, window)
+    }
+
+    private func makeToolbarAndSplitView(readOnly: Bool = false) async throws -> (MacWorkspaceToolbar, NSWindow, NSSplitView) {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
         var reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
         reference.isReadOnly = readOnly
@@ -109,13 +97,17 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         await session.unlock(password: "testpassword123")
         XCTAssertEqual(session.state, .unlocked)
         addTeardownBlock { @MainActor in session.lockRequest(force: true) }
-        let toolbar = MacWorkspaceToolbar(session: session, presentation: MacWorkspacePresentation())
-        // No split view: a windowed one autosaves its layout into the host app's defaults.
+        // Three panes and no autosave name, so nothing is written to the host app's defaults.
+        let splitView = NSSplitView()
+        splitView.isVertical = true
+        for _ in 0..<3 { splitView.addArrangedSubview(NSView()) }
+        let toolbar = MacWorkspaceToolbar(session: session, presentation: MacWorkspacePresentation(), splitView: splitView)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 700),
                               styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
+        window.contentView = splitView
         window.toolbar = toolbar.toolbar
-        return (toolbar, window)
+        return (toolbar, window, splitView)
     }
 
     private func localized(_ key: String) -> String { String(localized: String.LocalizationValue(key)) }

@@ -36,7 +36,9 @@ final class MacWindowWorkspace {
             MacWorkspaceSplitViewController(session: $0, presentation: presentation, autosaveName: splitAutosaveName,
                                             currentSession: currentSession)
         }
-        toolbar = controller.map { MacWorkspaceToolbar(session: $0.session, presentation: presentation) }
+        toolbar = controller.map {
+            MacWorkspaceToolbar(session: $0.session, presentation: presentation, splitView: $0.splitView)
+        }
         splitViewController = controller
     }
 }

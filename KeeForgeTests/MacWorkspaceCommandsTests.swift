@@ -67,6 +67,9 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         commands.show(.allEntries)
         XCTAssertTrue(commands.isShowing(.allEntries))
         XCTAssertFalse(commands.isShowing(.verificationCodes))
+        commands.show(.passkeys)
+        XCTAssertTrue(commands.isShowing(.passkeys))
+        XCTAssertEqual(MacEntryListSnapshot.mode(session: session), .collection(.passkeys))
         session.workspace.selectedGroupID = tree.work.id
         XCTAssertFalse(commands.isShowing(.allEntries))
     }

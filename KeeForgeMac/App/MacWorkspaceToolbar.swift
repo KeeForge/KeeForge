@@ -13,20 +13,21 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         static let cloudSync = NSToolbarItem.Identifier("database.cloud-sync-status")
         static let readOnly = NSToolbarItem.Identifier("database.read-only-indicator")
         static let add = NSToolbarItem.Identifier("entry-list.add-entry")
-        static let sort = NSToolbarItem.Identifier("sort.menu")
         static let details = NSToolbarItem.Identifier("database-details.button")
         static let settings = NSToolbarItem.Identifier("settings.button")
         static let edit = NSToolbarItem.Identifier("entry-detail.edit")
         static let search = NSToolbarItem.Identifier("workspace.search")
+        static let sidebarSeparator = NSToolbarItem.Identifier("workspace.sidebar-separator")
+        static let listSeparator = NSToolbarItem.Identifier("workspace.list-separator")
     }
 
-    /// Database-scoped items are navigational, so they lead, before the window
-    /// title; Edit and search stay at the trailing edge, over the detail, where
-    /// Edit reads as acting on the selected entry.
-    static let navigationalItems: [NSToolbarItem.Identifier] = [
-        Item.toggleSidebar, Item.lock, Item.cloudSync, Item.readOnly, Item.add, Item.sort, Item.details, Item.settings,
+    /// The boards' layout: the sidebar toggle over the sidebar, search and New
+    /// Entry over the entry list (between the split's tracking separators),
+    /// and the database's items and Edit over the detail.
+    static let itemIdentifiers: [NSToolbarItem.Identifier] = [
+        Item.toggleSidebar, Item.sidebarSeparator, Item.search, Item.add, Item.listSeparator,
+        Item.lock, Item.cloudSync, Item.readOnly, Item.details, Item.settings, .flexibleSpace, Item.edit,
     ]
-    static let itemIdentifiers = navigationalItems + [.flexibleSpace, Item.edit, Item.search]
 
     let session: DatabaseViewModel
     let toolbar = NSToolbar(identifier: MacWorkspaceToolbar.identifier)
@@ -35,16 +36,13 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     private let presentation: MacWorkspacePresentation
     private let observation = MacObservation()
     private var controls: [NSControl] = []
-    private var newEntryMenuItems: [NSMenuItem] = []
-    private var newGroupMenuItems: [NSMenuItem] = []
-    private var sortOrderMenuItems: [NSMenuItem] = []
-    private var sortDirectionMenuItems: [NSMenuItem] = []
 
-    init(session: DatabaseViewModel, presentation: MacWorkspacePresentation) {
+    /// `splitView` is the workspace split whose dividers the separators track.
+    init(session: DatabaseViewModel, presentation: MacWorkspacePresentation, splitView: NSSplitView) {
         self.session = session
         self.presentation = presentation
         super.init()
-        makeItems()
+        makeItems(splitView: splitView)
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = false
@@ -98,12 +96,8 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         var isReadOnly: Bool
         var showsCloudSync: Bool
         var canNewEntry: Bool
-        var canNewGroup: Bool
         var showsEdit: Bool
         var canEditEntry: Bool
-        var sortOrder: DatabaseViewModel.SortOrder
-        var sortAscending: Bool
-        var canSort: Bool
         var searchText: String
         var databaseName: String
     }
@@ -117,12 +111,8 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
             isReadOnly: session.isReadOnly,
             showsCloudSync: CloudSyncControls.isVisible(for: session),
             canNewEntry: commands.canNewEntry,
-            canNewGroup: commands.canNewGroup,
             showsEdit: showsEdit && session.isReadOnly == false,
             canEditEntry: commands.canEditEntry,
-            sortOrder: session.sortOrder,
-            sortAscending: session.sortAscending,
-            canSort: MacEntryListSnapshot.listIsEmpty(session: session) == false,
             searchText: session.searchText,
             databaseName: session.databaseDisplayName
         )
@@ -132,21 +122,12 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         for control in controls { control.isEnabled = state.isSaving == false }
         searchItem.searchField.isEnabled = state.isSaving == false
         enable(Item.lock, state.canLock && state.isSaving == false)
-        enable(Item.add, (state.canNewEntry || state.canNewGroup) && state.isSaving == false)
+        enable(Item.add, state.canNewEntry && state.isSaving == false)
         enable(Item.edit, state.canEditEntry && state.isSaving == false)
-        enable(Item.sort, state.canSort && state.isSaving == false)
         items[Item.cloudSync]?.isHidden = state.showsCloudSync == false
         items[Item.readOnly]?.isHidden = state.isReadOnly == false
         items[Item.add]?.isHidden = state.isReadOnly
         items[Item.edit]?.isHidden = state.showsEdit == false
-        for item in newEntryMenuItems { item.isEnabled = state.canNewEntry }
-        for item in newGroupMenuItems { item.isEnabled = state.canNewGroup }
-        for item in sortOrderMenuItems {
-            item.state = item.representedObject as? String == state.sortOrder.rawValue ? .on : .off
-        }
-        for item in sortDirectionMenuItems {
-            item.state = item.representedObject as? Bool == state.sortAscending ? .on : .off
-        }
         let placeholder = Self.searchPlaceholder(databaseName: state.databaseName)
         if searchItem.searchField.placeholderString != placeholder {
             searchItem.searchField.placeholderString = placeholder
@@ -169,7 +150,6 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 
     @objc private func lockDatabase(_ sender: Any?) { DatabaseCommands(session: session).lock() }
     @objc private func newEntry(_ sender: Any?) { DatabaseCommands(session: session).newEntry() }
-    @objc private func newGroup(_ sender: Any?) { DatabaseCommands(session: session).newGroup() }
     @objc private func showDatabaseDetails(_ sender: Any?) { presentation.isShowingDatabaseDetails = true }
     @objc private func syncCloudNow(_ sender: Any?) {
         let session = session
@@ -179,17 +159,6 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     @objc private func editEntry(_ sender: Any?) {
         guard let entryID = session.workspace.selectedEntryID else { return }
         presentation.beginEntryEdit(entryID: entryID, in: session)
-    }
-
-    @objc private func selectSortOrder(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String,
-              let order = DatabaseViewModel.SortOrder(rawValue: raw) else { return }
-        session.sortOrder = order
-    }
-
-    @objc private func selectSortDirection(_ sender: NSMenuItem) {
-        guard let ascending = sender.representedObject as? Bool else { return }
-        session.sortAscending = ascending
     }
 
     @objc private func explainReadOnly(_ sender: Any?) {
@@ -210,7 +179,11 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 
     // MARK: - Items
 
-    private func makeItems() {
+    private func makeItems(splitView: NSSplitView) {
+        items[Item.sidebarSeparator] = NSTrackingSeparatorToolbarItem(
+            identifier: Item.sidebarSeparator, splitView: splitView, dividerIndex: 0)
+        items[Item.listSeparator] = NSTrackingSeparatorToolbarItem(
+            identifier: Item.listSeparator, splitView: splitView, dividerIndex: 1)
         addButton(Item.toggleSidebar, symbol: "sidebar.left", label: String(localized: "Show Sidebar"),
                   target: nil, action: #selector(NSSplitViewController.toggleSidebar(_:)))
         addButton(Item.lock, symbol: "lock.fill", label: String(localized: "Lock Database"),
@@ -226,32 +199,8 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
                                  target: self, action: #selector(explainReadOnly(_:)))
         readOnly.contentTintColor = NSColor(Theme.State.warning)
 
-        addMenu(Item.add, symbol: "plus", label: String(localized: "Add Entry or Group")) { menu in
-            let entry = menuItem(String(localized: "New Entry"), action: #selector(newEntry(_:)))
-            entry.image = NSImage(systemSymbolName: "doc.badge.plus", accessibilityDescription: nil)
-            let group = menuItem(String(localized: "New Group"), action: #selector(newGroup(_:)))
-            group.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: nil)
-            newEntryMenuItems.append(entry)
-            newGroupMenuItems.append(group)
-            menu.addItem(entry)
-            menu.addItem(group)
-        }
-        addMenu(Item.sort, symbol: "arrow.up.arrow.down", label: String(localized: "Sort")) { menu in
-            menu.addItem(.sectionHeader(title: String(localized: "Sort By")))
-            for order in DatabaseViewModel.SortOrder.allCases {
-                let item = menuItem(order.title, action: #selector(selectSortOrder(_:)))
-                item.representedObject = order.rawValue
-                sortOrderMenuItems.append(item)
-                menu.addItem(item)
-            }
-            menu.addItem(.separator())
-            for (title, ascending) in [(String(localized: "Ascending"), true), (String(localized: "Descending"), false)] {
-                let item = menuItem(title, action: #selector(selectSortDirection(_:)))
-                item.representedObject = ascending
-                sortDirectionMenuItems.append(item)
-                menu.addItem(item)
-            }
-        }
+        addButton(Item.add, symbol: "plus", label: String(localized: "New Entry"),
+                  target: self, action: #selector(newEntry(_:)))
         addButton(Item.details, symbol: "info.circle", label: String(localized: "Database Details"),
                   target: self, action: #selector(showDatabaseDetails(_:)))
         addButton(Item.settings, symbol: "gearshape", label: String(localized: "Settings"),
@@ -262,8 +211,6 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         edit.bezelStyle = .toolbar
         edit.setAccessibilityIdentifier(Item.edit.rawValue)
         addItem(Item.edit, view: edit, label: editLabel, menuForm: menuItem(editLabel, action: #selector(editEntry(_:))))
-
-        for identifier in Self.navigationalItems { items[identifier]?.isNavigational = true }
 
         searchItem.label = String(localized: "Search")
         searchItem.searchField.placeholderString = Self.searchPlaceholder(databaseName: session.databaseDisplayName)
@@ -294,29 +241,6 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         return button
     }
 
-    private func addMenu(_ identifier: NSToolbarItem.Identifier, symbol: String, label: String, build: (NSMenu) -> Void) {
-        let popUp = NSPopUpButton(frame: .zero, pullsDown: true)
-        popUp.bezelStyle = .toolbar
-        popUp.imagePosition = .imageOnly
-        (popUp.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
-        popUp.toolTip = label
-        popUp.setAccessibilityLabel(label)
-        popUp.setAccessibilityIdentifier(identifier.rawValue)
-        let menu = NSMenu()
-        menu.autoenablesItems = false
-        let face = NSMenuItem(title: label, action: nil, keyEquivalent: "")
-        face.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
-        menu.addItem(face)
-        build(menu)
-        popUp.menu = menu
-
-        let overflow = NSMenu()
-        overflow.autoenablesItems = false
-        build(overflow)
-        addItem(identifier, view: popUp, label: label, menuForm: submenuItem(label, overflow))
-        controls.append(popUp)
-    }
-
     private func addItem(_ identifier: NSToolbarItem.Identifier, view: NSView, label: String, menuForm: NSMenuItem) {
         let item = NSToolbarItem(itemIdentifier: identifier)
         item.view = view
@@ -329,13 +253,6 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     private func menuItem(_ title: String, action: Selector) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
-        return item
-    }
-
-    private func submenuItem(_ title: String, _ submenu: NSMenu) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        submenu.title = title
-        item.submenu = submenu
         return item
     }
 }

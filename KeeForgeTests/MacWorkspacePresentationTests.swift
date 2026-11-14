@@ -128,12 +128,58 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertFalse(database.isDirty)
 
         presentation.pendingDeletion = nil
-        database.workspace.beginEntrySelection(with: entry.id)
+        database.workspace.setEntrySelection([recycledEntry.id])
         presentation.beginSelectionDeletion(in: database)
-        XCTAssertNil(presentation.pendingDeletion)
+        XCTAssertNil(presentation.pendingDeletion, "Picks in the bin are never recycled again")
+        database.workspace.setEntrySelection([entry.id, recycledEntry.id])
+        presentation.beginSelectionDeletion(in: database)
+        XCTAssertEqual(presentation.pendingDeletion?.id, PendingDeletion.entries([entry.id]).id,
+                       "Never the entry or group left selected underneath")
+        guard case .entries(let picked) = presentation.pendingDeletion else { return XCTFail("Expected the picks") }
+        XCTAssertEqual(picked, [entry.id])
+        XCTAssertNotNil(database.entry(withID: entry.id))
         database.lock()
+        presentation.pendingDeletion = nil
         presentation.beginSelectionDeletion(in: database)
         XCTAssertNil(presentation.pendingDeletion)
+    }
+
+    func testConfirmingABulkDeletionRecyclesEveryPickSavesAndEndsTheSelection() async throws {
+        let first = KPEntry(title: "First")
+        let second = KPEntry(title: "Second")
+        let kept = KPEntry(title: "Kept")
+        let group = KPGroup(name: "Work", entries: [first, second, kept])
+        let bin = KPGroup(name: "Recycle Bin")
+        let database = try await makeDatabase(root: KPGroup(name: "Root", groups: [group, bin], recycleBinUUID: bin.id))
+        defer { database.lock() }
+        let presentation = MacWorkspacePresentation()
+        database.workspace.selectedGroupID = group.id
+        database.workspace.selectedEntryID = first.id
+        database.workspace.setEntrySelection([first.id, second.id])
+
+        DatabaseCommands(session: database).deleteSelection()
+        XCTAssertEqual(database.workspace.deleteSelectionRequestID, 1, "The menu bar's Delete raises the confirmation")
+        presentation.beginSelectionDeletion(in: database)
+        let deletion = try XCTUnwrap(presentation.pendingDeletion)
+        XCTAssertEqual(deletion.confirmationTitle, String(localized: "Delete \(2) Entries?"))
+        XCTAssertEqual(deletion.confirmationTitle, "Delete 2 Entries?")
+        XCTAssertEqual(deletion.confirmationMessage, "The selected entries will be moved to the recycle bin.")
+        XCTAssertEqual(deletion.confirmActionTitle, String(localized: "Delete"))
+
+        deletion.performDeletion(viewModel: database)
+        XCTAssertTrue(database.isEntryInRecycleBin(entryID: first.id))
+        XCTAssertTrue(database.isEntryInRecycleBin(entryID: second.id))
+        XCTAssertFalse(database.isEntryInRecycleBin(entryID: kept.id))
+        XCTAssertNil(database.workspace.entrySelection)
+        XCTAssertNil(database.workspace.selectedEntryID, "The recycled entry no longer shows in the detail")
+        try await waitUntilSaved(database)
+        XCTAssertFalse(database.isDirty)
+    }
+
+    private func waitUntilSaved(_ database: DatabaseViewModel) async throws {
+        for _ in 0..<200 where database.isDirty || database.isSaving {
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     func testNewGroupResetsItsTargetAndRetainsTheFormOnFailure() async throws {

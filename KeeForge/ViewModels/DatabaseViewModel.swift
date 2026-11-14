@@ -1422,12 +1422,18 @@ final class DatabaseViewModel {
         allEntries.filter { $0.totpConfig != nil }
     }
 
-    /// The counts the vault root's tiles show.
+    /// `allEntries` narrowed to the ones that hold a passkey.
+    var passkeyEntries: [KPEntry] {
+        allEntries.filter(\.hasPasskey)
+    }
+
+    /// The counts the vault root's tiles and the Mac Library show.
     var collectionCounts: DatabaseCollectionCounts {
         let recycleBin = recycleBinGroup
         return DatabaseCollectionCounts(
             allEntries: allEntries.count,
             verificationCodes: allEntries.reduce(0) { $0 + ($1.totpConfig == nil ? 0 : 1) },
+            passkeys: allEntries.reduce(0) { $0 + ($1.hasPasskey ? 1 : 0) },
             tags: allTags.count,
             recycleBin: (recycleBin?.entries.count ?? 0) + (recycleBin?.groups.count ?? 0)
         )
@@ -2262,21 +2268,25 @@ final class DatabaseViewModel {
         return entry(withID: selectedEntryID) != nil
     }
 
-    /// What the macOS Delete command would act on: the selected entry when
-    /// there is one, otherwise the selected group. Sidebar and content
-    /// selection are mutually exclusive in practice — selecting a group clears
-    /// the entry selection — so the entry-first order matches what the user is
-    /// looking at.
+    /// What the macOS Delete command would act on: the picked entries while
+    /// several are picked, else the selected entry when there is one,
+    /// otherwise the selected group. Sidebar and content selection are
+    /// mutually exclusive in practice — selecting a group clears the entry
+    /// selection — so the entry-first order matches what the user is looking at.
     enum SelectionDeletionTarget: Equatable {
         case entry(UUID)
         case group(UUID)
+        /// Picked entries outside the recycle bin, recycled together.
+        case entries(Set<UUID>)
     }
 
     var deletableSelection: SelectionDeletionTarget? {
-        // While entries are being picked nothing is deletable: the command
-        // would hit the entry or group left selected underneath, not the
-        // checked ones.
-        guard case .unlocked = state, isReadOnly == false, workspace.entrySelection == nil else { return nil }
+        guard case .unlocked = state, isReadOnly == false else { return nil }
+        // Never the entry or group left selected underneath the picks.
+        if let picked = workspace.entrySelection {
+            let recyclable = picked.filter { entry(withID: $0) != nil && isEntryInRecycleBin(entryID: $0) == false }
+            return recyclable.isEmpty ? nil : .entries(recyclable)
+        }
         if let selectedEntryID = workspace.selectedEntryID, entry(withID: selectedEntryID) != nil {
             return .entry(selectedEntryID)
         }

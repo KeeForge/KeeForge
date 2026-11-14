@@ -179,6 +179,8 @@ final class MacEntryListModelTests: XCTestCase {
         XCTAssertEqual(MacEntryListSnapshot.make(session: session).emptyState, .noDatabaseEntries)
         workspace.selectedCollection = .verificationCodes
         XCTAssertEqual(MacEntryListSnapshot.make(session: session).emptyState, .noVerificationCodes)
+        workspace.selectedCollection = .passkeys
+        XCTAssertEqual(MacEntryListSnapshot.make(session: session).emptyState, .noPasskeys)
         workspace.selectedTag = "Gone"
         XCTAssertEqual(MacEntryListSnapshot.make(session: session).emptyState, .noTagEntries)
         session.searchText = "   "
@@ -206,6 +208,7 @@ final class MacEntryListModelTests: XCTestCase {
             (.noTagEntries, "No Entries", "No entries carry this tag anymore.", "tag.slash", nil),
             (.noVerificationCodes, "No Verification Codes", "Entries with a verification code appear here.",
              DatabaseCollection.verificationCodes.systemImage, nil),
+            (.noPasskeys, "No Passkeys", "Passkeys saved through AutoFill appear here.", "person.badge.key", nil),
             (.noDatabaseEntries, "No Entries", "This database has no entries.", "tray", nil),
             (.noGroupEntries, "No Entries", "This group has no entries.", "tray", nil),
             (.recycleBinEmpty, "Recycle Bin Is Empty", "Deleted entries and groups appear here.", "trash", nil),
@@ -217,6 +220,128 @@ final class MacEntryListModelTests: XCTestCase {
             XCTAssertEqual(state.systemImage, symbol)
             XCTAssertEqual(state.accessibilityIdentifier, identifier)
         }
+    }
+
+    func testHeaderWordingFollowsTheBoardsPerModeWithPluralsAndSelection() async throws {
+        let fixture = try await makeFixture()
+        let session = fixture.session
+        let workspace = session.workspace
+        func header() -> MacEntryListSnapshot.Header? { MacEntryListSnapshot.make(session: session).header }
+        XCTAssertEqual(session.databaseDisplayName, "Entry List")
+
+        workspace.selectedGroupID = fixture.work.id
+        XCTAssertEqual(header(), .init(title: "Work", isTag: false, subtitle: "Entry List · 3 entries"))
+        workspace.selectedGroupID = fixture.home.id
+        XCTAssertEqual(header()?.subtitle, "Entry List · 1 entry")
+        workspace.selectedCollection = .allEntries
+        XCTAssertEqual(header(), .init(title: "All Entries", isTag: false, subtitle: "Entry List · 4 entries"))
+        workspace.selectedCollection = .verificationCodes
+        XCTAssertEqual(header()?.subtitle, "Entry List · 2 entries")
+        workspace.selectedCollection = .passkeys
+        XCTAssertEqual(header(), .init(title: "Passkeys", isTag: false, subtitle: "Entry List · 0 entries"))
+        workspace.selectedTag = "Shared"
+        XCTAssertEqual(header(), .init(title: "Shared", isTag: true, subtitle: "Tag · 2 entries in 2 groups"))
+        workspace.selectedTag = "Solo"
+        XCTAssertEqual(header()?.subtitle, "Tag · 0 entries")
+        session.searchText = "account"
+        XCTAssertEqual(header(), .init(title: "Search", isTag: false, subtitle: "Results: 4 · All of Entry List"))
+        session.searchText = ""
+
+        workspace.selectedGroupID = fixture.work.id
+        workspace.setEntrySelection([fixture.work.entries[0].id, fixture.work.entries[1].id, fixture.home.entries[0].id])
+        XCTAssertEqual(header()?.subtitle, "Entry List · 2 of 3 selected", "Only the picks this list shows")
+        workspace.endEntrySelection()
+
+        workspace.selectedGroupID = UUID()
+        XCTAssertNil(header())
+    }
+
+    func testTagAndRecycleBinCountLinesUseTheirSingulars() async throws {
+        let solo = KPEntry(title: "Solo", tags: ["One"])
+        let gone = KPEntry(title: "Gone")
+        let recycleBin = KPGroup(name: "Recycle Bin", entries: [gone])
+        let work = KPGroup(name: "Work", entries: [solo])
+        let session = try await makeSession(root: KPGroup(name: "Root", groups: [work, recycleBin],
+                                                          recycleBinUUID: recycleBin.id))
+        session.workspace.selectedTag = "One"
+        XCTAssertEqual(MacEntryListSnapshot.make(session: session).header?.subtitle, "Tag · 1 entry in 1 group")
+        session.workspace.selectedGroupID = recycleBin.id
+        XCTAssertEqual(MacEntryListSnapshot.make(session: session).header,
+                       .init(title: "Recycle Bin", isTag: false, subtitle: "Entry List · 1 deleted entry"))
+    }
+
+    func testFooterIsTheSelectionHintThenTheCodesOrSearchHintWhenThereAreRows() async throws {
+        let fixture = try await makeFixture()
+        let session = fixture.session
+        let workspace = session.workspace
+        func footer() -> MacEntryListSnapshot.Footer? { MacEntryListSnapshot.make(session: session).footer }
+
+        workspace.selectedGroupID = fixture.work.id
+        XCTAssertNil(footer())
+        workspace.selectedCollection = .verificationCodes
+        XCTAssertEqual(footer(), .verificationCodes)
+        session.searchText = "account"
+        XCTAssertEqual(footer(), .search)
+        session.searchText = "nothing matches"
+        XCTAssertNil(footer(), "No hint over an empty state")
+        session.searchText = ""
+        workspace.setEntrySelection([fixture.work.entries[0].id, fixture.work.entries[1].id])
+        XCTAssertEqual(footer(), .multipleSelection)
+
+        XCTAssertEqual(MacEntryListSnapshot.Footer.search.text,
+                       "Search covers titles, usernames, URLs, notes and tags in every group.")
+        XCTAssertEqual(MacEntryListSnapshot.Footer.multipleSelection.text,
+                       "Command-click or Shift-click to select several entries.")
+        XCTAssertEqual([MacEntryListSnapshot.Footer.verificationCodes, .search, .multipleSelection].map(\.accessibilityIdentifier),
+                       ["verification-codes.hint", "search.hint", "entry-selection.hint"])
+    }
+
+    func testPasskeysListsLiveEntriesWithAPasskey() async throws {
+        let passkeyFields = [
+            PasskeyCredential.credentialIDKey: "Y3JlZA",
+            PasskeyCredential.relyingPartyKey: "example.com",
+            PasskeyCredential.usernameKey: "alice",
+            PasskeyCredential.userHandleKey: "aGFuZGxl",
+        ]
+        func passkeyEntry(_ title: String) -> KPEntry {
+            KPEntry(title: title, customFields: passkeyFields,
+                    passkeyPrivateKey: EncryptedValue(sealedData: Data([0]), hasValue: true))
+        }
+        let recycleBin = KPGroup(name: "Recycle Bin", entries: [passkeyEntry("Recycled")])
+        let work = KPGroup(name: "Work", entries: [passkeyEntry("GitHub"), KPEntry(title: "Plain")])
+        let session = try await makeSession(root: KPGroup(name: "Root", groups: [work, recycleBin],
+                                                          recycleBinUUID: recycleBin.id))
+        session.workspace.selectedCollection = .passkeys
+        let snapshot = MacEntryListSnapshot.make(session: session)
+        XCTAssertEqual(snapshot.rows.map(\.title), ["GitHub"])
+        XCTAssertEqual(snapshot.rows.map(\.hasPasskey), [true], "The same detection as the row badge")
+        XCTAssertEqual(snapshot.rows.map(\.folderPath), ["Root › Work"])
+        XCTAssertEqual(session.collectionCounts.passkeys, 1)
+        XCTAssertFalse(snapshot.showsVerificationCodes)
+    }
+
+    func testSelectionSummaryNamesThePicksTheirSharedGroupAndItsActions() async throws {
+        let fixture = try await makeFixture()
+        let session = fixture.session
+        let workspace = session.workspace
+        XCTAssertNil(MacEntrySelectionSummary.make(session: session))
+
+        workspace.setEntrySelection([fixture.work.entries[0].id, fixture.work.entries[1].id])
+        let summary = try XCTUnwrap(MacEntrySelectionSummary.make(session: session))
+        XCTAssertEqual(summary.title, "2 Entries Selected")
+        XCTAssertEqual(summary.subtitle, "Account A and Account b · Work")
+        XCTAssertEqual(summary.iconEntryIDs, [fixture.work.entries[1].id, fixture.work.entries[0].id])
+        XCTAssertTrue(summary.canMove)
+        XCTAssertTrue(summary.canDelete)
+
+        let all = Set(fixture.work.entries.map(\.id) + fixture.home.entries.map(\.id))
+        workspace.setEntrySelection(all)
+        let spanning = try XCTUnwrap(MacEntrySelectionSummary.make(session: session))
+        XCTAssertEqual(spanning.title, "4 Entries Selected")
+        XCTAssertEqual(spanning.subtitle, ListFormatter.localizedString(byJoining: [
+            "Account A", "Account b", "Account c", "Home Account",
+        ]), "No path across groups")
+        XCTAssertEqual(spanning.iconEntryIDs.count, MacEntrySelectionSummary.iconLimit)
     }
 
     func testIdentifiersAndCodeRowsPerMode() async throws {

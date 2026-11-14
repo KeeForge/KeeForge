@@ -72,21 +72,23 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
         XCTAssertEqual(snapshot.sections.map(\.kind.showsHeader), [true, true, true, false])
 
         let library = try XCTUnwrap(snapshot.section(.library)).nodes
-        XCTAssertEqual(library.map(\.id), [.collection(.allEntries), .collection(.verificationCodes)])
-        XCTAssertEqual(library.map(\.title), [DatabaseCollection.allEntries.title, DatabaseCollection.verificationCodes.title])
-        XCTAssertEqual(library.map(\.count), [2, 1])
-        XCTAssertEqual(library.map(\.icon), [.symbol("key"), .symbol("timer")])
-        XCTAssertEqual(library.map(\.selection), [.collection(.allEntries), .collection(.verificationCodes)])
+        XCTAssertEqual(library.map(\.id), [.collection(.allEntries), .collection(.verificationCodes), .collection(.passkeys)])
+        XCTAssertEqual(library.map(\.title), [DatabaseCollection.allEntries.title, DatabaseCollection.verificationCodes.title,
+                                              String(localized: "Passkeys")])
+        XCTAssertEqual(library.map(\.count), [2, 1, 0])
+        XCTAssertEqual(library.map(\.icon), [.symbol("key"), .symbol("timer"), .symbol("person.badge.key")])
+        XCTAssertEqual(library.map(\.selection),
+                       [.collection(.allEntries), .collection(.verificationCodes), .collection(.passkeys)])
         XCTAssertEqual(
             library.map(\.accessibilityIdentifier),
-            ["sidebar.collection.allEntries", "sidebar.collection.verificationCodes"]
+            ["sidebar.collection.allEntries", "sidebar.collection.verificationCodes", "sidebar.collection.passkeys"]
         )
 
         let groups = try XCTUnwrap(snapshot.section(.groups)).nodes
         XCTAssertEqual(groups.map(\.id), [.group(visibleRoot.id)], "A one-child wrapper is skipped")
         XCTAssertEqual(groups[0].children.map(\.id), [.group(work.id)], "The bin is not part of Groups")
         XCTAssertEqual(groups[0].accessibilityIdentifier, "group.navlink")
-        XCTAssertNil(groups[0].count)
+        XCTAssertEqual(groups[0].count, 2, "The bin's entries are not counted")
         XCTAssertEqual(groups[0].selection, .group(visibleRoot.id))
 
         let tags = try XCTUnwrap(snapshot.section(.tags)).nodes
@@ -103,7 +105,42 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
         XCTAssertEqual(bin[0].selection, .group(recycleBin.id))
         XCTAssertEqual(bin[0].accessibilityIdentifier, "group.navlink")
         XCTAssertEqual(bin[0].children.map(\.id), [.group(recycled.id)])
+        XCTAssertEqual(bin[0].count, 0, "The bin counts only its own entries, which its list shows")
+        XCTAssertEqual(bin[0].children.map(\.count), [1])
         XCTAssertTrue(bin[0].isSelectable)
+    }
+
+    func testGroupsCountTheirWholeSubtreeAndPasskeysCountLiveEntriesWithAPasskey() async throws {
+        let passkeyFields = [
+            PasskeyCredential.credentialIDKey: "Y3JlZA",
+            PasskeyCredential.relyingPartyKey: "example.com",
+            PasskeyCredential.usernameKey: "alice",
+            PasskeyCredential.userHandleKey: "aGFuZGxl",
+        ]
+        func passkeyEntry(_ title: String) -> KPEntry {
+            KPEntry(title: title, customFields: passkeyFields,
+                    passkeyPrivateKey: EncryptedValue(sealedData: Data([0]), hasValue: true))
+        }
+        let development = KPGroup(name: "Development", entries: [passkeyEntry("GitHub"), KPEntry(title: "npm")])
+        let infrastructure = KPGroup(name: "Infrastructure", entries: [KPEntry(title: "AWS")])
+        let work = KPGroup(name: "Work", entries: [KPEntry(title: "Mail")], groups: [development, infrastructure])
+        let email = KPGroup(name: "Email", entries: [passkeyEntry("Proton")])
+        let recycleBin = KPGroup(name: "Recycle Bin", entries: [passkeyEntry("Gone"), KPEntry(title: "Old")],
+                                 groups: [KPGroup(name: "Old Projects", entries: [KPEntry(title: "A"), KPEntry(title: "B")])])
+        let root = KPGroup(name: "Personal", groups: [email, work, recycleBin], recycleBinUUID: recycleBin.id)
+        let session = try await makeSidebarSession(root: root)
+
+        let snapshot = MacSidebarSnapshot.make(session: session)
+        let personal = try XCTUnwrap(snapshot.section(.groups)?.nodes.first)
+        XCTAssertEqual(personal.count, 5, "The root counts every live entry, as All Entries does")
+        let counts = Dictionary(uniqueKeysWithValues: personal.children.flatMap { [$0] + $0.children }.map { ($0.title, $0.count) })
+        XCTAssertEqual(counts, ["Email": 1, "Work": 4, "Development": 2, "Infrastructure": 1])
+        XCTAssertEqual(snapshot.section(.library)?.nodes.map(\.count), [5, 0, 2])
+        let bin = try XCTUnwrap(snapshot.section(.recycleBin)?.nodes.first)
+        XCTAssertEqual(bin.count, 2)
+        XCTAssertEqual(bin.children.map(\.count), [2])
+        XCTAssertEqual(Set(session.entries(for: .collection(.passkeys)).map(\.title)), ["GitHub", "Proton"],
+                       "The recycle bin's passkeys are left out")
     }
 
     func testAMultiChildWrapperIsTheGroupsRoot() async throws {
@@ -137,7 +174,7 @@ final class MacSidebarSnapshotTests: MacSidebarSessionTestCase {
         let snapshot = MacSidebarSnapshot.make(session: session)
 
         XCTAssertEqual(snapshot.sections.map(\.kind), [.library, .groups, .tags])
-        XCTAssertEqual(snapshot.section(.library)?.nodes.map(\.count), [1, 0])
+        XCTAssertEqual(snapshot.section(.library)?.nodes.map(\.count), [1, 0, 0])
         let caption = try XCTUnwrap(snapshot.section(.tags)?.nodes.first)
         XCTAssertEqual(snapshot.section(.tags)?.nodes.count, 1)
         XCTAssertEqual(caption.id, .caption(.tags))

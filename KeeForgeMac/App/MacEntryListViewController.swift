@@ -2,9 +2,9 @@ import AppKit
 import SwiftUI
 
 /// The database window's entry list: `MacEntryListSnapshot` in a view-based
-/// table, with the empty state, the selection bar and the UI-test result
-/// count. Sheets and confirmations its menu raises stay with
-/// `MacWorkspacePresentationHost`.
+/// table under its header (title, count line and Sort), with the empty state,
+/// the footer hint and the UI-test result count. Sheets and confirmations its
+/// menu raises stay with `MacWorkspacePresentationHost`.
 @MainActor
 final class MacEntryListViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate,
     NSMenuDelegate, NSMenuItemValidation {
@@ -15,11 +15,9 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     let tableView = MacEntryTableView()
     let scrollView = NSScrollView()
     let emptyView = MacEntryListEmptyView()
-    let selectionBar = MacEntrySelectionBarView()
+    let header = MacEntryListHeaderView()
     let resultCountField = NSTextField(labelWithString: "")
-    let verificationCodeHint = NSTextField(wrappingLabelWithString: String(
-        localized: "Click a code to copy it · ⇧⌘T copies the selected entry's code"
-    ))
+    let footerField = NSTextField(wrappingLabelWithString: "")
     /// Whether a click extends the selection; reads the current event's modifiers.
     var isExtendingSelection: @MainActor () -> Bool = {
         NSApp.currentEvent?.modifierFlags.intersection([.command, .shift]).isEmpty == false
@@ -132,39 +130,52 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             resultCountField.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -8),
         ])
 
-        verificationCodeHint.font = .systemFont(ofSize: NSFont.smallSystemFontSize - 2)
-        verificationCodeHint.textColor = .secondaryLabelColor
+        footerField.font = .systemFont(ofSize: NSFont.smallSystemFontSize - 2)
+        footerField.textColor = .secondaryLabelColor
         // The column is never narrower than 260 pt; a fixed wrap width keeps layout to one pass.
-        verificationCodeHint.preferredMaxLayoutWidth = 220
-        verificationCodeHint.setAccessibilityIdentifier("verification-codes.hint")
-        let hint = NSView()
-        hint.isHidden = true
-        verificationCodeHint.translatesAutoresizingMaskIntoConstraints = false
-        hint.addSubview(verificationCodeHint)
+        footerField.preferredMaxLayoutWidth = 220
+        let footer = NSView()
+        footer.isHidden = true
+        footerField.translatesAutoresizingMaskIntoConstraints = false
+        footer.addSubview(footerField)
         NSLayoutConstraint.activate([
-            verificationCodeHint.leadingAnchor.constraint(equalTo: hint.leadingAnchor, constant: 20),
-            verificationCodeHint.trailingAnchor.constraint(lessThanOrEqualTo: hint.trailingAnchor, constant: -20),
-            verificationCodeHint.topAnchor.constraint(equalTo: hint.topAnchor, constant: 10),
-            verificationCodeHint.bottomAnchor.constraint(equalTo: hint.bottomAnchor, constant: -14),
+            footerField.leadingAnchor.constraint(equalTo: footer.leadingAnchor, constant: 20),
+            footerField.trailingAnchor.constraint(lessThanOrEqualTo: footer.trailingAnchor, constant: -20),
+            footerField.topAnchor.constraint(equalTo: footer.topAnchor, constant: 10),
+            footerField.bottomAnchor.constraint(equalTo: footer.bottomAnchor, constant: -14),
         ])
 
-        selectionBar.isHidden = true
-        selectionBar.onCancel = { [weak self] in _ = self?.cancelSelection() }
-        selectionBar.onMove = { [weak self] in self?.moveEntrySelection() }
+        header.onSortOrder = { [weak self] in self?.selectSortOrder($0) }
+        header.onSortDirection = { [weak self] in self?.selectSortDirection($0) }
 
-        let stack = NSStackView(views: [content, hint, selectionBar])
+        let stack = NSStackView(views: [content, footer])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 0
         stack.detachesHiddenViews = true
-        for view in [content, hint, selectionBar] {
+        for view in [content, footer] {
             view.translatesAutoresizingMaskIntoConstraints = false
             view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
         content.setContentHuggingPriority(.defaultLow, for: .vertical)
-        selectionBar.setContentHuggingPriority(.required, for: .vertical)
-        hint.setContentHuggingPriority(.required, for: .vertical)
-        view = stack
+        footer.setContentHuggingPriority(.required, for: .vertical)
+
+        // The header sits under the toolbar, so the rows below it need no titlebar inset.
+        let container = NSView()
+        for view in [header, stack] as [NSView] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(view)
+        }
+        NSLayoutConstraint.activate([
+            header.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            header.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            header.topAnchor.constraint(equalTo: container.safeAreaLayoutGuide.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: header.bottomAnchor),
+            stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        view = container
     }
 
     override func viewDidLoad() {
@@ -196,10 +207,11 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         var selectedEntryID: UUID?
         var entrySelection: Set<UUID>?
         var isSaving: Bool
-        var isReadOnly: Bool
         var isUnlocked: Bool
         var contentRevision: Int
         var copied: MacCopyFeedback.Copied?
+        var sortOrder: DatabaseViewModel.SortOrder
+        var sortAscending: Bool
     }
 
     private func readState() -> State {
@@ -208,10 +220,11 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             selectedEntryID: session.workspace.selectedEntryID,
             entrySelection: session.workspace.entrySelection,
             isSaving: session.isSaving,
-            isReadOnly: session.isReadOnly,
             isUnlocked: session.state == .unlocked,
             contentRevision: session.contentRevision,
-            copied: presentation.copyFeedback.copied
+            copied: presentation.copyFeedback.copied,
+            sortOrder: session.sortOrder,
+            sortAscending: session.sortAscending
         )
     }
 
@@ -373,8 +386,22 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         } else {
             resultCountField.isHidden = true
         }
-        verificationCodeHint.superview?.isHidden = snapshot.showsVerificationCodes == false || snapshot.rows.isEmpty
-        selectionBar.update(selection: state.entrySelection, isReadOnly: state.isReadOnly, isSaving: state.isSaving)
+        footerField.stringValue = snapshot.footer?.text ?? ""
+        footerField.setAccessibilityIdentifier(snapshot.footer?.accessibilityIdentifier)
+        footerField.superview?.isHidden = snapshot.footer == nil
+        header.update(snapshot.header, sortOrder: state.sortOrder, sortAscending: state.sortAscending,
+                      canSort: snapshot.rows.isEmpty == false && state.isSaving == false)
+    }
+
+    /// Sort applies to the window's whole list, as View ▸ Sort By does.
+    private func selectSortOrder(_ order: DatabaseViewModel.SortOrder) {
+        guard snapshot?.rows.isEmpty == false else { return }
+        session.sortOrder = order
+    }
+
+    private func selectSortDirection(_ ascending: Bool) {
+        guard snapshot?.rows.isEmpty == false else { return }
+        session.sortAscending = ascending
     }
 
     // MARK: - Selection, open, cancel
@@ -502,13 +529,19 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         return contextMenuItems(forEntryID: rows[row].id)
     }
 
+    /// Move to Group…, then Delete after a separator, with ⌘⌫ shown for the menu bar's Delete.
     private func bulkMenuItems() -> [NSMenuItem] {
         guard session.isReadOnly == false else { return [] }
-        let item = NSMenuItem(title: String(localized: "Move to Group…"), action: #selector(moveSelection(_:)),
+        let move = NSMenuItem(title: String(localized: "Move to Group…"), action: #selector(moveSelection(_:)),
                               keyEquivalent: "")
-        item.target = self
-        item.identifier = NSUserInterfaceItemIdentifier(EntryRowActions.moveIdentifier)
-        return [item]
+        move.target = self
+        move.identifier = NSUserInterfaceItemIdentifier(EntryRowActions.moveIdentifier)
+        let delete = NSMenuItem(title: String(localized: "Delete"), action: #selector(deleteSelectedRows(_:)),
+                                keyEquivalent: "\u{8}")
+        delete.keyEquivalentModifierMask = .command
+        delete.target = self
+        delete.identifier = NSUserInterfaceItemIdentifier(EntryRowActions.deleteIdentifier)
+        return [move, .separator(), delete]
     }
 
     /// Copies, then the edits, then Delete, each group after a separator. The
@@ -559,6 +592,10 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         guard session.state == .unlocked, session.isSaving == false else { return false }
         if menuItem.action == #selector(moveSelection(_:)) {
             return session.isReadOnly == false && session.workspace.entrySelection?.isEmpty == false
+        }
+        if menuItem.action == #selector(deleteSelectedRows(_:)) {
+            if case .entries = session.deletableSelection { return true }
+            return false
         }
         guard let entryID = menuItem.representedObject as? UUID, session.entry(withID: entryID) != nil else {
             return false
@@ -644,6 +681,12 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     @objc private func moveSelection(_ sender: NSMenuItem) {
         guard validateMenuItem(sender) else { return }
         moveEntrySelection()
+    }
+
+    /// Not `deleteSelection:`, the menu bar's Delete, which raises the same confirmation.
+    @objc private func deleteSelectedRows(_ sender: NSMenuItem) {
+        guard validateMenuItem(sender) else { return }
+        presentation.beginSelectionDeletion(in: session)
     }
 }
 
@@ -1128,70 +1171,130 @@ final class MacEntryListEmptyView: NSView {
     }
 }
 
-// MARK: - Selection bar
+// MARK: - Header
 
-/// Shown while several entries are picked: Cancel, how many, and Move to Group.
-final class MacEntrySelectionBarView: NSView {
-    let cancelButton = NSButton(title: String(localized: "Cancel"), target: nil, action: nil)
-    let countField = NSTextField(labelWithString: "")
-    let moveButton = NSButton(title: String(localized: "Move to Group"), target: nil, action: nil)
-    var onCancel: (@MainActor () -> Void)?
-    var onMove: (@MainActor () -> Void)?
+/// The board's 48 pt list header: the list's title, its count line, and the
+/// Sort pull-down (`sort.menu`), dimmed while the list is empty.
+final class MacEntryListHeaderView: NSView {
+    static let height: CGFloat = 48
+
+    let titleField = NSTextField(labelWithString: "")
+    let subtitleField = NSTextField(labelWithString: "")
+    let sortButton = NSPopUpButton(frame: .zero, pullsDown: true)
+    private(set) var sortOrderItems: [NSMenuItem] = []
+    private(set) var sortDirectionItems: [NSMenuItem] = []
+    private(set) var header: MacEntryListSnapshot.Header?
+    var onSortOrder: (@MainActor (DatabaseViewModel.SortOrder) -> Void)?
+    var onSortDirection: (@MainActor (Bool) -> Void)?
 
     init() {
         super.init(frame: .zero)
-        cancelButton.target = self
-        cancelButton.action = #selector(cancel(_:))
-        cancelButton.keyEquivalent = "\u{1b}"
-        cancelButton.setAccessibilityIdentifier("entry-selection.cancel")
-        moveButton.target = self
-        moveButton.action = #selector(move(_:))
-        moveButton.setAccessibilityIdentifier("entry-selection.move")
-        countField.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
-        countField.textColor = .secondaryLabelColor
-        countField.alignment = .center
-        countField.lineBreakMode = .byTruncatingTail
-        countField.setAccessibilityIdentifier("entry-selection.count")
-        let separator = NSBox()
-        separator.boxType = .separator
-        // The count sits above the buttons: beside them it truncates in the column's default width.
-        let buttons = NSStackView(views: [cancelButton, moveButton])
-        buttons.orientation = .horizontal
-        buttons.distribution = .equalSpacing
-        let stack = NSStackView(views: [countField, buttons])
-        stack.orientation = .vertical
-        stack.alignment = .centerX
-        stack.spacing = 6
-        for view in [separator, stack] {
+        titleField.lineBreakMode = .byTruncatingTail
+        titleField.setAccessibilityIdentifier("entry-list.header.title")
+        subtitleField.font = .systemFont(ofSize: NSFont.smallSystemFontSize - 1)
+        subtitleField.textColor = .secondaryLabelColor
+        subtitleField.lineBreakMode = .byTruncatingTail
+        subtitleField.setAccessibilityIdentifier("entry-list.header.subtitle")
+        for field in [titleField, subtitleField] {
+            field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        }
+
+        let label = String(localized: "Sort")
+        sortButton.bezelStyle = .toolbar
+        sortButton.imagePosition = .imageOnly
+        (sortButton.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
+        sortButton.toolTip = label
+        sortButton.setAccessibilityLabel(label)
+        sortButton.setAccessibilityIdentifier("sort.menu")
+        sortButton.setContentHuggingPriority(.required, for: .horizontal)
+        sortButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let face = NSMenuItem(title: label, action: nil, keyEquivalent: "")
+        face.image = NSImage(systemSymbolName: "arrow.up.arrow.down", accessibilityDescription: label)
+        menu.addItem(face)
+        menu.addItem(.sectionHeader(title: String(localized: "Sort By")))
+        for order in DatabaseViewModel.SortOrder.allCases {
+            let item = NSMenuItem(title: order.title, action: #selector(chooseOrder(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = order.rawValue
+            sortOrderItems.append(item)
+            menu.addItem(item)
+        }
+        menu.addItem(.separator())
+        for (title, ascending) in [(String(localized: "Ascending"), true), (String(localized: "Descending"), false)] {
+            let item = NSMenuItem(title: title, action: #selector(chooseDirection(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = ascending
+            sortDirectionItems.append(item)
+            menu.addItem(item)
+        }
+        sortButton.menu = menu
+
+        let text = NSStackView(views: [titleField, subtitleField])
+        text.orientation = .vertical
+        text.alignment = .leading
+        text.spacing = 0
+        for view in [text, sortButton] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
         NSLayoutConstraint.activate([
-            separator.leadingAnchor.constraint(equalTo: leadingAnchor),
-            separator.trailingAnchor.constraint(equalTo: trailingAnchor),
-            separator.topAnchor.constraint(equalTo: topAnchor),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            stack.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: 6),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
-            buttons.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            countField.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor),
+            heightAnchor.constraint(equalToConstant: Self.height),
+            text.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            text.centerYAnchor.constraint(equalTo: centerYAnchor),
+            sortButton.leadingAnchor.constraint(greaterThanOrEqualTo: text.trailingAnchor, constant: 10),
+            sortButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            sortButton.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    func update(selection: Set<UUID>?, isReadOnly: Bool, isSaving: Bool) {
-        isHidden = selection == nil
-        guard let selection else { return }
-        countField.stringValue = selection.isEmpty
-            ? String(localized: "Select Entries")
-            : String(localized: "\(selection.count) entries")
-        cancelButton.isEnabled = isSaving == false
-        moveButton.isEnabled = selection.isEmpty == false && isReadOnly == false && isSaving == false
+    func update(_ header: MacEntryListSnapshot.Header?, sortOrder: DatabaseViewModel.SortOrder, sortAscending: Bool,
+                canSort: Bool) {
+        isHidden = header == nil
+        if header != self.header {
+            self.header = header
+            titleField.attributedStringValue = Self.title(for: header)
+            titleField.setAccessibilityLabel(header?.title)
+            subtitleField.stringValue = header?.subtitle ?? ""
+        }
+        sortButton.isEnabled = canSort
+        for item in sortOrderItems {
+            item.state = item.representedObject as? String == sortOrder.rawValue ? .on : .off
+        }
+        for item in sortDirectionItems {
+            item.state = item.representedObject as? Bool == sortAscending ? .on : .off
+        }
     }
 
-    @objc private func cancel(_ sender: Any?) { onCancel?() }
-    @objc private func move(_ sender: Any?) { onMove?() }
+    /// A tag's name follows an accent "#", as its sidebar row does.
+    private static func title(for header: MacEntryListSnapshot.Header?) -> NSAttributedString {
+        let font = NSFont.systemFont(ofSize: 15, weight: .bold)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        let title = NSMutableAttributedString(string: header?.title ?? "", attributes: [
+            .font: font, .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph,
+        ])
+        if header?.isTag == true {
+            title.insert(NSAttributedString(string: "#\u{2009}", attributes: [
+                .font: font, .foregroundColor: NSColor.controlAccentColor, .paragraphStyle: paragraph,
+            ]), at: 0)
+        }
+        return title
+    }
+
+    @objc private func chooseOrder(_ sender: NSMenuItem) {
+        guard let order = (sender.representedObject as? String).flatMap(DatabaseViewModel.SortOrder.init(rawValue:)) else {
+            return
+        }
+        onSortOrder?(order)
+    }
+
+    @objc private func chooseDirection(_ sender: NSMenuItem) {
+        guard let ascending = sender.representedObject as? Bool else { return }
+        onSortDirection?(ascending)
+    }
 }
