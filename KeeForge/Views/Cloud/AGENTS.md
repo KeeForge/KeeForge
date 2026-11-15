@@ -1,6 +1,6 @@
 # Cloud Views
 
-**Scope:** the cloud file and folder browser and the manual WebDAV and FTP connect forms. Folder-wide UI rules, including the macOS grouped-form modifiers these forms need, are in `../AGENTS.md`.
+**Scope:** the cloud file and folder browser and the manual WebDAV and FTP connect forms. Folder-wide UI rules are in `../AGENTS.md`.
 
 ## Ownership
 

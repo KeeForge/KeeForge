@@ -42,7 +42,7 @@ frames and the quit prompt. `-ui-testing` turns restoration and recording off, a
 The Databases window (780 x 620 pt, title hidden, full-size content so the
 brand panel runs under the traffic lights; tall enough for a 560 pt sheet) is
 `MacDatabasesLauncherViewController` inside a SwiftUI host for launch notices
-and remaining management confirmations. The brand panel shows the app icon, name and version
+and the export bridge. The brand panel shows the app icon, name and version
 and sends New Database…, Open Database File… and Connect to Server… (captioned
 with the server types) to the same nil-targeted commands as the File menu. The
 list renders `MacDatabasesLauncherViewModel.rows` (local, WebDAV and FTP only)
@@ -94,7 +94,7 @@ close and lock; the CSV stays at its source and the captions ask the user to
 remove it after checking the imported entries.
 
 File ▸ Export… uses `MacDatabaseExporter`, also callable by Database Settings.
-The existing `.databaseExporter` bindings for Settings, launcher rows and
+The `.databaseExporter` bindings for Settings, launcher rows and
 pending-upload recovery bridge to it. It writes the current encrypted local
 copy, server cache or selected backup directly through `NSSavePanel`, with no
 temporary file. A locked database window can export a readable encrypted copy.
@@ -115,8 +115,8 @@ through `MacWindowCoordinator.removeFromList(databaseID:)`: the Databases
 window's unsaved-work refusal and confirmation, as alerts in that window, then
 the same removal, which retires the session and closes the window. Reconnect
 on a server sign-in failure runs the status card's sign-in, then returns to the
-form. Its window owns `MacServerReconnectSheet`, using the new connect content
-and the existing expected-account validation.
+form. Its window owns `MacServerReconnectSheet`, using the Connect to Server content
+and its expected-account validation.
 
 ## Workspace presentation
 
@@ -127,7 +127,7 @@ rejects queued callbacks after replacement/cancellation, and captures the window
 controller weakly. A session lock drops the native controller; content revisions
 and selection changes keep the same controller and hosting roots.
 
-One outer `MacWorkspacePresentationHost` remains in `MacDatabaseWorkspaceView`,
+One outer `MacWorkspacePresentationHost` sits in `MacDatabaseWorkspaceView`,
 around the native split representable, inside the always-mounted root host.
 It keeps command observers and the saving overlay. The window controller owns
 `MacWorkspaceSheets` (New/Edit Group, the native Move/Restore outline picker,
@@ -152,7 +152,7 @@ still manage associations. AutoFill's destination row needs the unlocked session
 Manage Custom Icons opens its existing sheet. Change Master Key and Encryption
 Settings are native sheets stacked on the Security tab; Database ▸ Change Master
 Key… opens Database Settings on Security with the master-key sheet on top. Backups export
-through the existing encrypted-copy exporter at `exportDatabaseCopy`. `MacDatabaseRootView`
+through the encrypted-copy exporter at `exportDatabaseCopy`. `MacDatabaseRootView`
 keeps enrollment and its biometric observer mounted across lock/unlock. This
 embedding avoids replacing the window's presentation hierarchy; no content swap
 orders the window or assigns first responder.
@@ -246,7 +246,8 @@ forgets them whenever the timer stops. A copy from the row menu, the code or the
 menu bar leaves a green tick on its row for 1.5 seconds (`MacCopyFeedback`, in
 the window's presentation, so it clears with it on lock).
 
-The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt, and
+The sidebar is collapsible (200–340 pt), the entries column is 260–460 pt
+(at least 328 pt while the sidebar is collapsed), and
 the detail takes the remaining width. `NSSplitView` autosave owns widths and
 collapse state under `MacWindowRestorationStore.splitViewAutosaveName(for:)`, one
 name per database, including across lock/unlock. View → Show Sidebar is forwarded
@@ -270,7 +271,7 @@ presentation (Duplicate, Move to Group, the View menu's Library, Sort and
 Expand/Collapse items, Sync Now, Database Settings) go through
 `MacWorkspaceCommands`. File ▸ New Database, Open Database File and Connect to
 Server are launcher operations and ignore every session's state; Connect to
-Server offers the server types first when there is more than one.
+Server opens the form directly, with a segment per server type.
 Window ▸ Databases shows the Databases window, which AppKit's own window list
 leaves out; that list names each open database window, adding the unlocked
 window's subtitle in parentheses, and `MacWindowMenuDecorator` gives each an

@@ -6,7 +6,7 @@
 
 - `PasswordDisplay.swift`, `PasswordInputRow.swift`, `StandardIconView.swift`, `Theme.swift`, `EntryIconView.swift`, and `StatusBadge.swift` also compile into both AutoFill extension targets (`project.yml`). Keep them free of app-only types and network access; `FaviconEntryIconView` adds the favicon download in the app only.
 - `StandardIconView` is the single renderer for the KDBX standard icons, in the app and the extension. Custom database icons and favicons keep their own colors.
-- `GroupIconView` renders group icons in both app shells: a decodable custom image takes precedence over the standard icon. The Mac sidebar supplies no custom image for the recycle bin.
+- `GroupIconView` renders group icons on iOS: a decodable custom image takes precedence over the standard icon. The Mac sidebar draws AppKit images with the same precedence (`MacIconImages`) and supplies no custom image for the recycle bin.
 - `PasswordInputRow(usesPasswordAutoFill: false)` is for a row that only looks like a password (a TOTP setup key). The flag drives both `textContentType` applications; leaving it on lets QuickType offer to replace the value with a generated password.
 - A revealed password is never selectable; see "Secrets on screen" in `../AGENTS.md`.
 - `PasswordGeneratorSheet` is iOS only and offers Regenerate and Use, not Copy. The Mac generator is `Entry/Mac/MacPasswordGeneratorView`: the editor's popover and the Password Generator panel.

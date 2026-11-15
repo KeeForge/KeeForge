@@ -4,7 +4,7 @@
 
 ## Ownership
 
-- `AppSettingsViewModel` owns preference persistence and live effects, account loading and sign-out, and favicon cache clearing. The iOS `SettingsView` and the Mac Settings window's tabs connect it to the app-owned `DatabaseSessionStore` from the environment on appearance, then calls `reload()`, which does not replay effects. Effects reach every stored session; database-specific content still uses the supplied session.
+- `AppSettingsViewModel` owns preference persistence and live effects, account loading and sign-out, and favicon cache clearing. The iOS `SettingsView` connects it to the app-owned `DatabaseSessionStore` from the environment on appearance; `MacSettingsTabController` connects it to the store it is handed at creation, and the window reloads it on every show. `reload()` does not replay effects. Effects reach every stored session; database-specific content still uses the supplied session.
 - Add a preference effect to the model with a headless test, not to a view `onChange`. `ci_scripts/validate_architecture.py` fails any `SettingsService.<property> =` assignment in `SettingsView.swift`.
 - Every per-database AutoFill toggle goes through the `DatabaseListViewModel` passed in as `listViewModel` (`setAutoFillEnabled`), never `DatabaseListStore`. That instance carries the `autoFillEnabledRefreshHandler` bridge and the system-provider state, so this screen and the list's tip card cannot disagree.
 - `MacSSHAgentSettingsTab` (macOS) renders over `MacSSHAgentController` and is shown only when the app put one in the environment (`../../Services/SSHAgent/AGENTS.md`).
@@ -33,7 +33,7 @@
 ### Layout
 
 - Mac Settings uses an AppKit `NSTabViewController` with toolbar tabs: General, Security, AutoFill, Quick Search, SSH Agent, Appearance, Servers, About. Content uses hosted `.columns` forms, a bounded width and per-tab heights with scrolling. The title follows the tab; the window can never become main.
-- A fresh controller selects Security; the retained controller preserves selection across close/reopen within the process. Settings reads no focused window's session; only SSH chooses an explicit database. The renamed content and toolbar ids use `general`, `quick-search`, `appearance`, and `servers`.
+- A fresh controller selects Security; the retained controller preserves selection across close/reopen within the process. Settings reads no focused window's session; only SSH chooses an explicit database. Content and toolbar ids are `settings.tab.` plus the tab's raw value (`general`, `security`, `autofill`, `quick-search`, `ssh-agent`, `appearance`, `servers`, `about`).
 - Disconnect Server and Clear AutoFill Entries use NSAlert sheets; only an accepted confirmation calls the model. Acknowledgments opens as an attached sheet.
 - The screen-lock checkbox is checked and disabled. The strict background-policy checkbox and delay are separate from inactivity; Immediately preserves existing behavior. Touch ID keeps its automatic-prompt meaning.
 - The support section stays inline on the iOS root; a tip jar behind a row is not seen.

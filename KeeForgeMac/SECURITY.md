@@ -11,8 +11,8 @@ The Mac app uses the shared [EncryptedValue](../KeeForge/Models/EncryptedValue.s
 model: passwords, TOTP secrets, and passkey private keys are sealed with a
 per-session AES-GCM key. [DatabaseSessionStore](../KeeForge/ViewModels/DatabaseSessionStore.swift)
 owns sessions by database UUID, each with its own key and authentication grant.
-This is logical isolation within one process; the current interface still opens
-at most one database at a time. The passkey PEM is removed from ordinary custom
+This is logical isolation within one process; each open database has its own
+window and session. The passkey PEM is removed from ordinary custom
 fields and decrypted when needed for signing. Lock clears only the owning
 session's key, composite key, parsed tree, draft, attachment pool, and retained
 key-file data from the [database session](../KeeForge/ViewModels/DatabaseViewModel.swift).
@@ -63,7 +63,7 @@ token stores. WebDAV requires HTTPS unless Allow Unencrypted HTTP is enabled.
 Both FTP plaintext and concurrent-save warnings appear while unencrypted FTP is
 allowed. The browser binds listings and selections to its account and drops stale
 loads on account replacement or end; it has no account menu. Provider credentials
-still use `CloudTokenStore` with AfterFirstUnlockThisDeviceOnly protection.
+use `CloudTokenStore` with AfterFirstUnlockThisDeviceOnly protection.
 
 Biometric unlock stores composite keys in the Keychain, not raw master passwords.
 [KeychainService](../KeeForge/Services/Security/KeychainService.swift) uses the
@@ -181,7 +181,7 @@ form, its nested parent/icon pickers, and the entry icon sheet. A parent pick
 changes only the form. Save stages the fields and validated move in one draft
 before one save; self, descendant and Recycle Bin destinations are refused in
 [DatabaseViewModel](../KeeForge/ViewModels/DatabaseViewModel.swift). Cancelling the group form or an unconfirmed icon selection writes
-nothing. The separate custom-icon manager retains its existing immediate saves. Lock ends and clears the forms and nested sheets and cancels pending
+nothing. The separate custom-icon manager saves immediately. Lock ends and clears the forms and nested sheets and cancels pending
 favicon downloads through [MacIconPickerModel](../KeeForge/ViewModels/MacIconPickerModel.swift).
 A favicon explicitly downloaded by the user still sends only the website domain
 to DuckDuckGo through the existing service, independently of automatic-icon
@@ -238,8 +238,8 @@ replaces the session's key-file bytes, so a removed key file is never carried in
 the next change. They are never persisted or inferred from a key-file association. AutoFill
 participation still writes through the list model and its matching-session refresh
 bridge. KDBX 3.1 and hardware-key databases stay read-only in either settings context.
-The sheet no longer edits key-file associations; the unlock page, launcher row and
-master-key change retain their existing association paths. Backups remain encrypted
+The sheet does not edit key-file associations; the unlock page, launcher row and
+master-key change keep their own association paths. Backups remain encrypted
 copies exported through the existing exporter, without restore or plaintext export.
 
 The Databases window lists and manages database references and never shows a

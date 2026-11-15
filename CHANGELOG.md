@@ -4,9 +4,22 @@
 
 ### New Features
 
-- On Mac, open several databases at once, each in its own window. A new Databases window lists your databases and opens, adds, creates, or connects to them; Window ▸ Databases brings it back. Closing a database's window locks that database only. Windows that were open when you quit come back on relaunch, locked, where you left them.
+- On Mac, open several databases at once, each in its own window. A new Databases window lists your databases and opens, adds, creates, or connects to them; Window ▸ Databases brings it back. Closing a database's window locks that database only. Windows that were open when you quit come back on relaunch, locked, where you left them. Database ▸ Lock All Databases locks every open database.
+- The Mac app is rebuilt as a native Mac app, with the sidebar, the entry list, and the selected entry side by side in each database window:
+  - The sidebar lists All Entries, Verification Codes, Passkeys, your groups, tags, and the Recycle Bin in sections you can fold. A status card at its foot shows where the database is stored and whether it is synced, syncing, offline, waiting to upload, in conflict, or needs you to reconnect, with the action that fixes it.
+  - The entry list has a header with the entry count and a Sort button. Select several entries with Command-click or Shift-click to move or delete them together, and drag entries onto a group in the sidebar to move them. In Verification Codes, click a code to copy it.
+  - Attachments open in Quick Look or go to the Share menu from the entry pane, and View ▸ Show in Large Type shows the password in large characters after Touch ID or your Mac password.
+  - Edit an entry in place in the entry pane instead of in a separate sheet.
+  - History shows each earlier version beside the current one, says how many fields differ, marks what changed, and restores a version after asking.
+  - Database ▸ Password Generator opens a generator in its own window.
+- A locked Mac database window shows its unlock page with the key file and Touch ID together, then the steps it is on while it opens, with Cancel. When a database can't be opened, the window says why and offers a way out: Locate Database File… for a moved file, Reconnect for a server that rejected the saved sign-in, Try Again, or Remove from List. A Read-Only badge marks a database opened read-only.
+- Mac Settings opens in its own window with General, Security, AutoFill, Quick Search, SSH Agent, Appearance, Servers, and About tabs. Under Security, KeeForge can wait 1, 5, or 15 minutes in the background before it locks, instead of locking immediately; locking the screen or putting the Mac to sleep still locks at once.
+- On Mac, Database ▸ Database Settings… (⌘I) gathers a database's settings in General, Security, Sync, AutoFill, and Backups tabs. Change Master Key… and Change Encryption Settings… open from there, and Encryption Settings can Benchmark the key derivation so you can see how long unlocking will take.
+- On Mac, File ▸ New Database…, Connect to Server…, Import Passwords…, and Export… open as Mac sheets. Connect to Server adds a WebDAV or FTP server and browses it for the database to open. Database ▸ Discard Pending Upload… throws away changes that could not reach the server, after keeping a backup.
 
 ### Changes
+
+- On Mac, quick search and the AutoFill picker have a new look that matches the rest of the app, and the Light, Dark, or System theme in Settings ▸ Appearance now applies to every window, sheet, panel, and alert.
 
 - AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
   - An entry for an IP address, such as a router, is suggested only on that exact address. Before, entries for other addresses ending in the same two numbers appeared as possible matches.
@@ -19,6 +32,10 @@
 ### Fixes
 
 - In AutoFill, an entry URL with spaces before or after it now matches its website and appears in the system's suggestions (#285).
+- An additional URL kept in a protected field is now treated like any other protected field: hidden until you reveal it, revealed and copied only after the same prompt as the password, and never opened, listed as a website, or matched in AutoFill. Before, iPhone and iPad showed it as plain text with Copy and Open.
+- A username, URL, note, or custom field whose field reference (`{REF:…}`) reads a password or another protected field now shows hidden in lists and entry details, and copying it asks for the same authentication as copying the password. Before, the referenced value appeared and copied without a prompt.
+- After Change Master Key removes the key file, changing the master key again before locking no longer brings the removed key file back. Before, the second change could make the database require a key file you had stopped using.
+- On Mac, New Database refuses to save over a database that is already in your list, instead of replacing it.
 - The entry editor's Title, Username, Password, URL, and Tags labels now appear in the app's language. Before, they stayed in English.
 
 ## v1.22.0 (2026-11-10)
