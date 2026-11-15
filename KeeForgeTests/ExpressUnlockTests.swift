@@ -391,6 +391,8 @@ final class ExpressUnlockTests: XCTestCase {
             return XCTFail("Expected save to succeed.")
         }
         let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first)
+        let committed = try Data(contentsOf: cacheURL)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker, environment: environment.queue), committed)
         guard case .saved? = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment) else {
             return XCTFail("Expected delivery of the locally committed ciphertext")
         }
