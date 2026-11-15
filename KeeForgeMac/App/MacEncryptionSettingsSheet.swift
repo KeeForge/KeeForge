@@ -13,6 +13,7 @@ final class MacEncryptionSettingsSheet {
 
     convenience init(session: DatabaseViewModel, current: KDBXFileSummary) {
         self.init(name: session.databaseReference.displayName, model: EncryptionSettingsViewModel(current: current,
+            isSessionSaving: { [weak session] in session?.isSaving == true },
             changeOperation: { [weak session] cipher, keyDerivation, isCompressed in
                 guard let session else { throw DatabaseViewModel.EncryptionSettingsError.sessionUnavailable }
                 try await session.changeEncryptionSettings(cipher: cipher, keyDerivation: keyDerivation, isCompressed: isCompressed)

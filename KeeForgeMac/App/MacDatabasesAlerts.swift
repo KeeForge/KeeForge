@@ -112,31 +112,35 @@ final class MacDatabasesAlerts {
         }
     }
 
+    /// A request replaced between the click and this answer keeps its own alert; this answer is dropped.
     private func answer(_ request: Request, _ response: NSApplication.ModalResponse, alert: NSAlert) {
         let confirmed = response == .alertFirstButtonReturn
         switch request {
-        case .remove:
-            guard let reference = launcher.pendingRemoval else { return }
+        case .remove(let id):
+            guard let reference = launcher.pendingRemoval, reference.id == id else { return }
             launcher.pendingRemoval = nil
             // `remove` checks for unsaved work again; a refusal queues behind this alert.
             if confirmed { launcher.remove(reference) }
-        case .refused:
+        case .refused(let id):
+            guard launcher.refusedRemoval?.id == id else { return }
             launcher.refusedRemoval = nil
-        case .rename:
-            guard let reference = launcher.renameTarget else { return }
+        case .rename(let id):
+            guard let reference = launcher.renameTarget, reference.id == id else { return }
             launcher.renameTarget = nil
             guard confirmed, let field = alert.accessoryView as? NSTextField else { return }
             let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             list.setNickname(name.isEmpty ? nil : name, for: reference)
-        case .discard:
-            guard let reference = launcher.pendingUploadDiscardTarget else { return }
+        case .discard(let id):
+            guard let reference = launcher.pendingUploadDiscardTarget, reference.id == id else { return }
             launcher.pendingUploadDiscardTarget = nil
             guard confirmed else { return }
             let list = list
             Task { await list.discardConflictedPendingUploads(for: reference) }
-        case .selection:
+        case .selection(let id):
+            guard launcher.selectionAlert?.id == id else { return }
             launcher.selectionAlert = nil
-        case .pendingUpload:
+        case .pendingUpload(let id):
+            guard list.pendingUploadAlert?.id == id else { return }
             let reference = list.pendingUploadAlert.flatMap { pending in
                 pending.kind == .conflict ? list.databases.first { $0.id == pending.databaseId } : nil
             }

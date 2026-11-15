@@ -35,8 +35,9 @@ struct MacWorkspaceCommands {
         return DatabaseCommands(session: session).save()
     }
 
+    /// Import outranks every other window sheet, so it waits until none is up rather than ending one.
     var canImportPasswords: Bool {
-        guard let session = unfrozen else { return false }
+        guard let session = unfrozen, !presentation.hasWorkspaceSheet else { return false }
         return !session.isReadOnly && !session.isSaving
     }
 

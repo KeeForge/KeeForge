@@ -187,6 +187,7 @@ final class DatabaseCreationViewModel {
         creationError = nil
         defer { isCreating = false }
         do {
+            try DatabaseListStore.validateCreatedLocalDestination(url)
             let prepared = try await preparationOperation(
                 DatabasePreparationRequest(
                     displayName: databaseName,

@@ -1240,7 +1240,9 @@ final class DatabaseViewModel {
                 sessionKey: sessionKey,
                 masterKeyEntered: true
             )
-            masterKeyComposition = MasterKeyComposition(hasPassword: !password.isEmpty, hasKeyFile: keyFileData != nil)
+            // A YubiKey response is part of the key but not of this summary.
+            masterKeyComposition = hardwareKey == nil
+                ? MasterKeyComposition(hasPassword: !password.isEmpty, hasKeyFile: keyFileData != nil) : nil
             sessionKeyFileData = keyFileData
             await mergePendingLocalSaves()
         } catch {
@@ -2685,8 +2687,9 @@ final class DatabaseViewModel {
             do {
                 try await secretAccess.authenticate(reason: String(localized: "Unlock Database"))
             } catch {
+                // Another trigger may have replaced the request during the prompt; it still stands.
                 guard lockCycleID == cycle, lockRequestCancellationID == cancellationID,
-                      self.pendingLockRequest == pendingLockRequest else { return }
+                      self.pendingLockRequest != nil else { return }
                 lockRequest(force: true)
                 return
             }
@@ -2937,6 +2940,11 @@ final class DatabaseViewModel {
                 bookmarkData: newKeyFileBookmarkData,
                 filename: newKeyFileFilename
             )
+            if expectedLockCycleID == lockCycleID {
+                // The remote needs the new key, the open cache the old one.
+                masterKeyComposition = nil
+                sessionKeyFileData = newKeyFileData
+            }
             throw SaveError.rekeyAppliedRemotely
         }
 
@@ -2955,6 +2963,7 @@ final class DatabaseViewModel {
             )
             if expectedLockCycleID == lockCycleID {
                 self.masterKeyComposition = MasterKeyComposition(hasPassword: newPassword?.isEmpty == false, hasKeyFile: newKeyFileData != nil)
+                self.sessionKeyFileData = newKeyFileData
                 self.compositeKey = newCompositeKey
                 quickUnlockItemHoldsSessionKey = storedNewKey
                 self.openTimeSHA512 = newSHA512
@@ -3007,13 +3016,10 @@ final class DatabaseViewModel {
     }
 
     private func persistKeyFileAssociation(bookmarkData: Data?, filename: String?) {
-        var updated = DatabaseListStore.databases.first(where: { $0.id == databaseReference.id }) ?? databaseReference
-        updated.keyFileBookmarkData = bookmarkData
-        updated.keyFileFilename = filename
         // The drainer refuses to push markers older than this: they hold
         // ciphertext under the old key and would revert the rekeyed remote.
-        updated.lastMasterKeyChangeAt = nowProvider()
-        DatabaseListStore.update(updated)
+        DatabaseListStore.setKeyFileAssociation(bookmarkData: bookmarkData, filename: filename,
+            changedAt: nowProvider(), for: databaseReference)
         refreshDatabaseReference()
     }
 
@@ -3896,9 +3902,7 @@ final class DatabaseViewModel {
     }
 
     func setNickname(_ nickname: String?) {
-        var updatedReference = DatabaseListStore.databases.first(where: { $0.id == databaseReference.id }) ?? databaseReference
-        updatedReference.nickname = nickname
-        DatabaseListStore.update(updatedReference)
+        DatabaseListStore.setNickname(nickname, for: databaseReference)
         refreshDatabaseReference()
     }
 

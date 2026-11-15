@@ -43,6 +43,39 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.masterKeyComposition)
     }
 
+    func testAKeyFileClearedByAMasterKeyChangeIsNotRequiredAgainByTheNextChange() async throws {
+        let vm = try makeViewModel(reference: makeIconManagementReference())
+        let keyFile = Data(repeating: 0x42, count: 32)
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeMasterKey(newPassword: "p1", newKeyFileData: keyFile, newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+        vm.lock()
+        await vm.unlock(password: "p1", keyFileData: keyFile)
+        XCTAssertEqual(vm.sessionKeyFileData, keyFile)
+
+        try await vm.changeMasterKey(newPassword: "p2", newKeyFileData: nil, newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+        XCTAssertNil(vm.sessionKeyFileData)
+
+        let sheet = MasterKeyChangeViewModel(
+            currentKeyFileFilename: vm.databaseReference.keyFileFilename,
+            currentKeyFileBookmarkData: vm.databaseReference.keyFileBookmarkData,
+            sessionKeyFileData: vm.sessionKeyFileData,
+            loadCurrentKeyFile: { nil },
+            changeOperation: { password, data, bookmark, filename in
+                try await vm.changeMasterKey(newPassword: password, newKeyFileData: data,
+                    newKeyFileBookmarkData: bookmark, newKeyFileFilename: filename)
+            }
+        )
+        XCTAssertFalse(sheet.hasEffectiveKeyFile)
+        sheet.newPassword = "p3"
+        sheet.confirmPassword = "p3"
+        let changed = await sheet.performChange()
+        XCTAssertTrue(changed)
+        vm.lock()
+        await vm.unlock(password: "p3")
+        XCTAssertEqual(vm.state, .unlocked)
+        vm.lock()
+    }
+
     func testCustomIconRenameDeleteSaveReopenAndNoOp() async throws {
         let vm = try makeViewModel(reference: makeIconManagementReference())
         await vm.unlock(password: fixturePassword)
@@ -7205,7 +7238,10 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyAddingKeyFilePersistsAssociationOnReference() async throws {
         let keyFileData = Data("rekey key file bytes".utf8)
         let bookmarkData = Data("rekey-bookmark".utf8)
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
         let vm = try makeViewModel(
+            reference: reference,
             localSaveOperation: { _, _, _, _, _, _, _ in
                 .saved(newSHA512: Data("rekeyed-hash".utf8))
             }
@@ -7230,6 +7266,22 @@ final class DatabaseViewModelTests: XCTestCase {
         let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == vm.databaseReference.id }))
         XCTAssertEqual(stored.keyFileBookmarkData, bookmarkData)
         XCTAssertEqual(stored.keyFileFilename, "vault.key")
+    }
+
+    func testAMasterKeyChangeFinishingAfterRemovalDoesNotAddTheDatabaseBack() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(
+            reference: reference,
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                await MainActor.run { DatabaseListStore.remove(id: reference.id) }
+                return .saved(newSHA512: Data("rekeyed-hash".utf8))
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeMasterKey(newPassword: "rotated", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
     }
 
     func testChangeMasterKeyRemovingKeyFileClearsAssociationOnReference() async throws {
@@ -7639,6 +7691,7 @@ final class DatabaseViewModelTests: XCTestCase {
             oldCompositeKey,
             "The session keeps the key matching the still-old local cache"
         )
+        XCTAssertNil(vm.masterKeyComposition, "The summary must not name the old key the remote no longer takes")
     }
 
     func testChangeMasterKeySavesDraftThatGrewDuringRekey() async throws {

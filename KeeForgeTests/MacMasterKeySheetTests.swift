@@ -73,6 +73,25 @@ final class MacMasterKeySheetTests: XCTestCase {
         XCTAssertEqual(removal.buttons.first?.title, String(localized: "Save Without Password"))
     }
 
+    func testFooterPromisesAuthenticationOnlyWhenTheMacCanAuthenticate() {
+        func labels(canAuthenticate: Bool) -> [String] {
+            let model = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
+                loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _ in })
+            let sheet = MacMasterKeySheet(name: "Personal", databaseFilename: "Personal.kdbx", model: model,
+                canAuthenticateDeviceOwner: canAuthenticate) { _ in false }
+            defer { sheet.shell.end() }
+            func collect(_ view: NSView) -> [String] {
+                ((view as? NSTextField).map { [$0.stringValue] } ?? []) + view.subviews.flatMap(collect)
+            }
+            return sheet.shell.window?.contentView.map(collect) ?? []
+        }
+        let promise = String(localized: "You confirm with Touch ID or your Mac password before anything changes.")
+        XCTAssertTrue(labels(canAuthenticate: true).contains(promise))
+        let without = labels(canAuthenticate: false)
+        XCTAssertFalse(without.contains(promise))
+        XCTAssertTrue(without.contains(String(localized: "Nothing changes until you confirm.")))
+    }
+
     func testCancelAndEscapeAreDisabledWhileChangingAndEndingClearsFieldsWithoutStoppingTheWrite() async {
         let gate = SaveGate()
         var finishedWrite = false

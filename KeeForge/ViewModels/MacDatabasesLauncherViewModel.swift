@@ -148,6 +148,8 @@ final class MacDatabasesLauncherViewModel {
     @ObservationIgnored var openDatabase: @MainActor (DatabaseReference) -> Void = { _ in }
     @ObservationIgnored var openCreatedDatabase: @MainActor (CreatedDatabase) -> Void = { _ in }
     @ObservationIgnored var hasUnsavedWork: @MainActor (UUID) -> Bool = { _ in false }
+    /// True while the window's sheet is creating or connecting; a new request must not replace it.
+    @ObservationIgnored var isSheetBusy: @MainActor () -> Bool = { false }
     @ObservationIgnored var removeDatabase: @MainActor (DatabaseReference) -> Void = { _ in }
     @ObservationIgnored var chooseEnrollmentDestinationHandler: @MainActor (UUID) -> Void = { _ in }
     @ObservationIgnored var cancelEnrollmentDestinationHandler: @MainActor () -> Void = {}
@@ -267,7 +269,10 @@ final class MacDatabasesLauncherViewModel {
         openCreatedDatabase(database)
     }
 
+    var canCreateDatabase: Bool { !isSheetBusy() }
+
     func requestNewDatabase() {
+        guard canCreateDatabase else { return }
         sheet = .newDatabase
     }
 
@@ -318,6 +323,7 @@ final class MacDatabasesLauncherViewModel {
     // MARK: - Servers
 
     var canConnect: Bool { connectProviders.isEmpty == false }
+    var canRequestConnect: Bool { canConnect && !isSheetBusy() }
 
     /// The caption under Connect to Server…: the server types it offers.
     var connectCaption: String {
@@ -325,7 +331,7 @@ final class MacDatabasesLauncherViewModel {
     }
 
     func requestConnect(_ provider: CloudProviderKind? = nil) {
-        guard let chosen = provider ?? connectProviders.first, connectProviders.contains(chosen) else { return }
+        guard !isSheetBusy(), let chosen = provider ?? connectProviders.first, connectProviders.contains(chosen) else { return }
         sheet = .connect(chosen)
     }
 

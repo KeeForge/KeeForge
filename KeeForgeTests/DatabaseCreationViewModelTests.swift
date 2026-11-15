@@ -106,6 +106,29 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertNil(model.preparedDatabase)
     }
 
+    func testChoosingAListedDatabaseFileIsRefusedBeforeAnythingIsWritten() async throws {
+        let url = try makeTemporaryFileURL(name: "Listed.kdbx", contents: Data([42]))
+        let listed = try TestDatabaseSupport.makeReference(for: url)
+        DatabaseListStore.update(listed)
+        let preparations = PreparationCount()
+        let model = DatabaseCreationViewModel(preparationOperation: { request, environment in
+            await preparations.increment()
+            return try await DatabaseCreationService.prepare(request: request, environment: environment)
+        })
+        model.databaseName = "Listed"
+        model.password = "secret"
+        model.confirmPassword = model.password
+        let result = await model.createLocal { _ in url }
+        XCTAssertNil(result)
+        XCTAssertEqual(try Data(contentsOf: url), Data([42]))
+        let preparationCount = await preparations.value
+        XCTAssertEqual(preparationCount, 0)
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [listed.id])
+        XCTAssertEqual(model.creationError, DatabaseListStore.AddDatabaseError
+            .duplicateFile(existingReferenceID: listed.id, filename: listed.displayName).localizedDescription)
+        XCTAssertEqual(model.password, "secret")
+    }
+
     func testSavePanelCancelKeepsFormAvailableForRetry() async {
         let model = DatabaseCreationViewModel()
         model.databaseName = "Retry"
@@ -661,4 +684,9 @@ private actor CreationSuspension<Value: Sendable> {
         continuation?.resume(with: result)
         continuation = nil
     }
+}
+
+private actor PreparationCount {
+    private(set) var value = 0
+    func increment() { value += 1 }
 }

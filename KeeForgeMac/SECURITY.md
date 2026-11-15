@@ -225,7 +225,9 @@ and its master-key and encryption sheets, which never cancel a write already run
 group or key-changing action is available there. The session records only whether
 a password and key file were supplied at typed unlock or rekey; these non-secret
 composition flags are cleared on lock and are unavailable for a composite-key-only
-unlock. They are never persisted or inferred from a key-file association. AutoFill
+or hardware-key unlock and after a rekey that reached only the remote. A rekey
+replaces the session's key-file bytes, so a removed key file is never carried into
+the next change. They are never persisted or inferred from a key-file association. AutoFill
 participation still writes through the list model and its matching-session refresh
 bridge. KDBX 3.1 and hardware-key databases stay read-only in either settings context.
 The sheet no longer edits key-file associations; the unlock page, launcher row and
@@ -254,8 +256,10 @@ sessions unlocked. These requests do not depend on the iOS-only
 
 The strict policy's app-background delay defaults to Immediately, including for
 existing installs. Users can opt into 1, 5 or 15 minutes while KeeForge stays
-inactive. Activation, a completed lock of the last open session, stopping the
-monitor, or changing the delay invalidates its pending deadline; a lock of one
+inactive. Activation within the delay, a completed lock of the last open session, stopping the
+monitor, or changing the delay invalidates its pending deadline; activation after
+the delay has passed on the wall clock (a napped timer that has not fired) locks
+instead. A lock of one
 session never cancels the deadline protecting others. Screen lock, screensaver,
 sleep and fast user switching bypass the delay, invalidate the deadline and
 request locks immediately. The system-authentication hold below is unchanged

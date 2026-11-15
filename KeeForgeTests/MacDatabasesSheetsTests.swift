@@ -37,6 +37,63 @@ final class MacDatabasesSheetsTests: XCTestCase {
         XCTAssertNil(presenter.shell)
     }
 
+    func testABusyConnectIsNotReplacedByNewDatabaseOrAnotherConnect() async throws {
+        let launcher = MacDatabasesLauncherViewModel(references: { [] })
+        let window = NSWindow()
+        let presenter = MacDatabasesSheets(window: window, launcher: launcher, list: DatabaseListViewModel(), present: { shell, parent, completion in
+            shell.presentWindow = { _, _, _ in }
+            shell.begin(on: parent, completion: completion)
+        })
+        launcher.requestConnect(.webDAV)
+        await settle()
+        let connect = try XCTUnwrap(presenter.connect)
+        let shell = try XCTUnwrap(presenter.shell)
+        XCTAssertTrue(launcher.canCreateDatabase)
+        shell.setBusy(true, label: "")
+        XCTAssertFalse(launcher.canCreateDatabase)
+        XCTAssertFalse(launcher.canRequestConnect)
+        launcher.requestNewDatabase()
+        launcher.requestConnect(.ftp)
+        await settle()
+        XCTAssertEqual(launcher.sheet, .connect(.webDAV))
+        launcher.sheet = .newDatabase
+        await settle()
+        XCTAssertEqual(launcher.sheet, .connect(.webDAV))
+        XCTAssertTrue(presenter.connect === connect)
+        XCTAssertTrue(presenter.shell === shell)
+        XCTAssertNil(presenter.creation)
+        shell.setBusy(false, label: "")
+        XCTAssertTrue(launcher.canCreateDatabase)
+        presenter.end()
+    }
+
+    func testChainingFromNewDatabaseToConnectAttachesToTheWindowOnARealSheet() async throws {
+        let launcher = MacDatabasesLauncherViewModel(references: { [] })
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 500), styleMask: [.titled],
+                              backing: .buffered, defer: true)
+        window.isReleasedWhenClosed = false
+        let presenter = MacDatabasesSheets(window: window, launcher: launcher, list: DatabaseListViewModel())
+        launcher.requestNewDatabase()
+        await settle()
+        let creationShell = try XCTUnwrap(presenter.shell)
+        try XCTSkipUnless(window.attachedSheet != nil, "AppKit attached no sheet to a window that was never shown")
+        let creation = try XCTUnwrap(presenter.creation)
+        creation.databaseName = "Chained"
+        creation.password = "secret"
+        creation.confirmPassword = "secret"
+        creation.destinationChoice = .webDAV
+        creationShell.performDefault()
+        await settle()
+        let connectShell = try XCTUnwrap(presenter.shell)
+        XCTAssertFalse(connectShell === creationShell)
+        XCTAssertNotNil(presenter.connect)
+        XCTAssertNil(creationShell.window?.sheetParent)
+        XCTAssertTrue(window.attachedSheet === connectShell.window, "The next sheet attaches to the window, not the outgoing sheet")
+        XCTAssertEqual(launcher.sheet, .newDatabase)
+        presenter.end()
+        window.close()
+    }
+
     func testReconnectNativeSheetBlocksCancelWhileConnectingAndDropsLateResultOnClose() async throws {
         let connector = P8ConnectGate()
         let form = WebDAVConnectViewModel(connector: connector, expectedAccountID: nil)

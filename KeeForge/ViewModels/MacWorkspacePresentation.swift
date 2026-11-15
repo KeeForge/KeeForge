@@ -162,6 +162,11 @@ final class MacWorkspacePresentation {
         session.isSaving || currentEntryEditor(in: session) != nil
     }
 
+    /// A New Group, icon, group editor, move or Database Settings sheet is requested or up.
+    var hasWorkspaceSheet: Bool {
+        isShowingNewGroupSheet || entryIconID != nil || groupEditor != nil || pendingMove != nil || isShowingDatabaseDetails
+    }
+
     var canSaveEntryEditor: Bool { entryEditor?.canSave == true }
 
     /// File ▸ Save while the editor is open: the editor's Save, which writes the database too.

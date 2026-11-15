@@ -26,6 +26,7 @@ final class MacDatabasesSheets: NSObject {
         self.window = window; self.launcher = launcher; self.list = list
         super.init()
         panels.window = window
+        launcher.isSheetBusy = { [weak self] in self?.shell?.isBusy == true }
         observation.start(reading: { launcher.sheet }, onChange: { [weak self] request in self?.reconcile(request) })
     }
     func end() {
@@ -41,6 +42,10 @@ final class MacDatabasesSheets: NSObject {
     }
     private func reconcile(_ request: MacDatabasesLauncherViewModel.Sheet?) {
         guard request != activeRequest else { return }
+        if request != nil, shell?.isBusy == true {
+            launcher.sheet = activeRequest
+            return
+        }
         end()
         guard let request else { return }
         activeRequest = request

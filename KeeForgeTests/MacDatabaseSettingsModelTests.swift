@@ -90,6 +90,20 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         XCTAssertFalse(model.canChangeSecurity)
     }
 
+    func testCommittingANicknameAfterTheDatabaseWasRemovedDoesNotAddItBack() async throws {
+        let reference = try reference()
+        DatabaseListStore.update(reference)
+        let session = DatabaseViewModel(databaseReference: reference,
+            quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })
+        let model = MacDatabaseSettingsModel(reference: reference, session: session)
+        model.nickname = "Typed"
+        DatabaseListViewModel().removeDatabase(reference)
+        model.commitNickname()
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+        session.setNickname("Direct")
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+    }
+
     func testLauncherWritesAutoFillBridgeAndHardwareKeyReadOnly() async throws {
         let reference = try reference()
         DatabaseListStore.update(reference)
@@ -146,6 +160,7 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
             }
         }
         let reference = try reference()
+        DatabaseListStore.update(reference)
         let session = DatabaseViewModel(databaseReference: reference,
             localSaveOperation: { _, _, _, _, _, _, _ in .saved(newSHA512: Data([2])) },
             quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })

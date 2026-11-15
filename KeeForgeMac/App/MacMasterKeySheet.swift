@@ -38,13 +38,14 @@ final class MacMasterKeySheet {
     }
 
     init(name: String, databaseFilename: String, model: MasterKeyChangeViewModel, panels: MacFilePanels = MacFilePanels(),
+         canAuthenticateDeviceOwner: Bool = BiometricService.canAuthenticateDeviceOwner,
          performChange: @escaping @MainActor (MasterKeyChangeViewModel) async -> Bool) {
         self.model = model
         self.panels = panels
         self.databaseFilename = databaseFilename
         self.performChange = performChange
         let actions = MacMasterKeyActions()
-        let footer = NSTextField(wrappingLabelWithString: String(localized: "You confirm with Touch ID or your Mac password before anything changes."))
+        let footer = NSTextField(wrappingLabelWithString: Self.footerText(canAuthenticateDeviceOwner: canAuthenticateDeviceOwner))
         footer.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         footer.textColor = .secondaryLabelColor
         footer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -73,6 +74,13 @@ final class MacMasterKeySheet {
         let confirmed = await confirm(Self.confirmation(removingPassword: model.newPassword.isEmpty), window)
         guard confirmed, !hasEnded else { return }
         if await performChange(model), !hasEnded { shell.end(confirmed: true) }
+    }
+
+    /// Without device-owner authentication the change goes ahead after the confirmation alone, as on iOS.
+    static func footerText(canAuthenticateDeviceOwner: Bool) -> String {
+        canAuthenticateDeviceOwner
+            ? String(localized: "You confirm with Touch ID or your Mac password before anything changes.")
+            : String(localized: "Nothing changes until you confirm.")
     }
 
     static func confirmation(removingPassword: Bool) -> NSAlert {

@@ -127,6 +127,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     }
 
     @objc func newDatabase(_ sender: Any?) {
+        guard windowCoordinator.launcher.canCreateDatabase else { return }
         windowCoordinator.showDatabasesWindow()
         windowCoordinator.launcher.requestNewDatabase()
     }
@@ -144,7 +145,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     }
 
     @objc func connectToServer(_ sender: Any?) {
-        guard windowCoordinator.launcher.canConnect else { return }
+        guard windowCoordinator.launcher.canRequestConnect else { return }
         windowCoordinator.showDatabasesWindow()
         windowCoordinator.launcher.requestConnect()
     }
@@ -158,7 +159,8 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
-        case #selector(connectToServer): return windowCoordinator.launcher.canConnect
+        case #selector(connectToServer): return windowCoordinator.launcher.canRequestConnect
+        case #selector(newDatabase): return windowCoordinator.launcher.canCreateDatabase
         case #selector(lockAllDatabases): return windowCoordinator.canLockAllDatabases
         case #selector(showPasswordGenerator): return canShowPasswordGenerator
         #if KEEFORGE_DIRECT_DOWNLOAD

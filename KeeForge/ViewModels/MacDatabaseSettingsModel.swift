@@ -97,6 +97,7 @@ final class MacDatabaseSettingsModel {
         loadRevision += 1
         let revision = loadRevision
         let hash = session?.openTimeSHA512
+        list.reload()
         let info = await loadFileInfo(current)
         guard !Task.isCancelled, revision == loadRevision else { return }
         loadedHash = hash
@@ -108,7 +109,8 @@ final class MacDatabaseSettingsModel {
     func commitNickname() {
         let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
         let value = trimmed.isEmpty ? nil : trimmed
-        guard current.nickname != value else { return }
+        list.reload()
+        guard let stored = list.databases.first(where: { $0.id == reference.id }), stored.nickname != value else { return }
         if let session { session.setNickname(value); list.reload() }
         else { list.setNickname(value, for: current) }
     }

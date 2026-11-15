@@ -84,6 +84,28 @@ final class MacAlertQueueTests: XCTestCase {
         }
     }
 
+    func testARealSheetStillDetachingHoldsTheNextAlertAndTheQueueMovesOn() async throws {
+        let window = makeWindow()
+        let queue = MacAlertQueue(window: window)
+        queue.enqueue(alert("First")) { _ in }
+        try XCTSkipUnless(window.attachedSheet != nil, "AppKit attached no sheet to a window that was never shown")
+        let first = try XCTUnwrap(queue.presentedAlert)
+        XCTAssertTrue(window.attachedSheet === first.window)
+        var answered: [NSApplication.ModalResponse] = []
+        queue.cancel(first)
+        queue.enqueue(alert("Second")) { answered.append($0) }
+        for _ in 0..<50 where queue.presentedAlert?.messageText != "Second" { await settle() }
+        XCTAssertEqual(queue.presentedAlert?.messageText, "Second", "The queue does not stall behind a detaching sheet")
+        let second = try XCTUnwrap(queue.presentedAlert)
+        XCTAssertNil(first.window.sheetParent)
+        XCTAssertTrue(window.attachedSheet === second.window)
+        window.endSheet(second.window, returnCode: .alertFirstButtonReturn)
+        for _ in 0..<50 where answered.isEmpty { await settle() }
+        XCTAssertEqual(answered, [.alertFirstButtonReturn], "The answer runs once the sheet has detached")
+        XCTAssertNil(queue.presentedAlert)
+        queue.end()
+    }
+
     // MARK: - Databases window
 
     func testRemoveConfirmationRechecksAndQueuesTheRefusalBehindIt() async throws {
@@ -180,6 +202,29 @@ final class MacAlertQueueTests: XCTestCase {
         XCTAssertEqual(panelRequests, 1)
         XCTAssertNil(launcher.keyFileTarget)
         XCTAssertEqual(DatabaseListStore.databases.first?.keyFileFilename, keyFile.lastPathComponent)
+        alerts.end()
+    }
+
+    func testAnAnswerActsOnlyOnTheDatabaseItsAlertWasShownFor() async throws {
+        let first = try register()
+        let second = try register()
+        var removed: [UUID] = []
+        let launcher = MacDatabasesLauncherViewModel(references: { [first, second] })
+        launcher.removeDatabase = { removed.append($0.id) }
+        let presenter = Presenter()
+        let alerts = MacDatabasesAlerts(window: makeWindow(), launcher: launcher, list: DatabaseListViewModel(),
+            panels: MacFilePanels(present: { _, _ in nil }), present: presenter.present)
+        launcher.beginRemoval(first)
+        await settle()
+        XCTAssertEqual(presenter.shown.count, 1)
+        launcher.pendingRemoval = second
+        presenter.answer(0)
+        XCTAssertTrue(removed.isEmpty, "Remove answered for one database never removes the one that replaced it")
+        XCTAssertEqual(launcher.pendingRemoval?.id, second.id)
+        await settle()
+        XCTAssertEqual(presenter.shown.count, 2, "The replacing request gets its own alert")
+        presenter.answer(1)
+        XCTAssertEqual(removed, [second.id])
         alerts.end()
     }
 

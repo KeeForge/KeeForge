@@ -125,6 +125,8 @@ final class MacLockMonitor {
     private let backgroundLockDelayProvider: @MainActor () -> SettingsService.MacBackgroundLockDelay
     private var backgroundDeadline = 0
     private var hasBackgroundDeadline = false
+    /// Wall-clock due time of the background lock; a napped timer can fire after the app is back.
+    private var backgroundDeadlineDue: Date?
     private let lockPolicyProvider: LockPolicyProvider
     private let isAuthenticationPromptPending: AuthenticationPromptProvider
     private let frontmostApplication: FrontmostApplicationProvider
@@ -192,6 +194,7 @@ final class MacLockMonitor {
             monitor.handleLockTrigger(.appResignedActive)
         }
         observe(notificationCenter, NSApplication.didBecomeActiveNotification) { monitor in
+            monitor.lockIfBackgroundDeadlinePassed()
             monitor.cancelBackgroundDeadline()
             monitor.endHeldDeactivation()
             monitor.onDidBecomeActive?()
@@ -373,6 +376,7 @@ final class MacLockMonitor {
                 guard !hasBackgroundDeadline else { return }
                 endHeldDeactivation()
                 hasBackgroundDeadline = true
+                backgroundDeadlineDue = now().addingTimeInterval(TimeInterval(delay))
                 let deadline = backgroundDeadline
                 scheduleDeadline(TimeInterval(delay)) { [weak self] in
                     guard let self, self.hasBackgroundDeadline, self.backgroundDeadline == deadline else { return }
@@ -390,7 +394,16 @@ final class MacLockMonitor {
 
     private func cancelBackgroundDeadline() {
         hasBackgroundDeadline = false
+        backgroundDeadlineDue = nil
         backgroundDeadline += 1
+    }
+
+    /// Activation after the configured delay locks rather than cancelling the deadline.
+    private func lockIfBackgroundDeadlinePassed() {
+        guard hasBackgroundDeadline, let due = backgroundDeadlineDue, now() >= due else { return }
+        cancelBackgroundDeadline()
+        guard lockPolicyProvider() == .appDeactivates else { return }
+        onLockTriggered?(.appResignedActive)
     }
 
     private func observe(

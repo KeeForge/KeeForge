@@ -80,6 +80,15 @@ final class HardwareKeyUnlockTests: XCTestCase {
         XCTAssertTrue(vm.rootGroup?.allEntries.contains { $0.title == "YubiKey Entry" } == true)
     }
 
+    func testYubiKeyUnlockLeavesTheMasterKeySummaryUnknown() async throws {
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC) { challenge, _ in
+            YubiKeyEmulator.response(to: challenge)
+        }
+        await vm.unlock(password: fixture.password)
+        XCTAssertTrue(vm.sessionUsesHardwareKey)
+        XCTAssertNil(vm.masterKeyComposition)
+    }
+
     func testSaveIsRefusedAfterYubiKeyUnlock() async throws {
         let vm = try makeViewModel(hardwareKey: slotTwoOverNFC) { challenge, _ in
             YubiKeyEmulator.response(to: challenge)

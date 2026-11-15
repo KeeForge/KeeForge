@@ -253,6 +253,21 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         XCTAssertFalse(MacWorkspaceCommands(session: readOnly, presentation: other).canImportPasswords)
     }
 
+    func testImportIsDimmedWhileAGroupEditorOrAnotherWindowSheetIsUp() async throws {
+        let (session, presentation, tree) = try await makeSession()
+        let commands = MacWorkspaceCommands(session: session, presentation: presentation)
+        presentation.beginGroupEdit(groupID: tree.work.id, in: session)
+        XCTAssertNotNil(presentation.groupEditor)
+        XCTAssertFalse(commands.canImportPasswords)
+        commands.importPasswords()
+        XCTAssertFalse(presentation.passwordImport)
+        presentation.groupEditor = nil
+        commands.showDatabaseSettings()
+        XCTAssertFalse(commands.canImportPasswords)
+        presentation.isShowingDatabaseDetails = false
+        XCTAssertTrue(commands.canImportPasswords)
+    }
+
     func testImportIsRefusedDuringAnInFlightSave() async throws {
         let gate = SaveGate()
         let (session, presentation, tree) = try await makeSession(save: { _, _, _, hash, _, _, _ in

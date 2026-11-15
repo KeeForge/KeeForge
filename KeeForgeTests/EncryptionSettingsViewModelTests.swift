@@ -393,14 +393,51 @@ final class EncryptionSettingsViewModelTests: XCTestCase {
         let benchmark = viewModel.benchmark()
         while probe.calls == 0 { await Task.yield() }
 
-        let saved = await viewModel.performChange()
+        let save = Task { await viewModel.performChange() }
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertTrue(viewModel.isWorking)
+        XCTAssertEqual(recorder.calls.count, 0, "Save re-encrypts only once the benchmark's derivation has run out")
         probe.release.signal()
         await benchmark?.value
+        let saved = await save.value
 
         XCTAssertTrue(saved)
         XCTAssertEqual(recorder.calls.count, 1)
         XCTAssertNil(viewModel.benchmarkSeconds)
         XCTAssertFalse(viewModel.isBenchmarking)
+    }
+
+    func testBenchmarksInDifferentSheetsNeverDeriveAtOnce() async {
+        let probe = BenchmarkProbe()
+        probe.holds = true
+        let first = makeBenchmarkViewModel(probe)
+        let second = makeBenchmarkViewModel(probe)
+        let firstRun = first.benchmark()
+        while probe.calls == 0 { await Task.yield() }
+        first.cancelBenchmark()
+        let secondRun = second.benchmark()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(probe.calls, 1, "The other sheet waits for the running derivation")
+        probe.release.signal()
+        await firstRun?.value
+        while probe.calls < 2 { await Task.yield() }
+        probe.release.signal()
+        await secondRun?.value
+        XCTAssertEqual(probe.maxRunning, 1)
+        XCTAssertEqual(second.benchmarkSeconds, 0.64)
+    }
+
+    func testNoBenchmarkWhileTheDatabaseIsSaving() async {
+        let probe = BenchmarkProbe()
+        var saving = true
+        let viewModel = EncryptionSettingsViewModel(current: summary(), measure: { try probe.measure($0) },
+                                                    isSessionSaving: { saving }) { _, _, _ in }
+        XCTAssertFalse(viewModel.canBenchmark)
+        XCTAssertNil(viewModel.benchmark())
+        saving = false
+        XCTAssertTrue(viewModel.canBenchmark)
+        await viewModel.benchmark()?.value
+        XCTAssertEqual(probe.calls, 1)
     }
 
     func testRealMeasurementDerivesTheSelectedParameters() throws {

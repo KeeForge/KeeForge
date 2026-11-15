@@ -75,9 +75,12 @@ final class EncryptionSettingsViewModel {
     private(set) var benchmarkSeconds: Double?
     private(set) var benchmarkError: String?
     private var benchmarkTask: Task<Void, Never>?
-    /// A derivation cannot stop midway, so a cancelled one runs out before the next starts.
-    private var benchmarkWorker: Task<Double, Error>?
+    /// The one benchmark derivation running in the app. A derivation cannot stop midway, so a
+    /// cancelled one runs out before the next starts, in any sheet, and before Save re-encrypts.
+    private static var runningBenchmark: Task<Double, Error>?
+    private static var runningBenchmarkID: UUID?
     private let measure: Benchmark
+    private let isSessionSaving: @MainActor () -> Bool
 
     let current: KDBXFileSummary
     private let initialCipher: DatabaseCreationCipher?
@@ -85,9 +88,11 @@ final class EncryptionSettingsViewModel {
     private let changeOperation: ChangeOperation
 
     init(current: KDBXFileSummary, measure: @escaping Benchmark = EncryptionSettingsViewModel.measureDerivation,
+         isSessionSaving: @escaping @MainActor () -> Bool = { false },
          changeOperation: @escaping ChangeOperation) {
         self.current = current
         self.measure = measure
+        self.isSessionSaving = isSessionSaving
         self.changeOperation = changeOperation
         initialCipher = Self.cipher(matching: current.cipher)
         initialKeyDerivation = Self.keyDerivation(matching: current.keyDerivation)
@@ -182,27 +187,27 @@ final class EncryptionSettingsViewModel {
     }
 
     var canBenchmark: Bool {
-        selectedKeyDerivation != nil && !isWorking && !isBenchmarking
+        selectedKeyDerivation != nil && !isWorking && !isBenchmarking && !isSessionSaving()
     }
 
     /// Times one derivation of the selected settings off the main actor, on a throwaway key.
     @discardableResult
     func benchmark() -> Task<Void, Never>? {
         guard canBenchmark, let selection = selectedKeyDerivation else { return nil }
-        let previous = benchmarkWorker
         let measure = measure
         isBenchmarking = true
         benchmarkSeconds = nil
         benchmarkError = nil
         let task = Task { [weak self] in
-            _ = await previous?.result
-            guard !Task.isCancelled else { return }
-            let worker = Task.detached(priority: .userInitiated) { try measure(try selection.kdfParameters()) }
-            self?.benchmarkWorker = worker
-            let result = await worker.result
-            guard let self else { return }
-            if benchmarkWorker == worker { benchmarkWorker = nil }
-            guard !Task.isCancelled else { return }
+            await Self.waitForRunningBenchmark()
+            guard !Task.isCancelled, let saving = self?.isSessionSaving() else { return }
+            guard !saving else {
+                self?.isBenchmarking = false
+                self?.benchmarkTask = nil
+                return
+            }
+            let result = await Self.startBenchmark { try measure(try selection.kdfParameters()) }.result
+            guard let self, !Task.isCancelled else { return }
             switch result {
             case .success(let seconds): benchmarkSeconds = seconds
             case .failure(let error): benchmarkError = error.localizedDescription
@@ -212,6 +217,23 @@ final class EncryptionSettingsViewModel {
         }
         benchmarkTask = task
         return task
+    }
+
+    private static func waitForRunningBenchmark() async {
+        while let running = runningBenchmark { _ = await running.result }
+    }
+
+    private static func startBenchmark(_ work: @escaping @Sendable () throws -> Double) -> Task<Double, Error> {
+        let id = UUID()
+        runningBenchmarkID = id
+        let worker = Task { @MainActor in
+            defer {
+                if runningBenchmarkID == id { runningBenchmark = nil; runningBenchmarkID = nil }
+            }
+            return try await Task.detached(priority: .userInitiated) { try work() }.value
+        }
+        runningBenchmark = worker
+        return worker
     }
 
     func cancelBenchmark() {
@@ -240,6 +262,7 @@ final class EncryptionSettingsViewModel {
             isWorking = false
         }
         changeError = nil
+        await Self.waitForRunningBenchmark()
 
         do {
             try await changeOperation(

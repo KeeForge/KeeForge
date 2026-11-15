@@ -18,6 +18,7 @@ final class MacLockMonitorTests: XCTestCase {
     private var isAuthenticationPromptPending = false
     private var frontmostApplication: MacLockMonitor.ForegroundApplication?
     private var scheduledDeadlines: [(delay: TimeInterval, work: @MainActor @Sendable () -> Void)] = []
+    private var clock = Date(timeIntervalSince1970: 1_000_000)
 
     private let reactivationGracePeriod: TimeInterval = 7
     private let ownApp = MacLockMonitor.ForegroundApplication(
@@ -56,6 +57,7 @@ final class MacLockMonitorTests: XCTestCase {
         isAuthenticationPromptPending = false
         frontmostApplication = nil
         scheduledDeadlines = []
+        clock = Date(timeIntervalSince1970: 1_000_000)
 
         monitor = MacLockMonitor(
             notificationCenter: appCenter,
@@ -68,7 +70,8 @@ final class MacLockMonitorTests: XCTestCase {
             reactivationGracePeriod: reactivationGracePeriod,
             deadlineScheduler: { [weak self] delay, work in
                 self?.scheduledDeadlines.append((delay: delay, work: work))
-            }
+            },
+            now: { [weak self] in self?.clock ?? Date() }
         )
         monitor.onLockTriggered = { [weak self] trigger in
             self?.receivedTriggers.append(trigger)
@@ -109,6 +112,27 @@ final class MacLockMonitorTests: XCTestCase {
         XCTAssertTrue(receivedTriggers.isEmpty)
         scheduledDeadlines[1].work()
         XCTAssertEqual(receivedTriggers, [.appResignedActive])
+    }
+
+    func testActivationAfterTheDelayHasPassedLocksEvenThoughTheTimerHasNotFired() {
+        policy = .appDeactivates
+        backgroundDelay = .oneMinute
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        clock.addTimeInterval(59)
+        appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertTrue(receivedTriggers.isEmpty, "Back within the delay: no lock")
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        clock.addTimeInterval(60)
+        appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+        XCTAssertEqual(becameActiveCount, 2)
+        scheduledDeadlines.last?.work()
+        XCTAssertEqual(receivedTriggers, [.appResignedActive], "The late timer locks nothing more")
+        policy = .screenLockOrSleep
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        clock.addTimeInterval(120)
+        appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertEqual(receivedTriggers.count, 1)
     }
 
     func testEverySystemTriggerLocksImmediatelyAndCancelsBackgroundDeadline() {
