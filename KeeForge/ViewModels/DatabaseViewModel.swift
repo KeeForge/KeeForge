@@ -660,6 +660,7 @@ final class DatabaseViewModel {
     /// Cleared on lock; attachments are resolved against it lazily.
     private(set) var binaryPool: BinaryPool?
     private let cloudSyncOperation: CloudSyncOperation
+    private let cloudMetadataWriteIO: DurableFileWriteIO
     private let cloudRefreshOperation: CloudSyncOperation
     private let localDatabaseReadOperation: LocalDatabaseReadOperation
     private let localSaveOperation: LocalSaveOperation
@@ -699,6 +700,7 @@ final class DatabaseViewModel {
 
     init(
         databaseReference: DatabaseReference,
+        cloudMetadataWriteIO: DurableFileWriteIO = .init(),
         cloudSyncOperation: @escaping CloudSyncOperation = { reference, progress in
             try await CloudSyncCoordinator.syncIfNeededForOpen(
                 reference: reference,
@@ -822,6 +824,7 @@ final class DatabaseViewModel {
         unlockStatusMessage = databaseReference.isCloudBacked
             ? DatabaseViewModel.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
+        self.cloudMetadataWriteIO = cloudMetadataWriteIO
         self.cloudSyncOperation = cloudSyncOperation
         self.cloudRefreshOperation = cloudRefreshOperation
         self.localDatabaseReadOperation = localDatabaseReadOperation
@@ -4220,8 +4223,8 @@ final class DatabaseViewModel {
 
         let capturedReference = observedReference
         guard expectedLockCycleID == lockCycleID, databaseReference == capturedReference else { return }
-        let mergedReference = await Task.detached { [resolution] in
-            Self.publishCloudReadMetadata(resolution, observed: capturedReference)
+        let mergedReference = await Task.detached { [resolution, cloudMetadataWriteIO] in
+            Self.publishCloudReadMetadata(resolution, observed: capturedReference, io: cloudMetadataWriteIO)
         }.value
         guard expectedLockCycleID == lockCycleID, databaseReference == capturedReference,
               openTimeSHA512 == observedOpenTimeSHA512 else { return }
@@ -4475,6 +4478,7 @@ final class DatabaseViewModel {
     func refreshSharedDatabaseCacheIfPossible() -> Task<Void, Never>? {
         let expectedLockCycleID = lockCycleID
         let databaseReference = self.databaseReference
+        let cloudMetadataWriteIO = self.cloudMetadataWriteIO
         if databaseReference.isCloudBacked, databaseReference.cloudSyncPolicy == .manual {
             return nil
         }
@@ -4528,7 +4532,7 @@ final class DatabaseViewModel {
                 if databaseReference.isCloudBacked {
                     let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: databaseReference)
                     data = resolution.data
-                    let mergedReference = Self.publishCloudReadMetadata(resolution, observed: databaseReference)
+                    let mergedReference = Self.publishCloudReadMetadata(resolution, observed: databaseReference, io: cloudMetadataWriteIO)
                     let accepted = await MainActor.run { () -> Bool in
                         guard self.lockCycleID == expectedLockCycleID,
                               self.databaseReference == databaseReference else { return false }
@@ -5338,12 +5342,12 @@ final class DatabaseViewModel {
     }
 
     nonisolated private static func publishCloudReadMetadata(
-        _ resolution: CloudSyncResolution, observed: DatabaseReference
+        _ resolution: CloudSyncResolution, observed: DatabaseReference, io: DurableFileWriteIO
     ) -> DatabaseReference? {
         guard resolution.pendingUploadSources.isEmpty, resolution.reference.id == observed.id,
               let baseline = observed.cloudSyncMetadata,
               let learned = resolution.reference.cloudSyncMetadata else { return nil }
-        let update = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: observed.id, ifUnchangedFrom: baseline) {
+        let update = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: observed.id, ifUnchangedFrom: baseline, io: io) {
             $0.remoteContentHash = learned.remoteContentHash
             $0.remoteModifiedAt = learned.remoteModifiedAt
             $0.remoteRev = learned.remoteRev
@@ -5386,8 +5390,8 @@ final class DatabaseViewModel {
             isCloudRefreshPending = resolution.status == .refreshSkipped
             hasPendingCloudUploads = pendingUploadMarkerCheck(resolution.reference)
             unlockStatusMessage = Self.decryptingStatusMessage
-            let readReference = await Task.detached {
-                Self.publishCloudReadMetadata(resolution, observed: observedReference) ?? observedReference
+            let readReference = await Task.detached { [cloudMetadataWriteIO] in
+                Self.publishCloudReadMetadata(resolution, observed: observedReference, io: cloudMetadataWriteIO) ?? observedReference
             }.value
             guard observedCycle == lockCycleID, databaseReference == observedReference else { throw CancellationError() }
             databaseReference = readReference

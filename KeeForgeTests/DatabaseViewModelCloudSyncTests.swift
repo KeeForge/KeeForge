@@ -919,8 +919,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 catch { XCTAssertTrue(error is CancellationError || error is SaveError) }
             }
             let entry = await XCTWaiter.fulfillment(of: [entered], timeout: 60)
-            if cancel { loading.cancel() }
-            setup.vm.lock()
+            if cancel { loading.cancel() } else { setup.vm.lock() }
             await gate.open()
             let joined = await XCTWaiter.fulfillment(of: [completed], timeout: 30)
             guard joined == .completed else {
@@ -933,9 +932,10 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
             XCTAssertEqual(setup.encryptions.value, 0)
             XCTAssertEqual(setup.replacements.value, 0)
             XCTAssertEqual(setup.keyEffects.value, 0)
-            XCTAssertEqual(setup.vm.state, .locked)
-            XCTAssertNil(setup.vm.compositeKey)
+            XCTAssertEqual(setup.vm.state, cancel ? .unlocked : .locked)
+            if cancel { XCTAssertNotNil(setup.vm.compositeKey) } else { XCTAssertNil(setup.vm.compositeKey) }
             XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(setup.source.stored), setup.source.payload)
+            setup.vm.lock()
         }
     }
 
@@ -1131,7 +1131,18 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         DatabaseListStore.update(reference)
         try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
         let effects = CloudJournalEffectCounter()
-        let vm = DatabaseViewModel(databaseReference: reference, cloudSyncOperation: { ref, _ in
+        let writePhases = CloudJournalEffectCounter()
+        let failWrites = CloudJournalEffectCounter()
+        var io = DurableFileWriteIO()
+        let synchronize = io.synchronizeFile
+        io.synchronizeFile = { descriptor in
+            try synchronize(descriptor)
+            if failWrites.value > 0 {
+                writePhases.record()
+                throw POSIXError(.EIO)
+            }
+        }
+        let vm = DatabaseViewModel(databaseReference: reference, cloudMetadataWriteIO: io, cloudSyncOperation: { ref, _ in
             try await CloudSyncCoordinator.syncIfNeededForOpen(reference: ref, providerResolver: { _ in nil })
         }, cloudRefreshOperation: { ref, _ in
             try await CloudSyncCoordinator.syncIfNeededForOpen(reference: ref, honorsManualSyncPolicy: false,
@@ -1143,27 +1154,19 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         let historical = vm.databaseReference
         let initialEffects = effects.value
         let registry = AppGroupContainer.url.appendingPathComponent("database-list.json")
-        let retained = registry.deletingLastPathComponent().appendingPathComponent("metadata-registry-\(UUID().uuidString).json")
         let registryBytes = try Data(contentsOf: registry)
-        try FileManager.default.moveItem(at: registry, to: retained)
-        try FileManager.default.createDirectory(at: registry, withIntermediateDirectories: false)
-        defer {
-            do {
-                try FileManager.default.removeItem(at: registry)
-                try FileManager.default.moveItem(at: retained, to: registry)
-                XCTAssertEqual(try Data(contentsOf: registry), registryBytes)
-            } catch { XCTFail("Unable to restore the owned registry fault fixture") }
-        }
+        failWrites.record()
         await vm.syncCloudNow()
         XCTAssertEqual(vm.databaseReference, historical)
+        XCTAssertEqual(writePhases.value, 1, "Sync Now reached fsynced registry staging before the injected failure")
         let worker = try XCTUnwrap(vm.refreshSharedDatabaseCacheIfPossible())
         try await joinCloudRefresh(worker, vm: vm)
         XCTAssertEqual(vm.databaseReference, historical)
         XCTAssertEqual(vm.state, .unlocked)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(bytes))
         XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
-        XCTAssertTrue(try registry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true)
-        XCTAssertEqual(try Data(contentsOf: retained), registryBytes)
+        XCTAssertEqual(writePhases.value, 2, "Foreground reached the same durable write boundary")
+        XCTAssertEqual(try Data(contentsOf: registry), registryBytes)
         XCTAssertEqual(effects.value, initialEffects)
     }
 

@@ -767,15 +767,16 @@ enum DatabaseListStore {
     }
 
     enum CloudMetadataUpdateResult { case published(DatabaseReference), mismatch(DatabaseReference), removed, writeFailed }
-    private static func saveCloudRegistryDurably(_ references: [DatabaseReference]) -> Bool {
+    private static func saveCloudRegistryDurably(_ references: [DatabaseReference], io: DurableFileWriteIO = .init()) -> Bool {
         guard let anchor = AppGroupContainer.resolvedURL, let data = try? JSONEncoder().encode(references) else { return false }
-        if case .durable = writeWithDurabilityOutcome(data, to: databaseListURL, directoryAnchor: anchor) { return true }
+        if case .durable = writeWithDurabilityOutcome(data, to: databaseListURL, directoryAnchor: anchor, io: io) { return true }
         return false
     }
 
     static func compareAndUpdateCloudSyncMetadata(
         for id: UUID,
         ifUnchangedFrom observed: CloudSyncMetadata,
+        io: DurableFileWriteIO = .init(),
         mutate: (inout CloudSyncMetadata) -> Void
     ) -> CloudMetadataUpdateResult {
         withStateLock {
@@ -790,7 +791,7 @@ enum DatabaseListStore {
             }
 
             currentDatabases[index].updateCloudSyncMetadata(mutate)
-            guard saveCloudRegistryDurably(currentDatabases) else { return .writeFailed }
+            guard saveCloudRegistryDurably(currentDatabases, io: io) else { return .writeFailed }
             return .published(currentDatabases[index])
         }
     }
