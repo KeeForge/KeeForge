@@ -16,7 +16,7 @@
 - `EntryIconView` picks the custom icon, a favicon handed in, the chosen standard icon, or a monogram for KeePass's default key icon. It loads nothing; `FaviconEntryIconView` in `FaviconView.swift` adds the download for the app.
 - `tipBannerCard()` carries no identifier; a container identifier would replace the buttons' own.
 - `EntryFieldRows.swift`, `TagCapsule.swift` (with `FlowLayout`) and `SelectableNotesText.swift` are the entry rows the iOS detail, history viewer and editor share. The Mac detail draws its own rows (`../Entry/Mac/`) but uses `FlowLayout` and `SelectableNotesText`, whose Mac line limit reports truncation for Show More.
-- `ReadOnlyIndicator` appears in entry detail on iOS only. On macOS the detail toolbar merges into the window toolbar, which already shows it.
+- `ReadOnlyIndicator` appears in entry detail on iOS only. On macOS the unlocked window's native `NSToolbar` shows its own read-only item (`KeeForgeMac/App/MacWorkspaceToolbar.swift`).
 
 ## Tests
 

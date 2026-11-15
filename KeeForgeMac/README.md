@@ -1,7 +1,10 @@
 # KeeForgeMac Target
 
-Native macOS app configuration and AppKit lifecycle sources. `App/` owns startup,
-the app delegate, the window coordinator, menus, and Settings.
+The native macOS app: its AppKit shell in `App/` (startup, the app delegate, the
+window coordinator, menus and Settings), configuration and entitlements. This file
+describes how the Mac app is put together and shipped; the rules for changing it,
+where Mac code goes, and its test mapping are in [AGENTS.md](AGENTS.md), and the
+security model is in [SECURITY.md](SECURITY.md).
 
 ## Windows
 
@@ -24,20 +27,12 @@ window whose session was retired elsewhere (removed from the list). Remove in
 the Databases window is refused, with an alert, while that database's session has
 unsaved work or a write in flight.
 
-Window restoration: the coordinator is the only owner of top-level frames and
-records the topology in `MacWindowRestorationStore` (the app's own defaults) as
-windows open, close for good, move, finish resizing, minimize, change order, and as
-the Databases window is shown or closed. A relaunch applies the plan once the launch
-presentations are done (`MacApplicationRouting`'s `restoreWindows` effect, ahead of
-queued and Quick Launch opens): each surviving database comes back locked in its
-own window, registered as restoring so automatic Touch ID waits until the user
-clicks or types in it or opens it explicitly; that first interaction posts
-`MacBiometricAutoUnlockController.restorationEndedNotification`, which asks for the
-attempt even in an already-key window. The recorded frontmost is fronted. Quick Launch runs only when nothing was restored and no file arrived. New
-windows open at the default size, a second one cascaded from the frontmost; unit tests inject the store's defaults, screen
-frames and the quit prompt. `-ui-testing` turns restoration and recording off, and
-`-ui-testing-database-window-size <w>x<h>` sets the database window's content size
-(`MacWindowLaunchOptions`).
+Window restoration: the coordinator records the window topology in
+`MacWindowRestorationStore` (the app's own defaults) and reopens each surviving
+database locked in its own window on the next launch; the rules are in
+[AGENTS.md](AGENTS.md#windows-launch-and-quit). `-ui-testing` turns restoration and
+recording off, and `-ui-testing-database-window-size <w>x<h>` sets the database
+window's content size (`MacWindowLaunchOptions`).
 
 The Databases window (780 x 620 pt, title hidden, full-size content so the
 brand panel runs under the traffic lights; tall enough for a 560 pt sheet) is
@@ -78,8 +73,8 @@ Security, AutoFill, Quick Search, SSH Agent, Appearance, Servers, About),
 hosting column forms at a bounded width with per-tab sizes and scrolling.
 It starts on Security and remembers selection within the process. Clear AutoFill
 Entries and Disconnect Server ask in native alert sheets; Acknowledgments is an
-attached sheet. Settings never reads the frontmost database; SSH explicitly
-chooses one. Screen locking is always on. The strict background policy can
+attached sheet. Settings never reads the frontmost database; the SSH Agent tab shows
+the one picked in its menu, or the first unlocked one until the user picks. Screen locking is always on. The strict background policy can
 optionally wait 1, 5 or 15 minutes (default Immediately); system lock triggers
 and authentication-hold settlement stay immediate. Updates are direct-build only.
 
@@ -261,53 +256,33 @@ The locked pages keep the root's safe area.
 
 ## Commands and closing
 
-`MacDatabaseCommandTargetResolver` picks the window a database command acts on:
-the key database window (or the one a key sheet belongs to); with Settings or a
-panel key, the main database window; with the Databases window key, or no
-database window, none, so database commands are disabled. Validation and dispatch
-both ask it when they run, through `AppDelegate.supplementalTarget` and each
-controller's `isCommandTarget` gate. Commands that also need the window's
-presentation (Duplicate, Move to Group, the View menu's Library, Sort and
-Expand/Collapse items, Sync Now, Database Settings) go through
-`MacWorkspaceCommands`. File ▸ New Database, Open Database File and Connect to
-Server are launcher operations and ignore every session's state; Connect to
-Server opens the form directly, with a segment per server type.
+Database commands act on the window `MacDatabaseCommandTargetResolver` picks: the
+key database window (or a key sheet's parent), the main database window while
+Settings or a panel is key, and none while the Databases window is key. File ▸
+New Database, Open Database File and Connect to Server are launcher operations.
 Window ▸ Databases shows the Databases window, which AppKit's own window list
-leaves out; that list names each open database window, adding the unlocked
-window's subtitle in parentheses, and `MacWindowMenuDecorator` gives each an
-open or closed lock glyph. Database ▸ Lock All Databases (⌥⌘L, dimmed while no
-window is unlocked) asks every unlocked window's session to lock through the
-same request as Lock, so unsaved work asks in that window. View ▸ Hide Sidebar
-reads Show Sidebar while the target window's sidebar is collapsed. Settings is an auxiliary window that cannot become main
-and chooses its own database where it needs one.
+leaves out; `MacWindowMenuDecorator` gives each database window in that list an
+open or closed lock glyph. Database ▸ Lock All Databases (⌥⌘L) sends every
+unlocked window's session the same request as Lock.
 
-Close Window, Close Database and Escape on the unlock screen all go through the
-window's guarded close (`MacWindowCloseGuard`); Close Window is disabled while a
-sheet is up, but Close Database still asks the guard, so an open editor answers
-with its own prompt. A committed close locks and
-retires exactly that session and releases its controller; cancel or a failed save
-keeps both. A close waits out a write in flight on its session and asks again; a
-failed master-key or encryption-settings write keeps the window. Lock keeps the window open on its unlock screen.
+Close Window, Close Database and Escape on the unlock screen go through the
+window's guarded close (`MacWindowCloseGuard`): a committed close locks and retires
+only that session; Lock keeps the window open on its unlock screen.
 
-Quit (`applicationShouldTerminate`, also on logout and restart) goes through
-`MacWindowCoordinator.requestTermination`: with nothing unsaved and no write in
-flight it terminates at once; otherwise it waits out each write, then fronts each
-window with an unsaved write in turn, front first, asks the close prompt (holding
-that session's lock pending, so the SSH agent withdraws its keys), and writes only
-after every answer is in. Cancel, a failed save or key or settings change, or a
-window whose editor still holds fields (fronted, for the user to
-finish) cancels the quit and leaves every window and session as it was. Don't Save
-covers the draft at the revision answered for; work added after it stops the quit. A quit
-that proceeds records the pre-quit topology, then freezes the record so the closes
-that follow cannot shrink it.
+Quit, also at logout and restart, goes through
+`MacWindowCoordinator.requestTermination`. A window whose editor holds unsaved
+fields is asked first through the editor's own lock prompt; the other windows'
+unsaved writes are asked with the close prompt, every answer collected before
+anything is written. Keep Editing, Cancel or a failed save cancels the quit with
+everything as it was. A quit that goes ahead removes attachment previews and
+clears the clipboard copy KeeForge still owns; it does not lock the sessions. The
+full rules are in [AGENTS.md](AGENTS.md#windows-launch-and-quit).
 
 ## Toolbar and search
 
-`MacWindowWorkspace` creates one `MacWorkspaceToolbar` per unlocked session,
-beside the split controller, and drops it on lock or replacement. When it
-exists, `DatabaseWindowController` installs it as the window toolbar, and on
-lock it removes it. Neither the root host nor the column hosts bridge SwiftUI
-toolbars.
+`MacWindowWorkspace` creates one `MacWorkspaceToolbar` per unlocked session and
+`DatabaseWindowController` installs it while the window is unlocked; the rules are
+in [AGENTS.md](AGENTS.md#workspace).
 
 Each item's identifier is also its view's accessibility identifier. Tracking
 separators on the split's two dividers put the search field and New Entry (the
@@ -322,16 +297,8 @@ and Lock join the trailing end of the detail only while the sidebar is collapsed
 menu form for the overflow menu. Enablement comes from `DatabaseCommands` and
 `MacDatabaseStatus`, and the whole bar is disabled while saving.
 
-The search field and `DatabaseViewModel.searchText` are bound both ways through
-the toolbar's observation. Edit ▸ Find (`findEntry:`) calls
-`MacWorkspaceToolbar.focusSearch()`, which begins the search item's interaction.
-Title bridging is off; AppKit observation owns
-the database title and group/tag/search subtitle. The SwiftUI detail root applies saving
-disablement and the accent tint explicitly across hosting boundaries.
-
-## Status
-
-This file is reference material for working in the target: constraints, platform limits, and gotchas. macOS work follows the ordinary changelog flow under `## Unreleased`; release mechanics belong in the release skills, not here.
+Edit ▸ Find (`findEntry:`) calls `MacWorkspaceToolbar.focusSearch()`, which begins
+the search item's interaction.
 
 ## SSH Agent
 
@@ -403,7 +370,9 @@ The [macOS security model](SECURITY.md) covers secrets, shared storage, lock beh
 
 ## What Mac Work Has To Test
 
-See "macOS tests" in `../AGENTS.md`, with the build and test commands. CI coverage is in `../.github/AGENTS.md`.
+The Mac test mapping is in [AGENTS.md](AGENTS.md#tests); "macOS tests" in
+[`../AGENTS.md`](../AGENTS.md) has the build and test commands, and CI coverage is
+in [`../.github/AGENTS.md`](../.github/AGENTS.md).
 
 ## Distribution Channels
 

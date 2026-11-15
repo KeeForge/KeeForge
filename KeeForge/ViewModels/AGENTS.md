@@ -1,6 +1,6 @@
 # ViewModels
 
-**Scope:** `@MainActor @Observable` app state and UI-independent workflow owners. Use Foundation/Observation, never SwiftUI (enforced by `ci_scripts/validate_architecture.py`). Heavy work goes to services or detached tasks; only the result is published here.
+**Scope:** `@MainActor @Observable` app state and UI-independent workflow owners. Use Foundation/Observation, never SwiftUI (enforced by `ci_scripts/validate_architecture.py`) or AppKit (by convention; the script does not check it). Heavy work goes to services or detached tasks; only the result is published here.
 
 ## Ownership
 

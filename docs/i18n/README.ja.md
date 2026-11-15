@@ -11,7 +11,7 @@
 <p align="center">
   iPhone、iPad、Mac のための、無料でオープンソースの KeePass マネージャ。
   <br />
-  ネイティブ SwiftUI、ローカルファーストの保存、自動入力、パスキー、TOTP、クラウド同期、KDBX の編集、添付ファイルの表示に対応しています。
+  iPhone と iPad ではネイティブ SwiftUI、Mac ではネイティブ AppKit、ローカルファーストの保存、自動入力、パスキー、TOTP、クラウド同期、KDBX の編集、添付ファイルの表示に対応しています。
 </p>
 
 <p align="center">
@@ -90,7 +90,7 @@ KeeForge/
 ├── ViewModels/       # データベース一覧、ロック解除、保存、検索、並べ替え、TOTP の状態
 ├── Views/            # SwiftUI の画面、エディタ、設定、チップ、再利用可能なコントロール
 AutoFillExtension/    # 自動入力の資格情報プロバイダ、パスキー認証、認証情報の作成
-KeeForgeMac/          # ネイティブ macOS App（初回リリースを準備中）
+KeeForgeMac/          # ネイティブ macOS App：AppKit のシェル、構成、エンタイトルメント
 KeeForgeMacUITests/   # macOS App の XCUITest カバレッジ
 KeeForgeTests/        # ユニットテスト
 KeeForgeUITests/      # XCUITest カバレッジ

@@ -1,13 +1,13 @@
 # Views
 
-**Scope:** SwiftUI screens for all three shells: compact iPhone, regular-width iPad, and the macOS app (`KeeForgeMac` compiles this whole folder). This file holds the rules every subfolder shares; each subfolder's `AGENTS.md` adds only what is specific to it.
+**Scope:** SwiftUI screens for compact iPhone and regular-width iPad, and the SwiftUI content the macOS app hosts inside its AppKit windows (detail column, inline editor, history, locked pages, Settings tabs, quick search, some sheet forms). `KeeForgeMac` compiles this whole folder; Mac-only views live in `*/Mac/` or carry a `Mac` prefix and are wrapped in `#if os(macOS)`. The Mac window chrome, sidebar, entry list and toolbar are AppKit (`../../KeeForgeMac/AGENTS.md`). This file holds the rules every subfolder shares; each subfolder's `AGENTS.md` adds only what is specific to it.
 
 ## Ownership
 
 Views compose state, collect input, and forward intent and lifecycle events. Workflow policy (unlock/lock, draft/save/conflict, editor completion, settings effects, routing) is owned in `../ViewModels/AGENTS.md`; never repeat it in a view. When a view starts needing real async or state logic, move it to `../ViewModels` or a helper type.
 
 - Preview iOS UI work with `scripts/render-views.sh` before building, installing, or driving a simulator: add or update the screen's states in `KeeForgeTests/ViewRenderTests`, render every shipped language, and review the PNGs. Fall back to a simulator or device only for what a render cannot show, such as navigation, keyboard and focus, animation, glass effects, and secure-field contents.
-- All three shells are first-class. A change to navigation, chrome, editing, or status UI has to be checked in each; prefer sharing the row/detail/editor view over forking per shell.
+- All three shells are first-class. A change to navigation, chrome, editing, or status UI has to be checked in each. iPhone and iPad share their rows, detail and editor; the Mac has its own detail, editor and AppKit lists, so a change there usually needs its Mac counterpart too.
 - Compact pushes one session from the database list. iPad keeps the list visible and renders the session in a detail workspace. macOS never mounts `AppRootView` (iOS only) and has no compact/regular switch.
 - macOS never mounts `Group/GroupListView.swift` or the compact stack: it browses through the AppKit sidebar and entry list (`../../KeeForgeMac/App/MacSidebarViewController.swift`, `MacEntryListViewController.swift`) and the detail column root in `../App/MacWorkspaceColumns.swift`, composed by `MacWorkspaceSplitViewController` and hosted through `MacDatabaseWorkspaceView`. Anything wired only into `GroupListView` is invisible on macOS and needs a counterpart there.
 - A shared view with no Mac caller left is wrapped in `#if os(iOS)` instead of keeping a dead Mac branch; prove it unused with a Mac build first.
@@ -46,7 +46,7 @@ All of these shims live in `../Extensions/PlatformCompat.swift`.
 - iPhone and iPad follow the KeeForge iOS design; the Mac keeps its own look. Colors, spacing, radii, sizes and the Dynamic Type mapping come from `Components/Theme.swift` (colors in `Resources/Theme.xcassets`), never literals in a view.
 - A view macOS shares branches on `PlatformDesign.followsIOSDesign` (in `../Extensions/PlatformCompat.swift`), and state colors there come from `Theme.State`, which keeps the Mac's system colors.
 - Status is said in words; a color or dot only repeats it.
-- `docs/design-system/` writes the iOS design down (tokens, rules, components) for new screens and the Mac redesign. Update it in the same change when `Theme.swift`, `Theme.xcassets` or a component it describes changes.
+- `docs/design-system/` writes the iOS design down (tokens, rules, components) for new screens; its Mac section says how the Mac applies it. Update it in the same change when `Theme.swift`, `Theme.xcassets` or a component it describes changes.
 
 ### Secrets on screen
 
