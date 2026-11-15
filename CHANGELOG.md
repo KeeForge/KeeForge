@@ -31,6 +31,8 @@
 
 ### Fixes
 
+- Preserve encrypted cloud creation data when the outcome is uncertain instead of automatically creating another remote copy.
+
 - Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
 - Downloaded website icons are no longer included in device backups; KeeForge fetches them again when needed.
 - In AutoFill, an entry URL with spaces before or after it now matches its website and appears in the system's suggestions (#285).

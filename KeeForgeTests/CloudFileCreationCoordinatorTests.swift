@@ -72,6 +72,25 @@ final class CloudFileCreationCoordinatorTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
+    func testCompletedRecordDoesNotResurrectRemovedReference() async throws {
+        let (root, queue, reference) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let transport = Transport()
+        var env = CloudFileCreationCoordinator.Environment()
+        env.queue = queue
+        env.createFile = { _, _, _, _ in try await transport.create() }
+        let operation = UUID()
+        let receipt = try await CloudFileCreationCoordinator.create(operationID: operation, provider: "webdav",
+            accountID: "account-" + reference.id.uuidString, target: "/vault", bytes: Data([1, 2, 3]),
+            referenceTemplate: reference, environment: env)
+        XCTAssertTrue(DatabaseListStore.remove(id: receipt.id))
+        XCTAssertThrowsError(try CloudFileCreationCoordinator.resumeKnownRegistration(operationID: operation, environment: env))
+        XCTAssertFalse(DatabaseListStore.databases.contains(where: { $0.id == receipt.id }))
+        XCTAssertEqual(try PendingUploadQueue.listCreations(environment: queue).first?.intent.phase, .completed)
+        let count = await transport.count()
+        XCTAssertEqual(count, 1)
+    }
+
     func testConcurrentAttemptsDispatchAtMostOnce() async throws {
         let (root, queue, reference) = try fixture()
         defer { _ = DatabaseListStore.remove(id: reference.id); try? FileManager.default.removeItem(at: root) }

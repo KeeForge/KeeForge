@@ -15,8 +15,22 @@ import XCTest
 /// `cloudCreationMessage(for:)`'s `.conflict` formatting — deterministically.
 @MainActor
 final class DatabaseCreationViewModelTests: XCTestCase {
+    private var creationJournalRoot: URL!
+
+    private func isolatedCreationQueue() -> PendingUploadQueue.Environment {
+        let root = creationJournalRoot!
+        var queue = PendingUploadQueue.Environment.live
+        queue.appGroupContainerURL = { root }
+        queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+        queue.postDarwinNotification = {}
+        return queue
+    }
+
     override func setUp() async throws {
         try await super.setUp()
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        creationJournalRoot = AppGroupContainer.url.appendingPathComponent("creation-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: creationJournalRoot, withIntermediateDirectories: true)
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
@@ -26,6 +40,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
+        if let creationJournalRoot { try? FileManager.default.removeItem(at: creationJournalRoot) }
         try await super.tearDown()
     }
 
@@ -487,8 +502,18 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isCreating)
         XCTAssertEqual(viewModel.password, "")
         XCTAssertEqual(viewModel.confirmPassword, "")
-        // Dismissal suppresses opening the result; it cannot undo a committed upload.
-        XCTAssertEqual(DatabaseListStore.databases.map(\.filename), ["Late Cloud Vault.kdbx"])
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        let queue = isolatedCreationQueue()
+        let confirmed = try? PendingUploadQueue.listCreations(environment: queue).first
+        XCTAssertEqual(confirmed?.intent.phase, .confirmed)
+        if let confirmed {
+            var environment = CloudFileCreationCoordinator.Environment.live
+            environment.queue = queue
+            environment.createFile = { _, _, _, _ in throw CloudProviderError.networkUnavailable }
+            let recovered = try? CloudFileCreationCoordinator.resumeKnownRegistration(operationID: confirmed.intent.operationID, environment: environment)
+            XCTAssertEqual(recovered?.filename, "Late Cloud Vault.kdbx")
+            XCTAssertEqual(try? PendingUploadQueue.listCreations(environment: queue).first?.intent.phase, .completed)
+        }
     }
 
     func testDismissedCloudCreationDropsLateError() async {
@@ -533,6 +558,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         environment.beginBackgroundTask = { _ in .invalid }
         environment.endBackgroundTask = { _ in }
         environment.createCloudFile = createCloudFile
+        environment.creationQueue = isolatedCreationQueue()
         return environment
     }
 

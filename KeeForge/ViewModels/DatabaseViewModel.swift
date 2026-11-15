@@ -3514,11 +3514,14 @@ final class DatabaseViewModel {
             throw SaveError.saveContextUnavailable
         }
 
+        let copyCycle = lockCycleID
+        let copyRevision = contentRevision
         let bytes = try await conflictCopyEncryptionOperation(
             draft,
             compositeKey,
             saveConflict.remoteData
         )
+        guard !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision, case .unlocked = state else { throw SaveError.saveContextUnavailable }
         let filename = conflictCopyFilename(for: databaseReference.filename)
 
         switch databaseReference.source {
@@ -3532,6 +3535,7 @@ final class DatabaseViewModel {
             try await cloudConflictCopyOperation(databaseReference, fileID, bytes)
         }
 
+        guard !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision, case .unlocked = state else { throw SaveError.saveContextUnavailable }
         discardDraft()
     }
 
@@ -5755,46 +5759,28 @@ final class DatabaseViewModel {
         }.value
     }
 
-    /// Writes the conflict copy create-only: it exists to preserve bytes, so
-    /// it must never overwrite. Do not go back to `upload(expectedRev: nil)` —
-    /// that is `WriteMode.overwrite` on Dropbox and `conflictBehavior=replace`
-    /// on OneDrive, and it destroyed an earlier copy of the same name.
-    /// `createFile` is required to be no-overwrite (`Cloud/AGENTS.md`) and
-    /// reports a collision as `.conflict`, which the retry answers by
-    /// numbering the name. `providerResolver` is injectable only so tests can
-    /// exercise this routing without a live provider.
+    /// A cloud conflict copy retains its own creation record without registering a database.
     static func writeConflictCopyToCloud(
         reference: DatabaseReference,
         fileID: String,
         bytes: Data,
-        providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:)
+        providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:),
+        creationEnvironment: CloudFileCreationCoordinator.Environment = .live
     ) async throws {
-        guard let metadata = reference.cloudSyncMetadata else {
-            throw SaveError.saveContextUnavailable
+        guard let metadata = reference.cloudSyncMetadata else { throw SaveError.saveContextUnavailable }
+        guard let provider = providerResolver(metadata.provider) else { throw CloudProviderError.notAuthenticated }
+        let template = DatabaseReference(id: UUID(), nickname: reference.nickname,
+            filename: (fileID as NSString).lastPathComponent, bookmarkData: nil,
+            keyFileBookmarkData: reference.keyFileBookmarkData, keyFileFilename: reference.keyFileFilename,
+            isQuickLaunch: false, lastOpenedAt: nil, addedAt: .now, colorTag: reference.colorTag,
+            legacyKeychainFilename: nil, isReadOnly: reference.isReadOnly, hardwareKey: reference.hardwareKey)
+        var environment = creationEnvironment
+        environment.createFile = { _, accountID, path, bytes in
+            try await provider.createFile(accountId: accountID, path: path, data: bytes, progress: { _ in })
         }
-
-        guard let provider = providerResolver(metadata.provider) else {
-            throw CloudProviderError.notAuthenticated
-        }
-
-        for attempt in 1...conflictCopyNameAttemptLimit {
-            let path = attempt == 1 ? fileID : uniquifiedConflictCopyName(fileID, attempt: attempt)
-            do {
-                _ = try await provider.createFile(
-                    accountId: metadata.accountId,
-                    path: path,
-                    data: bytes,
-                    progress: { _ in }
-                )
-                return
-            } catch let error as CloudProviderError {
-                guard case .conflict = error, attempt < conflictCopyNameAttemptLimit else {
-                    throw error
-                }
-            }
-        }
-
-        throw CloudProviderError.conflict(remoteRev: nil)
+        _ = try await CloudFileCreationCoordinator.create(operationID: UUID(), provider: metadata.provider,
+            accountID: metadata.accountId, target: fileID, bytes: bytes, referenceTemplate: template,
+            isConflictCopy: true, environment: environment)
     }
 
     /// How many numbered names a conflict copy may try before giving up.

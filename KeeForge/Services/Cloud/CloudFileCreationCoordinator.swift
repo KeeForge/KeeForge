@@ -1,5 +1,17 @@
 import Foundation
 
+final class CloudCreationLifetime: @unchecked Sendable {
+    private let lock = NSLock()
+    private var active = true
+
+    func cancel() { lock.lock(); defer { lock.unlock() }; active = false }
+    // A claimed synchronous effect remains authorized if cancellation arrives afterward.
+    func claim() throws {
+        lock.lock(); defer { lock.unlock() }
+        guard active else { throw CancellationError() }
+    }
+}
+
 // Only a response to this invocation can confirm its fenced attempt.
 enum CloudFileCreationCoordinator {
     enum RecoveryError: Error { case unavailable, uncertain, registrationRejected, registrationUnconfirmed }
@@ -20,7 +32,7 @@ enum CloudFileCreationCoordinator {
 
     static func create(operationID: UUID, provider: String, accountID: String, target: String, bytes: Data,
                        referenceTemplate: DatabaseReference, isConflictCopy: Bool = false,
-                       environment: Environment = .live) async throws -> DatabaseReference {
+                       lifetime: CloudCreationLifetime = CloudCreationLifetime(), environment: Environment = .live) async throws -> DatabaseReference {
         let existing = try PendingUploadQueue.listCreations(environment: environment.queue).first { $0.intent.operationID == operationID }
         let stored: PendingUploadQueue.StoredCreation
         if let existing {
@@ -34,7 +46,9 @@ enum CloudFileCreationCoordinator {
         }
         guard stored.intent.phase == .prepared else { throw RecoveryError.uncertain }
         try Task.checkCancellation()
+        try lifetime.claim()
         let attempting = try PendingUploadQueue.transitionCreation(stored, to: .attempting, environment: environment.queue)
+        try lifetime.claim()
         let response = try await environment.createFile(provider, accountID, target, bytes)
         guard !response.file.id.isEmpty else { throw RecoveryError.uncertain }
         var receipt = referenceTemplate
@@ -46,6 +60,7 @@ enum CloudFileCreationCoordinator {
         receipt.source = .cloud(metadata)
         let confirmed = try PendingUploadQueue.transitionCreation(attempting, to: .confirmed, receipt: receipt, environment: environment.queue)
         try Task.checkCancellation()
+        try lifetime.claim()
         return try complete(confirmed, environment: environment)
     }
 
@@ -62,6 +77,11 @@ enum CloudFileCreationCoordinator {
 
     private static func complete(_ stored: PendingUploadQueue.StoredCreation, environment: Environment) throws -> DatabaseReference {
         guard let receipt = stored.intent.receipt else { throw RecoveryError.unavailable }
+        if stored.intent.isConflictCopy {
+            _ = try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue)
+            _ = try PendingUploadQueue.transitionCreation(stored, to: .completed, environment: environment.queue)
+            return receipt
+        }
         let bytes = try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue)
         switch environment.register(stored, bytes, environment.queue) {
         case .durable: break

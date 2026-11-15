@@ -5,8 +5,22 @@ import KDBXKit
 
 @MainActor
 final class DatabaseCreationServiceTests: XCTestCase {
+    private var creationJournalRoot: URL!
+
+    private func isolatedCreationQueue() -> PendingUploadQueue.Environment {
+        let root = creationJournalRoot!
+        var queue = PendingUploadQueue.Environment.live
+        queue.appGroupContainerURL = { root }
+        queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+        queue.postDarwinNotification = {}
+        return queue
+    }
+
     override func setUp() async throws {
         try await super.setUp()
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        creationJournalRoot = AppGroupContainer.url.appendingPathComponent("creation-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: creationJournalRoot, withIntermediateDirectories: true)
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
@@ -16,6 +30,7 @@ final class DatabaseCreationServiceTests: XCTestCase {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
+        if let creationJournalRoot { try? FileManager.default.removeItem(at: creationJournalRoot) }
         try await super.tearDown()
     }
 
@@ -580,7 +595,7 @@ final class DatabaseCreationServiceTests: XCTestCase {
     }
 
     private func cloudCreateEnvironment(recorder: CloudCreateRecorder) -> DatabaseCreationService.Environment {
-        .init(
+        var environment = DatabaseCreationService.Environment(
             now: { Date(timeIntervalSince1970: 1_700_000_000) },
             id: { UUID() },
             beginBackgroundTask: { _ in .invalid },
@@ -616,6 +631,8 @@ final class DatabaseCreationServiceTests: XCTestCase {
                 )
             }
         )
+        environment.creationQueue = isolatedCreationQueue()
+        return environment
     }
 
     private func makeDestinationURL(name: String) throws -> URL {

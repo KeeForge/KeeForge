@@ -5662,15 +5662,32 @@ final class DatabaseViewModelTests: XCTestCase {
     func testConflictCopyToCloudUsesCreateOnlyUploadNeverOverwrite() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
         let provider = ConflictCopyCloudProvider()
+        let originalRows = DatabaseListStore.databases
+        let originalMarkers = PendingUploadQueue.listMarkers(for: reference.id)
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        let root = AppGroupContainer.url.appendingPathComponent("conflict-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var creationEnvironment = CloudFileCreationCoordinator.Environment.live
+        creationEnvironment.queue.appGroupContainerURL = { root }
+        creationEnvironment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+        creationEnvironment.queue.postDarwinNotification = {}
 
         try await DatabaseViewModel.writeConflictCopyToCloud(
             reference: reference,
             fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
             bytes: Data("conflict-copy".utf8),
-            providerResolver: { _ in provider }
+            providerResolver: { _ in provider }, creationEnvironment: creationEnvironment
         )
 
         XCTAssertEqual(provider.createdPaths, ["/Vaults/vault (conflict 2026-04-07 161500).kdbx"])
+        let record = try XCTUnwrap(PendingUploadQueue.listCreations(environment: creationEnvironment.queue).first)
+        XCTAssertEqual(record.intent.phase, .completed)
+        XCTAssertTrue(record.intent.isConflictCopy)
+        XCTAssertNotEqual(record.intent.referenceTemplate.id, reference.id)
+        XCTAssertFalse(DatabaseListStore.databases.contains(where: { $0.id == record.intent.referenceTemplate.id }))
+        XCTAssertEqual(DatabaseListStore.databases, originalRows)
+        XCTAssertEqual(PendingUploadQueue.listMarkers(for: reference.id).map(\.id), originalMarkers.map(\.id))
         XCTAssertEqual(
             provider.uploadCallCount,
             0,
@@ -5678,9 +5695,17 @@ final class DatabaseViewModelTests: XCTestCase {
         )
     }
 
-    func testConflictCopyToCloudNumbersTheNameWhenItAlreadyExists() async throws {
+    func testConflictCopyToCloudDoesNotRetryAnAmbiguousConflict() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
         let provider = ConflictCopyCloudProvider()
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        let root = AppGroupContainer.url.appendingPathComponent("conflict-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var creationEnvironment = CloudFileCreationCoordinator.Environment.live
+        creationEnvironment.queue.appGroupContainerURL = { root }
+        creationEnvironment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+        creationEnvironment.queue.postDarwinNotification = {}
         // Two resolutions inside the same second: the first copy already
         // occupies the name, so create-only rejects it.
         provider.pathsRejectedAsExisting = [
@@ -5688,27 +5713,30 @@ final class DatabaseViewModelTests: XCTestCase {
             "/Vaults/vault (conflict 2026-04-07 161500) 2.kdbx",
         ]
 
-        try await DatabaseViewModel.writeConflictCopyToCloud(
-            reference: reference,
-            fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
-            bytes: Data("conflict-copy".utf8),
-            providerResolver: { _ in provider }
-        )
-
-        XCTAssertEqual(
-            provider.createdPaths,
-            [
-                "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
-                "/Vaults/vault (conflict 2026-04-07 161500) 2.kdbx",
-                "/Vaults/vault (conflict 2026-04-07 161500) 3.kdbx",
-            ]
-        )
+        do {
+            try await DatabaseViewModel.writeConflictCopyToCloud(reference: reference,
+                fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx", bytes: Data("conflict-copy".utf8),
+                providerResolver: { _ in provider }, creationEnvironment: creationEnvironment)
+            XCTFail("Expected conflict")
+        } catch CloudProviderError.conflict { }
+        XCTAssertEqual(provider.createdPaths, ["/Vaults/vault (conflict 2026-04-07 161500).kdbx"])
+        let intents = try PendingUploadQueue.listCreations(environment: creationEnvironment.queue)
+        XCTAssertEqual(intents.first?.intent.phase, .attempting)
+        XCTAssertEqual(try CloudFileCreationCoordinator.export(operationID: XCTUnwrap(intents.first?.intent.operationID), environment: creationEnvironment), Data("conflict-copy".utf8))
         XCTAssertEqual(provider.uploadCallCount, 0)
     }
 
     func testConflictCopyToCloudSurfacesNonConflictFailuresImmediately() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
         let provider = ConflictCopyCloudProvider()
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        let root = AppGroupContainer.url.appendingPathComponent("conflict-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var creationEnvironment = CloudFileCreationCoordinator.Environment.live
+        creationEnvironment.queue.appGroupContainerURL = { root }
+        creationEnvironment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+        creationEnvironment.queue.postDarwinNotification = {}
         provider.createFailure = .insufficientSpace
 
         do {
@@ -5716,7 +5744,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 reference: reference,
                 fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
                 bytes: Data("conflict-copy".utf8),
-                providerResolver: { _ in provider }
+                providerResolver: { _ in provider }, creationEnvironment: creationEnvironment
             )
             XCTFail("Expected the provider error to surface.")
         } catch let error as CloudProviderError {

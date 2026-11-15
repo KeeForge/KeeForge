@@ -15,6 +15,8 @@ struct DatabaseCreationRequest: Sendable {
     var keyFileFilename: String?
     var cipher: DatabaseCreationCipher = .aes256
     var kdfPreset: DatabaseCreationKDFPreset = .balanced
+    var operationID: UUID = UUID()
+    var lifetime: CloudCreationLifetime = CloudCreationLifetime()
 }
 
 struct DatabasePreparationRequest: Sendable {
@@ -202,6 +204,7 @@ enum DatabaseCreationService {
         var addCreatedCloud: @Sendable (DatabaseReference) throws -> Void
         var addAppOnlyCreatedLocal: @Sendable (DatabaseReference, Data) throws -> Void
         var validateCreatedCloud: @Sendable (String, String, String, String) throws -> Void
+        var creationQueue: PendingUploadQueue.Environment = .live
 
         static let live = Environment(
             now: { .now },
@@ -264,7 +267,8 @@ enum DatabaseCreationService {
             }
         }
 
-        return try await Task.detached(priority: .utility) {
+        return try await withTaskCancellationHandler {
+            try await Task.detached(priority: .utility) {
             let prepared = try prepareOffMain(
                 request: DatabasePreparationRequest(
                     displayName: request.displayName,
@@ -280,9 +284,14 @@ enum DatabaseCreationService {
             return try await createOffMain(
                 prepared: prepared,
                 destination: request.destination,
+                operationID: request.operationID,
+                lifetime: request.lifetime,
                 environment: environment
             )
-        }.value
+            }.value
+        } onCancel: {
+            request.lifetime.cancel()
+        }
     }
 
     static func prepare(
@@ -402,6 +411,8 @@ enum DatabaseCreationService {
     private static func createOffMain(
         prepared: PreparedDatabase,
         destination: DatabaseCreationDestination,
+        operationID: UUID,
+        lifetime: CloudCreationLifetime,
         environment: Environment
     ) async throws -> CreatedDatabase {
         let reference: DatabaseReference
@@ -420,22 +431,15 @@ enum DatabaseCreationService {
         case .cloud(let provider, let accountId, let folderPath):
             let filePath = cloudFilePath(filename: prepared.filename, folderPath: folderPath)
             try environment.validateCreatedCloud(provider, accountId, filePath, prepared.filename)
-            let createdFile = try await environment.createCloudFile(
-                provider,
-                accountId,
-                filePath,
-                prepared.encryptedBytes,
-                { _ in }
-            )
-            reference = makeCloudReference(
-                prepared: prepared,
-                provider: provider,
-                accountId: accountId,
-                file: createdFile.file,
-                metadata: createdFile.metadata
-            )
-            try environment.cacheDatabaseCopy(prepared.encryptedBytes, reference)
-            try environment.addCreatedCloud(reference)
+            var creationEnvironment = CloudFileCreationCoordinator.Environment.live
+            creationEnvironment.queue = environment.creationQueue
+            creationEnvironment.createFile = { provider, account, path, bytes in
+                try await environment.createCloudFile(provider, account, path, bytes, { _ in })
+            }
+            reference = try await CloudFileCreationCoordinator.create(operationID: operationID, provider: provider,
+                accountID: accountId, target: filePath, bytes: prepared.encryptedBytes,
+                referenceTemplate: makeReference(prepared: prepared, bookmarkData: nil), lifetime: lifetime,
+                environment: creationEnvironment)
         case .appOnlyAcknowledged:
             reference = makeReference(prepared: prepared, bookmarkData: nil)
             try DatabaseListStore.validateAppOnlyCreatedLocal(reference)
@@ -513,42 +517,6 @@ enum DatabaseCreationService {
             isReadOnly: false,
             isDocumentsResident: fileURL.map(DatabaseListStore.isTopLevelDocumentsFile) ?? false,
             source: .local
-        )
-    }
-
-    private static func makeCloudReference(
-        prepared: PreparedDatabase,
-        provider: String,
-        accountId: String,
-        file: CloudFile,
-        metadata: CloudFileMetadata
-    ) -> DatabaseReference {
-        DatabaseReference(
-            id: prepared.id,
-            nickname: nil,
-            filename: prepared.filename,
-            bookmarkData: nil,
-            keyFileBookmarkData: prepared.keyFileBookmarkData,
-            keyFileFilename: prepared.keyFileFilename,
-            isQuickLaunch: false,
-            lastOpenedAt: nil,
-            addedAt: prepared.addedAt,
-            colorTag: nil,
-            legacyKeychainFilename: nil,
-            isReadOnly: false,
-            source: .cloud(
-                CloudSyncMetadata(
-                    provider: provider,
-                    accountId: accountId,
-                    fileId: file.id,
-                    displayPath: file.path,
-                    remoteContentHash: metadata.contentHash,
-                    remoteModifiedAt: metadata.modifiedDate,
-                    remoteRev: metadata.rev,
-                    lastSyncedAt: prepared.addedAt,
-                    lastSyncIssue: nil
-                )
-            )
         )
     }
 
