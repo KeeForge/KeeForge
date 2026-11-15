@@ -279,7 +279,9 @@ final class CredentialProviderSaveTests: XCTestCase {
             title: "First Save", environment: environment) else { return XCTFail("Expected first save") }
         let earlier = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
         let earlierBytes = try PendingUploadQueue.readImmutablePayload(earlier)
-        guard case .saved(let saved) = try await saveCloudEntry(to: reference, loaded: loaded, source: earlierBytes,
+        let nextReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(nextReference.cloudSyncMetadata?.localHeadOperationID, earlier.id)
+        guard case .saved(let saved) = try await saveCloudEntry(to: nextReference, loaded: loaded, source: earlierBytes,
             title: "Second Save", environment: environment) else { return XCTFail("Expected descendant save") }
         let markers = try PendingUploadQueue.readJournal(for: reference.id)
         XCTAssertEqual(markers.count, 2)
@@ -348,7 +350,9 @@ final class CredentialProviderSaveTests: XCTestCase {
             probe.record(prepared: prepared, ciphertext: bytes)
             return .indeterminate
         }
-        let result = try await saveCloudEntry(to: reference, loaded: loaded, source: earlierBytes, title: "Interrupted",
+        let nextReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(nextReference.cloudSyncMetadata?.localHeadOperationID, earlier.id)
+        let result = try await saveCloudEntry(to: nextReference, loaded: loaded, source: earlierBytes, title: "Interrupted",
             environment: makeLiveCloudEnvironment(local: local, recorder: recorder))
         guard case .indeterminate(.sharedCopy) = result else { return XCTFail("An unknown replacement cannot publish success") }
         let intended = try XCTUnwrap(probe.snapshot.ciphertexts.first)
@@ -393,8 +397,10 @@ final class CredentialProviderSaveTests: XCTestCase {
             probe.record(prepared: prepared, ciphertext: bytes)
             throw LocalSaveBeforeReplacementFailure(underlying: SaveError.databaseLocationUnavailable)
         }
+        let nextReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        if let earlier { XCTAssertEqual(nextReference.cloudSyncMetadata?.localHeadOperationID, earlier.id) }
         do {
-            _ = try await saveCloudEntry(to: reference, loaded: loaded, source: base, title: "Failing",
+            _ = try await saveCloudEntry(to: nextReference, loaded: loaded, source: base, title: "Failing",
                 environment: makeLiveCloudEnvironment(local: local, recorder: recorder))
             XCTFail("Expected pre-replacement error")
         } catch {

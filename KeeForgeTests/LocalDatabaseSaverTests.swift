@@ -584,7 +584,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
         resident.bookmarkData = Data("invalid Documents bookmark".utf8)
         DatabaseListStore.testUpsert(resident)
-        _ = DatabaseListStore.locateDatabaseFile(for: resident)
+        _ = DatabaseListStore.locateDatabaseFile(for: resident, onDocumentsRebind: { resident = $0 })
         XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
         let other = setup.directory.appendingPathComponent("relinked.kdbx")
         try setup.oldData.write(to: other)

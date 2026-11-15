@@ -56,6 +56,9 @@ final class PendingUploadQueueTests: XCTestCase {
         let binding = try PendingUploadQueue.JournalBinding.capture(reference: original, operationID: operationID)
         let reloaded = try JSONDecoder().decode(PendingUploadQueue.JournalBinding.self, from: JSONEncoder().encode(binding))
         XCTAssertTrue(reloaded.matchesOriginal(reference: original, operationID: operationID))
+        var advanced = original
+        advanced.updateCloudSyncMetadata { $0.localHeadOperationID = UUID() }
+        XCTAssertFalse(reloaded.matchesOriginal(reference: advanced, operationID: operationID))
         var foreign = original
         var foreignMetadata = metadata
         foreignMetadata = CloudSyncMetadata(provider: "webdav", accountId: "a?b", fileId: "vault", displayPath: "vault",

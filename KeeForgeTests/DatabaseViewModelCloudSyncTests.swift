@@ -1179,12 +1179,13 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 throw POSIXError(.EIO)
             }
         }
-        let vm = DatabaseViewModel(databaseReference: reference, cloudMetadataWriteIO: io, cloudSyncOperation: { ref, _ in
-            try await CloudSyncCoordinator.syncIfNeededForOpen(reference: ref, providerResolver: { _ in nil })
-        }, cloudRefreshOperation: { ref, _ in
-            try await CloudSyncCoordinator.syncIfNeededForOpen(reference: ref, honorsManualSyncPolicy: false,
-                providerResolver: { _ in nil })
-        }, quickUnlockKeyPersistOperation: { _, _, _ in effects.record(); return false })
+        let resolve: DatabaseViewModel.CloudSyncOperation = { ref, _ in
+            var learned = ref
+            if failWrites.value > 0 { learned.updateCloudSyncMetadata { $0.remoteRev = "changed-revision" } }
+            return CloudSyncResolution(reference: learned, localURL: DatabaseListStore.cacheLocation(for: ref), data: bytes, status: .current)
+        }
+        let vm = DatabaseViewModel(databaseReference: reference, cloudMetadataWriteIO: io, cloudSyncOperation: resolve,
+            cloudRefreshOperation: resolve, quickUnlockKeyPersistOperation: { _, _, _ in effects.record(); return false })
         defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
         XCTAssertEqual(vm.state, .unlocked)

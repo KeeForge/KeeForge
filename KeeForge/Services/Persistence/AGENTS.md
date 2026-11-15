@@ -43,6 +43,7 @@
 - `relinkLocalDatabase(observed:to:)` changes only `bookmarkData`, `filename`, `isDocumentsResident`, and `hasUnverifiedRelink`, so the id, key file, Keychain key, AutoFill settings, and backups survive. It checks the observed preference and selected target under coordinated registry/target access and a nonblocking owner, refuses a trashed or already claimed pick, and returns nil for cloud and KeeForge-only references.
 - A Documents-resident reference (direct child of the iOS app's Documents, never nested) is identified by `Documents/<filename>`, because a Finder replace is delete plus recopy. Only then may a failed or trashed resolution rebind, and only to a file with the KDBX magic that no other resident reference resolves to.
 - `rebindBookmarkData` and `rederiveDocumentsIdentity` mutate only their own fields on the stored copy. Never resolve a non-resident bookmark on those paths; it may be a file provider that blocks.
+- Scanner resolution carries only its own durably renewed or rebound reference into identity and cache reconciliation; Documents healing requires the exact observed reference.
 - A missing Documents file never removes its reference. `isDocumentsFileMissing(for:)` is a side-effect-free probe; removal is the user's action.
 - `DocumentsVaultScanner` claims only top-level regular files with the 8-byte KDBX magic, so key files and notes dropped beside a database are left alone. It runs off the main thread on iOS scene activation.
 

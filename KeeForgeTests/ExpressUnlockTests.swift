@@ -447,14 +447,19 @@ final class ExpressUnlockTests: XCTestCase {
             openTimeSHA512: localContext.openTimeSHA512, kdfPolicy: .mainApp
         )
 
-        let cacheURL = try makeScratchCopy(of: .test)
+        let fixture = try Data(contentsOf: databaseURL)
         var cloudReference = makeCloudReference()
         cloudReference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
-        let cloudContext = try makeSaveContext(data: try Data(contentsOf: cacheURL))
+        DatabaseListStore.testUpsert(cloudReference)
+        try DatabaseListStore.cacheDatabaseCopy(fixture, for: cloudReference)
+        let cloudContext = try makeSaveContext(data: fixture)
+        var cloudEnvironment = CloudDatabaseSaver.Environment.live
+        cloudEnvironment.beginBackgroundTask = { _ in .invalid }
+        cloudEnvironment.endBackgroundTask = { _ in }
         let cloudResult = try await CloudDatabaseSaver.save(
             draft: cloudContext.draft, reference: cloudReference, compositeKey: cloudContext.compositeKey,
             openTimeSHA512: cloudContext.openTimeSHA512, expectedRev: "rev-1", kdfPolicy: .mainApp,
-            environment: makeCloudEnvironment(cacheURL: cacheURL, uploaded: UploadedBytes())
+            environment: cloudEnvironment
         )
 
         for result in [localResult, cloudResult] {

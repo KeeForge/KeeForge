@@ -1059,10 +1059,14 @@ enum DatabaseListStore {
             guard let index = rows.firstIndex(where: { $0.id == id }), rows[index].isCloudBacked else { return .missing }
             let current = rows[index]
             guard binding.databaseID == id, binding.operationID == operationID,
-                  let baseline = binding.baseline, binding.matchesAuthority(reference: current, operationID: operationID) else {
+                  let baseline = binding.baseline else {
                 mismatch = current; return .rejected
             }
-            if current.cloudSyncMetadata?.localHeadOperationID == operationID { return .noop(current) }
+            if current.cloudSyncMetadata?.localHeadOperationID == operationID {
+                guard binding.matchesOrdinaryAuthority(reference: current, operationID: operationID) else { mismatch = current; return .rejected }
+                return .noop(current)
+            }
+            guard binding.matchesAuthority(reference: current, operationID: operationID) else { mismatch = current; return .rejected }
             guard current.cloudSyncMetadata?.localHeadOperationID == baseline.headOperationID else { mismatch = current; return .rejected }
             rows[index].updateCloudSyncMetadata {
                 $0.localHeadOperationID = operationID
@@ -1817,12 +1821,13 @@ enum DatabaseListStore {
         renewBookmark: Bool = true,
         beforeBookmarkRenewal: () throws -> Void = {},
         bookmarkRenewalIO: DurableFileWriteIO = .init(),
-        onBookmarkRenewal: (DatabaseBookmarkRenewal) -> Void = { _ in }
+        onBookmarkRenewal: (DatabaseBookmarkRenewal) -> Void = { _ in },
+        onDocumentsRebind: (DatabaseReference) -> Void = { _ in }
     ) -> LocalDatabaseFileLocation? {
         let lease = renewBookmark ? (try? PendingLocalSaveStore.captureCacheReadLease(for: reference)) : nil
         guard let bookmarkData = reference.bookmarkData,
               let resolved = resolveBookmark(bookmarkData) else {
-            return renewBookmark ? reboundDocumentsResidentLocation(for: reference) : nil
+            return renewBookmark ? reboundDocumentsResidentLocation(for: reference, onRebind: onDocumentsRebind) : nil
         }
 
         let url = resolved.url
@@ -1834,7 +1839,7 @@ enum DatabaseListStore {
         }
 
         if SecurityScopedBookmarkManager.isInTrashDirectory(url) {
-            if renewBookmark, let rebound = reboundDocumentsResidentLocation(for: reference) {
+            if renewBookmark, let rebound = reboundDocumentsResidentLocation(for: reference, onRebind: onDocumentsRebind) {
                 return rebound
             }
             return .inTrash(url)
@@ -2418,17 +2423,23 @@ enum DatabaseListStore {
     /// be resolved on this path.
     @discardableResult
     static func rebindBookmarkData(_ bookmarkData: Data, for observed: DatabaseReference, toFileAt url: URL) -> Bool {
-        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+        rebindDocumentsReference(bookmarkData, for: observed, toFileAt: url) != nil
+    }
+
+    private static func rebindDocumentsReference(_ bookmarkData: Data, for observed: DatabaseReference, toFileAt url: URL) -> DatabaseReference? {
+        let result = mutateRegistry { rows -> RegistryDecision<DatabaseReference> in
             guard let index = rows.firstIndex(where: { $0.id == observed.id }) else { return .missing }
-            guard PendingLocalSaveStore.PreferenceObservation(observed).matches(rows[index]),
-                  rows[index].isDocumentsResident == observed.isDocumentsResident,
-                  rows[index].filename == observed.filename else { return .rejected }
+            guard rows[index] == observed else { return .rejected }
             if let claimant = existingLocalReference(matching: url, in: rows.filter(\.isDocumentsResident)),
                claimant.id != observed.id { return .rejected }
-            guard rows[index].bookmarkData != bookmarkData else { return .noop(()) }
+            guard rows[index].bookmarkData != bookmarkData else { return .noop(rows[index]) }
             rows[index].bookmarkData = bookmarkData
-            return .write(())
-        })
+            return .write(rows[index])
+        }
+        switch result {
+        case .durable(let reference), .noop(let reference): return reference
+        default: return nil
+        }
     }
 
     /// Persists a re-derived Documents identity after a Files-app rename or
@@ -2487,7 +2498,7 @@ enum DatabaseListStore {
     /// rebind write was refused (id removed, or the path already belongs to
     /// another reference).
     private static func reboundDocumentsResidentLocation(
-        for reference: DatabaseReference
+        for reference: DatabaseReference, onRebind: (DatabaseReference) -> Void
     ) -> LocalDatabaseFileLocation? {
         guard reference.isDocumentsResident else { return nil }
 
@@ -2497,10 +2508,11 @@ enum DatabaseListStore {
               isDirectory.boolValue == false,
               DocumentPickerService.hasKDBXMagic(at: candidate),
               let bookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: candidate),
-              rebindBookmarkData(bookmarkData, for: reference, toFileAt: candidate) else {
+              let rebound = rebindDocumentsReference(bookmarkData, for: reference, toFileAt: candidate) else {
             return nil
         }
 
+        onRebind(rebound)
         cacheInitialCopyIfPossible(from: candidate, for: reference.id)
         return .available(candidate)
     }

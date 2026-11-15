@@ -134,6 +134,14 @@ enum PendingUploadQueue {
             return true
         }
 
+        func matchesOrdinaryAuthority(reference: DatabaseReference, operationID: UUID) -> Bool {
+            if matchesAuthority(reference: reference, operationID: operationID) { return true }
+            guard reference.isReadOnly else { return false }
+            var writable = reference
+            writable.isReadOnly = false
+            return matchesAuthority(reference: writable, operationID: operationID)
+        }
+
         func matchesAuthority(reference: DatabaseReference, operationID: UUID) -> Bool {
             guard version == 1, let candidate = try? Self.capture(reference: reference, operationID: operationID) else { return false }
             return databaseID == candidate.databaseID && self.operationID == candidate.operationID
@@ -266,7 +274,9 @@ enum PendingUploadQueue {
         guard let binding = stored.marker.binding, binding.isRecognized,
               binding.databaseID == stored.marker.databaseId, binding.operationID == stored.id,
               binding.baseline == stored.marker.localCommitBaseline else { return false }
-        return binding.matchesAuthority(reference: reference, operationID: stored.id)
+        return stored.marker.keyChange == nil
+            ? binding.matchesOrdinaryAuthority(reference: reference, operationID: stored.id)
+            : binding.matchesAuthority(reference: reference, operationID: stored.id)
     }
 
     struct Environment: Sendable {
@@ -844,7 +854,7 @@ enum PendingUploadQueue {
                   let binding = stored.marker.binding, binding.isRecognized,
                   binding.databaseID == stored.marker.databaseId, binding.operationID == stored.id,
                   binding.baseline == stored.marker.localCommitBaseline,
-                  binding.matchesAuthority(reference: reference, operationID: stored.id),
+                  binding.matchesOrdinaryAuthority(reference: reference, operationID: stored.id),
                   let sha = stored.marker.intendedPayloadSHA512, stored.marker.openTimeSHA512 == sha,
                   let path = stored.marker.intendedPayloadPath,
                   let bytes = try? environment.readData(resolveAppGroupURL(for: path, environment: environment)) else { return false }

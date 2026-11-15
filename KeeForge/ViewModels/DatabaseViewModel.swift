@@ -4636,6 +4636,7 @@ final class DatabaseViewModel {
         let expectedLockCycleID = lockCycleID
         let databaseReference = self.databaseReference
         let cloudMetadataWriteIO = self.cloudMetadataWriteIO
+        let cloudSyncOperation = self.cloudSyncOperation
         if databaseReference.isCloudBacked, databaseReference.cloudSyncPolicy == .manual {
             return nil
         }
@@ -4687,7 +4688,7 @@ final class DatabaseViewModel {
                 let data: Data
 
                 if databaseReference.isCloudBacked {
-                    let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: databaseReference)
+                    let resolution = try await cloudSyncOperation(databaseReference) { _ in }
                     data = resolution.data
                     let mergedReference = Self.publishCloudReadMetadata(resolution, observed: databaseReference, io: cloudMetadataWriteIO)
                     let accepted = await MainActor.run { () -> Bool in

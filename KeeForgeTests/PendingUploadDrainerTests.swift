@@ -99,7 +99,7 @@ final class PendingUploadDrainerTests: XCTestCase {
         saver.revisionIdentifiesContent = { _, _ in true }
         let outcome = await PendingUploadDrainer(environment: drainerEnvironment(saver: saver)).drainAll()
         XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
-        XCTAssertEqual(transport.effects.downloads, 1)
+        XCTAssertEqual(transport.effects.downloads, 0)
         XCTAssertTrue(transport.effects.uploads.isEmpty)
         let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
         XCTAssertEqual(retained.id, stored.id)
@@ -365,6 +365,20 @@ final class PendingUploadDrainerTests: XCTestCase {
         XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
         XCTAssertEqual(transport.effects.uploads, [.init(bytes: context.payload, revision: "rev-1")])
         XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+    }
+
+    func test_drain_readOnlyDoesNotAuthorizeChangedKeyFactor() async throws {
+        let context = try makeContext()
+        var reference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == context.reference.id })
+        reference.isReadOnly = true
+        reference.keyFileFilename = "foreign.keyx"
+        DatabaseListStore.testUpsert(reference)
+        let transport = CloudJournalTransport()
+        let outcome = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport))).drainAll()
+        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).first?.id, context.stored.id)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
     }
 
     func test_drain_uncertainAttemptNeverResendsAcrossFreshDrainer() async throws {

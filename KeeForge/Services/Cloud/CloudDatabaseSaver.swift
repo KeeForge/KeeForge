@@ -698,7 +698,6 @@ enum CloudDatabaseSaver {
         } == true
         guard PendingUploadQueue.hasBoundAuthority(stored, reference: reference) || isInstalledRekey else {
             if stored.marker.binding == nil, stored.marker.journalVersion == nil,
-               stored.marker.isPayloadFinalized == true,
                stored.marker.uploadAttemptID == nil || stored.marker.attemptIsFenced == true {
                 try PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
                 return .conflict(remoteRev: nil)
