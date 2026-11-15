@@ -15,6 +15,7 @@
 
 ### Changes
 
+- Sorting by title puts entries with the same title in order of their user name, such as several verification codes for one service (#271).
 - Scanning a verification-code QR code or pasting a setup link in the entry editor fills an empty title and user name from the code's issuer and account, as adding a code from New already did (#270). A title or user name you already entered is kept.
 - AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
   - An entry for an IP address, such as a router, is suggested only on that exact address. Before, entries for other addresses ending in the same two numbers appeared as possible matches.
@@ -26,6 +27,8 @@
 
 ### Fixes
 
+- Search finds an entry by any of its URLs, not only the first one (#289).
+- Search results follow the chosen sort order and direction instead of appearing unsorted (#290).
 - Downloaded website icons are no longer included in device backups; KeeForge fetches them again when needed.
 - In AutoFill, an entry URL with spaces before or after it now matches its website and appears in the system's suggestions (#285).
 - The entry editor's Title, Username, Password, URL, and Tags labels now appear in the app's language. Before, they stayed in English.

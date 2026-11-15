@@ -464,7 +464,10 @@ final class DatabaseViewModel {
     private(set) var databaseReference: DatabaseReference
 
     var sortAscending: Bool {
-        didSet { Self.persistSortAscending(sortAscending) }
+        didSet {
+            Self.persistSortAscending(sortAscending)
+            updateSearchResults()
+        }
     }
 
     private(set) var state: State = .locked
@@ -495,7 +498,10 @@ final class DatabaseViewModel {
     }
     let workspace = DatabaseWorkspaceState()
     var sortOrder: SortOrder {
-        didSet { Self.persistSortOrder(sortOrder) }
+        didSet {
+            Self.persistSortOrder(sortOrder)
+            updateSearchResults()
+        }
     }
 
     private(set) var failedAttempts = 0
@@ -4005,7 +4011,10 @@ final class DatabaseViewModel {
         switch sortOrder {
         case .title:
             return entries.sorted {
-                let result = $0.title.localizedCaseInsensitiveCompare($1.title)
+                var result = $0.title.localizedCaseInsensitiveCompare($1.title)
+                if result == .orderedSame {
+                    result = $0.username.localizedCaseInsensitiveCompare($1.username)
+                }
                 return asc ? result == .orderedAscending : result == .orderedDescending
             }
         case .createdDate:
@@ -4270,7 +4279,7 @@ final class DatabaseViewModel {
     }
 
     private func updateSearchResults() {
-        searchResults = entries(matching: searchText)
+        searchResults = sortedEntries(entries(matching: searchText))
     }
 
     /// The main search's matching rules for a query of the caller's own, so the
@@ -4529,7 +4538,7 @@ final class DatabaseViewModel {
             entry.username,
             entry.url,
             entry.notes,
-        ] + tags)
+        ] + entry.additionalURLs + tags)
         .joined(separator: "\n")
         .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
         .lowercased()

@@ -2473,6 +2473,36 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isGroupExcludedFromAutoFill(groupID: child.id))
     }
 
+    func testSearchMatchesAdditionalURLFields() async throws {
+        let entry = KPEntry(
+            title: "Router",
+            url: "https://admin.example.com",
+            customFields: ["KP2A_URL_1": "https://portal.example.net"]
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", entries: [entry]))
+
+        vm.searchText = "portal.example"
+
+        XCTAssertEqual(vm.searchResults.map(\.id), [entry.id])
+    }
+
+    func testSearchResultsFollowTheSortOrderAndResortWhenItChanges() async throws {
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "B", entries: [KPEntry(title: "Shared Zulu")]),
+            KPGroup(name: "A", entries: [KPEntry(title: "Shared Alpha"), KPEntry(title: "Shared Mike")]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+        vm.sortOrder = .title
+        vm.sortAscending = true
+
+        vm.searchText = "Shared"
+        XCTAssertEqual(vm.searchResults.map(\.title), ["Shared Alpha", "Shared Mike", "Shared Zulu"])
+
+        vm.sortAscending = false
+        XCTAssertEqual(vm.searchResults.map(\.title), ["Shared Zulu", "Shared Mike", "Shared Alpha"])
+        vm.sortAscending = true
+    }
+
     func testEntriesInGroupHiddenFromSearchAreExcludedFromSearchResults() async throws {
         let visible = KPEntry(title: "Searchable Alpha")
         let hidden = KPEntry(title: "Searchable Beta")
