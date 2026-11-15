@@ -1801,19 +1801,46 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        let vm = DatabaseViewModel(databaseReference: reference)
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let vm = diagnosticViewModel(reference, trace: trace)
+        defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.state, .unlocked, trace.summary)
         let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
         try seedPendingSave(pending, for: reference)
 
-        vm.refreshSharedDatabaseCacheIfPossible()
-
-        try await waitUntil("the pending save is merged") {
-            PendingLocalSaveStore.hasSaves(for: reference.id) == false && vm.isSaving == false
+        let worker = try XCTUnwrap(vm.refreshSharedDatabaseCacheIfPossible())
+        let finished = expectation(description: "foreground merge worker finished")
+        Task { await worker.value; finished.fulfill() }
+        let joined = await XCTWaiter.fulfillment(of: [finished], timeout: 60)
+        if joined != .completed {
+            let owner = try? PendingLocalSaveStore.recovery(for: reference.id)
+            let saved = try? Data(contentsOf: databaseURL)
+            let cache = try? Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+            XCTFail("foreground worker timeout: state=\(vm.state) saving=\(vm.isSaving) mergeFailure=\(String(describing: vm.pendingUploadMergeFailure)) receipts=\(owner?.receipts.count.description ?? "unavailable") entries=\(owner?.entries.count.description ?? "unavailable") admission=\(owner?.admission != nil) revoked=\(owner?.isRevoked == true) cacheMatchesFile=\(cache == saved) trace=\(trace.summary)")
+            worker.cancel()
+            vm.lock()
+            let stopped = expectation(description: "foreground worker stopped after cancellation")
+            Task { await worker.value; stopped.fulfill() }
+            guard await XCTWaiter.fulfillment(of: [stopped], timeout: 30) == .completed else {
+                fatalError("Unquiesced foreground merge test task")
+            }
+            return
         }
+        await worker.value
+        let owner = try PendingLocalSaveStore.recovery(for: reference.id)
         let saved = try Data(contentsOf: databaseURL)
+        let cached = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        print("foreground merge joined: state=\(vm.state) saving=\(vm.isSaving) mergeFailure=\(String(describing: vm.pendingUploadMergeFailure)) receipts=\(owner.receipts.count) entries=\(owner.entries.count) admission=\(owner.admission != nil) needsRecovery=\(owner.needsRecovery) cacheMatchesFile=\(cached == saved) trace=\(trace.summary)")
+        XCTAssertEqual(vm.state, .unlocked, trace.summary)
+        XCTAssertFalse(vm.isSaving, trace.summary)
+        XCTAssertNil(vm.pendingUploadMergeFailure, trace.summary)
+        XCTAssertTrue(owner.receipts.isEmpty, trace.summary)
+        XCTAssertTrue(owner.entries.isEmpty, trace.summary)
+        XCTAssertNil(owner.admission, trace.summary)
+        XCTAssertFalse(owner.needsRecovery, trace.summary)
         XCTAssertTrue(try entryTitles(in: saved).contains("New Passkey"))
-        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), saved)
+        XCTAssertEqual(cached, saved, trace.summary)
     }
 
     func testBecomingActiveWhileLockedLeavesThePendingSaveAndTheSharedCopy() async throws {
@@ -1876,6 +1903,7 @@ final class PendingLocalSaveTests: XCTestCase {
     private func diagnosticViewModel(_ reference: DatabaseReference, trace: TestDatabaseSupport.LocalPublicationTrace) -> DatabaseViewModel {
         DatabaseViewModel(databaseReference: reference, localPublicationFailure: { trace.record($0, $1) },
             localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+                trace.recordObservation("saver-start")
                 var environment = LocalDatabaseSaver.Environment.live
                 environment.localPublicationFailure = { trace.record($0, $1) }
                 environment.replaceFileAtomically = { bytes, target, baseline, authorization in
@@ -1884,9 +1912,16 @@ final class PendingLocalSaveTests: XCTestCase {
                     return try LocalDatabaseSaver.replaceFileAtomically(bytes, at: target, expectedSHA512: baseline,
                         authorization: authorization, io: io)
                 }
-                return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                let result = try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
                     openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
                     newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+                switch result {
+                case .saved(_, _, let receipt), .committedWithoutConfirmedDurability(_, _, let receipt, _):
+                    trace.recordObservation("saver-result unconfirmed=\(result.hasUnconfirmedDurability) targetDurable=\(receipt?.targetDurabilityConfirmed == true) owner=\(String(describing: receipt?.mergeCompletion?.resolution)) bookmark=\(receipt?.mergeCompletion?.bookmark != nil)")
+                case .indeterminate: trace.recordObservation("saver-indeterminate")
+                case .conflict: trace.recordObservation("saver-conflict")
+                }
+                return result
             })
     }
 
