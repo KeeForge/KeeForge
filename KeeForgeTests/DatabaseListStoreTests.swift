@@ -84,6 +84,27 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertTrue(stored.hasUnverifiedRelink)
     }
 
+    func testDocumentsIdentityRejectsStaleObservationAndMissingRow() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "before-identity.kdbx"))
+        let replacement = try makeTemporaryFileURL(name: "after-identity.kdbx")
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: original.id, to: replacement))
+        XCTAssertFalse(DatabaseListStore.rederiveDocumentsIdentity(for: original, filename: "stale.kdbx", isDocumentsResident: true))
+        XCTAssertFalse(DatabaseListStore.rebindBookmarkData(Data("stale".utf8), for: original, toFileAt: replacement))
+        XCTAssertEqual(DatabaseListStore.databases.first?.filename, relinked.filename)
+        XCTAssertTrue(DatabaseListStore.remove(id: original.id))
+        XCTAssertFalse(DatabaseListStore.rederiveDocumentsIdentity(for: original, filename: "stale.kdbx", isDocumentsResident: true))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
+    func testAddCreatedCloudRejectsCorruptRegistry() throws {
+        let reference = makeStoredCloudReference(remoteRev: "rev", remoteContentHash: "hash")
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let corrupt = Data("{broken".utf8)
+        try corrupt.write(to: url)
+        XCTAssertThrowsError(try DatabaseListStore.addCreatedCloud(reference))
+        XCTAssertEqual(try Data(contentsOf: url), corrupt)
+    }
+
     func testAddRejectsSameLocalFileTwice() throws {
         let url = try makeTemporaryFileURL(name: "duplicate.kdbx")
         let firstReference = try DatabaseListStore.add(url: url)

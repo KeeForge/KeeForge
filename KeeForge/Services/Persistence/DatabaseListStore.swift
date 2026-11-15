@@ -127,6 +127,19 @@ enum DatabaseListStore {
         switch result { case .durable, .noop: return true; default: return false }
     }
 
+    enum RegistryWriteError: Error {
+        case unavailable
+        case visibleUnconfirmed(Error)
+    }
+
+    private static func requireRegistryInitialization() throws {
+        switch initializeRegistry() {
+        case .initialized, .alreadyPresent: return
+        case .notPublished(let error): throw error
+        case .visibleUnconfirmed(let error): throw RegistryWriteError.visibleUnconfirmed(error)
+        }
+    }
+
     @discardableResult
     static func setNickname(_ nickname: String?, for id: UUID) -> Bool {
         succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
@@ -830,11 +843,18 @@ enum DatabaseListStore {
     }
 
     static func addCreatedCloud(_ reference: DatabaseReference) throws {
-        try withStateLock {
-            var currentDatabases = loadDatabases()
-            try validateCreatedCloud(reference, in: currentDatabases)
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
+        try requireRegistryInitialization()
+        let result = mutateRegistry { rows -> RegistryDecision<Void> in
+            guard !rows.contains(where: { $0.id == reference.id }) else { return .rejected }
+            try validateCreatedCloud(reference, in: rows)
+            rows.append(reference)
+            return .write(())
+        }
+        switch result {
+        case .durable, .noop: return
+        case .notPublished(let error): throw error
+        case .visibleUnconfirmed(_, let error): throw RegistryWriteError.visibleUnconfirmed(error)
+        case .missing, .rejected: throw RegistryWriteError.unavailable
         }
     }
 
@@ -2092,17 +2112,18 @@ enum DatabaseListStore {
     /// cheap; a non-resident (potentially file-provider) bookmark must never
     /// be resolved on this path.
     @discardableResult
-    static func rebindBookmarkData(_ bookmarkData: Data, for id: UUID, toFileAt url: URL) -> Bool {
-        withStateLock {
-            var currentDatabases = loadDatabases()
-            guard let index = currentDatabases.firstIndex(where: { $0.id == id }) else { return false }
-            if let claimant = existingLocalReference(matching: url, in: currentDatabases.filter(\.isDocumentsResident)),
-               claimant.id != id {
-                return false
-            }
-            currentDatabases[index].bookmarkData = bookmarkData
-            return saveDatabases(currentDatabases)
-        }
+    static func rebindBookmarkData(_ bookmarkData: Data, for observed: DatabaseReference, toFileAt url: URL) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == observed.id }) else { return .missing }
+            guard PendingLocalSaveStore.PreferenceObservation(observed).matches(rows[index]),
+                  rows[index].isDocumentsResident == observed.isDocumentsResident,
+                  rows[index].filename == observed.filename else { return .rejected }
+            if let claimant = existingLocalReference(matching: url, in: rows.filter(\.isDocumentsResident)),
+               claimant.id != observed.id { return .rejected }
+            guard rows[index].bookmarkData != bookmarkData else { return .noop(()) }
+            rows[index].bookmarkData = bookmarkData
+            return .write(())
+        })
     }
 
     /// Persists a re-derived Documents identity after a Files-app rename or
@@ -2110,14 +2131,18 @@ enum DatabaseListStore {
     /// copy; concurrent edits to other fields survive. A reference that left
     /// top-level Documents drops the flag and stops participating in
     /// path-keyed rebinding.
-    static func rederiveDocumentsIdentity(for id: UUID, filename: String, isDocumentsResident: Bool) {
-        withStateLock {
-            var currentDatabases = loadDatabases()
-            guard let index = currentDatabases.firstIndex(where: { $0.id == id }) else { return }
-            currentDatabases[index].filename = filename
-            currentDatabases[index].isDocumentsResident = isDocumentsResident
-            saveDatabases(currentDatabases)
-        }
+    @discardableResult
+    static func rederiveDocumentsIdentity(for observed: DatabaseReference, filename: String, isDocumentsResident: Bool) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == observed.id }) else { return .missing }
+            guard PendingLocalSaveStore.PreferenceObservation(observed).matches(rows[index]),
+                  rows[index].filename == observed.filename,
+                  rows[index].isDocumentsResident == observed.isDocumentsResident else { return .rejected }
+            guard rows[index].filename != filename || rows[index].isDocumentsResident != isDocumentsResident else { return .noop(()) }
+            rows[index].filename = filename
+            rows[index].isDocumentsResident = isDocumentsResident
+            return .write(())
+        })
     }
 
     /// Whether a Documents-resident reference's file is gone: its own
@@ -2167,7 +2192,7 @@ enum DatabaseListStore {
               isDirectory.boolValue == false,
               DocumentPickerService.hasKDBXMagic(at: candidate),
               let bookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: candidate),
-              rebindBookmarkData(bookmarkData, for: reference.id, toFileAt: candidate) else {
+              rebindBookmarkData(bookmarkData, for: reference, toFileAt: candidate) else {
             return nil
         }
 

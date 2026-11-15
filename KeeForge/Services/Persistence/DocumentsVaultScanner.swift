@@ -87,7 +87,7 @@ enum DocumentsVaultScanner {
         let isTopLevel = DatabaseListStore.isTopLevelDocumentsFile(url)
         guard filename != reference.filename || isTopLevel == false else { return }
         DatabaseListStore.rederiveDocumentsIdentity(
-            for: reference.id,
+            for: reference,
             filename: filename,
             isDocumentsResident: isTopLevel
         )
