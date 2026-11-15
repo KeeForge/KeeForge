@@ -924,20 +924,24 @@ enum DatabaseListStore {
         })
     }
 
-    static func setCloudSyncPolicy(_ policy: CloudSyncPolicy, for reference: DatabaseReference) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            updatedReference.cloudSyncPolicy = policy
-            update(updatedReference)
-        }
+    @discardableResult
+    static func setCloudSyncPolicy(_ policy: CloudSyncPolicy, for reference: DatabaseReference) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == reference.id }) else { return .missing }
+            guard rows[index].cloudSyncPolicy != policy else { return .noop(()) }
+            rows[index].cloudSyncPolicy = policy
+            return .write(())
+        })
     }
 
-    static func setAutoFillDestinationGroupID(_ groupID: UUID, for reference: DatabaseReference) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            updatedReference.autoFillDestinationGroupID = groupID
-            update(updatedReference)
-        }
+    @discardableResult
+    static func setAutoFillDestinationGroupID(_ groupID: UUID, for reference: DatabaseReference) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == reference.id }) else { return .missing }
+            guard rows[index].autoFillDestinationGroupID != groupID else { return .noop(()) }
+            rows[index].autoFillDestinationGroupID = groupID
+            return .write(())
+        })
     }
 
     /// Adding or removing the hardware key changes what the stored Quick
