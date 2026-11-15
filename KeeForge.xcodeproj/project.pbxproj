@@ -282,6 +282,7 @@
 		36CA46155D2205CB4BF79ACF /* MacDatabaseSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22C305DFD782026B7DC9B589 /* MacDatabaseSettingsModel.swift */; };
 		36CD5439AF393C20E3BDA081 /* LayoutSwitchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 340F0FF1888495E6A1B18A67 /* LayoutSwitchUITests.swift */; };
 		36EB5840F0FD8F9C27282DEA /* DatabaseDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2EA9E070C7F4ED132A66DB7 /* DatabaseDetailsView.swift */; };
+		372516505E2E8B138143C9E2 /* MacSheetTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E3FDBAB82242E39A6A4F44 /* MacSheetTabBar.swift */; };
 		376AFFBF71E6A632F085E14C /* MacSidebarModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0274F675F87B5624551F3F24 /* MacSidebarModel.swift */; };
 		37CFCBAE63B0F180DE0F10B8 /* PendingUploadQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335C4EA521C5C3DF112C6F9B /* PendingUploadQueueTests.swift */; };
 		3844D669BDC292A3515A9114 /* MacCopyFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DBEE48A011B9E8B86D93E1D /* MacCopyFeedbackTests.swift */; };
@@ -1813,6 +1814,7 @@
 		D42EFE8F97F612C4B7D540BD /* BiometricServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricServiceTests.swift; sourceTree = "<group>"; };
 		D4B9D469C077735051E042E0 /* WebDAVError+CloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WebDAVError+CloudProvider.swift"; sourceTree = "<group>"; };
 		D4E7D480B1AAABFDCE5A3839 /* DatabaseWorkspaceStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseWorkspaceStateTests.swift; sourceTree = "<group>"; };
+		D5E3FDBAB82242E39A6A4F44 /* MacSheetTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSheetTabBar.swift; sourceTree = "<group>"; };
 		D639996047C360D7266A01AA /* MacDatabasesLauncherViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDatabasesLauncherViewModelTests.swift; sourceTree = "<group>"; };
 		D68AC57942D055515DC4F854 /* DatabaseNavigationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseNavigationView.swift; sourceTree = "<group>"; };
 		D6C99B38ABC76F14EEC9ECE5 /* StoreKitManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManagerTests.swift; sourceTree = "<group>"; };
@@ -2362,6 +2364,7 @@
 				EF1D9C41E94477C8677AA1C9 /* MacPasswordImportSheet.swift */,
 				AD1D88EC2F631F1E45B33200 /* MacRemoteBrowserViewController.swift */,
 				4486C854500CE8B2B88716CB /* MacServerReconnectSheet.swift */,
+				D5E3FDBAB82242E39A6A4F44 /* MacSheetTabBar.swift */,
 				76CDEA5E8B60493A4DF4358E /* MacSidebarViewController.swift */,
 				69DB1FAC2D2A9B60FC649C76 /* MacWindowCoordinator.swift */,
 				8CBA3653D9EF4874EFB15DDE /* MacWorkspaceAlerts.swift */,
@@ -3841,6 +3844,7 @@
 				4C1672F7C4B9DB87A935F506 /* MacServerReconnectSheet.swift in Sources */,
 				928B84956E48F92C5974B964 /* MacSettingsTabs.swift in Sources */,
 				6DBD25620E768E9C6E1E005B /* MacSheetCancellation.swift in Sources */,
+				372516505E2E8B138143C9E2 /* MacSheetTabBar.swift in Sources */,
 				B22E809F370A17D70A0E4544 /* MacSidebarModel.swift in Sources */,
 				5A10E360645961094AEE20DB /* MacSidebarViewController.swift in Sources */,
 				51957F9D60D710E17B502FE7 /* MacTOTPSetupSheet.swift in Sources */,

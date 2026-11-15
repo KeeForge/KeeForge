@@ -140,8 +140,9 @@ standard-icon pickers stack over it and update only the form until Save.
 A native alert forwards Save and Lock, Discard and Lock and Keep Editing to its coordinator. New Group
 names its parent in the caption. Entry icons use the same select-then-Use Icon
 shell, with custom icons, their manager and cancellable website download.
-Database Settings uses a 720×540 pt shell with centred native segmented tabs
-(General, Security, Sync for WebDAV/FTP, AutoFill, Backups) and Done. Its hosted
+Database Settings uses a 720×540 pt shell with a centred title over a row of
+icon-over-title tabs (`MacSheetTabBar`: General, Security, Sync for WebDAV/FTP,
+AutoFill, Backups), ruled off from the body and the Done footer. Its hosted
 column forms omit key-file association rows; the unlock page and launcher row
 still manage associations. AutoFill's destination row needs the unlocked session.
 Manage Custom Icons opens its existing sheet. Change Master Key and Encryption

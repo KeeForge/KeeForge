@@ -207,8 +207,24 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         XCTAssertEqual(list.databases.first?.nickname, "Native settings")
     }
 
-    func testNativeShellUsesDoneAndSegmentedTabsWithoutShowingWindow() throws {
+    func testNativeShellUsesDoneAndIconTabsWithoutShowingWindow() throws {
         let sheet = MacDatabaseSettingsSheet(model: MacDatabaseSettingsModel(reference: try reference()))
+        let model = sheet.model
+        XCTAssertEqual(model.tabs, [.general, .security, .autoFill, .backups], "A local database has no Sync tab")
+        let tabs = sheet.tabs
+        XCTAssertEqual(tabs.accessibilityIdentifier(), "database-settings.tabs")
+        XCTAssertEqual(tabs.accessibilityRole(), .tabGroup)
+        XCTAssertEqual(tabs.buttons.map(\.title), model.tabs.map(\.title))
+        XCTAssertEqual(MacDatabaseSettingsModel.Tab.allCases.map(\.symbol),
+                       ["gearshape", "lock.shield", "arrow.triangle.2.circlepath", "ellipsis.rectangle", "archivebox"])
+        XCTAssertTrue(tabs.buttons.allSatisfy { $0.image != nil && $0.imagePosition == .imageAbove }, "Every tab draws its icon")
+        XCTAssertEqual(tabs.buttons.map(\.isSelected), [true, false, false, false])
+        tabs.buttons[3].performClick(nil)
+        XCTAssertEqual(model.selection, .backups)
+        XCTAssertEqual(tabs.buttons.map(\.isSelected), [false, false, false, true])
+        XCTAssertEqual(tabs.buttons[3].accessibilityValue() as? Int, 1)
+        sheet.showMasterKey(selectingSecurityTab: true)
+        XCTAssertEqual(model.selection, .backups, "Without an unlocked session the Security tab is not forced")
         XCTAssertEqual(sheet.shell.defaultButton.title, String(localized: "Done"))
         XCTAssertTrue(sheet.shell.cancelButton.isHidden)
         XCTAssertEqual(sheet.shell.window?.accessibilityIdentifier(), "database-settings.sheet")
