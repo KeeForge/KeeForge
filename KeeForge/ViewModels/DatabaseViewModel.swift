@@ -4501,9 +4501,7 @@ final class DatabaseViewModel {
     }
 
     func setNickname(_ nickname: String?) {
-        var updatedReference = DatabaseListStore.databases.first(where: { $0.id == databaseReference.id }) ?? databaseReference
-        updatedReference.nickname = nickname
-        DatabaseListStore.update(updatedReference)
+        DatabaseListStore.setNickname(nickname, for: databaseReference.id)
         refreshDatabaseReference()
     }
 

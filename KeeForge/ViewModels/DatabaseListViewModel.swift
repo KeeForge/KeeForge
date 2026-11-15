@@ -131,34 +131,25 @@ final class DatabaseListViewModel {
     }
 
     func moveDatabases(from source: IndexSet, to destination: Int) {
-        DatabaseListStore.move(from: source, to: destination)
+        DatabaseListStore.move(from: source, to: destination, observedIDs: databases.map(\.id))
         reload()
     }
 
     func toggleQuickLaunch(for reference: DatabaseReference) {
         let currentValue = databases.first(where: { $0.id == reference.id })?.isQuickLaunch ?? reference.isQuickLaunch
 
-        for database in databases where database.id != reference.id && database.isQuickLaunch {
-            var updatedDatabase = database
-            updatedDatabase.isQuickLaunch = false
-            DatabaseListStore.update(updatedDatabase)
-        }
-
-        update(reference) { updatedReference in
-            updatedReference.isQuickLaunch = !currentValue
-        }
+        DatabaseListStore.setQuickLaunch(!currentValue, for: reference.id, observed: currentValue)
+        reload()
     }
 
     func setNickname(_ nickname: String?, for reference: DatabaseReference) {
-        update(reference) { updatedReference in
-            updatedReference.nickname = nickname
-        }
+        DatabaseListStore.setNickname(nickname, for: reference.id)
+        reload()
     }
 
     func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) {
-        update(reference) { updatedReference in
-            updatedReference.isReadOnly = isReadOnly
-        }
+        DatabaseListStore.setReadOnly(isReadOnly, for: reference)
+        reload()
     }
 
     func setCloudSyncPolicy(_ policy: CloudSyncPolicy, for reference: DatabaseReference) {
@@ -357,13 +348,6 @@ final class DatabaseListViewModel {
     }
 
     // MARK: - Private
-
-    private func update(_ reference: DatabaseReference, mutate: (inout DatabaseReference) throws -> Void) rethrows {
-        guard var updatedReference = databases.first(where: { $0.id == reference.id }) else { return }
-        try mutate(&updatedReference)
-        DatabaseListStore.update(updatedReference)
-        reload()
-    }
 
     private func refreshRowStatuses() {
         var updatedStatuses: [UUID: DatabaseRowStatus] = [:]

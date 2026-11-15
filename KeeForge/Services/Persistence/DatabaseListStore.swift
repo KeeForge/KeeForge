@@ -61,19 +61,81 @@ enum DatabaseListStore {
     private nonisolated(unsafe) static var consumedUITestLocalSaveConflicts = 0
     #endif
 
-    /// Serializes every load/mutate/save of `database-list.json`. Detached
-    /// cloud-upload tasks call `update(_:)` while main-actor writers mutate the
-    /// same file; without this each mutator's read-modify-write could interleave
-    /// and clobber a concurrent change. The lock is recursive because compound
-    /// mutators (e.g. `setReadOnly`, `markDatabaseOpened`) run their whole
-    /// read-modify-write under it and then re-enter through `loadDatabases()` /
-    /// `saveDatabases()` on the same thread.
+    // Legacy writers still use this process-local lock; coordinated accessors must try it.
     private static let stateLock = NSRecursiveLock()
 
     private static func withStateLock<T>(_ body: () throws -> T) rethrows -> T {
         stateLock.lock()
         defer { stateLock.unlock() }
         return try body()
+    }
+
+    private enum RegistryDecision<T> {
+        case write(T), noop(T), rejected, missing
+    }
+
+    private enum RegistryResult<T> {
+        case durable(T), noop(T), rejected, missing, notPublished(Error), visibleUnconfirmed(T, Error)
+    }
+
+    private static func mutateRegistry<T>(_ body: (inout [DatabaseReference]) throws -> RegistryDecision<T>) -> RegistryResult<T> {
+        guard let anchor = AppGroupContainer.resolvedURL else { return .notPublished(CocoaError(.fileWriteNoPermission)) }
+        var coordinationError: NSError?
+        var result: RegistryResult<T>?
+        NSFileCoordinator().coordinate(writingItemAt: databaseListURL, options: [], error: &coordinationError) { url in
+            guard stateLock.try() else { result = .notPublished(PendingLocalSaveStore.OwnershipError.recoveryRequired); return }
+            defer { stateLock.unlock() }
+            do {
+                var rows = normalized(try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: url)))
+                switch try body(&rows) {
+                case .noop(let value): result = .noop(value)
+                case .rejected: result = .rejected
+                case .missing: result = .missing
+                case .write(let value):
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    let bytes = try encoder.encode(normalized(rows))
+                    switch writeWithDurabilityOutcome(bytes, to: url, directoryAnchor: anchor) {
+                    case .durable: result = .durable(value)
+                    case .notPublished(let error): result = .notPublished(error)
+                    case .publishedWithoutConfirmedDurability(let error): result = .visibleUnconfirmed(value, error)
+                    }
+                }
+            } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+                result = .missing
+            } catch { result = .notPublished(error) }
+        }
+        if let error = coordinationError {
+            if case .durable(let value) = result { return .visibleUnconfirmed(value, error) }
+            if let result { return result }
+            return .notPublished(error)
+        }
+        return result ?? .notPublished(CocoaError(.fileWriteUnknown))
+    }
+
+    private static func succeeded<T>(_ result: RegistryResult<T>) -> Bool {
+        switch result { case .durable, .noop: return true; default: return false }
+    }
+
+    @discardableResult
+    static func setNickname(_ nickname: String?, for id: UUID) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == id }) else { return .missing }
+            guard rows[index].nickname != nickname else { return .noop(()) }
+            rows[index].nickname = nickname
+            return .write(())
+        })
+    }
+
+    @discardableResult
+    static func setQuickLaunch(_ enabled: Bool, for id: UUID, observed: Bool) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == id }) else { return .missing }
+            guard rows[index].isQuickLaunch == observed else { return .rejected }
+            if !enabled && !observed { return .noop(()) }
+            for i in rows.indices { rows[i].isQuickLaunch = enabled && i == index }
+            return .write(())
+        })
     }
 
     #if DEBUG
@@ -852,12 +914,14 @@ enum DatabaseListStore {
         }
     }
 
-    static func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            updatedReference.isReadOnly = isReadOnly
-            update(updatedReference)
-        }
+    @discardableResult
+    static func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == reference.id }) else { return .missing }
+            guard rows[index].isReadOnly != isReadOnly else { return .noop(()) }
+            rows[index].isReadOnly = isReadOnly
+            return .write(())
+        })
     }
 
     static func setCloudSyncPolicy(_ policy: CloudSyncPolicy, for reference: DatabaseReference) {
@@ -939,9 +1003,12 @@ enum DatabaseListStore {
 
     /// `destination` indexes the list as it was *before* the move, so it has to
     /// be pulled back by however many moved rows sat above it.
-    static func move(from source: IndexSet, to destination: Int) {
-        withStateLock {
-            var currentDatabases = loadDatabases()
+    @discardableResult
+    static func move(from source: IndexSet, to destination: Int, observedIDs: [UUID]? = nil) -> Bool {
+        let observed = observedIDs ?? loadDatabases().map(\.id)
+        guard source.allSatisfy({ observed.indices.contains($0) }), (0...observed.count).contains(destination) else { return false }
+        return succeeded(mutateRegistry { currentDatabases -> RegistryDecision<Void> in
+            guard currentDatabases.map(\.id) == observed else { return .rejected }
             let movingItems = source.map { currentDatabases[$0] }
             let liftedAbove = source.count { $0 < destination }
 
@@ -951,24 +1018,17 @@ enum DatabaseListStore {
 
             let insertionIndex = min(max(destination - liftedAbove, 0), currentDatabases.count)
             currentDatabases.insert(contentsOf: movingItems, at: insertionIndex)
-            saveDatabases(currentDatabases)
-        }
+            return .write(())
+        })
     }
 
     static func markDatabaseOpened(id: UUID, at date: Date = .now) {
-        withStateLock {
-            guard var reference = loadDatabases().first(where: { $0.id == id }) else { return }
-            reference.lastOpenedAt = date
-            reference.hasUnverifiedRelink = false
-            update(reference)
-            // Opening a database with AutoFill disabled must not make it the
-            // active AutoFill database; the previous pointer stays in place.
-            // (The `activeAutoFillDatabaseID` setter also refuses disabled
-            // ids; this guard just makes the write path explicit.)
-            if reference.autoFillEnabled {
-                activeAutoFillDatabaseID = id
-            }
+        let result = mutateRegistry { rows -> RegistryDecision<Bool> in
+            guard let index = rows.firstIndex(where: { $0.id == id }) else { return .missing }
+            rows[index].lastOpenedAt = date
+            return .write(rows[index].autoFillEnabled)
         }
+        if case .durable(true) = result { activeAutoFillDatabaseID = id }
     }
 
     static func clearLegacyKeychainFilename(for id: UUID) {
