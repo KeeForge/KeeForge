@@ -1137,6 +1137,7 @@ enum DatabaseListStore {
                     let installed = binding.matchesInstalled(reference: current, operationID: snapshot.id,
                                                               keyChange: rekey, committedAt: committedAt)
                     guard (initial || installed), lease.reference.matches(current) else { return .rejected(SaveError.saveContextUnavailable) }
+                    if installed { effectStarted = true }
                     return try PendingLocalSaveStore.withCachePublicationAuthorization(for: current.id, sha512: intendedSHA,
                         lease: lease, nonBlocking: true, rekeyRecovery: rekeyRecovery) {
                         let oldBytes: Data?
