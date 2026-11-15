@@ -259,6 +259,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         phase = "merge"
         try await setup.vm.mergePendingUploads()
         let merged = try mergedJournal(setup, titles: ["AutoFill Entry", "Remote B", "Unsaved Local Entry"])
+        XCTAssertEqual(merged.marker.binding?.baseline?.headOperationID, setup.source.stored.id)
         XCTAssertFalse(setup.vm.isDirty)
         XCTAssertEqual(merged.marker.remoteBaseSHA512, FileDigest.sha512(setup.remote.currentBytes))
         phase = "deliver-merged"
