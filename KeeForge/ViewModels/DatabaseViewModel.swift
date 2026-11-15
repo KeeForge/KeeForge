@@ -632,6 +632,18 @@ final class DatabaseViewModel {
     /// open and lock triggers must still reach it.
     private var isReplacingOpenDatabase = false
     private(set) var cloudSyncOutcome: CloudSyncOutcome?
+    /// The cached copy is open because the provider refused the saved sign-in
+    /// (or there is none), so only signing in again can refresh it.
+    var cloudSyncNeedsReconnect: Bool {
+        switch cloudSyncBannerText {
+        case CloudSyncResolution.disconnectedCachedBannerMessage?,
+             CloudSyncIssue.notAuthenticated.localizedDescription?,
+             CloudSyncIssue.writeScopeRequired.localizedDescription?:
+            true
+        default:
+            false
+        }
+    }
     /// Changes saved through AutoFill that have not reached the cloud yet, as
     /// of the last open or Sync Now.
     private(set) var hasPendingCloudUploads = false

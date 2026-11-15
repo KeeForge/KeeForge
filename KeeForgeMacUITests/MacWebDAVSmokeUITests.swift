@@ -62,7 +62,8 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
             XCTAssertTrue(syncNow.isEnabled, "Sync Now stayed dimmed")
             syncNow.click()
             XCTAssertTrue(waitForStatusLine(containing: "Synced just now"), "Sync Now did not report the database as synced")
-            XCTAssertFalse(window.buttons["cloud-sync-failure.ok"].exists, "Sync Now reported a failure")
+            XCTAssertFalse(window.buttons["cloud-sync-failure.ok"].exists || window.buttons["cloud-sync-failure.reconnect"].exists,
+                           "Sync Now reported a failure")
         }
 
         // With nothing waiting to upload, Database ▸ Discard Pending Upload… is dimmed.

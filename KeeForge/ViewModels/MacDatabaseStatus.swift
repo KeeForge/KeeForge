@@ -150,6 +150,7 @@ struct MacDatabaseStatus: Equatable {
         /// How the open (or the last Sync Now) fell back to the cached copy.
         enum CachedCopy: Equatable {
             case offline
+            /// No saved sign-in, or the provider refused it.
             case disconnected
             case failed(String)
         }
@@ -196,11 +197,8 @@ struct MacDatabaseStatus: Equatable {
                 pendingUploads = presentation.pendingUploads.counts(reference.id)
                 isSyncing = session.isSyncingCloud
                 cachedCopy = session.cloudSyncBannerText.map { text in
-                    switch text {
-                    case CloudSyncResolution.offlineCachedBannerMessage: .offline
-                    case CloudSyncResolution.disconnectedCachedBannerMessage: .disconnected
-                    default: .failed(text)
-                    }
+                    if session.cloudSyncNeedsReconnect { return .disconnected }
+                    return text == CloudSyncResolution.offlineCachedBannerMessage ? .offline : .failed(text)
                 }
                 isRefreshPending = session.isCloudRefreshPending
                 syncResult = switch session.cloudSyncOutcome {

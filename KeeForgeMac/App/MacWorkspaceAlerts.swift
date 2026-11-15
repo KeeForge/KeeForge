@@ -11,7 +11,8 @@ final class MacWorkspaceAlerts {
         case mergeFailure
         case pendingUploadMergeFailure
         case mergeSummary
-        case syncFailure
+        /// Names the provider when the sync was refused for the saved sign-in.
+        case syncFailure(reconnectProvider: String?)
         case pushFailure(PendingUploadAlert)
         case discardPendingUpload
     }
@@ -180,7 +181,8 @@ final class MacWorkspaceAlerts {
         } else if let pushAlert = state.pushAlert {
             .pushFailure(pushAlert)
         } else if state.hasSyncFailure {
-            .syncFailure
+            .syncFailure(reconnectProvider: session.cloudSyncNeedsReconnect
+                ? session.databaseReference.cloudProviderKind?.displayName : nil)
         } else {
             nil
         }
@@ -245,11 +247,17 @@ final class MacWorkspaceAlerts {
             alert.messageText = String(localized: "Changes Merged")
             alert.informativeText = session.mergeSummaryMessage ?? ""
             addButton(String(localized: "OK"), identifier: "merge-summary.ok", to: alert)
-        case .syncFailure:
+        case .syncFailure(let provider):
             let message = session.cloudSyncOutcome?.message ?? ""
             alert.messageText = String(localized: "Cloud Sync Needs Attention")
             alert.informativeText = String(localized: "\(message)\n\nKeeForge opened the cached copy for now. Cloud sync needs attention before this database can be refreshed from its provider.")
-            addButton(String(localized: "OK"), identifier: "cloud-sync-failure.ok", to: alert)
+            if let provider {
+                addButton(String(localized: "Reconnect \(provider)"), identifier: "cloud-sync-failure.reconnect", to: alert)
+                addButton(String(localized: "Cancel"), identifier: "cloud-sync-failure.cancel", to: alert)
+                    .keyEquivalent = "\u{1b}"
+            } else {
+                addButton(String(localized: "OK"), identifier: "cloud-sync-failure.ok", to: alert)
+            }
         case .pushFailure(let failure):
             alert.messageText = failure.title
             switch failure.kind {
@@ -356,8 +364,11 @@ final class MacWorkspaceAlerts {
             session.dismissPendingUploadMergeFailure()
         case .mergeSummary:
             session.acknowledgeMergeSummary()
-        case .syncFailure:
+        case .syncFailure(let provider):
             session.dismissCloudSyncOutcome()
+            guard let provider, response == .alertFirstButtonReturn else { return }
+            MacDatabaseStatusActions(session: session, presentation: presentation)
+                .perform(MacDatabaseStatus.Action.reconnect(provider: provider), from: window())
         case .pushFailure(let failure):
             presentation.dismissPushAlert()
             guard response == .alertFirstButtonReturn else { return }

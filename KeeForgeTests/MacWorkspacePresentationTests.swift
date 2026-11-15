@@ -1,4 +1,5 @@
 #if os(macOS)
+import AppKit
 import CryptoKit
 import XCTest
 @testable import KeeForge
@@ -661,6 +662,114 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertNil(database.cloudSyncBannerText)
         XCTAssertEqual(database.cloudSyncOutcome, .upToDate)
         XCTAssertNil(MacDatabaseStatus.State(session: database, presentation: presentation).cachedCopy)
+    }
+
+    func testASyncRefusedForTheSignInOffersReconnectAndReconnectSyncsAgain() async throws {
+        DatabaseListStore.clearAll()
+        defer { DatabaseListStore.clearAll() }
+        let file = CloudFile(id: "/Vaults/open.kdbx", name: "open.kdbx", path: "/Vaults/open.kdbx",
+                             isFolder: false, modifiedDate: Date(timeIntervalSince1970: 100), size: 128)
+        let reference = DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue, accountId: "acct-1", file: file)
+        let fixture = KDBXTestFixture.test
+        let data = try fixture.data(in: Bundle(for: Self.self))
+        let resolution: @Sendable (DatabaseReference, CloudSyncResolution.Status) -> CloudSyncResolution = { reference, status in
+            CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference),
+                                data: data, status: status)
+        }
+        let server = SignInGate()
+        // A refused sign-in falls back to the cached copy rather than throwing.
+        let refused = CloudSyncResolution.Status.cachedWithError(CloudSyncIssue.notAuthenticated.localizedDescription)
+        let database = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, _ in resolution(reference, .current) },
+            cloudRefreshOperation: { reference, _ in
+                resolution(reference, await server.acceptsSignIn ? .current : refused)
+            }
+        )
+        await database.unlock(password: fixture.password)
+        defer { database.lock() }
+        let presentation = MacWorkspacePresentation()
+
+        await database.syncCloudNow()
+
+        XCTAssertTrue(database.cloudSyncNeedsReconnect)
+        let status = MacDatabaseStatus(MacDatabaseStatus.State(session: database, presentation: presentation))
+        guard case .reconnect = status.action else { return XCTFail("A sync refused for the sign-in offers Reconnect") }
+        XCTAssertEqual(status.notices.map(\.text), [CloudSyncResolution.disconnectedCachedBannerMessage])
+        guard case .reconnect? = status.notices.first?.action else { return XCTFail("The notice offers Reconnect too") }
+        database.dismissCloudSyncOutcome()
+        let dismissed = MacDatabaseStatus(MacDatabaseStatus.State(session: database, presentation: presentation))
+        guard case .reconnect = dismissed.action else { return XCTFail("Closing the sync alert keeps Reconnect") }
+
+        let task = try XCTUnwrap(presentation.reconnectCloud(in: database) { await server.accept() })
+        await task.value
+
+        XCTAssertFalse(database.cloudSyncNeedsReconnect)
+        XCTAssertEqual(database.cloudSyncOutcome, .upToDate)
+        let recovered = MacDatabaseStatus(MacDatabaseStatus.State(session: database, presentation: presentation))
+        XCTAssertNil(recovered.action)
+        XCTAssertEqual(recovered.notices, [])
+    }
+
+    func testTheSyncAlertForARefusedSignInOpensTheServerFormForWebDAVAndFTP() async throws {
+        for kind in [CloudProviderKind.webDAV, .ftp] {
+            DatabaseListStore.clearAll()
+            let file = CloudFile(id: "/Vaults/open.kdbx", name: "open.kdbx", path: "/Vaults/open.kdbx",
+                                 isFolder: false, modifiedDate: Date(timeIntervalSince1970: 100), size: 128)
+            let reference = DatabaseListStore.addCloud(provider: kind.rawValue, accountId: "acct-reconnect", file: file)
+            let fixture = KDBXTestFixture.test
+            let data = try fixture.data(in: Bundle(for: Self.self))
+            let database = DatabaseViewModel(
+                databaseReference: reference,
+                cloudSyncOperation: { reference, _ in
+                    CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference),
+                                        data: data, status: .current)
+                },
+                cloudRefreshOperation: { reference, _ in
+                    CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference),
+                                        data: data, status: .cachedWithError(CloudSyncIssue.notAuthenticated.localizedDescription))
+                }
+            )
+            await database.unlock(password: fixture.password)
+            let presentation = MacWorkspacePresentation()
+            var shown: [(alert: NSAlert, answer: @MainActor (NSApplication.ModalResponse) -> Void)] = []
+            let alerts = MacWorkspaceAlerts(session: database, presentation: presentation) { nil }
+            alerts.present = { alert, _, answer in shown.append((alert, answer)) }
+            alerts.start()
+
+            await database.syncCloudNow()
+            for _ in 0..<3 { await Task { @MainActor in }.value }
+
+            XCTAssertEqual(alerts.presented?.kind, .syncFailure(reconnectProvider: kind.displayName), "\(kind)")
+            let alert = try XCTUnwrap(shown.last?.alert)
+            XCTAssertEqual(alert.buttons.map { $0.accessibilityIdentifier() },
+                           ["cloud-sync-failure.reconnect", "cloud-sync-failure.cancel"])
+            XCTAssertEqual(alert.buttons.last?.keyEquivalent, "\u{1b}")
+
+            shown.last?.answer(.alertFirstButtonReturn)
+            for _ in 0..<200 where presentation.serverCredentialPrompt.request == nil {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+
+            switch (kind, presentation.serverCredentialPrompt.request?.form) {
+            case (.webDAV, .webDAV?), (.ftp, .ftp?): break
+            default: XCTFail("Reconnect from the sync alert opens the \(kind) form")
+            }
+            XCTAssertTrue(presentation.isCloudReconnectInFlight)
+            presentation.serverCredentialPrompt.finish(connected: false)
+            for _ in 0..<3 { await Task { @MainActor in }.value }
+            XCTAssertFalse(presentation.isCloudReconnectInFlight)
+            XCTAssertTrue(database.cloudSyncNeedsReconnect, "Cancelling the form leaves Reconnect on the card")
+            alerts.invalidate()
+            database.lock()
+            XCTAssertFalse(database.cloudSyncNeedsReconnect, "A lock forgets the refusal")
+        }
+        DatabaseListStore.clearAll()
+    }
+
+    private actor SignInGate {
+        private(set) var acceptsSignIn = false
+        func accept() { acceptsSignIn = true }
     }
 
     func testResetClosesAnOpenReconnectForm() async {
