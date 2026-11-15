@@ -789,27 +789,40 @@ enum DatabaseListStore {
         canPublish: @Sendable () -> Bool = { true }
     ) -> KeyFilePreferenceOutcome {
         guard expected.isCloudBacked || localToken != nil, let anchor = AppGroupContainer.resolvedURL else { return .rejected }
-        return withStateLock {
+        do {
             var error: NSError?
             var outcome: DurableWriteOutcome?
+            var unchanged = false
             NSFileCoordinator().coordinate(writingItemAt: databaseListURL, options: .forReplacing, error: &error) { registry in
+                guard stateLock.try() else { return }
+                defer { stateLock.unlock() }
                 do {
                     guard canPublish() else { return }
                     var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
                     guard let index = references.firstIndex(where: { $0.id == expected.id }),
                           PendingLocalSaveStore.PreferenceObservation(expected).matches(references[index]) else { return }
+                    if references[index].keyFileBookmarkData == desired.bookmarkData && references[index].keyFileFilename == desired.filename {
+                        if let localToken {
+                            try PendingLocalSaveStore.withIdlePreferenceAuthorization(localToken, nonBlocking: true) {
+                                guard canPublish() else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+                            }
+                        }
+                        unchanged = true
+                        return
+                    }
                     references[index].keyFileBookmarkData = desired.bookmarkData
                     references[index].keyFileFilename = desired.filename
                     let encoder = JSONEncoder()
                     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
                     let bytes = try encoder.encode(references)
                     if let localToken {
-                        outcome = try PendingLocalSaveStore.withIdlePreferenceAuthorization(localToken) {
+                        outcome = try PendingLocalSaveStore.withIdlePreferenceAuthorization(localToken, nonBlocking: true) {
                             writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io)
                         }
                     } else { outcome = writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io) }
                 } catch { outcome = .notPublished(error) }
             }
+            if unchanged { return error == nil ? .saved : .notPublished }
             switch outcome {
             case .durable?: return error == nil ? .saved : .publishedWithoutConfirmedDurability
             case .publishedWithoutConfirmedDurability?: return .publishedWithoutConfirmedDurability
@@ -821,17 +834,19 @@ enum DatabaseListStore {
 
     static func prepareKeyFilePreference(for reference: DatabaseReference) throws -> PendingLocalSaveStore.PreferenceToken {
         guard !reference.isCloudBacked else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
-        return try withStateLock {
+        do {
             var error: NSError?
             var result: Result<PendingLocalSaveStore.PreferenceToken, Error>?
             NSFileCoordinator().coordinate(readingItemAt: databaseListURL, options: [], error: &error) { url in
                 result = Result {
+                    guard stateLock.try() else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+                    defer { stateLock.unlock() }
                     let observed = PendingLocalSaveStore.PreferenceObservation(reference)
                     let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: url))
                     guard let current = references.first(where: { $0.id == reference.id }), observed.matches(current) else {
                         throw PendingLocalSaveStore.OwnershipError.sourceChanged
                     }
-                    return try PendingLocalSaveStore.capturePreference(observed)
+                    return try PendingLocalSaveStore.capturePreference(observed, nonBlocking: true)
                 }
             }
             if let error { throw error }
@@ -857,7 +872,7 @@ enum DatabaseListStore {
             guard let reference = databases.first(where: { token.observation.matches($0) }) else { return .rejected }
             return publishRegistryKeyFilePreference(for: reference, desired: desired, io: io.registry, localToken: token, canPublish: canPublish)
         }
-        return withStateLock {
+        do {
             guard let anchor = AppGroupContainer.resolvedURL else { return .rejected }
             let target: URL?
             if token.witness != nil {
@@ -872,6 +887,8 @@ enum DatabaseListStore {
             var attempt: PendingLocalSaveStore.PreferencePublication?
             var rejected = false
             func publish(target: URL?, registry: URL) {
+                guard stateLock.try() else { rejected = true; return }
+                defer { stateLock.unlock() }
                 do {
                     guard canPublish() else { rejected = true; return }
                     var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
@@ -887,7 +904,7 @@ enum DatabaseListStore {
                     attempt = try PendingLocalSaveStore.withPreferencePublication(token, desired: desired, observeTarget: {
                         guard let target else { return nil }
                         return (try PendingLocalSaveStore.targetIdentity(at: target), FileDigest.sha512(try Data(contentsOf: target)))
-                    }, io: io.owner) { writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io.registry) }
+                    }, io: io.owner, nonBlocking: true) { writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io.registry) }
                 } catch { rejected = true }
             }
             let coordinator = NSFileCoordinator()
@@ -912,6 +929,8 @@ enum DatabaseListStore {
                     var completionError: NSError?
                     var completion = PendingLocalSaveStore.ResolutionOutcome.retainedForRecovery
                     coordinator.coordinate(readingItemAt: databaseListURL, options: [], error: &completionError) { registry in
+                        guard stateLock.try() else { return }
+                        defer { stateLock.unlock() }
                         do {
                             let data = try Data(contentsOf: registry)
                             let references = try JSONDecoder().decode([DatabaseReference].self, from: data)
@@ -922,7 +941,7 @@ enum DatabaseListStore {
                             try handle.synchronize()
                             try createDurableDirectory(at: registry.deletingLastPathComponent(), anchor: anchor)
                             let proof = DurablePreferenceReceipt(intent: intent, registrySHA512: FileDigest.sha512(data))
-                            completion = PendingLocalSaveStore.finishPreference(token, proof: proof, io: io.owner)
+                            completion = PendingLocalSaveStore.finishPreference(token, proof: proof, io: io.owner, nonBlocking: true)
                         } catch {}
                     }
                     return completion == .resolved && completionError == nil ? .saved : .publishedWithoutConfirmedDurability
@@ -1718,7 +1737,7 @@ enum DatabaseListStore {
                 guard let index = references.firstIndex(where: { $0.id == expected.id }),
                       PendingLocalSaveStore.PreferenceObservation(expected).matches(references[index]),
                       expected.hardwareKey == references[index].hardwareKey else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
-                return try PendingLocalSaveStore.withMergeBookmarkPublication(commit, target: identity, sha512: sha) { epoch in
+                return try PendingLocalSaveStore.withMergeBookmarkPublication(commit, target: identity, sha512: sha, nonBlocking: true) { epoch in
                     let before = references[index]
                     references[index].bookmarkData = bookmark
                     switch writeWithDurabilityOutcome(try JSONEncoder().encode(references), to: registry, directoryAnchor: anchor, io: io) {
@@ -1751,7 +1770,7 @@ enum DatabaseListStore {
                     guard let index = references.firstIndex(where: { $0.id == expected.id }),
                           !references[index].isCloudBacked, references[index] == expected else { return }
                     let identity = try PendingLocalSaveStore.targetIdentity(at: target)
-                    try PendingLocalSaveStore.withReferenceEpochAuthorization(lease) {
+                    try PendingLocalSaveStore.withReferenceEpochAuthorization(lease, nonBlocking: true) {
                         references[index].bookmarkData = bookmark
                         let encoder = JSONEncoder()
                         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

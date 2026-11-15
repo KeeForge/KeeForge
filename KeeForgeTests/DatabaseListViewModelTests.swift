@@ -7,6 +7,33 @@ import XCTest
 
 @MainActor
 final class DatabaseListViewModelTests: XCTestCase {
+    func testRegistryKeyPreferenceRejectsContendedOwnerWithoutWriting() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "preference-contention.kdbx"))
+        let token = try DatabaseListStore.prepareKeyFilePreference(for: reference)
+        let registry = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let before = try Data(contentsOf: registry)
+        let lock = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(reference.id.uuidString)/.lock")
+        let fd = Darwin.open(lock.path, O_RDWR)
+        guard fd >= 0 else { return XCTFail("Unable to open owner lock") }
+        defer { Darwin.close(fd) }
+        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { return XCTFail("Unable to acquire owner lock") }
+        defer { flock(fd, LOCK_UN) }
+        XCTAssertThrowsError(try DatabaseListStore.prepareKeyFilePreference(for: reference))
+        let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: Data("new".utf8), filename: "key")
+        let outcome = DatabaseListStore.publishRegistryKeyFilePreference(for: reference, desired: desired, localToken: token)
+        XCTAssertEqual(outcome, .notPublished)
+        XCTAssertEqual(try Data(contentsOf: registry), before)
+    }
+
+    func testRegistryKeyPreferenceNoopDoesNotWrite() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "preference-noop.kdbx"))
+        let token = try DatabaseListStore.prepareKeyFilePreference(for: reference)
+        var io = DurableFileWriteIO()
+        io.write = { _, _, _ in XCTFail("No-op must not write"); return -1 }
+        let outcome = DatabaseListStore.publishRegistryKeyFilePreference(for: reference,
+            desired: PendingLocalSaveStore.KeyFilePreference(reference), io: io, localToken: token)
+        XCTAssertEqual(outcome, .saved)
+    }
     private let autoFillSuiteName = "DatabaseListViewModelTests.AutoFill"
     private let macAppSuggestionSuiteName = "DatabaseListViewModelTests.MacAppSuggestion"
 

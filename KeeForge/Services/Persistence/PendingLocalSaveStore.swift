@@ -798,9 +798,9 @@ enum PendingLocalSaveStore {
     }
 
     static func withMergeBookmarkPublication<T>(
-        _ commit: CommitReceipt, target: TargetIdentity, sha512: Data, _ publish: (UUID?) throws -> T
+        _ commit: CommitReceipt, target: TargetIdentity, sha512: Data, nonBlocking: Bool = false, _ publish: (UUID?) throws -> T
     ) throws -> T {
-        try withLock(for: commit.databaseID) {
+        try withLock(for: commit.databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(commit.databaseID)
             let state = try loadState(commit.databaseID) ?? OwnerState(version: 1, removed: false)
             guard commit.targetDurabilityConfirmed, state.version == commit.ownerVersion,
@@ -840,8 +840,8 @@ enum PendingLocalSaveStore {
         }
     }
 
-    static func withReferenceEpochAuthorization<T>(_ lease: CacheReadLease, _ publish: () throws -> T) throws -> T {
-        try withLock(for: lease.databaseID) {
+    static func withReferenceEpochAuthorization<T>(_ lease: CacheReadLease, nonBlocking: Bool = false, _ publish: () throws -> T) throws -> T {
+        try withLock(for: lease.databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(lease.databaseID)
             let state = try loadState(lease.databaseID) ?? OwnerState(version: 1, removed: false)
             guard state.epoch.id == lease.epochID, state.operation == .idle, state.retirementID == nil,
@@ -915,8 +915,8 @@ enum PendingLocalSaveStore {
         }
     }
 
-    static func capturePreference(_ observation: PreferenceObservation) throws -> PreferenceToken {
-        try withLock(for: observation.databaseID) {
+    static func capturePreference(_ observation: PreferenceObservation, nonBlocking: Bool = false) throws -> PreferenceToken {
+        try withLock(for: observation.databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(observation.databaseID)
             let state = try loadState(observation.databaseID) ?? OwnerState(version: 1, removed: false)
             guard state.operation == .idle, state.retirementID == nil, state.keyEvidence?.pending == nil,
@@ -951,9 +951,9 @@ enum PendingLocalSaveStore {
 
     static func withPreferencePublication(
         _ token: PreferenceToken, desired: KeyFilePreference, observeTarget: () throws -> (TargetIdentity, Data)?,
-        io: StorageIO = .init(), _ writeRegistry: () -> DurableWriteOutcome
+        io: StorageIO = .init(), nonBlocking: Bool = false, _ writeRegistry: () -> DurableWriteOutcome
     ) throws -> PreferencePublication {
-        try withLock(for: token.observation.databaseID) {
+        try withLock(for: token.observation.databaseID, nonBlocking: nonBlocking) {
             let id = token.observation.databaseID
             try requireNotRemoved(id)
             var state = try loadState(id) ?? OwnerState(version: 1, removed: false)
@@ -992,11 +992,11 @@ enum PendingLocalSaveStore {
     }
 
     static func finishPreference(
-        _ token: PreferenceToken, proof: DatabaseListStore.DurablePreferenceReceipt, io: StorageIO = .init()
+        _ token: PreferenceToken, proof: DatabaseListStore.DurablePreferenceReceipt, io: StorageIO = .init(), nonBlocking: Bool = false
     ) -> ResolutionOutcome {
         let intent = proof.intent
         do {
-            return try withLock(for: intent.observation.databaseID) {
+            return try withLock(for: intent.observation.databaseID, nonBlocking: nonBlocking) {
                 let id = intent.observation.databaseID
                 try requireNotRemoved(id)
                 var state = try loadState(id) ?? OwnerState(version: 1, removed: false)
