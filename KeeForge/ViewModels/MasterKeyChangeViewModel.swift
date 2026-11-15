@@ -29,6 +29,17 @@ final class MasterKeyChangeViewModel {
     var confirmPassword = "" {
         didSet { if confirmPassword != oldValue { clearDisplayedErrors() } }
     }
+    /// The Mac sheet's Remove Master Password: the only way it saves with empty password fields.
+    var removesPassword = false {
+        didSet {
+            guard removesPassword != oldValue else { return }
+            if removesPassword {
+                newPassword = ""
+                confirmPassword = ""
+            }
+            clearDisplayedErrors()
+        }
+    }
     var validationError: String?
     var changeError: String?
     /// Set when the screen is dismissed so a change already past the biometric
@@ -101,9 +112,8 @@ final class MasterKeyChangeViewModel {
     }
 
     /// Whether the form asks for any change; `validate()` still decides whether it is valid.
-    /// Empty fields with a key file still required are a request to remove the password.
     var canSave: Bool {
-        !newPassword.isEmpty || !confirmPassword.isEmpty || keyFileChange != .keepCurrent || hasEffectiveKeyFile
+        !newPassword.isEmpty || !confirmPassword.isEmpty || keyFileChange != .keepCurrent || removesPassword
     }
 
     private var hasCurrentKeyFile: Bool {
@@ -150,6 +160,7 @@ final class MasterKeyChangeViewModel {
         pickedKeyFileBookmarkData = nil
         pickedKeyFileFilename = nil
         keyFileChange = hasCurrentKeyFile ? .remove : .keepCurrent
+        removesPassword = false
         clearDisplayedErrors()
     }
 
@@ -176,6 +187,13 @@ final class MasterKeyChangeViewModel {
             validationError = DatabaseCreationService.CreationError.missingKeyComponent.localizedDescription
             return false
         }
+
+        #if os(macOS)
+        guard newPassword.isEmpty == false || removesPassword else {
+            validationError = String(localized: "Enter a new master password, or select Remove Master Password.")
+            return false
+        }
+        #endif
 
         return true
     }

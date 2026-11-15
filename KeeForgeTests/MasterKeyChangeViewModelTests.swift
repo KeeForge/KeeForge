@@ -121,6 +121,9 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
             currentKeyFileFilename: "current.keyx",
             currentKeyFileBookmarkData: Data("bookmark".utf8)
         )
+        #if os(macOS)
+        viewModel.removesPassword = true
+        #endif
 
         XCTAssertTrue(viewModel.validate())
         XCTAssertNil(viewModel.validationError)
@@ -227,15 +230,42 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.canSave)
     }
 
-    func testCanSaveWithAnEmptyPasswordWhileAKeyFileStaysRequired() {
+    func testAnUntouchedFormWithAKeyFileRequestsNoChange() {
         let kept = makeViewModel(currentKeyFileFilename: "current.keyx", currentKeyFileBookmarkData: Data("bookmark".utf8))
-        XCTAssertTrue(kept.canSave, "Saving with empty fields removes the password and keeps the key file")
-        XCTAssertTrue(kept.validate())
+        XCTAssertFalse(kept.canSave, "Empty fields are not a request to remove the password")
+        XCTAssertFalse(makeViewModel(sessionKeyFileData: Data("unlock-key".utf8)).canSave)
         kept.clearKeyFile()
         XCTAssertTrue(kept.canSave, "Removing the key file is a change; validate reports the missing key")
         XCTAssertFalse(kept.validate())
-        XCTAssertTrue(makeViewModel(sessionKeyFileData: Data("unlock-key".utf8)).canSave)
     }
+
+    func testRemovingThePasswordIsAnExplicitRequestThatClearsTheFields() {
+        let viewModel = makeViewModel(currentKeyFileFilename: "current.keyx", currentKeyFileBookmarkData: Data("bookmark".utf8))
+        viewModel.newPassword = "typed"
+        viewModel.confirmPassword = "typed"
+        viewModel.removesPassword = true
+        XCTAssertEqual(viewModel.newPassword, "")
+        XCTAssertEqual(viewModel.confirmPassword, "")
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertTrue(viewModel.validate())
+        viewModel.clearKeyFile()
+        XCTAssertFalse(viewModel.removesPassword, "Without a key file there is nothing left to unlock with")
+    }
+
+    #if os(macOS)
+    func testOnMacEmptyFieldsWithAKeyFileNeedRemoveMasterPassword() throws {
+        let kept = makeViewModel(currentKeyFileFilename: "current.keyx", currentKeyFileBookmarkData: Data("bookmark".utf8))
+        XCTAssertFalse(kept.validate())
+        XCTAssertEqual(kept.validationError, String(localized: "Enter a new master password, or select Remove Master Password."))
+
+        let replaced = makeViewModel()
+        try replaced.selectKeyFile(url: makeTemporaryFileURL(name: "NewKey.keyx", contents: Data("new-key-bytes".utf8)))
+        XCTAssertTrue(replaced.canSave)
+        XCTAssertFalse(replaced.validate(), "A new key file alone does not remove the password")
+        replaced.removesPassword = true
+        XCTAssertTrue(replaced.validate())
+    }
+    #endif
 
     func testClearKeyFileWithoutCurrentAssociationStaysKeepCurrent() throws {
         let viewModel = makeViewModel()
@@ -322,6 +352,9 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
         )
         let url = try makeTemporaryFileURL(name: "NewKey.keyx", contents: Data("new-key-bytes".utf8))
         try viewModel.selectKeyFile(url: url)
+        #if os(macOS)
+        viewModel.removesPassword = true
+        #endif
 
         let succeeded = await viewModel.performChange()
 

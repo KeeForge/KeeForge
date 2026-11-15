@@ -17,6 +17,7 @@ struct MacDatabaseStatusActions {
         case .reconnect:
             reconnect()
         case .pushPendingUploads:
+            guard !presentation.isDiscardingPendingUpload else { return }
             presentation.pushPendingUploads(in: session)
         }
     }
@@ -26,6 +27,7 @@ struct MacDatabaseStatusActions {
         case .reconnect:
             reconnect()
         case .mergePendingUploads:
+            guard !presentation.isDiscardingPendingUpload else { return }
             let session = session
             Task {
                 do {

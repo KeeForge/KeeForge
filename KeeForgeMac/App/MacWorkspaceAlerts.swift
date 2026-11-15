@@ -93,6 +93,8 @@ final class MacWorkspaceAlerts {
         var pushAlert: PendingUploadAlert?
         var isDirty: Bool
         var hasPendingUploadConflict: Bool
+        /// Read through the commands so a sheet, a read-only switch, a running discard or the list's counts withdraw the alert.
+        var canDiscardPendingUpload: Bool
     }
 
     private func readState() -> State {
@@ -113,7 +115,8 @@ final class MacWorkspaceAlerts {
             isSaving: session.isSaving,
             pushAlert: presentation.pushAlert,
             isDirty: session.isDirty,
-            hasPendingUploadConflict: session.hasPendingUploadConflict
+            hasPendingUploadConflict: session.hasPendingUploadConflict,
+            canDiscardPendingUpload: canDiscardPendingUpload
         )
     }
 
@@ -370,9 +373,7 @@ final class MacWorkspaceAlerts {
             }
         case .discardPendingUpload:
             guard response == .alertFirstButtonReturn, canDiscardPendingUpload else { return }
-            let discard = presentation.pendingUploads.discardConflicts
-            let databaseID = session.databaseReference.id
-            Task { await discard(databaseID) }
+            presentation.discardPendingUploads(in: session)
         }
     }
 

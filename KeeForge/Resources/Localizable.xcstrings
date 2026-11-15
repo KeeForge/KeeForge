@@ -27857,6 +27857,58 @@
         }
       }
     },
+    "Enter a new master password, or select Remove Master Password." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib ein neues Master-Passwort ein oder wähle Master-Passwort entfernen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduce una nueva contraseña maestra o selecciona Quitar contraseña maestra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez un nouveau mot de passe principal ou cochez Supprimer le mot de passe principal."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci una nuova password principale o seleziona Rimuovi password principale."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいマスターパスワードを入力するか、「マスターパスワードを削除」を選択してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите новый мастер-пароль или выберите «Удалить мастер-пароль»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入新的主密码，或选择“移除主密码”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入新的主密碼，或選擇「移除主密碼」。"
+          }
+        }
+      }
+    },
     "Enter a number of rounds from 1 to %@." : {
       "localizations" : {
         "de" : {
@@ -53928,6 +53980,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從列表中移除"
+          }
+        }
+      }
+    },
+    "Remove Master Password" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master-Passwort entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar contraseña maestra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer le mot de passe principal"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi password principale"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マスターパスワードを削除"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить мастер-пароль"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除主密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除主密碼"
           }
         }
       }

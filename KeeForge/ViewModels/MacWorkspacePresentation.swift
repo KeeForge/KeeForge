@@ -41,6 +41,8 @@ final class MacWorkspacePresentation {
     var masterKeyChangeRequested = false
     var presentedSaveError: DatabaseSaveError?
     var isCloudReconnectInFlight = false
+    /// A confirmed Discard Pending Upload is running; Merge Changes and Push wait for it.
+    private(set) var isDiscardingPendingUpload = false
     /// Bumped by the status card's Resolve…, which brings the Save Conflict alert back.
     private(set) var saveConflictPromptRequestID = 0
     /// Set once by the window's owner; the database list holds the markers.
@@ -162,9 +164,10 @@ final class MacWorkspacePresentation {
         session.isSaving || currentEntryEditor(in: session) != nil
     }
 
-    /// A New Group, icon, group editor, move or Database Settings sheet is requested or up.
+    /// A New Group, icon, group editor, move, Import or Database Settings sheet is requested or up.
     var hasWorkspaceSheet: Bool {
         isShowingNewGroupSheet || entryIconID != nil || groupEditor != nil || pendingMove != nil || isShowingDatabaseDetails
+            || passwordImport
     }
 
     var canSaveEntryEditor: Bool { entryEditor?.canSave == true }
@@ -297,6 +300,20 @@ final class MacWorkspacePresentation {
             let alert = await push(databaseID)
             guard self.lifetimeID == lifetimeID, let alert else { return }
             pushAlert = alert
+        }
+    }
+
+    /// Drops the conflicted uploads through the list's discard, one at a time per window.
+    @discardableResult
+    func discardPendingUploads(in database: DatabaseViewModel) -> Task<Void, Never>? {
+        guard !isDiscardingPendingUpload else { return nil }
+        let discard = pendingUploads.discardConflicts
+        let databaseID = database.databaseReference.id
+        isDiscardingPendingUpload = true
+        // Cleared only when the discard ends, even across a lock: until then it still races a merge.
+        return Task { @MainActor in
+            await discard(databaseID)
+            isDiscardingPendingUpload = false
         }
     }
 

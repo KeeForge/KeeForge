@@ -16,6 +16,27 @@ struct MacPendingUploads {
     var discardConflicts: @MainActor (UUID) async -> Void = { _ in }
 
     static let none = MacPendingUploads(counts: { _ in Counts() }, push: { _ in nil })
+
+    @MainActor
+    static func list(_ listViewModel: DatabaseListViewModel) -> MacPendingUploads {
+        MacPendingUploads(
+            counts: { databaseID in
+                guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return .init() }
+                let status = listViewModel.status(for: reference)
+                let conflicts = status.pendingUploadConflictCount
+                return .init(waiting: max(status.pendingUploadCount - conflicts, 0), conflicts: conflicts)
+            },
+            push: { databaseID in
+                guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return nil }
+                return await listViewModel.pushPendingChanges(for: reference, presentsAlert: false)
+            },
+            // The list's reload reconciles the open session's conflict flag.
+            discardConflicts: { databaseID in
+                guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return }
+                await listViewModel.discardConflictedPendingUploads(for: reference)
+            }
+        )
+    }
 }
 
 /// What a Mac database window says about its database: the sidebar status
@@ -147,6 +168,7 @@ struct MacDatabaseStatus: Equatable {
         var needsReconnect = false
         var isReconnectInFlight = false
         var hasPendingUploadConflict = false
+        var isDiscardingPendingUpload = false
         var pendingUploads = MacPendingUploads.Counts()
         var isSyncing = false
         var cachedCopy: CachedCopy?
@@ -199,6 +221,7 @@ struct MacDatabaseStatus: Equatable {
             needsReconnect = session.saveError == .writeScopeRequired || session.saveError == .notAuthenticated
             isReconnectInFlight = presentation.isCloudReconnectInFlight
             hasPendingUploadConflict = session.hasPendingUploadConflict
+            isDiscardingPendingUpload = presentation.isDiscardingPendingUpload
             let commands = MacWorkspaceCommands(session: session, presentation: presentation)
             canSyncNow = commands.canSyncNow
             canShowSettings = commands.canShowDatabaseSettings
@@ -228,6 +251,8 @@ struct MacDatabaseStatus: Equatable {
         self.action = action
         if case .reconnect = action {
             isActionEnabled = state.isReconnectInFlight == false
+        } else if action == .pushPendingUploads {
+            isActionEnabled = state.isDiscardingPendingUpload == false
         } else {
             isActionEnabled = action != nil
         }
@@ -322,7 +347,7 @@ struct MacDatabaseStatus: Equatable {
         if state.hasUploadConflict, state.isSaving == false {
             notices.append(Notice(kind: .uploadConflict, text: String(
                 localized: "A change saved through AutoFill couldn’t be uploaded because the cloud copy changed. Merge it into this database to upload it."
-            ), action: .mergePendingUploads, isWarning: true))
+            ), action: .mergePendingUploads, isWarning: true, isActionEnabled: state.isDiscardingPendingUpload == false))
         }
         switch state.cachedCopy {
         case .offline:

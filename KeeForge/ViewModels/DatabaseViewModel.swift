@@ -578,6 +578,14 @@ final class DatabaseViewModel {
     /// An AutoFill save for this database could not be uploaded because the
     /// cloud copy moved on. Checked at unlock and after a pending merge.
     private(set) var hasPendingUploadConflict = false
+    /// The recorded hashes of the conflicted AutoFill saves, refreshed with `hasPendingUploadConflict`.
+    private var conflictedPendingUploadSHA512s: Set<Data> = []
+    /// The session opened the conflicted AutoFill save itself (the cached copy, offline or signed out),
+    /// so its tree holds the change and its next save uploads it.
+    var holdsPendingUploadPayload: Bool {
+        guard hasPendingUploadConflict, let openTimeSHA512 else { return false }
+        return conflictedPendingUploadSHA512s.contains(openTimeSHA512)
+    }
     private(set) var pendingUploadMergeFailure: PendingUploadMergeFailure?
     private(set) var isSaving = false {
         didSet {
@@ -2466,6 +2474,7 @@ final class DatabaseViewModel {
         mergeFailure = nil
         mergeSummaryMessage = nil
         hasPendingUploadConflict = false
+        conflictedPendingUploadSHA512s = []
         pendingUploadMergeFailure = nil
         pendingLockRequest = nil
         unsavedEditorIDs.removeAll()
@@ -3538,9 +3547,11 @@ final class DatabaseViewModel {
     }
 
     private func refreshPendingUploadConflict() {
-        hasPendingUploadConflict = databaseReference.isCloudBacked
-            && isReadOnly == false
-            && PendingUploadRecovery.hasConflicts(for: databaseReference, environment: pendingUploadRecovery)
+        let hashes = databaseReference.isCloudBacked && isReadOnly == false
+            ? PendingUploadRecovery.conflictedPayloadSHA512s(for: databaseReference, environment: pendingUploadRecovery)
+            : []
+        hasPendingUploadConflict = hashes.isEmpty == false
+        if conflictedPendingUploadSHA512s != hashes { conflictedPendingUploadSHA512s = hashes }
     }
 
     func acknowledgeMergeSummary() {

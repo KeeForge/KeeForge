@@ -117,9 +117,20 @@ final class MacSidebarStatusCardView: NSView {
     /// Below this width (the sidebar's minimum is 200, its ideal 240) the line
     /// drops the storage name so the card keeps the name whole (DarkMin).
     static let compactWidth: CGFloat = 230
+    /// The narrowest the name gets beside the read-only pill; below it the pill takes its own line.
+    static let minimumNameWidth: CGFloat = 64
     private(set) var isCompact = false
+    /// The pill sits after the name while both fit, on its own line otherwise.
+    private(set) var readOnlyBadgeHasOwnLine = false
+    private let header: NSStackView
+    private let stack: NSStackView
+    private lazy var nameMinimumWidth = nameField.widthAnchor.constraint(greaterThanOrEqualToConstant: 0)
 
     init() {
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        header = NSStackView(views: [nameField, readOnlyBadge, spacer, settingsButton, syncButton, lockButton])
+        stack = NSStackView(views: [header, lineView, actionButton])
         super.init(frame: .zero)
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
@@ -137,6 +148,8 @@ final class MacSidebarStatusCardView: NSView {
         nameField.lineBreakMode = .byTruncatingTail
         nameField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         nameField.setAccessibilityIdentifier("sidebar.status-card.name")
+        nameMinimumWidth.priority = .defaultHigh
+        nameMinimumWidth.isActive = true
 
         readOnlyBadge.isBordered = false
         readOnlyBadge.wantsLayer = true
@@ -166,16 +179,12 @@ final class MacSidebarStatusCardView: NSView {
             button.tag = control.tag
         }
 
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let header = NSStackView(views: [nameField, readOnlyBadge, spacer, settingsButton, syncButton, lockButton])
         header.orientation = .horizontal
         header.alignment = .centerY
         header.spacing = 2
         header.setCustomSpacing(6, after: nameField)
         header.detachesHiddenViews = true
 
-        let stack = NSStackView(views: [header, lineView, actionButton])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 3
@@ -213,6 +222,7 @@ final class MacSidebarStatusCardView: NSView {
         self.status = status
         nameField.stringValue = status.name
         nameField.toolTip = status.name
+        nameMinimumWidth.constant = min(nameField.intrinsicContentSize.width, Self.minimumNameWidth).rounded(.up)
         readOnlyBadge.isHidden = status.isReadOnly == false
         settingsButton.isEnabled = status.canShowSettings
         syncButton.isHidden = status.offersSyncNow == false
@@ -228,10 +238,30 @@ final class MacSidebarStatusCardView: NSView {
 
     override func layout() {
         super.layout()
+        placeReadOnlyBadge()
         let compact = bounds.width < Self.compactWidth
         guard compact != isCompact else { return }
         isCompact = compact
         if let status { lineView.update(status.line, short: compact) }
+    }
+
+    /// Measured against the header's width: the name keeps `minimumNameWidth` (or its whole width if shorter).
+    private func placeReadOnlyBadge() {
+        guard header.frame.width > 0 else { return }
+        let buttons = [settingsButton, syncButton, lockButton].filter { $0.isHidden == false }
+        let trailing = buttons.reduce(header.spacing) { $0 + header.spacing + $1.fittingSize.width }
+        let needed = nameMinimumWidth.constant + header.customSpacing(after: nameField)
+            + readOnlyBadge.intrinsicContentSize.width + trailing
+        let ownLine = readOnlyBadge.isHidden == false && header.frame.width < needed
+        guard ownLine != readOnlyBadgeHasOwnLine else { return }
+        readOnlyBadgeHasOwnLine = ownLine
+        readOnlyBadge.removeFromSuperview()
+        if ownLine {
+            stack.insertArrangedSubview(readOnlyBadge, at: 1)
+        } else {
+            header.insertArrangedSubview(readOnlyBadge, at: 1)
+        }
+        needsLayout = true
     }
 
     @objc private func controlClicked(_ sender: NSButton) {

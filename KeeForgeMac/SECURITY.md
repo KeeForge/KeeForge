@@ -43,6 +43,9 @@ which backs up the cached copy before dropping a marker it protects and keeps
 the marker if the backup fails. The window's command is refused while the draft
 is unsaved, a save runs, the editor or a sheet is open; its alert defaults to
 Cancel, ends on lock and close, and drops an answer once any of those holds.
+It is also refused in a read-only window, while an earlier discard runs (which
+also holds Merge Changes and Push), and when the session opened the conflicted
+AutoFill save itself from the cached copy, whose next save would upload it again.
 
 The Databases window owns its native New Database, Connect to Server and remote
 browser sheets through [MacDatabasesSheets](App/MacDatabasesSheets.swift).

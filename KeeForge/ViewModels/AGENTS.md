@@ -66,6 +66,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - Stage edits through `DatabaseDraft` plus `save()`. Never mutate `rootGroup` and rebuild save state afterwards.
 - `mergeAndSave()` gates its write on the conflict's `remoteSHA512` (the bytes it merged), not `openTimeSHA512`. Every failure leaves the draft and the conflict standing.
 - `mergePendingUploads()` drops upload markers only after `.saved`; `.changeUnidentified` must never suggest Discard.
+- `holdsPendingUploadPayload`: the session opened a conflicted AutoFill save itself (its open-time hash is the marker's), so its next save uploads that change; a Mac window never offers Discard Pending Upload then.
 - Rekey and re-encryption refuse a dirty draft, an in-flight save, and cloud references with pending upload markers (draining them afterwards reverts the remote). The rekey stamps `lastMasterKeyChangeAt` so the drainer refuses older markers, and replaces `sessionKeyFileData` with the new key file (or none), which the next Change Master Key keeps.
 - Per-reference setters (`setNickname`, the rekey's key-file association, read-only, sync policy, destination group) update only a reference still in the list; they never re-add a removed database.
 - A Mac window close (`requestWindowClose`) returns `.waitForSave` while any write is in flight, locked or not; a failed rekey or re-encryption bumps `failedSettingsWriteCount`, which keeps the window open.

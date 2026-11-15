@@ -160,9 +160,12 @@ struct MacWorkspaceCommands {
     }
 
     /// Database ▸ Discard Pending Upload…: a conflicted AutoFill upload, with no
-    /// unsaved draft, save or editor that the discard could race, and no sheet up.
+    /// unsaved draft, save, editor or discard that it could race, and no sheet up.
+    /// Read-only windows show no conflict, and a session that opened the AutoFill
+    /// save itself would upload it again on its next save, so neither offers it.
     var canDiscardPendingUpload: Bool {
-        guard let session = unfrozen, !presentation.hasWorkspaceSheet, !session.isDirty else { return false }
+        guard let session = unfrozen, !presentation.hasWorkspaceSheet, !session.isDirty, !session.isReadOnly,
+              !presentation.isDiscardingPendingUpload, !session.holdsPendingUploadPayload else { return false }
         return session.hasPendingUploadConflict
             || presentation.pendingUploads.counts(session.databaseReference.id).conflicts > 0
     }

@@ -345,24 +345,7 @@ final class MacWindowCoordinator {
         }
         controller.onRemoveFromList = { [weak self] in self?.removeFromList(databaseID: databaseID) }
         controller.onWillClose = { [weak self] in self?.windowWillClose($0) }
-        let listViewModel = listViewModel
-        controller.workspacePresentation.pendingUploads = MacPendingUploads(
-            counts: { databaseID in
-                guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return .init() }
-                let status = listViewModel.status(for: reference)
-                let conflicts = status.pendingUploadConflictCount
-                return .init(waiting: max(status.pendingUploadCount - conflicts, 0), conflicts: conflicts)
-            },
-            push: { databaseID in
-                guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return nil }
-                return await listViewModel.pushPendingChanges(for: reference, presentsAlert: false)
-            },
-            // The list's reload reconciles the open session's conflict flag.
-            discardConflicts: { databaseID in
-                guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return }
-                await listViewModel.discardConflictedPendingUploads(for: reference)
-            }
-        )
+        controller.workspacePresentation.pendingUploads = .list(listViewModel)
         controller.loadWindow()
         guard let window = controller.window else { return }
         if let restoredFrame {

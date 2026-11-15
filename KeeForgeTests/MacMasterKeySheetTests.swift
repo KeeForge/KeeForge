@@ -97,7 +97,7 @@ final class MacMasterKeySheetTests: XCTestCase {
         XCTAssertLessThanOrEqual(window.contentLayoutRect.height, MacSheetMetrics.maxHeight)
     }
 
-    func testConfirmationKeepsTheExistingTitlesAndIdentifiers() {
+    func testConfirmationKeepsTheExistingTitlesAndIdentifiers() throws {
         let change = MacMasterKeySheet.confirmation(removingPassword: false)
         XCTAssertEqual(change.messageText, String(localized: "Change Master Key?"))
         XCTAssertEqual(change.buttons.map(\.title), [String(localized: "Change Master Key"), String(localized: "Cancel")])
@@ -106,6 +106,38 @@ final class MacMasterKeySheetTests: XCTestCase {
         let removal = MacMasterKeySheet.confirmation(removingPassword: true)
         XCTAssertEqual(removal.messageText, String(localized: "Save Without a Master Password?"))
         XCTAssertEqual(removal.buttons.first?.title, String(localized: "Save Without Password"))
+        XCTAssertEqual(removal.buttons[0].keyEquivalent, "", "Return never removes the password")
+        XCTAssertEqual(removal.buttons[1].keyEquivalent, "\r", "Cancel is the default")
+        let escape = try XCTUnwrap(removal.window.contentView?.subviews.compactMap { $0 as? NSButton }
+            .first { $0.keyEquivalent == "\u{1b}" }, "Escape still cancels")
+        XCTAssertTrue(escape.target === removal.buttons[1])
+        XCTAssertEqual(change.buttons[1].keyEquivalent, "\u{1b}", "Changing the key keeps Return on Change Master Key")
+    }
+
+    func testRemoveMasterPasswordIsTheOnlyWaySaveTurnsOnWithEmptyFields() async {
+        let log = EventLog()
+        let model = MasterKeyChangeViewModel(currentKeyFileFilename: "current.keyx", currentKeyFileBookmarkData: Data("bookmark".utf8),
+            loadCurrentKeyFile: { (Data("key".utf8), "current.keyx") }, changeOperation: { password, _, _, _ in
+                XCTAssertNil(password)
+                log.events.append("change")
+            })
+        let sheet = MacMasterKeySheet(name: "Personal", databaseFilename: "Personal.kdbx", model: model) { model in
+            await model.performConfirmedChange {}
+        }
+        sheet.shell.presentWindow = { _, _, _ in }
+        sheet.shell.begin(on: NSWindow()) { _ in }
+        defer { if sheet.shell.isPresented { sheet.shell.end() } }
+        sheet.confirm = { alert, _ in
+            log.events.append(alert.messageText)
+            return true
+        }
+        await settle()
+        XCTAssertFalse(sheet.shell.defaultButton.isEnabled, "An untouched form saves nothing")
+        model.removesPassword = true
+        await settle()
+        XCTAssertTrue(sheet.shell.defaultButton.isEnabled)
+        await sheet.save()
+        XCTAssertEqual(log.events, [String(localized: "Save Without a Master Password?"), "change"])
     }
 
     func testFooterPromisesAuthenticationOnlyWhenTheMacCanAuthenticate() {

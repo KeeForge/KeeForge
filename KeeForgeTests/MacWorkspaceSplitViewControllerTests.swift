@@ -93,6 +93,35 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         XCTAssertEqual(list.frame.width, 440, accuracy: 1, "A list dragged wider while hidden keeps its width")
     }
 
+    func testAWindowRestoredWithTheSidebarHiddenGivesTheListItsWiderMinimum() throws {
+        let session = try makeSession()
+        let autosaveName = "MacWorkspaceSplitViewControllerTests-\(UUID().uuidString)"
+        let defaultsKey = "NSSplitView Subview Frames \(autosaveName)"
+        // NSSplitView's own autosave format: x, y, width, height, hidden, holding.
+        UserDefaults.standard.set([
+            "0.000000, 0.000000, 240.000000, 700.000000, YES, NO",
+            "0.000000, 0.000000, 270.000000, 700.000000, NO, NO",
+            "271.000000, 0.000000, 809.000000, 700.000000, NO, NO",
+        ], forKey: defaultsKey)
+        defer { UserDefaults.standard.removeObject(forKey: defaultsKey) }
+        let presentation = MacWorkspacePresentation()
+        let controller = MacWorkspaceSplitViewController(session: session, presentation: presentation,
+            attachmentPreview: .unshown(session), autosaveName: autosaveName, currentSession: { nil })
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 700),
+                              styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.contentViewController = controller
+        window.setContentSize(NSSize(width: 1080, height: 700))
+        for _ in 0..<3 { controller.splitView.needsLayout = true; controller.splitView.layoutSubtreeIfNeeded() }
+
+        XCTAssertTrue(controller.splitViewItems[0].isCollapsed, "Restored hidden")
+        XCTAssertTrue(presentation.isSidebarCollapsed)
+        XCTAssertEqual(controller.splitViewItems[1].minimumThickness, MacWorkspaceSplitViewController.collapsedListMinimumThickness)
+        XCTAssertGreaterThanOrEqual(controller.splitViewItems[1].viewController.view.frame.width,
+                                    MacWorkspaceSplitViewController.collapsedListMinimumThickness - 1)
+    }
+
     func testANewDatabaseOpensWithTheBoardColumnWidthsAndASavedLayoutKeepsItsOwn() throws {
         let session = try makeSession()
         let defaults = try XCTUnwrap(UserDefaults(suiteName: "MacWorkspaceSplitDefaultWidths.\(UUID().uuidString)"))

@@ -326,6 +326,22 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         XCTAssertFalse(commands.canDiscardPendingUpload, "A locked window discards from the Databases window")
     }
 
+    func testDiscardPendingUploadIsRefusedReadOnlyAndUnderTheImportSheet() async throws {
+        let (readOnly, readOnlyPresentation, _) = try await makeSession(readOnly: true)
+        readOnlyPresentation.pendingUploads = MacPendingUploads(counts: { _ in .init(waiting: 0, conflicts: 1) },
+                                                                push: { _ in nil })
+        XCTAssertFalse(MacWorkspaceCommands(session: readOnly, presentation: readOnlyPresentation).canDiscardPendingUpload,
+                       "The card shows no conflict in a read-only window")
+        readOnly.lockRequest(force: true)
+
+        let (session, presentation, _) = try await makeSession()
+        presentation.pendingUploads = MacPendingUploads(counts: { _ in .init(waiting: 0, conflicts: 1) }, push: { _ in nil })
+        let commands = MacWorkspaceCommands(session: session, presentation: presentation)
+        XCTAssertTrue(commands.canDiscardPendingUpload)
+        presentation.passwordImport = true
+        XCTAssertFalse(commands.canDiscardPendingUpload, "Not under the Import sheet")
+    }
+
     func testExportIsDisabledWhenNoReadableCopyExists() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kdbx")
         try Data([1]).write(to: url)

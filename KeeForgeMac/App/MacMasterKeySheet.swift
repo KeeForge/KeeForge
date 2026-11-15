@@ -136,6 +136,11 @@ final class MacMasterKeySheet {
         let cancel = alert.addButton(withTitle: String(localized: "Cancel"))
         cancel.keyEquivalent = "\u{1b}"
         cancel.setAccessibilityIdentifier("master-key.cancel-change")
+        if removingPassword {
+            change.keyEquivalent = ""
+            cancel.keyEquivalent = "\r"
+            MacAlertEscapeKey.install(in: alert, clicking: cancel)
+        }
         return alert
     }
 
@@ -198,6 +203,7 @@ private struct MacMasterKeyForm: View {
                                      fieldAccessibilityIdentifier: "master-key.new-password-field",
                                      visibilityAccessibilityIdentifier: "master-key.new-password-visibility-button",
                                      usesPasswordAutoFill: false).labelsHidden()
+                        .disabled(model.removesPassword)
                     if !model.newPassword.isEmpty {
                         PasswordStrengthIndicator(password: model.newPassword, caption: .passwordStrength)
                     }
@@ -212,6 +218,12 @@ private struct MacMasterKeyForm: View {
                                      fieldAccessibilityIdentifier: "master-key.confirm-password-field",
                                      visibilityAccessibilityIdentifier: "master-key.confirm-password-visibility-button",
                                      usesPasswordAutoFill: false).labelsHidden()
+                        .disabled(model.removesPassword)
+                    if model.hasEffectiveKeyFile {
+                        Toggle("Remove Master Password", isOn: $model.removesPassword)
+                            .toggleStyle(.checkbox)
+                            .accessibilityIdentifier("master-key.remove-password")
+                    }
                     caption(String(localized: "The new master key protects this database file from now on. Backups and copies made before the change still open with the previous master key."))
                 }
             }

@@ -544,6 +544,40 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(card.nameField.toolTip, "Personal", "A name the pill squeezes is still in the tooltip")
     }
 
+    func testTheReadOnlyPillLeavesTheNameIdentifiableInEnglishAndGermanAtTheMinimumAndDefaultWidths() throws {
+        var state = MacDatabaseStatus.State()
+        state.name = "Personal Passwords"
+        state.storage = .cloud(provider: "WebDAV")
+        state.isReadOnly = true
+        state.canLock = true
+        state.canShowSettings = true
+        state.canSyncNow = true
+        for title in ["READ-ONLY", "SCHREIBGESCHÜTZT"] {
+            for width: CGFloat in [200, 240] {
+                let card = MacSidebarStatusCardView()
+                card.update(MacDatabaseStatus(state))
+                card.readOnlyBadge.attributedTitle = NSAttributedString(string: title, attributes: [
+                    .font: NSFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor.controlAccentColor,
+                ])
+                card.frame = NSRect(x: 0, y: 0, width: width, height: 120)
+                for _ in 0..<3 { card.needsLayout = true; card.layoutSubtreeIfNeeded() }
+                let label = "\(title) at \(width) pt"
+                let name = card.nameField
+                XCTAssertGreaterThanOrEqual(name.frame.width.rounded(.up),
+                                            min(name.intrinsicContentSize.width, MacSidebarStatusCardView.minimumNameWidth).rounded(.down),
+                                            label)
+                let badge = card.readOnlyBadge
+                XCTAssertFalse(badge.isHidden, label)
+                XCTAssertGreaterThanOrEqual(badge.frame.width.rounded(.up), badge.intrinsicContentSize.width.rounded(.down), label)
+                let badgeFrame = badge.convert(badge.bounds, to: card)
+                XCTAssertLessThanOrEqual(badgeFrame.maxX, card.box.frame.maxX + 0.5, "\(label): the pill stays inside the card")
+                XCTAssertGreaterThanOrEqual(badgeFrame.minX, card.box.frame.minX - 0.5, label)
+                let lock = card.lockButton.convert(card.lockButton.bounds, to: card)
+                XCTAssertLessThanOrEqual(lock.maxX, card.box.frame.maxX + 0.5, "\(label): the header fits")
+            }
+        }
+    }
+
     func testTheCardNamesItsDatabaseInATooltipAndWarnsInTheBoardsAmber() throws {
         var state = MacDatabaseStatus.State()
         state.name = "A Rather Long Database Name For The Card"
