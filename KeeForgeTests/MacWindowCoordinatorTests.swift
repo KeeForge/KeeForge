@@ -790,6 +790,47 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: clean.path), "A clean quit removes them too")
     }
 
+    func testQuitAsksAnUnsavedEditorAndGoesAheadOnlyOnceItIsSettled() async throws {
+        start()
+        coordinator.open(references[0])
+        let controller = try XCTUnwrap(coordinator.databaseWindows[references[0].id])
+        let session = controller.session
+        await session.unlock(password: "testpassword123")
+        controller.workspacePresentation.beginNewEntry(in: session)
+        let editor = try XCTUnwrap(controller.workspacePresentation.entryEditor)
+        editor.form.title = "Held by the inline editor"
+        editor.coordinator.synchronizeUnsavedChanges()
+        XCTAssertTrue(coordinator.hasUnsavedWork)
+
+        let kept = ReplyBox()
+        let keptDone = expectation(description: "kept editing")
+        XCTAssertEqual(coordinator.requestTermination { settled in
+            kept.value = settled
+            keptDone.fulfill()
+        }, .terminateLater)
+        await Task { @MainActor in }.value
+        XCTAssertEqual(session.pendingLockRequest?.reason, .openEditor, "The editor is asked, as for a window close")
+        XCTAssertTrue(presenter.shown.last === controller.window)
+        await session.continueEditingAfterLockRequest()
+        await fulfillment(of: [keptDone], timeout: 30)
+        XCTAssertEqual(kept.value, false, "Keep Editing cancels the quit")
+        XCTAssertEqual(session.state, .unlocked)
+        XCTAssertTrue(session.hasUnsavedEditor)
+
+        let discarded = ReplyBox()
+        let discardedDone = expectation(description: "discarded")
+        XCTAssertEqual(coordinator.requestTermination { settled in
+            discarded.value = settled
+            discardedDone.fulfill()
+        }, .terminateLater)
+        await Task { @MainActor in }.value
+        let request = try XCTUnwrap(editor.coordinator.pendingLockRequest)
+        editor.discard(resuming: request)
+        await fulfillment(of: [discardedDone], timeout: 30)
+        XCTAssertEqual(discarded.value, true, "A discarded editor lets the quit go ahead")
+        XCTAssertNotEqual(session.state, .unlocked)
+    }
+
     func testCancelledQuitWithTwoDirtyWindowsKeepsEveryWindowSessionAndTheRecord() async throws {
         makeRestoringCoordinator()
         start()

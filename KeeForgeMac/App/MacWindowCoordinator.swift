@@ -690,10 +690,10 @@ final class MacWindowCoordinator {
 
     private func settleUnsavedWork(failures: [ObjectIdentifier: Int], holding held: inout [DatabaseViewModel]) async -> Bool {
         let controllers = windowOrder.reversed().compactMap { databaseWindows[$0] }
-        // Only the editor can settle its own fields, and its prompt ends in a lock; the quit stops there instead.
-        if let editing = controllers.first(where: { $0.session.state == .unlocked && $0.session.hasUnsavedEditor }) {
+        // Only the editor can settle its own fields, so it is asked as a window close asks it.
+        for editing in controllers where editing.session.state == .unlocked && editing.session.hasUnsavedEditor {
             present(editing)
-            return false
+            guard await settleEditor(in: editing.session), isCurrent(editing) else { return false }
         }
         var saves: [DatabaseWindowController] = []
         // Don't Save covers the draft as it was when answered, not work added to it later.
@@ -733,6 +733,23 @@ final class MacWindowCoordinator {
             return session.isSaving || session.hasUnsavedEditor
                 || discardedRevisions[ObjectIdentifier(session)] != session.contentRevision
         }
+    }
+
+    /// Raises the editor's Save, Discard or Keep Editing prompt as a lock request and waits for the
+    /// lock. Keep Editing, or a save that fails, leaves the session unlocked and stops the quit.
+    private func settleEditor(in session: DatabaseViewModel) async -> Bool {
+        session.lockRequest(manuallyTriggered: true)
+        while session.state == .unlocked {
+            guard session.pendingLockRequest != nil || session.isSavingBeforeLock || session.isSaving else { return false }
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                withObservationTracking {
+                    _ = (session.state, session.pendingLockRequest, session.isSavingBeforeLock, session.isSaving)
+                } onChange: {
+                    Task { @MainActor in continuation.resume() }
+                }
+            }
+        }
+        return true
     }
 
     private func isCurrent(_ controller: DatabaseWindowController) -> Bool {
