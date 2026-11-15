@@ -103,7 +103,20 @@ final class DatabaseListStoreTests: XCTestCase {
         let corrupt = Data("{broken".utf8)
         try corrupt.write(to: url)
         XCTAssertThrowsError(try DatabaseListStore.addCreatedCloud(reference))
+        let file = CloudFile(id: "new", name: "new.kdbx", path: "/new.kdbx", isFolder: false, modifiedDate: nil, size: nil)
+        XCTAssertThrowsError(try DatabaseListStore.addCloud(provider: "test", accountId: "account", file: file))
         XCTAssertEqual(try Data(contentsOf: url), corrupt)
+    }
+
+    func testAddCloudReportsVisibleUnconfirmedWithoutSelectingSuccess() throws {
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected initialization") }
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        let file = CloudFile(id: "uncertain", name: "uncertain.kdbx", path: "/uncertain.kdbx", isFolder: false, modifiedDate: nil, size: nil)
+        XCTAssertThrowsError(try DatabaseListStore.addCloud(provider: "test", accountId: "account", file: file, io: io)) { error in
+            guard case DatabaseListStore.RegistryWriteError.visibleUnconfirmed = error else { return XCTFail("Expected unconfirmed effect: \(error)") }
+        }
+        XCTAssertEqual(DatabaseListStore.databases.first?.cloudSyncMetadata?.fileId, file.id)
     }
 
     func testAddRejectsSameLocalFileTwice() throws {
@@ -320,7 +333,7 @@ final class DatabaseListStoreTests: XCTestCase {
             size: 42
         )
 
-        let reference = DatabaseListStore.addCloud(
+        let reference = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: file
@@ -466,7 +479,7 @@ final class DatabaseListStoreTests: XCTestCase {
         remoteRev: String?,
         remoteContentHash: String?
     ) -> DatabaseReference {
-        var reference = DatabaseListStore.addCloud(
+        var reference = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: CloudFile(
@@ -496,12 +509,12 @@ final class DatabaseListStoreTests: XCTestCase {
             size: nil
         )
 
-        let first = DatabaseListStore.addCloud(
+        let first = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: file
         )
-        let second = DatabaseListStore.addCloud(
+        let second = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: file
@@ -520,7 +533,7 @@ final class DatabaseListStoreTests: XCTestCase {
             modifiedDate: nil,
             size: nil
         )
-        let reference = DatabaseListStore.addCloud(
+        let reference = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: file
@@ -1001,7 +1014,7 @@ final class DatabaseListStoreTests: XCTestCase {
         // clobber one another's changes with a stale snapshot.
         let referenceCount = 32
         let references: [DatabaseReference] = (0..<referenceCount).map { index in
-            DatabaseListStore.addCloud(
+            try! DatabaseListStore.addCloud(
                 provider: CloudProviderKind.dropbox.rawValue,
                 accountId: "acct-1",
                 file: CloudFile(
@@ -1392,6 +1405,14 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(stored.filename, reference.filename)
         let cacheURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
         XCTAssertEqual(try Data(contentsOf: cacheURL), appOnlyBytes)
+    }
+
+    func testRegisterExistingBookmarkDoesNotRequireAvailableFile() throws {
+        let url = try makeTemporaryFileURL(name: "unavailable-bookmark.kdbx")
+        let reference = try TestDatabaseSupport.makeReference(for: url)
+        try FileManager.default.removeItem(at: url)
+        try DatabaseListStore.addCreatedLocal(reference)
+        XCTAssertEqual(DatabaseListStore.databases.first?.id, reference.id)
     }
 
     func testRelinkLocalDatabaseIgnoresUnlistedID() throws {

@@ -86,7 +86,7 @@ enum DatabaseListStore {
         }
     }
 
-    private static func mutateRegistry<T>(onMissing: (() -> [DatabaseReference])? = nil, _ body: (inout [DatabaseReference]) throws -> RegistryDecision<T>) -> RegistryResult<T> {
+    private static func mutateRegistry<T>(onMissing: (() -> [DatabaseReference])? = nil, io: DurableFileWriteIO = .init(), _ body: (inout [DatabaseReference]) throws -> RegistryDecision<T>) -> RegistryResult<T> {
         guard let anchor = AppGroupContainer.resolvedURL else { return .notPublished(CocoaError(.fileWriteNoPermission)) }
         var coordinationError: NSError?
         var result: RegistryResult<T>?
@@ -106,7 +106,7 @@ enum DatabaseListStore {
                     let encoder = JSONEncoder()
                     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
                     let bytes = try encoder.encode(normalized(rows))
-                    switch writeWithDurabilityOutcome(bytes, to: url, directoryAnchor: anchor) {
+                    switch writeWithDurabilityOutcome(bytes, to: url, directoryAnchor: anchor, io: io) {
                     case .durable: result = .durable(value)
                     case .notPublished(let error): result = .notPublished(error)
                     case .publishedWithoutConfirmedDurability(let error): result = .visibleUnconfirmed(value, error)
@@ -300,18 +300,11 @@ enum DatabaseListStore {
     static func addCloud(
         provider: String,
         accountId: String,
-        file: CloudFile
-    ) -> DatabaseReference {
-        withStateLock {
-            if let existing = loadDatabases().first(where: {
-                guard let metadata = $0.cloudSyncMetadata else { return false }
-                return metadata.provider == provider && metadata.accountId == accountId && metadata.fileId == file.id
-            }) {
-                return existing
-            }
-
-            var currentDatabases = loadDatabases()
-            let reference = DatabaseReference(
+        file: CloudFile,
+        io: DurableFileWriteIO = .init()
+    ) throws -> DatabaseReference {
+        try requireRegistryInitialization()
+        let reference = DatabaseReference(
                 id: UUID(),
                 nickname: nil,
                 filename: file.name,
@@ -336,9 +329,20 @@ enum DatabaseListStore {
                     )
                 )
             )
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
-            return reference
+        let result = mutateRegistry(io: io) { rows -> RegistryDecision<DatabaseReference> in
+            if let existing = rows.first(where: {
+                guard let metadata = $0.cloudSyncMetadata else { return false }
+                return metadata.provider == provider && metadata.accountId == accountId && metadata.fileId == file.id
+            }) { return .noop(existing) }
+            guard !rows.contains(where: { $0.id == reference.id }) else { return .rejected }
+            rows.append(reference)
+            return .write(reference)
+        }
+        switch result {
+        case .durable(let value), .noop(let value): return value
+        case .notPublished(let error): throw error
+        case .visibleUnconfirmed(_, let error): throw RegistryWriteError.visibleUnconfirmed(error)
+        case .missing, .rejected: throw RegistryWriteError.unavailable
         }
     }
 
@@ -353,13 +357,10 @@ enum DatabaseListStore {
         try requireRegistryInitialization()
         guard let observed = try readRegistry(at: databaseListURL) else { throw RegistryWriteError.unavailable }
         let duplicate = target.flatMap { existingLocalReference(matching: $0, in: observed) }
-        let targetIdentity = try target.map { try PendingLocalSaveStore.targetIdentity(at: $0) }
         let result = mutateRegistry { rows -> RegistryDecision<Void> in
             guard rows.count == observed.count, zip(rows, observed).allSatisfy({ current, previous in
                 current.id == previous.id && current.bookmarkData == previous.bookmarkData && current.isCloudBacked == previous.isCloudBacked
             }) else { return .rejected }
-            if let target, let targetIdentity,
-               (try? PendingLocalSaveStore.targetIdentity(at: target)) != targetIdentity { return .rejected }
             guard !rows.contains(where: { $0.id == reference.id }) else { return .rejected }
             if let duplicate {
                 throw AddDatabaseError.duplicateFile(existingReferenceID: duplicate.id, filename: duplicate.displayName)

@@ -212,7 +212,7 @@ final class DatabaseListViewModelTests: XCTestCase {
     func testCloudKeyFilePreferenceNeverCreatesLocalAdmissionOrChangesCloudMetadata() async throws {
         let file = CloudFile(id: "/cloud.kdbx", name: "cloud.kdbx", path: "/cloud.kdbx", isFolder: false,
             modifiedDate: Date(timeIntervalSince1970: 100), size: 128)
-        let reference = DatabaseListStore.addCloud(provider: CloudProviderKind.dropbox.rawValue, accountId: "preference-only", file: file)
+        let reference = try! DatabaseListStore.addCloud(provider: CloudProviderKind.dropbox.rawValue, accountId: "preference-only", file: file)
         let keyURL = try makeTemporaryFileURL(name: "cloud.keyx", contents: Data(repeating: 1, count: 32))
         var io = DatabaseListStore.KeyFilePreferenceIO()
         io.registry.afterPublication = { _ in throw POSIXError(.EIO) }
@@ -606,7 +606,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         )
         let viewModel = DatabaseListViewModel()
 
-        let reference = viewModel.addCloudDatabase(selection: selection)
+        let reference = try! viewModel.addCloudDatabase(selection: selection)
 
         XCTAssertTrue(reference.isCloudBacked)
         XCTAssertEqual(reference.cloudSyncMetadata?.accountId, "acct-1")
@@ -622,7 +622,7 @@ final class DatabaseListViewModelTests: XCTestCase {
             modifiedDate: Date(timeIntervalSince1970: 100),
             size: 128
         )
-        var reference = DatabaseListStore.addCloud(
+        var reference = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: file
@@ -661,7 +661,7 @@ final class DatabaseListViewModelTests: XCTestCase {
             modifiedDate: nil,
             size: nil
         )
-        let reference = DatabaseListStore.addCloud(
+        let reference = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: file
@@ -1058,7 +1058,7 @@ final class DatabaseListViewModelTests: XCTestCase {
     }
 
     private func makeCloudReference() -> DatabaseReference {
-        var reference = DatabaseListStore.addCloud(
+        var reference = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: CloudFile(

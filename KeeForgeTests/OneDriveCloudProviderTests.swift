@@ -16,7 +16,7 @@ final class OneDriveCloudProviderTests: XCTestCase {
             let probe = OneDriveHTTPProbe(firstFailure: 503, dropsResponse: scenario.2)
             defer { probe.close() }
             let provider = probe.provider()
-            let reference = DatabaseListStore.addCloud(provider: provider.id, accountId: "probe",
+            let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: "probe",
                 file: .init(id: "/probe.kdbx", name: "probe.kdbx", path: "/probe.kdbx", isFolder: false, modifiedDate: nil, size: nil))
             let context = try CloudJournalTestContext(reference: reference, payload: Data(repeating: 7, count: scenario.0))
             var environment = context.environment(transport: CloudJournalTransport(revision: scenario.1 ? "base-rev" : nil))
@@ -59,7 +59,7 @@ final class OneDriveCloudProviderTests: XCTestCase {
         let probe = OneDriveHTTPProbe(firstFailure: 412)
         defer { probe.close() }
         let provider = probe.provider()
-        let reference = DatabaseListStore.addCloud(provider: provider.id, accountId: "probe",
+        let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: "probe",
             file: .init(id: "/probe.kdbx", name: "probe.kdbx", path: "/probe.kdbx", isFolder: false, modifiedDate: nil, size: nil))
         let context = try CloudJournalTestContext(reference: reference)
         var environment = context.environment()
@@ -99,7 +99,7 @@ final class OneDriveCloudProviderTests: XCTestCase {
             if tokenCalls.value == 1 { throw CloudProviderError.notAuthenticated }
             return probe.token
         })
-        let reference = DatabaseListStore.addCloud(provider: provider.id, accountId: "probe",
+        let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: "probe",
             file: .init(id: "/probe.kdbx", name: "probe.kdbx", path: "/probe.kdbx", isFolder: false, modifiedDate: nil, size: nil))
         let context = try CloudJournalTestContext(reference: reference)
         var environment = context.environment()

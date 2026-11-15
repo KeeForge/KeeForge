@@ -271,7 +271,7 @@ final class WebDAVCloudProviderTests: XCTestCase {
                 return StubResponse(status: 200, headers: ["ETag": "\"base\""])
             }
             let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
-            let reference = DatabaseListStore.addCloud(provider: provider.id, accountId: accountId,
+            let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: accountId,
                 file: .init(id: "/journal.kdbx", name: "journal.kdbx", path: "/journal.kdbx", isFolder: false, modifiedDate: nil, size: nil))
             let context = try CloudJournalTestContext(reference: reference)
             var environment = context.environment(transport: CloudJournalTransport(revision: "\"base\""))

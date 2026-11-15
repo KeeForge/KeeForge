@@ -172,9 +172,13 @@ struct DatabaseListView: View {
             CloudFileBrowserView(
                 providerID: provider.rawValue,
                 onSelect: { selection in
-                    let reference = viewModel.addCloudDatabase(selection: selection)
-                    activeCloudProvider = nil
-                    onSelectDatabase(reference)
+                    do {
+                        let reference = try viewModel.addCloudDatabase(selection: selection)
+                        activeCloudProvider = nil
+                        onSelectDatabase(reference)
+                    } catch {
+                        selectionAlert = makeCloudSelectionAlert(error: error, provider: provider)
+                    }
                 },
                 onFailure: { error in
                     selectionAlert = makeCloudSelectionAlert(error: error, provider: provider)

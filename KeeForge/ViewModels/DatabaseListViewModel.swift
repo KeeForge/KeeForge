@@ -114,8 +114,8 @@ final class DatabaseListViewModel {
         return reference
     }
 
-    func addCloudDatabase(selection: CloudDatabaseSelection) -> DatabaseReference {
-        let reference = DatabaseListStore.addCloud(
+    func addCloudDatabase(selection: CloudDatabaseSelection) throws -> DatabaseReference {
+        let reference = try DatabaseListStore.addCloud(
             provider: selection.provider,
             accountId: selection.account.id,
             file: selection.file

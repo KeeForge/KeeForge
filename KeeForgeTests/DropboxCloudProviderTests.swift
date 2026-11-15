@@ -52,7 +52,7 @@ final class DropboxCloudProviderTests: XCTestCase {
             let client = transport.client()
             defer { client.shutdown(); transport.close() }
             let provider = DropboxCloudProvider(clientForAccount: { _ in client })
-            let reference = DatabaseListStore.addCloud(provider: provider.id, accountId: "sdk-probe",
+            let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: "sdk-probe",
                 file: .init(id: "/probe.kdbx", name: "probe.kdbx", path: "/probe.kdbx", isFolder: false, modifiedDate: nil, size: nil))
             let context = try CloudJournalTestContext(reference: reference)
             var environment = context.environment()

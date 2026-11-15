@@ -1695,7 +1695,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             modifiedDate: Date(timeIntervalSince1970: 100),
             size: 128
         )
-        var reference = DatabaseListStore.addCloud(
+        var reference = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: file

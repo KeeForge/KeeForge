@@ -2578,7 +2578,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
             modifiedDate: Date(timeIntervalSince1970: 100),
             size: 128
         )
-        var reference = DatabaseListStore.addCloud(provider: provider.rawValue, accountId: "acct-1", file: file)
+        var reference = try! DatabaseListStore.addCloud(provider: provider.rawValue, accountId: "acct-1", file: file)
         reference.cloudSyncPolicy = .manual
         reference.autoFillEnabled = autoFillEnabled
         reference.updateCloudSyncMetadata { metadata in

@@ -290,7 +290,7 @@ final class FTPCloudProviderTests: XCTestCase {
             defer { DatabaseListStore.clearAll() }
             let server = FakeFTPServer()
             let (provider, accountId) = try makeProvider(server: server)
-            let reference = DatabaseListStore.addCloud(provider: provider.id, accountId: accountId,
+            let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: accountId,
                 file: .init(id: "/journal.kdbx", name: "journal.kdbx", path: "/journal.kdbx", isFolder: false, modifiedDate: nil, size: nil))
             let context = try CloudJournalTestContext(reference: reference)
             server.setFile("journal.kdbx", data: context.base)

@@ -3766,7 +3766,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     func test_cloudRecoveryFailureStillUnlocksAndFillsTheAuthenticatedCacheWithoutPublishingKeys() async throws {
         let bytes = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         for fault in CloudJournalReadFault.allCases {
-            let database = DatabaseListStore.addCloud(provider: CloudProviderKind.dropbox.rawValue, accountId: "read-recovery",
+            let database = try! DatabaseListStore.addCloud(provider: CloudProviderKind.dropbox.rawValue, accountId: "read-recovery",
                 file: .init(id: "/\(fault).kdbx", name: "\(fault).kdbx", path: "/\(fault).kdbx", isFolder: false, modifiedDate: nil, size: nil))
             let context = try CloudJournalTestContext(reference: database, base: bytes, payload: bytes)
             try fault.install(in: context)
