@@ -87,7 +87,7 @@ final class MacDatabasesLauncherViewModel {
             case .discardPendingUpload: String(localized: "Discard pending upload")
             case .readOnly: String(localized: "Read-only")
             case .exportCopy: DatabaseExportLabels.currentCopy
-            case .details: String(localized: "Database Details")
+            case .details: String(localized: "Database Settings…")
             case .remove: String(localized: "Remove")
             }
         }
@@ -109,7 +109,7 @@ final class MacDatabasesLauncherViewModel {
         }
     }
 
-    /// The SwiftUI sheet the window shows; one at a time.
+    /// The window’s requested form; one at a time.
     enum Sheet: Identifiable, Equatable {
         case newDatabase
         case connect(CloudProviderKind)

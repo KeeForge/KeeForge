@@ -15,6 +15,7 @@ final class MacWorkspaceSheets {
     private var sheetEndObserver: NSObjectProtocol?
     private(set) var childSheet: MacFormSheetController?
     private var iconPicker: MacIconPickerController?
+    private var databaseSettings: MacDatabaseSettingsSheet?
     private var editorCoordinator: DatabaseEditorCoordinator?
     private(set) var sheet: MacFormSheetController?
     var present: @MainActor (MacFormSheetController, NSWindow, @escaping @MainActor (Bool) -> Void) -> Void = {
@@ -155,11 +156,9 @@ final class MacWorkspaceSheets {
             picker.onSelectionChange = { [weak shell] in shell?.canConfirm = model.canConfirm }
             picker.onDoubleClick = { [weak shell] in shell?.performDefault() }
         } else {
-            shell = MacFormSheetController(title: String(localized: "Database Details"), content:
-                DatabaseDetailsView(reference: session.databaseReference, sessionViewModel: session, onClose: { [weak self] in
-                    guard let self, isCurrent(lockCycle) else { return }
-                    presentation.isShowingDatabaseDetails = false
-                }), size: NSSize(width: 640, height: 560), showsFooter: false)
+            let settings = MacDatabaseSettingsSheet(model: MacDatabaseSettingsModel(reference: session.databaseReference, session: session))
+            databaseSettings = settings
+            shell = settings.shell
         }
         sheet = shell
         shell.setBusy(session.isSaving, label: String(localized: "Saving changes..."))
@@ -179,6 +178,8 @@ final class MacWorkspaceSheets {
             }
             iconPicker = nil
             groupLockPrompt.end()
+            databaseSettings?.model.commitNickname()
+            databaseSettings = nil
             clearRequest(id)
             self.sheet = nil
             activeID = nil
@@ -210,7 +211,9 @@ final class MacWorkspaceSheets {
         activeID = nil
         editorCoordinator?.deactivate()
         editorCoordinator = nil
+        databaseSettings?.model.commitNickname()
         old?.end()
+        databaseSettings = nil
     }
 
     func chooseGroupParent() {

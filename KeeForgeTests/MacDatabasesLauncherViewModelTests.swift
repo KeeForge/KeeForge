@@ -173,6 +173,7 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         XCTAssertEqual(launcher.pendingUploadDiscardTarget?.id, local.id)
         launcher.perform(.exportCopy, on: local)
         XCTAssertEqual(launcher.exportRequest, .currentCopy(local))
+        XCTAssertEqual(MacDatabasesLauncherViewModel.RowAction.details.title, String(localized: "Database Settings…"))
         launcher.perform(.details, on: local)
         XCTAssertEqual(launcher.sheet, .details(local.id))
         launcher.perform(.remove, on: local)

@@ -67,7 +67,18 @@ final class MacFormSheetController: NSWindowController {
             stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -12)
         ])
         stack.addArrangedSubview(heading)
-        if let tabs { stack.addArrangedSubview(tabs) }
+        if let tabs {
+            let row = NSView()
+            row.addSubview(tabs)
+            tabs.translatesAutoresizingMaskIntoConstraints = false
+            stack.addArrangedSubview(row)
+            NSLayoutConstraint.activate([
+                row.widthAnchor.constraint(equalTo: stack.widthAnchor),
+                tabs.centerXAnchor.constraint(equalTo: row.centerXAnchor),
+                tabs.topAnchor.constraint(equalTo: row.topAnchor),
+                tabs.bottomAnchor.constraint(equalTo: row.bottomAnchor)
+            ])
+        }
         stack.addArrangedSubview(contentContainer)
         contentContainer.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         let body = content.view

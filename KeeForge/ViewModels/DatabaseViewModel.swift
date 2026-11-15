@@ -534,6 +534,11 @@ final class DatabaseViewModel {
     /// composite key — losing the fact that the master key includes a key
     /// file, which "keep current key file" in the rekey flow must preserve.
     private(set) var sessionKeyFileData: Data?
+    struct MasterKeyComposition: Equatable {
+        let hasPassword: Bool
+        let hasKeyFile: Bool
+    }
+    private(set) var masterKeyComposition: MasterKeyComposition?
     /// The session's composite key includes a YubiKey response. Saving would
     /// rotate the KDF salt and need a fresh response, which is not supported
     /// yet, so such a session is read-only.
@@ -1235,6 +1240,7 @@ final class DatabaseViewModel {
                 sessionKey: sessionKey,
                 masterKeyEntered: true
             )
+            masterKeyComposition = MasterKeyComposition(hasPassword: !password.isEmpty, hasKeyFile: keyFileData != nil)
             sessionKeyFileData = keyFileData
             await mergePendingLocalSaves()
         } catch {
@@ -2446,6 +2452,7 @@ final class DatabaseViewModel {
         sessionKey = nil
         sessionKeyFileData = nil
         sessionUsesHardwareKey = false
+        masterKeyComposition = nil
         quickUnlockItemHoldsSessionKey = false
         unlockedMeta = nil
         binaryPool = nil
@@ -2947,6 +2954,7 @@ final class DatabaseViewModel {
                 filename: newKeyFileFilename
             )
             if expectedLockCycleID == lockCycleID {
+                self.masterKeyComposition = MasterKeyComposition(hasPassword: newPassword?.isEmpty == false, hasKeyFile: newKeyFileData != nil)
                 self.compositeKey = newCompositeKey
                 quickUnlockItemHoldsSessionKey = storedNewKey
                 self.openTimeSHA512 = newSHA512
@@ -4553,6 +4561,7 @@ final class DatabaseViewModel {
     ) {
         self.rootGroup = payload.rootGroup
         self.compositeKey = compositeKey
+        self.masterKeyComposition = nil
         self.sessionUsesHardwareKey = usesHardwareKey
         self.sessionKey = sessionKey
         self.unlockedMeta = payload.meta

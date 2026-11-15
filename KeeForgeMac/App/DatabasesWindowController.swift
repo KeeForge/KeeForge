@@ -12,6 +12,7 @@ final class DatabasesWindowController: NSWindowController {
 
     var onWillClose: (@MainActor () -> Void)?
     let launcherViewController: MacDatabasesLauncherViewController
+    private var databaseSettingsSheets: MacDatabaseSettingsLauncherPresenter?
     private var closeObserver: NSObjectProtocol?
 
     init(coordinator: MacWindowCoordinator) {
@@ -38,10 +39,15 @@ final class DatabasesWindowController: NSWindowController {
         window.setContentSize(Self.contentSize)
         window.center()
         super.init(window: window)
+        databaseSettingsSheets = MacDatabaseSettingsLauncherPresenter(launcher: coordinator.launcher, list: coordinator.listViewModel, window: { [weak self] in self?.window })
+        databaseSettingsSheets?.start()
         closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: window, queue: nil
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.onWillClose?() }
+            MainActor.assumeIsolated {
+                self?.databaseSettingsSheets?.endSettings()
+                self?.onWillClose?()
+            }
         }
     }
 
@@ -162,7 +168,7 @@ private struct MacDatabasesManagementPresentations: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onAppear { list.reload() }
-            .sheet(item: $launcher.sheet, onDismiss: cancelPendingCloudAuthentication) { sheet in
+            .sheet(item: legacySheet, onDismiss: cancelPendingCloudAuthentication) { sheet in
                 sheetContent(sheet)
                     .macSheetFrame()
             }
@@ -241,13 +247,19 @@ private struct MacDatabasesManagementPresentations: ViewModifier {
                         message: error.localizedDescription)
                 }
             )
-        case .details(let databaseID):
-            if let reference = list.databases.first(where: { $0.id == databaseID }) {
-                DatabaseDetailsView(reference: reference, listViewModel: list, onSelectKeyFile: {
-                    launcher.keyFileTarget = list.databases.first { $0.id == databaseID }
-                })
-            }
+        case .details:
+            EmptyView()
         }
+    }
+
+    private var legacySheet: Binding<MacDatabasesLauncherViewModel.Sheet?> {
+        Binding(get: {
+            if case .details = launcher.sheet { return nil }
+            return launcher.sheet
+        }, set: { value in
+            if case .details = launcher.sheet { return }
+            launcher.sheet = value
+        })
     }
 
     @ViewBuilder

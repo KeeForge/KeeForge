@@ -177,6 +177,19 @@ Presentation state resets and the window controller closes the inline editor, wh
 drops its form, imports and reveals. Split-view autosave retains only column geometry and collapse
 state in defaults, one name per database UUID.
 
+[Database Settings](App/MacDatabaseSettingsSheet.swift) is attached to its originating
+database window and ends with that window's lock cycle, including its group picker
+and hosted key-change forms. Launcher settings hold only a reference: no destination
+group or key-changing action is available there. The session records only whether
+a password and key file were supplied at typed unlock or rekey; these non-secret
+composition flags are cleared on lock and are unavailable for a composite-key-only
+unlock. They are never persisted or inferred from a key-file association. AutoFill
+participation still writes through the list model and its matching-session refresh
+bridge. KDBX 3.1 and hardware-key databases stay read-only in either settings context.
+The sheet no longer edits key-file associations; the unlock page, launcher row and
+master-key change retain their existing association paths. Backups remain encrypted
+copies exported through the existing exporter, without restore or plaintext export.
+
 The Databases window lists and manages database references and never shows a
 database's contents or holds a session. A verification-code link binds to the
 database window targeted when it arrives; without one, the Databases window asks

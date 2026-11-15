@@ -52,7 +52,8 @@ lock, and Touch ID. Return and double-click open or front the selected row;
 the row menu holds Open and the management items; the bottom bar's + offers
 the three add commands and − removes the selection. With nothing listed the
 list area shows the empty state alone. It never shows a database's contents.
-The host keeps the creation, server and Database Details sheets, rename, key
+The native `MacDatabaseSettingsLauncherPresenter` presents Database Settings
+without a session. The host keeps the creation and server sheets, rename, key
 file, export, the remove confirmation and refusal, and the pending-upload
 alerts in SwiftUI, driven by state on the view model. It also presents the
 transition notice and What's New, once per launch, and asks which database a
@@ -107,7 +108,7 @@ One outer `MacWorkspacePresentationHost` remains in `MacDatabaseWorkspaceView`,
 around the native split representable, inside the always-mounted root host.
 It keeps command observers and the saving overlay. The window controller owns
 `MacWorkspaceSheets` (New/Edit Group, the native Move/Restore outline picker,
-and the existing Database Details form) and `MacWorkspaceAlerts` (delete,
+and Database Settings) and `MacWorkspaceAlerts` (delete,
 save-error, dirty-lock, conflict, merge, sync and push results). Presentation
 state remains on `MacWorkspacePresentation`. Both presenters end on lock,
 window close and invalidation, reject answers from old lock cycles, and drain
@@ -119,8 +120,14 @@ running. Group editing hosts a scrolling column form and a fixed footer; its par
 standard-icon pickers stack over it and update only the form until Save.
 A native alert forwards Save and Lock, Discard and Lock and Keep Editing to its coordinator. New Group
 names its parent in the caption. Entry icons use the same select-then-Use Icon
-shell, with custom icons, their manager and cancellable website download. Details
-content retains its navigation and controls until its separate rebuild. `MacDatabaseRootView`
+shell, with custom icons, their manager and cancellable website download.
+Database Settings uses a 720×540 pt shell with centred native segmented tabs
+(General, Security, Sync for WebDAV/FTP, AutoFill, Backups) and Done. Its hosted
+column forms omit key-file association rows; the unlock page and launcher row
+still manage associations. AutoFill's destination row needs the unlocked session.
+Manage Custom Icons opens its existing sheet; Change Master Key and Encryption
+Settings keep their existing views until their separate rebuild. Backups export
+through the existing encrypted-copy exporter at `exportDatabaseCopy`. `MacDatabaseRootView`
 keeps enrollment and its biometric observer mounted across lock/unlock. This
 embedding avoids replacing the window's presentation hierarchy; no content swap
 orders the window or assigns first responder.

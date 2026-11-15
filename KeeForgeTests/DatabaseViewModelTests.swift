@@ -11,6 +11,38 @@ import KDBXXML
 
 @MainActor
 final class DatabaseViewModelTests: XCTestCase {
+    func testMasterKeyCompositionIsUnknownAfterCompositeKeyOnlyUnlock() async throws {
+        let key = try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
+        let vm = try makeViewModel(biometricCompositeKeyOperation: { _, _ in QuickUnlockKeys(storedKey: key) })
+        await vm.unlock(password: fixturePassword)
+        XCTAssertNotNil(vm.masterKeyComposition)
+        vm.lock()
+        _ = await vm.unlockWithBiometrics()
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNil(vm.masterKeyComposition)
+        vm.lock()
+    }
+
+    func testMasterKeyCompositionTracksKeyOnlyAndCombinedUnlockAndClearsOnLock() async throws {
+        let vm = try makeViewModel(reference: makeIconManagementReference())
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.masterKeyComposition, .init(hasPassword: true, hasKeyFile: false))
+        let keyFile = Data(repeating: 0x42, count: 32)
+        for password in ["", "combined-password"] {
+            try await vm.changeMasterKey(newPassword: password.isEmpty ? nil : password,
+                newKeyFileData: keyFile, newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+            let expected = DatabaseViewModel.MasterKeyComposition(hasPassword: !password.isEmpty, hasKeyFile: true)
+            XCTAssertEqual(vm.masterKeyComposition, expected)
+            vm.lock()
+            XCTAssertNil(vm.masterKeyComposition)
+            await vm.unlock(password: password, keyFileData: keyFile)
+            XCTAssertEqual(vm.state, .unlocked)
+            XCTAssertEqual(vm.masterKeyComposition, expected)
+        }
+        vm.lock()
+        XCTAssertNil(vm.masterKeyComposition)
+    }
+
     func testCustomIconRenameDeleteSaveReopenAndNoOp() async throws {
         let vm = try makeViewModel(reference: makeIconManagementReference())
         await vm.unlock(password: fixturePassword)
@@ -7150,6 +7182,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         await vm.unlock(password: fixturePassword)
         let oldCompositeKey = try XCTUnwrap(vm.compositeKey)
+        XCTAssertEqual(vm.masterKeyComposition, .init(hasPassword: true, hasKeyFile: false))
 
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
@@ -7161,6 +7194,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let expectedNewKey = try KDBXCrypto.compositeKey(password: "rotated-master", keyFileData: nil)
         XCTAssertEqual(capturedKeys.oldKey, oldCompositeKey)
         XCTAssertEqual(capturedKeys.newKey, expectedNewKey)
+        XCTAssertEqual(vm.masterKeyComposition, .init(hasPassword: true, hasKeyFile: false))
         XCTAssertEqual(vm.compositeKey, expectedNewKey)
         XCTAssertEqual(vm.openTimeSHA512, savedHash)
         XCTAssertNil(vm.draft)
@@ -7192,6 +7226,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
         XCTAssertEqual(vm.databaseReference.keyFileBookmarkData, bookmarkData)
         XCTAssertEqual(vm.databaseReference.keyFileFilename, "vault.key")
+        XCTAssertEqual(vm.masterKeyComposition, .init(hasPassword: true, hasKeyFile: true))
         let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == vm.databaseReference.id }))
         XCTAssertEqual(stored.keyFileBookmarkData, bookmarkData)
         XCTAssertEqual(stored.keyFileFilename, "vault.key")
