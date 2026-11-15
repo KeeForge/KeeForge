@@ -124,6 +124,23 @@ final class MacWindowCoordinatorTests: XCTestCase {
 
     // MARK: - Opening
 
+    func testCreatedDatabaseOpensUnlockedInItsOwnWindow() async throws {
+        start()
+        let form = DatabaseCreationViewModel()
+        form.databaseName = "Created"
+        form.password = "creation password"
+        form.confirmPassword = form.password
+        let directory = fileURLs[0].deletingLastPathComponent()
+        let result = await form.createLocal { directory.appendingPathComponent($0) }
+        let created = try XCTUnwrap(result)
+        coordinator.openCreated(created)
+        let controller = try XCTUnwrap(coordinator.databaseWindows[created.reference.id])
+        XCTAssertEqual(controller.session.state, .unlocked)
+        XCTAssertEqual(controller.session.rootGroup?.groups.first?.name, "Created")
+        XCTAssertTrue(store.session(for: created.reference.id) === controller.session)
+        XCTAssertTrue(presenter.shown.last === controller.window)
+    }
+
     func testOpeningSeveralDatabasesKeepsEachSessionAndADuplicateOpenFrontsTheSameWindow() async throws {
         start()
         XCTAssertTrue(presenter.shown.last === coordinator.databasesWindow, "No database window: Databases shows")

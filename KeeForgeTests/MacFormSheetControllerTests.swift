@@ -122,6 +122,22 @@ final class MacFormSheetControllerTests: XCTestCase {
         shell.end()
     }
 
+    func testDefaultActionKeepsSheetOpenForValidationAndBusyWork() {
+        let shell = makeShell()
+        var attempts = 0
+        shell.onConfirm = { attempts += 1; shell.setBusy(true, label: "Connecting") }
+        shell.begin(on: NSWindow()) { _ in }
+        shell.performDefault()
+        shell.performCancel()
+        shell.performDefault()
+        XCTAssertEqual(attempts, 1)
+        XCTAssertTrue(shell.isPresented)
+        shell.setBusy(false, label: "")
+        shell.performCancel()
+        XCTAssertFalse(shell.isPresented)
+        XCTAssertNil(shell.onConfirm)
+    }
+
     private func makeShell() -> MacFormSheetController {
         let content = NSViewController()
         content.view = NSView()

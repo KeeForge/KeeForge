@@ -41,8 +41,8 @@ frames and the quit prompt. `-ui-testing` turns restoration and recording off, a
 
 The Databases window (780 x 620 pt, title hidden, full-size content so the
 brand panel runs under the traffic lights; tall enough for a 560 pt sheet) is
-`MacDatabasesLauncherViewController` inside a SwiftUI host that presents its
-sheets and confirmations. The brand panel shows the app icon, name and version
+`MacDatabasesLauncherViewController` inside a SwiftUI host for launch notices
+and remaining management confirmations. The brand panel shows the app icon, name and version
 and sends New Database…, Open Database File… and Connect to Server… (captioned
 with the server types) to the same nil-targeted commands as the File menu. The
 list renders `MacDatabasesLauncherViewModel.rows` (local, WebDAV and FTP only)
@@ -53,9 +53,13 @@ the row menu holds Open and the management items; the bottom bar's + offers
 the three add commands and − removes the selection. With nothing listed the
 list area shows the empty state alone. It never shows a database's contents.
 The native `MacDatabaseSettingsLauncherPresenter` presents Database Settings
-without a session. The host keeps the creation and server sheets, rename, key
-file, export, the remove confirmation and refusal, and the pending-upload
-alerts in SwiftUI, driven by state on the view model. It also presents the
+without a session. `MacDatabasesSheets` presents native New Database and Connect to Server forms
+and the remote file/folder table, driven by the launcher's sheet request. New
+Database scrolls within the 560 pt shell with Advanced Options collapsed and
+uses native save/key-file panels. Connect opens directly with WebDAV/FTP segments,
+then browses the connected account with history and ancestor navigation. The host
+keeps rename, key file, export, removal and pending-upload presentations in
+SwiftUI. It also presents the
 transition notice and What's New, once per launch, and asks which database a
 verification-code link belongs to when no database window was targeted.
 
@@ -110,7 +114,8 @@ through `MacWindowCoordinator.removeFromList(databaseID:)`: the Databases
 window's unsaved-work refusal and confirmation, as alerts in that window, then
 the same removal, which retires the session and closes the window. Reconnect
 on a server sign-in failure runs the status card's sign-in, then returns to the
-form.
+form. Its window owns `MacServerReconnectSheet`, using the new connect content
+and the existing expected-account validation.
 
 ## Workspace presentation
 

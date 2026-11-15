@@ -66,6 +66,26 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(reopened.rootGroup.groups.first?.name, name)
     }
 
+    #if os(macOS)
+    @MainActor
+    func test_nativeCreationWritesReopenableEncryptedDatabase() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = DatabaseCreationViewModel()
+        model.databaseName = "Native compatibility"
+        model.password = "native creation password"
+        model.confirmPassword = model.password
+        let result = await model.createLocal { name in directory.appendingPathComponent(name) }
+        let created = try XCTUnwrap(result)
+        defer { DatabaseListStore.remove(id: created.reference.id) }
+        let data = try Data(contentsOf: directory.appendingPathComponent("Native compatibility.kdbx"))
+        let reopened = try KDBXParser.parseWithMeta(data: data, compositeKey: created.compositeKey, sessionKey: created.sessionKey)
+        XCTAssertEqual(reopened.rootGroup.groups.first?.name, "Native compatibility")
+        XCTAssertEqual(Data(SHA512.hash(data: data)), created.openTimeSHA512)
+    }
+    #endif
+
     func test_invalidNotesAreRejectedByDraftAndWriterForAESAndTwofish() throws {
         for fixture in [KDBXCompatibilitySupport.Fixture.syntheticRich, .syntheticTwofish] {
             let loaded = try KDBXCompatibilitySupport.load(fixture, bundle: bundle)

@@ -37,7 +37,6 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
 
         launcher.requestConnect(.dropbox)
         XCTAssertNil(launcher.sheet)
-        XCTAssertFalse(launcher.isChoosingServer)
         launcher.requestConnect(.ftp)
         XCTAssertEqual(launcher.sheet, .connect(.ftp))
 
@@ -45,10 +44,8 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         XCTAssertEqual(launcher.connectCaption, "WebDAV, FTP")
         launcher.sheet = nil
         launcher.requestConnect()
-        XCTAssertNil(launcher.sheet, "With two server types the window offers them first")
-        XCTAssertTrue(launcher.isChoosingServer, "File ▸ Connect to Server… asks which server")
+        XCTAssertEqual(launcher.sheet, .connect(.webDAV), "Connect opens its form directly")
         launcher.requestConnect(.webDAV)
-        XCTAssertFalse(launcher.isChoosingServer)
         XCTAssertEqual(launcher.sheet, .connect(.webDAV))
     }
 
@@ -87,7 +84,6 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         XCTAssertNil(launcher.sheet)
         XCTAssertNil(launcher.keyFileTarget)
         XCTAssertNil(launcher.selectionAlert)
-        XCTAssertFalse(launcher.isChoosingServer)
 
         launcher.perform(.open, on: first)
         XCTAssertEqual(recorder.opened, [second.id, first.id])

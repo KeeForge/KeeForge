@@ -26,6 +26,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     )
     private(set) lazy var workspaceSheets = MacWorkspaceSheets(session: session, presentation: workspacePresentation) { [weak self] in self?.window }
     private(set) lazy var workspaceAlerts = MacWorkspaceAlerts(session: session, presentation: workspacePresentation) { [weak self] in self?.window }
+    private lazy var reconnectSheet = MacServerReconnectSheet(prompt: workspacePresentation.serverCredentialPrompt) { [weak self] in self?.window }
     private let titleObservation = MacObservation()
     private let unlockFormObservation = MacObservation()
     private let lockedPageObservation = MacObservation()
@@ -128,6 +129,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         window.center()
         self.window = window
         filePanels.window = window
+        reconnectSheet.start()
         workspaceSheets.start()
         workspaceAlerts.start()
         attachmentPreview.install(in: window)
@@ -139,6 +141,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
                 self.workspaceAlerts.invalidate()
                 self.workspaceSheets.invalidate()
                 self.databaseExportTask?.cancel()
+                self.reconnectSheet.invalidate()
                 self.filePanels.cancel()
                 self.attachmentPreview.windowClosed()
                 self.onWillClose?(self)
@@ -198,6 +201,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         workspaceAlerts.invalidate()
         workspaceSheets.invalidate()
         databaseExportTask?.cancel()
+        reconnectSheet.invalidate()
         filePanels.cancel()
         titleObservation.cancel()
         unlockFormObservation.cancel()

@@ -14,6 +14,7 @@ final class DatabasesWindowController: NSWindowController {
     let launcherViewController: MacDatabasesLauncherViewController
     private var databaseSettingsSheets: MacDatabaseSettingsLauncherPresenter?
     private var closeObserver: NSObjectProtocol?
+    private var sheets: MacDatabasesSheets?
 
     init(coordinator: MacWindowCoordinator) {
         launcherViewController = MacDatabasesLauncherViewController(launcher: coordinator.launcher)
@@ -41,11 +42,14 @@ final class DatabasesWindowController: NSWindowController {
         super.init(window: window)
         databaseSettingsSheets = MacDatabaseSettingsLauncherPresenter(launcher: coordinator.launcher, list: coordinator.listViewModel, window: { [weak self] in self?.window })
         databaseSettingsSheets?.start()
+        sheets = MacDatabasesSheets(window: window, launcher: coordinator.launcher, list: coordinator.listViewModel)
         closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: window, queue: nil
-        ) { [weak self] _ in
+        ) { [weak self, weak coordinator] _ in
             MainActor.assumeIsolated {
                 self?.databaseSettingsSheets?.endSettings()
+                self?.sheets?.end()
+                coordinator?.launcher.sheet = nil
                 self?.onWillClose?()
             }
         }
@@ -168,16 +172,6 @@ private struct MacDatabasesManagementPresentations: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onAppear { list.reload() }
-            .sheet(item: legacySheet, onDismiss: cancelPendingCloudAuthentication) { sheet in
-                sheetContent(sheet)
-                    .macSheetFrame()
-            }
-            .confirmationDialog("Connect to Server", isPresented: $launcher.isChoosingServer) {
-                ForEach(launcher.connectProviders) { provider in
-                    Button(provider.displayName) { launcher.requestConnect(provider) }
-                        .accessibilityIdentifier("database.add.\(provider.rawValue)")
-                }
-            }
             .onChange(of: launcher.keyFileTarget) { _, target in
                 guard let target else { return }
                 launcher.keyFileTarget = nil
@@ -225,42 +219,6 @@ private struct MacDatabasesManagementPresentations: ViewModifier {
             .databaseExporter(request: $launcher.exportRequest)
     }
 
-    @ViewBuilder
-    private func sheetContent(_ sheet: MacDatabasesLauncherViewModel.Sheet) -> some View {
-        switch sheet {
-        case .newDatabase:
-            DatabaseCreationView(viewModel: DatabaseCreationViewModel()) { created in
-                list.reload()
-                launcher.didCreate(created)
-            }
-        case .connect(let provider):
-            CloudFileBrowserView(
-                providerID: provider.rawValue,
-                onSelect: { selection in
-                    let reference = list.addCloudDatabase(selection: selection)
-                    launcher.sheet = nil
-                    launcher.open(reference)
-                },
-                onFailure: { error in
-                    launcher.selectionAlert = DocumentPickerService.SelectionAlert(
-                        title: String(localized: "Couldn’t Open \(provider.displayName)"),
-                        message: error.localizedDescription)
-                }
-            )
-        case .details:
-            EmptyView()
-        }
-    }
-
-    private var legacySheet: Binding<MacDatabasesLauncherViewModel.Sheet?> {
-        Binding(get: {
-            if case .details = launcher.sheet { return nil }
-            return launcher.sheet
-        }, set: { value in
-            if case .details = launcher.sheet { return }
-            launcher.sheet = value
-        })
-    }
 
     @ViewBuilder
     private var pendingUploadAlertButtons: some View {
@@ -326,11 +284,7 @@ private struct MacDatabasesManagementPresentations: ViewModifier {
         }
     }
 
-    private func cancelPendingCloudAuthentication() {
-        for provider in CloudProviderRegistry.availableProviders {
-            CloudProviderRegistry.provider(for: provider.rawValue)?.cancelPendingAuthentication()
-        }
-    }
+
 }
 
 /// Asks which database a verification-code link without a target window belongs to.

@@ -26,7 +26,6 @@ struct MacDatabaseRootView: View {
             // Above the state switch: mounting counts as opening and may prompt.
             .background { MacBiometricAutoUnlockObserver(viewModel: session) }
             .modifier(MacEnrollmentPresentation(session: session, enrollment: enrollment))
-            .modifier(MacServerCredentialSheet(prompt: presentation.serverCredentialPrompt))
     }
 
     @ViewBuilder private var content: some View {
@@ -54,28 +53,6 @@ struct MacDatabaseRootView: View {
         case .unavailable:
             MacDatabaseUnavailableView(summary: summary)
         }
-    }
-}
-
-/// Reconnect's Connect to Server form as a sheet on this database's window.
-private struct MacServerCredentialSheet: ViewModifier {
-    @Bindable var prompt: MacServerCredentialPrompt
-
-    func body(content: Content) -> some View {
-        content.sheet(item: request) { request in
-            switch request.form {
-            case .webDAV(let form):
-                WebDAVConnectView(viewModel: form, onConnected: { _ in prompt.finish(connected: true) },
-                                  onCancel: { prompt.finish(connected: false) })
-            case .ftp(let form):
-                FTPConnectView(viewModel: form, onConnected: { _ in prompt.finish(connected: true) },
-                               onCancel: { prompt.finish(connected: false) })
-            }
-        }
-    }
-
-    private var request: Binding<MacServerCredentialPrompt.Request?> {
-        Binding(get: { prompt.request }, set: { if $0 == nil { prompt.finish(connected: false) } })
     }
 }
 

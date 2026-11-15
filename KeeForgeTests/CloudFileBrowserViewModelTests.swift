@@ -502,3 +502,86 @@ private final class GatedBrowserCloudProvider: CloudProvider, @unchecked Sendabl
         CloudFileMetadata(modifiedDate: Date(), contentHash: nil, size: Int64(data.count), rev: expectedRev)
     }
 }
+
+#if os(macOS)
+@MainActor
+final class MacRemoteBrowserModelTests: XCTestCase {
+    private let account = CloudAccount(id: "first", displayName: "Alex", provider: CloudProviderKind.webDAV.rawValue)
+    private func file(_ name: String, folder: Bool = false) -> CloudFile {
+        CloudFile(id: "/" + name, name: name, path: "/" + name, isFolder: folder, modifiedDate: nil, size: nil)
+    }
+
+    func testRowsSelectionShowAllAndFolderMode() async {
+        let provider = MockBrowserCloudProvider()
+        provider.filesToReturn = [file("z.KDBX"), file("a.txt"), file("Vaults", folder: true)]
+        let model = MacRemoteBrowserModel(account: account)
+        XCTAssertFalse(model.canOpen)
+        await model.load(provider: provider)
+        XCTAssertEqual(model.rows.map(\.name), ["Vaults", "a.txt", "z.KDBX"])
+        model.selectedID = "/Vaults"
+        XCTAssertFalse(model.canOpen)
+        model.selectedID = "/a.txt"
+        XCTAssertNil(model.databaseSelection())
+        model.showsAllFiles = true
+        XCTAssertTrue(model.canOpen)
+        XCTAssertEqual(model.databaseSelection()?.file.id, "/a.txt")
+        model.showsAllFiles = false
+        model.selectedID = "/z.KDBX"
+        XCTAssertEqual(model.databaseSelection()?.account.id, "first")
+        let folders = MacRemoteBrowserModel(account: account, mode: .chooseFolder)
+        await folders.load(provider: provider)
+        XCTAssertEqual(folders.rows.map(\.name), ["Vaults"])
+        XCTAssertTrue(folders.canOpen)
+        XCTAssertNil(folders.databaseSelection())
+        folders.end()
+        XCTAssertFalse(folders.canOpen)
+    }
+
+    func testHistoryAncestorsAndNewVisitClearsForward() async {
+        let model = MacRemoteBrowserModel(account: account)
+        let provider = MockBrowserCloudProvider()
+        model.navigate(to: file("Vaults", folder: true))
+        model.navigate(to: file("Shared", folder: true))
+        XCTAssertEqual(model.pathComponents.map(\.name), ["/", "Vaults", "Shared"])
+        model.goBack()
+        XCTAssertEqual(model.path, "/Vaults")
+        XCTAssertTrue(model.canGoForward)
+        model.goForward()
+        XCTAssertEqual(model.path, "/Shared")
+        model.visitAncestor(0)
+        XCTAssertNil(model.path)
+        model.goBack()
+        XCTAssertEqual(model.path, "/Shared")
+        model.navigate(to: file("Other", folder: true))
+        XCTAssertFalse(model.canGoForward)
+        await model.load(provider: provider)
+        XCTAssertEqual(provider.lastListPath, "/Other")
+    }
+
+    func testSupersededAccountAndEndDropHeldListings() async {
+        for ending in [false, true] {
+            let provider = GatedBrowserCloudProvider()
+            let started = AsyncGate(), release = AsyncGate()
+            provider.responses = [
+                { started.open(); await release.wait(); return [CloudFile(id: "old", name: "old.kdbx", path: "/old", isFolder: false, modifiedDate: nil, size: nil)] },
+                { [CloudFile(id: "new", name: "new.kdbx", path: "/new", isFolder: false, modifiedDate: nil, size: nil)] }
+            ]
+            let model = MacRemoteBrowserModel(account: account)
+            let old = Task { await model.load(provider: provider) }
+            await started.wait()
+            if ending { model.end() }
+            else {
+                model.replaceAccount(CloudAccount(id: "second", displayName: "Second", provider: account.provider))
+                XCTAssertFalse(model.canGoBack)
+                XCTAssertNil(model.databaseSelection())
+                await model.load(provider: provider)
+            }
+            release.open()
+            await old.value
+            XCTAssertEqual(model.files.map(\.id), ending ? [] : ["new"])
+            model.selectedID = "old"
+            XCTAssertNil(model.databaseSelection())
+        }
+    }
+}
+#endif

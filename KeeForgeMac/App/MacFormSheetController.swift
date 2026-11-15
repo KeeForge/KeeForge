@@ -20,6 +20,7 @@ final class MacFormSheetController: NSWindowController {
     }
     private var hasEnded = false
     private(set) var isPresented = false
+    var onConfirm: (@MainActor () -> Void)?
     var canConfirm = true { didSet { updateButtons() } }
     var isBusy = false {
         didSet {
@@ -178,6 +179,7 @@ final class MacFormSheetController: NSWindowController {
         cancellationScope.cancel()
         let completion = completion
         self.completion = nil
+        onConfirm = nil
         completion?(confirmed)
         bodyController.view.removeFromSuperview()
         clearHostedContent?()
@@ -186,7 +188,10 @@ final class MacFormSheetController: NSWindowController {
     }
 
     func performCancel() { guard !isBusy else { return }; end() }
-    func performDefault() { guard !isBusy, canConfirm else { return }; end(confirmed: true) }
+    func performDefault() {
+        guard !isBusy, canConfirm else { return }
+        if let onConfirm { onConfirm() } else { end(confirmed: true) }
+    }
     @objc private func cancelAction() { performCancel() }
     @objc private func confirmAction() { performDefault() }
     private func updateButtons() {

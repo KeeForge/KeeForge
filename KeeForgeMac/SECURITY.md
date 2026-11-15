@@ -32,9 +32,30 @@ shows the Connect to Server form as a sheet on that window, prefilled with the
 stored server address and username but never the password. It accepts only the
 reference's own account, so a mistyped address cannot attach another account's
 credential, and a successful connect replaces that account's Keychain item. The
-sheet closes, and its password is dropped, on lock and window close. The shown password field never copies, cuts,
+sheet closes, and its password is dropped, on lock and window close. The unlock password field never copies, cuts,
 drags or serves its text to Services, and neither field offers completion or a
 content type that Passwords would fill.
+
+The Databases window owns its native New Database, Connect to Server and remote
+browser sheets through [MacDatabasesSheets](App/MacDatabasesSheets.swift).
+New master passwords stay in `DatabaseCreationViewModel` until creation succeeds
+or the sheet ends; cancel and window close clear them and reject late results.
+Local creation writes the prepared encrypted bytes directly to the save-panel
+URL, then registers the database and its encrypted shared cache. Key-file creation
+writes only to the chosen URL, wipes the generated buffer, then reads and bookmarks
+that file; cancelling database creation leaves the user-saved key file in place.
+
+[MacConnectServerSheet](App/MacConnectServerSheet.swift) also serves Reconnect
+through [MacServerReconnectSheet](App/MacServerReconnectSheet.swift), retaining the
+same account-ID check. Server passwords live only in the shared connect models;
+end and late results clear them, and Cancel/Escape are blocked while connecting.
+The launcher prefills the latest connected account's address and username, never
+its password; only the account ID is remembered outside the existing account and
+token stores. WebDAV requires HTTPS unless Allow Unencrypted HTTP is enabled.
+Both FTP plaintext and concurrent-save warnings appear while unencrypted FTP is
+allowed. The browser binds listings and selections to its account and drops stale
+loads on account replacement or end; it has no account menu. Provider credentials
+still use `CloudTokenStore` with AfterFirstUnlockThisDeviceOnly protection.
 
 Biometric unlock stores composite keys in the Keychain, not raw master passwords.
 [KeychainService](../KeeForge/Services/Security/KeychainService.swift) uses the

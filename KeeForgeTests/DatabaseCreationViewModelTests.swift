@@ -29,6 +29,96 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         try await super.tearDown()
     }
 
+    #if os(macOS)
+    func testLocalPanelWritesEncryptedBytesAndRegistersUnlockedResult() async throws {
+        let model = DatabaseCreationViewModel()
+        model.databaseName = "Native"
+        model.password = "creation password"
+        model.confirmPassword = model.password
+        let url = try makeTemporaryFileURL(name: "Native.kdbx", contents: Data())
+        let created = await model.createLocal { name in
+            XCTAssertEqual(name, "Native.kdbx")
+            return url
+        }
+        let result = try XCTUnwrap(created)
+        let bytes = try Data(contentsOf: url)
+        let parsed = try KDBXParser.parseWithMeta(data: bytes, compositeKey: result.compositeKey, sessionKey: result.sessionKey)
+        XCTAssertEqual(parsed.rootGroup.groups.first?.name, "Native")
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [result.reference.id])
+        XCTAssertEqual(model.password, "")
+        XCTAssertEqual(model.confirmPassword, "")
+        XCTAssertNil(model.preparedDatabase)
+    }
+
+    func testCancelAndCloseDuringPanelClearSecretsAndDropLateURL() async throws {
+        let model = DatabaseCreationViewModel()
+        model.databaseName = "Cancelled"
+        model.password = "secret"
+        model.confirmPassword = model.password
+        let url = try makeTemporaryFileURL(name: "cancelled.kdbx", contents: Data([42]))
+        let result = await model.createLocal { _ in
+            model.cancelPendingCreation()
+            return url
+        }
+        XCTAssertNil(result)
+        XCTAssertEqual(try Data(contentsOf: url), Data([42]))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        XCTAssertEqual(model.password, "")
+        XCTAssertEqual(model.confirmPassword, "")
+    }
+
+    func testClosedNativeCreationDropsLatePreparationBeforeWriting() async throws {
+        let prepared = try await DatabaseCreationService.prepare(request: DatabasePreparationRequest(
+            displayName: "Late", password: "secret", keyFileData: nil, keyFileBookmarkData: nil, keyFileFilename: nil))
+        let suspension = CreationSuspension<PreparedDatabase>()
+        let model = DatabaseCreationViewModel(preparationOperation: { _, _ in try await suspension.wait() })
+        model.databaseName = "Late"
+        model.password = "secret"
+        model.confirmPassword = model.password
+        let url = try makeTemporaryFileURL(name: "Late.kdbx", contents: Data([42]))
+        let creation = Task { await model.createLocal { _ in url } }
+        await suspension.waitUntilStarted()
+        model.cancelPendingCreation()
+        await suspension.resolve(.success(prepared))
+        let result = await creation.value
+        XCTAssertNil(result)
+        XCTAssertEqual(try Data(contentsOf: url), Data([42]))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        XCTAssertEqual(model.password, "")
+        XCTAssertEqual(model.confirmPassword, "")
+        XCTAssertNil(model.preparedDatabase)
+    }
+
+    func testFailedWriteKeepsFormAvailableForRetry() async throws {
+        let model = DatabaseCreationViewModel()
+        model.databaseName = "Retry"
+        model.password = "secret"
+        model.confirmPassword = model.password
+        let url = try makeTemporaryFileURL(name: "Retry.kdbx", contents: Data())
+        let failure = await model.createLocal { _ in url.appendingPathComponent("missing/file.kdbx") }
+        XCTAssertNil(failure)
+        XCTAssertNotNil(model.creationError)
+        XCTAssertNil(model.preparedDatabase)
+        XCTAssertEqual(model.password, "secret")
+        let retry = await model.createLocal { _ in url }
+        XCTAssertNotNil(retry)
+        XCTAssertFalse(try Data(contentsOf: url).isEmpty)
+        XCTAssertNil(model.preparedDatabase)
+    }
+
+    func testSavePanelCancelKeepsFormAvailableForRetry() async {
+        let model = DatabaseCreationViewModel()
+        model.databaseName = "Retry"
+        model.password = "secret"
+        model.confirmPassword = model.password
+        let result = await model.createLocal { _ in nil }
+        XCTAssertNil(result)
+        XCTAssertEqual(model.password, "secret")
+        XCTAssertNil(model.preparedDatabase)
+        XCTAssertTrue(model.validateForDestinationSelection())
+    }
+    #endif
+
     // MARK: - selectKeyFile / clearKeyFile
 
     #if os(macOS)

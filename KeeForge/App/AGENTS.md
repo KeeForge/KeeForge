@@ -106,3 +106,5 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 - `../Views/AGENTS.md`: shared UI rules and the Mac row-matching rule
 - `../Services/AppSupport/AGENTS.md`: `MacLockMonitor`, `MacWindowCloseGuard`, quick access
 - `../../KeeForgeMac/README.md`, `../../KeeForgeMac/SECURITY.md`, `../../KeeForgeMacUITests/AGENTS.md`
+
+- The Databases window's `MacDatabasesSheets` owns native creation, connect and remote browsing; its close handler ends them and clears the launcher's request. Reconnect is `MacServerReconnectSheet` on each database window, including the locked recovery page, cleared through the existing credential prompt on lock and controller invalidation. Tests: `MacDatabasesSheetsTests`; shell async default-action semantics: `MacFormSheetControllerTests`.

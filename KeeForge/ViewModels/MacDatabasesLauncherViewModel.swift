@@ -128,8 +128,6 @@ final class MacDatabasesLauncherViewModel {
     var whatsNewRelease: WhatsNewRelease?
     var isChoosingEnrollmentDestination = false
     var sheet: Sheet?
-    /// File ▸ Connect to Server… with several server types offers them first.
-    var isChoosingServer = false
     /// Waiting for the user to confirm Remove.
     var pendingRemoval: DatabaseReference?
     /// A removal refused because the database's window still holds unsaved work.
@@ -326,19 +324,9 @@ final class MacDatabasesLauncherViewModel {
         connectProviders.map(\.displayName).joined(separator: ", ")
     }
 
-    /// Without a provider (File ▸ Connect to Server…), the only server type
-    /// goes straight to its sign-in; several are offered first.
     func requestConnect(_ provider: CloudProviderKind? = nil) {
-        let providers = connectProviders
-        if let provider {
-            guard providers.contains(provider) else { return }
-            isChoosingServer = false
-            sheet = .connect(provider)
-        } else if providers.count == 1, let only = providers.first {
-            sheet = .connect(only)
-        } else if providers.isEmpty == false {
-            isChoosingServer = true
-        }
+        guard let chosen = provider ?? connectProviders.first, connectProviders.contains(chosen) else { return }
+        sheet = .connect(chosen)
     }
 
     // MARK: - Enrollment
