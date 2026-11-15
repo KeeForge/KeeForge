@@ -1115,7 +1115,7 @@ final class DatabaseListViewModelTests: XCTestCase {
             pendingUploadDrainer: makeDrainer(
                 markers: [makeStoredMarker(databaseId: reference.id)],
                 reference: reference,
-                pushPendingUpload: { _, _, _ in throw CloudProviderError.notAuthenticated }
+                deliverMarker: { _, _ in throw CloudProviderError.notAuthenticated }
             )
         )
 
@@ -1136,7 +1136,7 @@ final class DatabaseListViewModelTests: XCTestCase {
             )
         )
 
-        await viewModel.drainPendingUploadsOnAppActive(sessionStore: DatabaseSessionStore())
+        await viewModel.drainPendingUploadsOnAppActive()
 
         XCTAssertNil(viewModel.pendingUploadAlert)
     }
