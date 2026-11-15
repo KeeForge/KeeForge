@@ -36,7 +36,7 @@ final class MacFormSheetController: NSWindowController {
 
     init(title: String, content: NSViewController, size: NSSize,
          cancelTitle: String = String(localized: "Cancel"), defaultTitle: String = String(localized: "Save"),
-         showsFooter: Bool = true, tabs: NSSegmentedControl? = nil, accessory: NSView? = nil,
+         showsFooter: Bool = true, tabs: NSView? = nil, accessory: NSView? = nil,
          cancellationScope: MacSheetCancellationScope = MacSheetCancellationScope()) {
         self.cancellationScope = cancellationScope
         ownsFooter = showsFooter
@@ -68,21 +68,34 @@ final class MacFormSheetController: NSWindowController {
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 20),
             stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -20),
-            stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 16),
             stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -12)
         ])
-        stack.addArrangedSubview(heading)
         if let tabs {
-            let row = NSView()
-            row.addSubview(tabs)
-            tabs.translatesAutoresizingMaskIntoConstraints = false
-            stack.addArrangedSubview(row)
+            // DatabaseSettingsTabs board: a centred title over the tabs, set off from the body by a rule.
+            heading.alignment = .center
+            let header = NSStackView(views: [heading, tabs])
+            header.orientation = .vertical
+            header.alignment = .centerX
+            header.spacing = 6
+            header.edgeInsets = NSEdgeInsets(top: 10, left: 0, bottom: 8, right: 0)
+            let rule = NSBox()
+            rule.boxType = .separator
+            for view in [header, rule] {
+                view.translatesAutoresizingMaskIntoConstraints = false
+                root.addSubview(view)
+            }
             NSLayoutConstraint.activate([
-                row.widthAnchor.constraint(equalTo: stack.widthAnchor),
-                tabs.centerXAnchor.constraint(equalTo: row.centerXAnchor),
-                tabs.topAnchor.constraint(equalTo: row.topAnchor),
-                tabs.bottomAnchor.constraint(equalTo: row.bottomAnchor)
+                header.topAnchor.constraint(equalTo: root.topAnchor),
+                header.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+                header.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+                rule.topAnchor.constraint(equalTo: header.bottomAnchor),
+                rule.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+                rule.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+                stack.topAnchor.constraint(equalTo: rule.bottomAnchor, constant: 8)
             ])
+        } else {
+            stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 16).isActive = true
+            stack.addArrangedSubview(heading)
         }
         stack.addArrangedSubview(contentContainer)
         contentContainer.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
@@ -118,6 +131,17 @@ final class MacFormSheetController: NSWindowController {
             let footer = NSStackView(views: (accessory.map { [$0] } ?? []) + [spacer, cancelButton, defaultButton])
             stack.addArrangedSubview(footer)
             footer.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            if tabs != nil {
+                let rule = NSBox()
+                rule.boxType = .separator
+                rule.translatesAutoresizingMaskIntoConstraints = false
+                root.addSubview(rule)
+                NSLayoutConstraint.activate([
+                    rule.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+                    rule.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+                    rule.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -12)
+                ])
+            }
         }
     }
 

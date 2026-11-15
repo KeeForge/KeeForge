@@ -62,6 +62,11 @@ final class MacEntryEditorSession {
         return false
     }
 
+    /// The editor header shows no state line, so VoiceOver names the state on the header group.
+    var headerAccessibilityLabel: String {
+        isEditingExistingEntry ? String(localized: "Editing") : String(localized: "New Entry")
+    }
+
     /// An edit target the database can no longer take: the entry is gone or the database turned read-only.
     var cannotSaveReason: String? {
         let isGone = if case .edit(let entryID) = form.mode { database.entry(withID: entryID) == nil } else { false }

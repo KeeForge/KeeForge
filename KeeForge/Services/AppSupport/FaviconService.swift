@@ -1,4 +1,5 @@
 import CryptoKit
+import ImageIO
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
@@ -201,7 +202,29 @@ enum FaviconService: Sendable {
         }
 
         guard let data = try? Data(contentsOf: path) else { return nil }
-        return PlatformImage(data: data)
+        return image(from: data)
+    }
+
+    // MARK: - Decode
+
+    /// The largest picture in `data`. A site's `.ico` often holds 16, 32 and 48 or 64 px frames;
+    /// `UIImage(data:)` takes the first, which is usually the 16 px one.
+    static func image(from data: Data) -> PlatformImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let indices = 0..<CGImageSourceGetCount(source)
+        func pixelArea(_ index: Int) -> Int {
+            guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
+                  let width = properties[kCGImagePropertyPixelWidth] as? Int,
+                  let height = properties[kCGImagePropertyPixelHeight] as? Int else { return 0 }
+            return width * height
+        }
+        guard let largest = indices.max(by: { pixelArea($0) < pixelArea($1) }),
+              let image = CGImageSourceCreateImageAtIndex(source, largest, nil) else { return nil }
+        #if canImport(UIKit)
+        return UIImage(cgImage: image)
+        #else
+        return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+        #endif
     }
 
     // MARK: - Fetch
@@ -221,7 +244,7 @@ enum FaviconService: Sendable {
                 return nil
             }
 
-            guard let image = PlatformImage(data: data) else { return nil }
+            guard let image = image(from: data) else { return nil }
 
             if cachingToDisk {
                 ensureCacheDirectory()

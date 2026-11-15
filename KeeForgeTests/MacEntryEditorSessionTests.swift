@@ -22,6 +22,7 @@ final class MacEntryEditorSessionTests: XCTestCase {
         presentation.beginEntryEdit(entryID: entry.id, in: session)
         let editor = try XCTUnwrap(presentation.entryEditor)
         XCTAssertFalse(editor.isPasswordVisible, "An edited password opens concealed")
+        XCTAssertEqual(editor.headerAccessibilityLabel, String(localized: "Editing"))
 
         editor.togglePasswordVisibility()
         await settle(editor)
@@ -55,6 +56,7 @@ final class MacEntryEditorSessionTests: XCTestCase {
 
         presentation.beginNewEntry(in: session)
         let creator = try XCTUnwrap(presentation.entryEditor)
+        XCTAssertEqual(creator.headerAccessibilityLabel, String(localized: "New Entry"))
         gate.invalidate()
         XCTAssertTrue(creator.isPasswordVisible, "A new password is typed in the open")
         creator.togglePasswordVisibility()

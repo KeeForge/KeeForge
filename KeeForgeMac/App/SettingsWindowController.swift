@@ -29,6 +29,8 @@ final class SettingsWindowController: NSWindowController {
 
     override func showWindow(_ sender: Any?) {
         tabs.settings.reload()
+        // Sizes the window to the selected tab while it is still hidden.
+        tabs.sizeWindowToSelectedTab()
         super.showWindow(sender)
     }
 
@@ -63,19 +65,6 @@ enum MacSettingsTab: String, CaseIterable {
         case .servers: "server.rack"
         case .about: "info.circle"
         }
-    }
-    var contentSize: NSSize {
-        let height: CGFloat = switch self {
-        case .general: 420
-        case .security: 700
-        case .autofill: 530
-        case .quickSearch: 300
-        case .sshAgent: 500
-        case .appearance: 300
-        case .servers: 360
-        case .about: 560
-        }
-        return NSSize(width: 900, height: height)
     }
 }
 
@@ -115,14 +104,13 @@ final class MacSettingsTabController: NSTabViewController {
             case .about:
                 content = AnyView(MacAboutSettingsTab(acknowledgments: { [weak self] in self?.showAcknowledgments() }))
             }
-            let hosting = NSHostingController(rootView: ScrollView {
-                // The board's centred label and control columns; unbounded, long captions run past the window.
-                content.frame(maxWidth: 660, alignment: .leading).frame(maxWidth: .infinity)
-            }
+            let hosting = NSHostingController(rootView: MacSettingsPane(onHeightChange: { [weak self] height in
+                self?.contentHeightChanged(height, for: tab)
+            }) { content }
                 .accessibilityIdentifier(tab.identifier)
                 .modifier(MacHostingAppearance()))
             hosting.sizingOptions = []
-            hosting.preferredContentSize = tab.contentSize
+            hosting.preferredContentSize = MacSettingsLayout.contentSize(forContentHeight: 0)
             // The tab controller passes the shown tab's title to the window, so an untitled tab blanks it.
             hosting.title = tab.title
             let item = NSTabViewItem(viewController: hosting)
@@ -153,10 +141,36 @@ final class MacSettingsTabController: NSTabViewController {
         if let tabViewItem { updateWindow(for: tabViewItem) }
     }
 
+    /// Each tab is as tall as its content, up to `MacSettingsLayout.maximumHeight`, where it scrolls.
+    private func contentHeightChanged(_ height: CGFloat, for tab: MacSettingsTab) {
+        guard let item = tabViewItems.first(where: { ($0.identifier as? String) == tab.identifier }),
+              let controller = item.viewController else { return }
+        let size = MacSettingsLayout.contentSize(forContentHeight: height)
+        guard controller.preferredContentSize != size else { return }
+        controller.preferredContentSize = size
+        // A hidden window is sized when it is shown or the tab selected; a shown one after this layout pass.
+        guard view.window?.isVisible == true else { return }
+        DispatchQueue.main.async { [weak self] in self?.sizeWindowToSelectedTab() }
+    }
+
+    func sizeWindowToSelectedTab() {
+        guard tabViewItems.indices.contains(selectedTabViewItemIndex) else { return }
+        updateWindow(for: tabViewItems[selectedTabViewItemIndex])
+    }
+
     private func updateWindow(for item: NSTabViewItem) {
         guard let window = view.window, let controller = item.viewController else { return }
         window.title = item.label
-        window.setContentSize(controller.preferredContentSize)
+        // Measures a tab shown for the first time before sizing the window to it.
+        controller.view.layoutSubtreeIfNeeded()
+        let target = controller.preferredContentSize
+        guard let current = window.contentView?.frame.size, current != target else { return }
+        // Keeps the title bar and toolbar in place, as system Settings panes do.
+        var frame = window.frame
+        frame.size.width += target.width - current.width
+        frame.size.height += target.height - current.height
+        frame.origin.y = window.frame.maxY - frame.height
+        window.setFrame(frame, display: true, animate: window.isVisible)
     }
 
     func confirmClearEntries() {

@@ -142,7 +142,12 @@ final class MacMainMenuTests: XCTestCase {
         let window = try XCTUnwrap(delegate.windowCoordinator.databasesWindow)
         XCTAssertEqual(window.identifier, DatabasesWindowController.identifier)
         XCTAssertEqual(window.contentMinSize, DatabasesWindowController.contentSize)
-        XCTAssertGreaterThanOrEqual(DatabasesWindowController.contentSize.height, MacSheetMetrics.maxHeight + 60)
+        let launcherWindow = try XCTUnwrap(window as? DatabasesWindow)
+        let tallSheet = launcherWindow.frame(fitting: MacSheetMetrics.maxHeight)
+        XCTAssertEqual(tallSheet.maxY, launcherWindow.frame.maxY, "Grows downward, keeping its top edge")
+        XCTAssertGreaterThanOrEqual(tallSheet.height - (launcherWindow.frame.height - launcherWindow.contentLayoutRect.height),
+                                    MacSheetMetrics.maxHeight, "A tallest sheet fits below the titlebar")
+        XCTAssertEqual(launcherWindow.frame(fitting: 200), launcherWindow.frame, "A short sheet leaves the frame alone")
         XCTAssertFalse(window.isReleasedWhenClosed)
         XCTAssertFalse(delegate.applicationShouldTerminateAfterLastWindowClosed(NSApp))
         for selector in ["newDatabase:", "openDatabase:"] {
@@ -205,7 +210,8 @@ final class MacMainMenuTests: XCTestCase {
         for name in rowSelectors { XCTAssertTrue(list.responds(to: NSSelectorFromString(name)), name) }
         for name in groupSelectors { XCTAssertTrue(sidebar.responds(to: NSSelectorFromString(name)), name) }
         let launcher = MacDatabasesLauncherViewController(launcher: MacDatabasesLauncherViewModel(references: { [] }))
-        let launcherSelectors = ["openClickedDatabase:", "performRowMenuItem:", "showAddMenu:", "removeSelectedDatabase:"]
+        // Its deleteSelection: is Edit > Delete on purpose: the Databases window has no database window controller.
+        let launcherSelectors = ["openClickedDatabase:", "performRowMenuItem:"]
         for name in launcherSelectors { XCTAssertTrue(launcher.responds(to: NSSelectorFromString(name)), name) }
         XCTAssertTrue(mainSelectors.isDisjoint(with: rowSelectors + groupSelectors + launcherSelectors),
                       "\(mainSelectors.intersection(rowSelectors + groupSelectors + launcherSelectors))")

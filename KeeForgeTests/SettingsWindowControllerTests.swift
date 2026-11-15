@@ -33,6 +33,24 @@ final class SettingsWindowControllerTests: XCTestCase {
         controller.close()
     }
 
+    func testEveryTabSharesOneWidthAndIsAsTallAsItsContent() throws {
+        let controller = try makeController()
+        let window = try XCTUnwrap(controller.window)
+        let top = window.frame.maxY
+        var heights: [MacSettingsTab: CGFloat] = [:]
+        for tab in MacSettingsTab.allCases {
+            controller.tabs.select(tab)
+            let size = try XCTUnwrap(window.contentView?.frame.size)
+            XCTAssertEqual(size.width, MacSettingsLayout.windowWidth, tab.rawValue)
+            XCTAssertGreaterThanOrEqual(size.height, MacSettingsLayout.minimumHeight, tab.rawValue)
+            XCTAssertLessThanOrEqual(size.height, MacSettingsLayout.maximumHeight, tab.rawValue)
+            XCTAssertEqual(window.frame.maxY, top, accuracy: 0.5, "Switching to \(tab.rawValue) moved the title bar")
+            heights[tab] = size.height
+        }
+        XCTAssertLessThan(try XCTUnwrap(heights[.appearance]), try XCTUnwrap(heights[.security]))
+        controller.close()
+    }
+
     /// `MacAppAppearance` applies the setting to the whole app; the window pins none of its own.
     func testWindowLeavesTheAppearanceToTheAppSeam() async throws {
         let original = SettingsService.appearanceMode
