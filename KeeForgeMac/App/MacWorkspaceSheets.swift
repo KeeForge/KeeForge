@@ -16,6 +16,7 @@ final class MacWorkspaceSheets {
     private(set) var childSheet: MacFormSheetController?
     private var iconPicker: MacIconPickerController?
     private var databaseSettings: MacDatabaseSettingsSheet?
+    private var passwordImport: MacPasswordImportSheet?
     private var editorCoordinator: DatabaseEditorCoordinator?
     private(set) var sheet: MacFormSheetController?
     var present: @MainActor (MacFormSheetController, NSWindow, @escaping @MainActor (Bool) -> Void) -> Void = {
@@ -36,6 +37,7 @@ final class MacWorkspaceSheets {
         groupLockPrompt.end()
         childSheet?.end()
         iconPicker?.end()
+        passwordImport?.discard()
         sheet?.end()
         editorCoordinator?.deactivate()
     }
@@ -57,10 +59,12 @@ final class MacWorkspaceSheets {
         _ = editorCoordinator?.pendingLockRequest
         _ = presentation.groupEditor
         _ = presentation.pendingMove
+        _ = presentation.passwordImport
         _ = presentation.isShowingDatabaseDetails
     }
 
     private var requestedID: String? {
+        if presentation.passwordImport { return "import" }
         if presentation.isShowingNewGroupSheet { return "new" }
         if let id = presentation.entryIconID { return "icon-\(id)" }
         if let editor = presentation.groupEditor { return "edit-\(editor.id)" }
@@ -95,7 +99,10 @@ final class MacWorkspaceSheets {
                 }, complete: { [weak self] in self?.presentation.groupEditor = nil })
         }
         if let sheet {
-            if requestedID == activeID { sheet.setBusy(session.isSaving, label: String(localized: "Saving changes...")); return }
+            if requestedID == activeID {
+                if activeID != "import" { sheet.setBusy(session.isSaving, label: String(localized: "Saving changes...")) }
+                return
+            }
             endCurrent()
             // AppKit must finish detaching before another sheet begins.
             Task { @MainActor [weak self] in self?.reconcile() }
@@ -110,7 +117,11 @@ final class MacWorkspaceSheets {
         }
         let shell: MacFormSheetController
         let lockCycle = session.lockCycleID
-        if id == "new" {
+        if id == "import" {
+            let importer = MacPasswordImportSheet(session: session, presentation: presentation)
+            passwordImport = importer
+            shell = importer.shell
+        } else if id == "new" {
             let parentID = presentation.newGroupParentID ?? session.workspace.selectedGroupID ?? session.workspaceRootGroupID
             shell = MacFormSheetController(title: String(localized: "New Group"), content: MacNewGroupView(
                 name: Binding(get: { [weak self] in self?.presentation.newGroupName ?? "" }, set: { [weak self] value in
@@ -161,7 +172,7 @@ final class MacWorkspaceSheets {
             shell = settings.shell
         }
         sheet = shell
-        shell.setBusy(session.isSaving, label: String(localized: "Saving changes..."))
+        if id != "import" { shell.setBusy(session.isSaving, label: String(localized: "Saving changes...")) }
         activeID = id
         present(shell, parent) { [weak self, weak shell] confirmed in
             guard let self, let shell, self.sheet === shell, requestedID == id, isCurrent(lockCycle) else { return }
@@ -180,6 +191,8 @@ final class MacWorkspaceSheets {
             groupLockPrompt.end()
             databaseSettings?.model.commitNickname()
             databaseSettings = nil
+            passwordImport?.discard()
+            passwordImport = nil
             clearRequest(id)
             self.sheet = nil
             activeID = nil
@@ -194,7 +207,8 @@ final class MacWorkspaceSheets {
     }
 
     private func clearRequest(_ id: String) {
-        if id == "new" { presentation.dismissNewGroup() }
+        if id == "import" { presentation.passwordImport = false }
+        else if id == "new" { presentation.dismissNewGroup() }
         else if id.hasPrefix("icon-") { presentation.entryIconID = nil }
         else if id.hasPrefix("edit-") { presentation.groupEditor = nil }
         else if id.hasPrefix("move-") { presentation.pendingMove = nil }
@@ -204,6 +218,8 @@ final class MacWorkspaceSheets {
     private func endCurrent() {
         groupLockPrompt.end()
         endChild()
+        passwordImport?.discard()
+        passwordImport = nil
         let old = sheet
         sheet = nil
         iconPicker?.end()

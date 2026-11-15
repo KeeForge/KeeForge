@@ -8,6 +8,7 @@ final class MacFormSheetController: NSWindowController {
     let cancelButton: NSButton
     let defaultButton: NSButton
     private let progress = NSProgressIndicator()
+    private let heading = NSTextField(labelWithString: "")
     private let busyLabel = NSTextField(labelWithString: "")
     private let contentContainer = NSView()
     private var updateHostedBusy: (@MainActor (Bool) -> Void)?
@@ -52,7 +53,7 @@ final class MacFormSheetController: NSWindowController {
         container.view = root
         container.addChild(content)
         window.contentViewController = container
-        let heading = NSTextField(labelWithString: title)
+        heading.stringValue = title
         heading.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -130,6 +131,11 @@ final class MacFormSheetController: NSWindowController {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    func setTitle(_ title: String) {
+        window?.title = title
+        heading.stringValue = title
+    }
 
     func setBusy(_ busy: Bool, label: String) {
         busyLabel.stringValue = label

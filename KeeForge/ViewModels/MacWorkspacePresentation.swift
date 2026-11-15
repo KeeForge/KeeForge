@@ -35,6 +35,7 @@ final class MacWorkspacePresentation {
     /// Mirrors the split view's sidebar collapse, which AppKit owns and autosaves,
     /// so the list header can show the group's path while the sidebar is hidden.
     var isSidebarCollapsed = false
+    var passwordImport = false
     var isShowingDatabaseDetails = false
     var presentedSaveError: DatabaseSaveError?
     var isCloudReconnectInFlight = false
@@ -341,6 +342,7 @@ final class MacWorkspacePresentation {
         dismissNewGroup()
         pendingDeletion = nil
         pendingMove = nil
+        passwordImport = false
         isShowingDatabaseDetails = false
         presentedSaveError = nil
         isCloudReconnectInFlight = false

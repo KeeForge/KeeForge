@@ -35,6 +35,9 @@ enum MainMenu {
         add(String(localized: "Close Window"), #selector(NSWindow.performClose(_:)), key: "w", to: file)
         add(String(localized: "Save"), #selector(DatabaseWindowController.saveDatabase), key: "s", to: file)
         file.addItem(.separator())
+        add(String(localized: "Import Passwords…"), #selector(DatabaseWindowController.importPasswords), to: file)
+        add(String(localized: "Export…"), #selector(DatabaseWindowController.exportDatabase), to: file)
+        file.addItem(.separator())
         add(String(localized: "Close Database"), #selector(DatabaseWindowController.closeDatabase), key: "w", modifiers: [.command, .shift], to: file)
 
         let edit = submenu(String(localized: "Edit"), in: menu)

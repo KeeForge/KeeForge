@@ -44,6 +44,8 @@ final class MacMainMenuTests: XCTestCase {
             ("Connect to Server…", "", [], "connectToServer:"),
             ("Close Window", "w", command, "performClose:"),
             ("Save", "s", command, "saveDatabase:"),
+            ("Import Passwords…", "", [], "importPasswords:"),
+            ("Export…", "", [], "exportDatabase:"),
             ("Close Database", "w", shift, "closeDatabase:"),
         ], [
             ("Undo", "z", command, "undo:"), ("Redo", "z", shift, "redo:"),
@@ -82,7 +84,7 @@ final class MacMainMenuTests: XCTestCase {
             ("Databases", "0", shift, "showDatabasesWindow:"),
             ("Bring All to Front", "", [], "arrangeInFront:"),
         ], [("KeeForge Help", "", [], "showHelp:"), ("Report a Bug", "", [], "reportBug:")]]
-        let databaseActions: Set<String> = ["newEntry:", "newGroup:", "saveDatabase:", "closeDatabase:", "copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "editEntry:", "duplicateSelectedEntry:", "moveSelectedEntries:", "deleteSelection:", "findEntry:", "showAllEntries:", "showVerificationCodes:", "showPasskeys:", "chooseSortOrder:", "chooseSortDirection:", "expandAllGroups:", "collapseAllGroups:", "showInLargeType:", "lockDatabase:", "syncNow:", "showDatabaseSettings:"]
+        let databaseActions: Set<String> = ["importPasswords:", "exportDatabase:", "newEntry:", "newGroup:", "saveDatabase:", "closeDatabase:", "copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "editEntry:", "duplicateSelectedEntry:", "moveSelectedEntries:", "deleteSelection:", "findEntry:", "showAllEntries:", "showVerificationCodes:", "showPasskeys:", "chooseSortOrder:", "chooseSortDirection:", "expandAllGroups:", "collapseAllGroups:", "showInLargeType:", "lockDatabase:", "syncNow:", "showDatabaseSettings:"]
         let appActions: Set<String> = ["showAboutPanel:", "showSettings:", "newDatabase:", "openDatabase:", "showHelp:", "reportBug:", "checkForUpdates:", "showDatabasesWindow:", "connectToServer:", "lockAllDatabases:", "showPasswordGenerator:"]
         for (top, contracts) in zip(menu.items, expected) {
             let submenu = try XCTUnwrap(top.submenu)
@@ -105,7 +107,7 @@ final class MacMainMenuTests: XCTestCase {
         }
         XCTAssertEqual(separatedTitles(menu.items[1]), [
             ["New Entry", "New Group"], ["New Database…", "Open Database File…", "Connect to Server…"],
-            ["Close Window", "Save"], ["Close Database"],
+            ["Close Window", "Save"], ["Import Passwords…", "Export…"], ["Close Database"],
         ].map { $0.map(localized) })
         XCTAssertEqual(separatedTitles(menu.items[2]).suffix(3), [
             ["Copy Username", "Copy Password", "Copy URL", "Copy Verification Code"],

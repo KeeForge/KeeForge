@@ -152,6 +152,10 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             guard let self, snapshot?.offersNewEntry == true else { return }
             presentation.beginNewEntry(in: session)
         }
+        emptyView.onImport = { [weak self] in
+            guard let self else { return }
+            MacWorkspaceCommands(session: session, presentation: presentation).importPasswords()
+        }
         header.onSortOrder = { [weak self] in self?.selectSortOrder($0) }
         header.onSortDirection = { [weak self] in self?.selectSortDirection($0) }
 
@@ -403,7 +407,8 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         scrollView.isHidden = showsEmpty
         emptyView.isHidden = showsEmpty == false
         emptyView.update(showsEmpty ? snapshot.emptyState : nil,
-                         offersNewEntry: showsEmpty && snapshot.offersNewEntry && state.isFrozen == false)
+                         offersNewEntry: showsEmpty && snapshot.offersNewEntry && state.isFrozen == false,
+                         offersImport: showsEmpty && snapshot.offersNewEntry && MacWorkspaceCommands(session: session, presentation: presentation).canImportPasswords)
         tableView.setAccessibilityIdentifier(snapshot.containerIdentifier)
         if showsResultCount, let count = snapshot.resultCount {
             resultCountField.stringValue = String(localized: "results:\(count)")
@@ -1201,6 +1206,8 @@ final class MacEntryListEmptyView: NSView {
     let titleField = NSTextField(labelWithString: "")
     let messageField = NSTextField(wrappingLabelWithString: "")
     let newEntryButton = NSButton(title: "", target: nil, action: nil)
+    let importButton = NSButton(title: String(localized: "Import Passwords…"), target: nil, action: nil)
+    var onImport: (@MainActor () -> Void)?
     var onNewEntry: (@MainActor () -> Void)?
     private(set) var state: MacEntryListSnapshot.EmptyState?
 
@@ -1223,7 +1230,14 @@ final class MacEntryListEmptyView: NSView {
         newEntryButton.target = self
         newEntryButton.action = #selector(newEntry(_:))
         newEntryButton.isHidden = true
-        let stack = NSStackView(views: [imageView, titleField, messageField, newEntryButton])
+        importButton.target = self
+        importButton.action = #selector(importFromEmptyGroup(_:))
+        importButton.bezelStyle = .push
+        importButton.controlSize = .small
+        importButton.isHidden = true
+        importButton.setAccessibilityIdentifier("entry-list.empty.import")
+        let actions = NSStackView(views: [newEntryButton, importButton])
+        let stack = NSStackView(views: [imageView, titleField, messageField, actions])
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = 8
@@ -1263,7 +1277,10 @@ final class MacEntryListEmptyView: NSView {
         onNewEntry?()
     }
 
-    func update(_ state: MacEntryListSnapshot.EmptyState?, offersNewEntry: Bool = false) {
+    @objc private func importFromEmptyGroup(_ sender: Any?) { onImport?() }
+
+    func update(_ state: MacEntryListSnapshot.EmptyState?, offersNewEntry: Bool = false, offersImport: Bool = false) {
+        importButton.isHidden = !offersImport
         newEntryButton.isHidden = offersNewEntry == false
         guard state != self.state else { return }
         self.state = state

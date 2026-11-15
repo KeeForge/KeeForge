@@ -9,7 +9,7 @@
 - The macOS workspace's Database Details button passes the live session; that is the only way Change Master Key is reachable on macOS.
 - The details root is a hub of summary rows. A new setting goes into a page's section, never onto the hub. Row wording lives in the pure `DatabaseSettingsSummary`.
 - The per-database AutoFill toggle goes through `DatabaseListViewModel.setAutoFillEnabled`, never the store directly, so disabling removes identities and enabling republishes the open session.
-- Each form's work, validation, and cancellation live in its view model (`DatabaseCreationViewModel`, `MasterKeyChangeViewModel`, `EncryptionSettingsViewModel`, `PasswordImportViewModel`). `DatabaseExportPresenter` owns the load, the hand-off (`.fileExporter` on macOS, the share sheet on iOS), and the failure alert for every export entry point. The iOS hand-off stages a temp file that is deleted when the share sheet closes; the current-copy action is labelled Export Copy on macOS and Share on iOS (`DatabaseExportLabels`), except in iOS Database Details, which says Export….
+- Each form's work, validation, and cancellation live in its view model (`DatabaseCreationViewModel`, `MasterKeyChangeViewModel`, `EncryptionSettingsViewModel`, `PasswordImportViewModel`). `DatabaseExportPresenter` owns the iOS load, share-sheet hand-off, and failure alert. On Mac, `.databaseExporter` bridges existing bindings to `MacDatabaseExporter` (native `NSSavePanel` and `NSAlert`); native callers can use the exporter directly. It writes only encrypted KDBX bytes to the picked URL without a temporary file. The iOS hand-off stages a temp file that is deleted when the share sheet closes; the current-copy action is labelled Export Copy on macOS and Share on iOS (`DatabaseExportLabels`), except in iOS Database Details, which says Export….
 
 ## Invariants
 
@@ -31,7 +31,7 @@
 - A master-key save asks for a destructive confirmation and then device-owner authentication. An authentication failure other than a user cancel must surface as an error, not look like success.
 - `EncryptionSettingsView` has no confirmation or authentication on purpose: the key does not change and the save keeps a backup. Back and interactive dismissal are disabled while it saves.
 - `DatabaseCreationView` blocks dismissal while creating; on disappearance `cancelPendingCreation()` clears secrets and rejects late results. It does not undo a cloud creation that already committed.
-- `PasswordImportView` discards its preview on disappearance and on lock, and blocks leaving while importing.
+- `PasswordImportView` discards its preview on disappearance and on lock, and blocks leaving while importing. Mac File ▸ Import Passwords… and empty-group import use `MacPasswordImportSheet`, the native form shell and group picker. It rechecks the workspace import guard on confirmation and discards plaintext on import, shell cancellation, and lock; the CSV is read once in place and never copied.
 
 ### Save conflict
 
@@ -40,7 +40,7 @@
 ## Tests
 
 - UI: `DatabaseListUITests`, `DatabaseCreationCompactUITests` / `DatabaseCreationRegularWidthUITests`, `MasterKeyChangeUITests`, `EncryptionSettingsUITests`, `SaveConflictMergeUITests`.
-- Unit: the four view models' `<Type>Tests`, `DatabaseSettingsSummaryTests`, `DatabaseRowStatusSummaryTests`.
+- Unit: `MacPasswordImportSheetTests` covers the picked URL, single read, frozen confirmation, close/lock discard and completion. `MacDatabaseExporterTests` covers current/backup byte identity, cancellation, failure and direct writes. The four view models' `<Type>Tests`, `DatabaseSettingsSummaryTests`, `DatabaseRowStatusSummaryTests`.
 - Visual: `ViewRenderTests.testDatabaseListRows` renders every row state in each shipped language and three layouts (`scripts/render-views.sh`). Check it after changing row text or layout. `PasswordImportViewModelTests` is in `PasswordImportTests.swift`.
 
 ## See also

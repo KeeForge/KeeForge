@@ -37,6 +37,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     private let passwordCopyAction: EntrySecretAction
     private let requestClose: @MainActor (NSWindow) -> Void
     private var closeObserver: NSObjectProtocol?
+    private var databaseExportTask: Task<Void, Never>?
 
     /// Menu validation and dispatch act only while this is the command target; set by the coordinator.
     var isCommandTarget: @MainActor () -> Bool = { true }
@@ -137,6 +138,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
                 guard let self else { return }
                 self.workspaceAlerts.invalidate()
                 self.workspaceSheets.invalidate()
+                self.databaseExportTask?.cancel()
                 self.filePanels.cancel()
                 self.attachmentPreview.windowClosed()
                 self.onWillClose?(self)
@@ -195,6 +197,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     func invalidate() {
         workspaceAlerts.invalidate()
         workspaceSheets.invalidate()
+        databaseExportTask?.cancel()
         filePanels.cancel()
         titleObservation.cancel()
         unlockFormObservation.cancel()
@@ -305,6 +308,18 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     @objc func expandAllGroups(_ sender: Any?) { workspaceCommands.expandAllGroups() }
     @objc func collapseAllGroups(_ sender: Any?) { workspaceCommands.collapseAllGroups() }
     @objc func syncNow(_ sender: Any?) { workspaceCommands.syncNow() }
+    @objc func importPasswords(_ sender: Any?) { workspaceCommands.importPasswords() }
+    @objc func exportDatabase(_ sender: Any?) {
+        guard workspaceCommands.canExportDatabase, databaseExportTask == nil else { return }
+        let exporter = MacDatabaseExporter(panels: filePanels) { [weak self] in
+            MacDatabaseExporter.showError($0, on: self?.window)
+        }
+        let request = DatabaseExportRequest.currentCopy(session.databaseReference)
+        databaseExportTask = Task { [weak self] in
+            await exporter.export(request)
+            self?.databaseExportTask = nil
+        }
+    }
     @objc func showDatabaseSettings(_ sender: Any?) { workspaceCommands.showDatabaseSettings() }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
@@ -347,6 +362,8 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         case #selector(expandAllGroups): return workspaceCommands.canExpandAllGroups
         case #selector(collapseAllGroups): return workspaceCommands.canCollapseAllGroups
         case #selector(syncNow): return workspaceCommands.canSyncNow
+        case #selector(importPasswords): return workspaceCommands.canImportPasswords
+        case #selector(exportDatabase): return workspaceCommands.canExportDatabase
         case #selector(showDatabaseSettings): return workspaceCommands.canShowDatabaseSettings
         default: return false
         }

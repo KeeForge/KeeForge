@@ -154,6 +154,23 @@ A favicon explicitly downloaded by the user still sends only the website domain
 to DuckDuckGo through the existing service, independently of automatic-icon
 settings. Once an icon is staged, its save continues even if the sheet closes.
 
+## Import and export
+
+`MacPasswordImportSheet` reads the Apple Passwords CSV once, in place, from the
+`NSOpenPanel` URL through `PasswordImportViewModel`'s size-limited off-main loader.
+It never copies the CSV. The plaintext preview is discarded after import, when
+the sheet closes, and on lock or invalidation; a late read cannot restore it.
+Import is refused while locked, read-only, saving, or the workspace is frozen by
+an inline editor. The source CSV stays where the user picked it; the form and
+result remind the user to delete it after checking the imported entries.
+
+`MacDatabaseExporter` reads only encrypted KDBX bytes from the current local file,
+server cache, or a backup through `DatabaseExportService`, and writes directly to
+the `NSSavePanel` destination without staging a temporary file. All Mac export
+entry points use this exporter. File ▸ Export remains available from a locked
+database window when its encrypted copy is readable; it needs no unlock key.
+The export error alert shows the system's reason. There is no plaintext export.
+
 ## Lock and unlock lifecycle
 
 [AppDelegate](App/AppDelegate.swift) owns the session store, lock services, and

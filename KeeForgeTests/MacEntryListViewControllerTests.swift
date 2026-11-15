@@ -603,6 +603,10 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertFalse(newEntry.isHidden, "An empty group offers New Entry")
         XCTAssertEqual(newEntry.accessibilityIdentifier(), "entry-list.empty.new-entry")
         XCTAssertEqual(newEntry.attributedTitle.string, String(localized: "New Entry") + "  ⌘N")
+        XCTAssertFalse(controller.emptyView.importButton.isHidden)
+        controller.emptyView.importButton.performClick(nil)
+        XCTAssertTrue(presentation.passwordImport)
+        presentation.passwordImport = false
         newEntry.performClick(nil)
         XCTAssertEqual(presentation.entryEditor?.form.createDestinationGroupID, tree.other.id, "New Entry is created in the empty group")
         presentation.closeEntryEditor()
@@ -638,6 +642,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         readOnlySession.workspace.selectedGroupID = readOnlyTree.other.id
         await settle()
         XCTAssertFalse(readOnly.emptyView.isHidden)
+        XCTAssertTrue(readOnly.emptyView.importButton.isHidden)
         XCTAssertTrue(readOnly.emptyView.newEntryButton.isHidden, "A read-only database offers no New Entry")
     }
 
@@ -675,6 +680,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         await gate.waitUntilStarted()
         await settle()
         XCTAssertTrue(session.isSaving)
+        XCTAssertFalse(MacWorkspaceCommands(session: session, presentation: MacWorkspacePresentation()).canImportPasswords)
         XCTAssertFalse(controller.tableView.isEnabled)
         XCTAssertTrue(menuItems.allSatisfy { controller.validateMenuItem($0) == false })
         XCTAssertTrue(controller.contextMenuItems(forRow: 0).allSatisfy { controller.validateMenuItem($0) == false })

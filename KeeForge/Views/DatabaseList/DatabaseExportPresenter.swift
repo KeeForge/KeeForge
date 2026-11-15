@@ -38,15 +38,18 @@ extension View {
     /// panel on macOS, the share sheet on iOS (which offers Save to Files).
     /// Sets `request` back to nil once that closes or loading fails.
     func databaseExporter(request: Binding<DatabaseExportRequest?>) -> some View {
+        #if os(macOS)
+        background { MacDatabaseExportPresenter(request: request) }
+        #else
         modifier(DatabaseExportPresenter(request: request))
+        #endif
     }
 }
 
+#if os(iOS)
 private struct DatabaseExportPresenter: ViewModifier {
     @Binding var request: DatabaseExportRequest?
 
-    @State private var payload: DatabaseExportService.ExportPayload?
-    @State private var isExporterPresented = false
     @State private var shareURL: URL?
     @State private var errorMessage: String?
 
@@ -56,32 +59,11 @@ private struct DatabaseExportPresenter: ViewModifier {
                 guard let request else { return }
                 await load(request)
             }
-            #if os(macOS)
-            .fileExporter(
-                isPresented: $isExporterPresented,
-                document: payload.map { KDBXExportDocument(data: $0.data) },
-                contentType: DocumentPickerService.databaseContentType,
-                defaultFilename: payload?.suggestedFilename
-            ) { result in
-                if case .failure(let error) = result {
-                    errorMessage = error.localizedDescription
-                }
-                finish()
-            }
-            // Cancelling the exporter only flips `isPresented`; `onCompletion`
-            // fires for success and failure alone.
-            .onChange(of: isExporterPresented) { _, isPresented in
-                if !isPresented {
-                    finish()
-                }
-            }
-            #else
             .background {
                 DatabaseShareSheet(fileURL: shareURL) {
                     finish()
                 }
             }
-            #endif
             .alert(
                 DatabaseExportLabels.failureTitle,
                 isPresented: Binding(
@@ -108,10 +90,6 @@ private struct DatabaseExportPresenter: ViewModifier {
                 loaded = try await DatabaseExportService.exportBackup(backup, for: reference)
             }
             guard !Task.isCancelled else { return }
-            #if os(macOS)
-            payload = loaded
-            isExporterPresented = true
-            #else
             let staged = try await Task.detached {
                 try DatabaseExportService.stageShareFile(loaded)
             }.value
@@ -120,7 +98,6 @@ private struct DatabaseExportPresenter: ViewModifier {
                 return
             }
             shareURL = staged
-            #endif
         } catch {
             guard !Task.isCancelled else { return }
             errorMessage = error.localizedDescription
@@ -129,8 +106,6 @@ private struct DatabaseExportPresenter: ViewModifier {
     }
 
     private func finish() {
-        isExporterPresented = false
-        payload = nil
         if let shareURL {
             DatabaseExportService.removeShareFile(shareURL)
         }
@@ -138,6 +113,8 @@ private struct DatabaseExportPresenter: ViewModifier {
         request = nil
     }
 }
+
+#endif
 
 #if os(iOS)
 /// Presents `UIActivityViewController` for `fileURL` from the view it backs,

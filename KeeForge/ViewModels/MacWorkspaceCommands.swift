@@ -35,6 +35,23 @@ struct MacWorkspaceCommands {
         return DatabaseCommands(session: session).save()
     }
 
+    var canImportPasswords: Bool {
+        guard let session = unfrozen else { return false }
+        return !session.isReadOnly && !session.isSaving
+    }
+
+    func importPasswords() {
+        guard canImportPasswords else { return }
+        presentation.passwordImport = true
+    }
+
+    var canExportDatabase: Bool {
+        guard let session else { return false }
+        return (try? DatabaseFileAccess.withReadableURL(for: session.databaseReference) {
+            FileManager.default.isReadableFile(atPath: $0.path)
+        }) == true
+    }
+
     // MARK: - Library
 
     var canShowCollection: Bool { unfrozen != nil }

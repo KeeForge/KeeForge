@@ -211,6 +211,55 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         XCTAssertTrue(presentation.isShowingDatabaseDetails)
     }
 
+    func testImportRequiresAWritableUnfrozenIdleSessionAndExportWorksWhileLocked() async throws {
+        let (session, presentation, _) = try await makeSession()
+        let commands = MacWorkspaceCommands(session: session, presentation: presentation)
+        XCTAssertTrue(commands.canImportPasswords)
+        commands.importPasswords()
+        XCTAssertTrue(presentation.passwordImport)
+        presentation.passwordImport = false
+        presentation.beginNewEntry(in: session)
+        XCTAssertFalse(commands.canImportPasswords)
+        commands.importPasswords()
+        XCTAssertFalse(presentation.passwordImport)
+        presentation.closeEntryEditor()
+        XCTAssertTrue(commands.canExportDatabase)
+        session.lockRequest(force: true)
+        XCTAssertFalse(commands.canImportPasswords)
+        XCTAssertTrue(commands.canExportDatabase)
+        XCTAssertFalse(MacWorkspaceCommands(session: nil, presentation: presentation).canExportDatabase)
+        let (readOnly, other, _) = try await makeSession(readOnly: true)
+        XCTAssertFalse(MacWorkspaceCommands(session: readOnly, presentation: other).canImportPasswords)
+    }
+
+    func testImportIsRefusedDuringAnInFlightSave() async throws {
+        let gate = SaveGate()
+        let (session, presentation, tree) = try await makeSession(save: { _, _, _, hash, _, _, _ in
+            await gate.signalStarted()
+            await gate.waitUntilOpen()
+            return .saved(newSHA512: hash)
+        })
+        try session.createGroup(named: "Draft", in: tree.work.id)
+        let save = Task { await session.saveHandlingError() }
+        await gate.waitUntilStarted()
+        let commands = MacWorkspaceCommands(session: session, presentation: presentation)
+        XCTAssertFalse(commands.canImportPasswords)
+        commands.importPasswords()
+        XCTAssertFalse(presentation.passwordImport)
+        await gate.open()
+        await save.value
+        XCTAssertTrue(commands.canImportPasswords)
+    }
+
+    func testExportIsDisabledWhenNoReadableCopyExists() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kdbx")
+        try Data([1]).write(to: url)
+        let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
+        try FileManager.default.removeItem(at: url)
+        let session = DatabaseViewModel(databaseReference: reference)
+        XCTAssertFalse(MacWorkspaceCommands(session: session, presentation: MacWorkspacePresentation()).canExportDatabase)
+    }
+
     // MARK: - Helpers
 
     private func assertDisabled(_ commands: MacWorkspaceCommands, file: StaticString = #filePath, line: UInt = #line) {
@@ -224,11 +273,12 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         XCTAssertFalse(commands.canShowDatabaseSettings, file: file, line: line)
     }
 
-    private func makeSession(readOnly: Bool = false) async throws -> (DatabaseViewModel, MacWorkspacePresentation, Tree) {
+    private func makeSession(readOnly: Bool = false,
+                             save: @escaping DatabaseViewModel.LocalSaveOperation = { _, _, _, hash, _, _, _ in .saved(newSHA512: hash) }) async throws -> (DatabaseViewModel, MacWorkspacePresentation, Tree) {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
         var reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
         reference.isReadOnly = readOnly
-        let session = DatabaseViewModel(databaseReference: reference,
+        let session = DatabaseViewModel(databaseReference: reference, localSaveOperation: save,
             quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })
         await session.unlock(password: "testpassword123")
         XCTAssertEqual(session.state, .unlocked)

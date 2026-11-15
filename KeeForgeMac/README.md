@@ -78,6 +78,23 @@ chooses one. Screen locking is always on. The strict background policy can
 optionally wait 1, 5 or 15 minutes (default Immediately); system lock triggers
 and authentication-hold settlement stay immediate. Updates are direct-build only.
 
+## Import and export
+
+File ▸ Import Passwords… and the empty-group Import Passwords… button open
+`MacPasswordImportSheet`: a native shell hosting the column form, file-error
+banner, preview and result. File selection uses `MacFilePanels`; destination
+selection uses the native group picker. Import requires a writable, unlocked,
+idle workspace with no inline editor. The preview is discarded on import,
+close and lock; the CSV stays at its source and the captions ask the user to
+remove it after checking the imported entries.
+
+File ▸ Export… uses `MacDatabaseExporter`, also callable by Database Settings.
+The existing `.databaseExporter` bindings for Settings, launcher rows and
+pending-upload recovery bridge to it. It writes the current encrypted local
+copy, server cache or selected backup directly through `NSSavePanel`, with no
+temporary file. A locked database window can export a readable encrypted copy.
+Failures use a native alert with the system reason.
+
 ## Locked window
 
 A locked window has no toolbar, only its name in the titlebar.
@@ -109,7 +126,8 @@ around the native split representable, inside the always-mounted root host.
 It keeps command observers and the saving overlay. The window controller owns
 `MacWorkspaceSheets` (New/Edit Group, the native Move/Restore outline picker,
 and Database Settings) and `MacWorkspaceAlerts` (delete,
-save-error, dirty-lock, conflict, merge, sync and push results). Presentation
+save-error, dirty-lock, conflict, merge, sync and push results). The native
+password import sheet is also owned by `MacWorkspaceSheets`. Presentation
 state remains on `MacWorkspacePresentation`. Both presenters end on lock,
 window close and invalidation, reject answers from old lock cycles, and drain
 queued sheet requests after detachment. `MacFormSheetController` caps sheets at

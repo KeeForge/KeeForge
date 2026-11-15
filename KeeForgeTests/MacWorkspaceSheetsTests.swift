@@ -6,7 +6,7 @@ import XCTest
 @MainActor
 final class MacWorkspaceSheetsTests: XCTestCase {
     func testEverySheetEndsOnLockAndAnOldAnswerCannotActAfterUnlock() async throws {
-        for kind in 0..<4 {
+        for kind in 0..<5 {
             let (presenter, database, state, _) = try await makePresenter()
             try request(kind, database, state)
             await settle()
@@ -18,6 +18,7 @@ final class MacWorkspaceSheetsTests: XCTestCase {
             XCTAssertFalse(shell.isPresented)
             XCTAssertNil(state.groupEditor)
             XCTAssertNil(state.pendingMove)
+            XCTAssertFalse(state.passwordImport)
             XCTAssertFalse(state.isShowingDatabaseDetails)
             XCTAssertFalse(state.isShowingNewGroupSheet)
             XCTAssertEqual(state.newGroupName, "")
@@ -54,7 +55,7 @@ final class MacWorkspaceSheetsTests: XCTestCase {
     }
 
     func testInvalidationCancelsEverySheetAndLockedWindowRejectsNewRequests() async throws {
-        for kind in 0..<4 {
+        for kind in 0..<5 {
             let (presenter, database, state, _) = try await makePresenter()
             try request(kind, database, state)
             await settle()
@@ -65,6 +66,7 @@ final class MacWorkspaceSheetsTests: XCTestCase {
             XCTAssertFalse(state.isShowingNewGroupSheet)
             XCTAssertNil(state.groupEditor)
             XCTAssertNil(state.pendingMove)
+            XCTAssertFalse(state.passwordImport)
             XCTAssertFalse(state.isShowingDatabaseDetails)
             database.lockRequest(force: true)
         }
@@ -212,7 +214,8 @@ final class MacWorkspaceSheetsTests: XCTestCase {
         case 1:
             state.beginGroupEdit(groupID: try XCTUnwrap(database.visibleRootGroup?.groups.first).id, in: database)
         case 2: state.pendingMove = .entry(try XCTUnwrap(database.visibleRootGroup?.allEntries.first).id)
-        default: state.isShowingDatabaseDetails = true
+        case 3: state.isShowingDatabaseDetails = true
+        default: state.passwordImport = true
         }
     }
 
