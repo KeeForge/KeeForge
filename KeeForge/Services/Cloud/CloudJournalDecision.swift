@@ -12,7 +12,9 @@ enum CloudJournalDecision {
 
     static func state(of marker: PendingUploadQueue.Marker) -> State {
         if let version = marker.journalVersion, version != 1 { return .invalid }
+        if let binding = marker.binding, !binding.isRecognized { return .recoveryRequired }
         guard marker.journalVersion != nil else { return .legacy }
+        guard marker.binding != nil else { return .recoveryRequired }
         guard marker.intendedPayloadPath != nil, marker.intendedPayloadSHA512 != nil,
               marker.localCommitBaseline != nil else { return .invalid }
         if marker.requiresLocalRecovery == true { return .recoveryRequired }
@@ -47,6 +49,10 @@ enum CloudJournalDecision {
 
     static func delivery(_ snapshot: DeliverySnapshot) -> Delivery {
         let marker = snapshot.marker
+        if marker.binding == nil || marker.binding?.isRecognized != true {
+            if marker.uploadAttemptID != nil && marker.confirmedAt == nil && marker.attemptIsFenced != true { return .retain }
+            return marker.journalVersion == nil && marker.isPayloadFinalized == true ? .conflict : .retain
+        }
         if state(of: marker) == .confirmed { return .reconcile }
         if snapshot.siblings.contains(where: {
             $0.keyChange != nil || ($0.uploadAttemptID != nil && $0.confirmedAt == nil && $0.attemptIsFenced != true)
@@ -89,6 +95,17 @@ enum CloudJournalDecision {
               !(marker.keyEpoch == nil && snapshot.lastMasterKeyChangeAt.map { marker.createdAt < $0 } == true) else { return .reject }
         if snapshot.head == snapshot.operationID { return .restoreHead }
         return snapshot.hasVerifiedDescendant ? .restoreDescendant : .reject
+    }
+
+    static func permitsAuthenticatedMergeSource(_ source: PendingUploadQueue.StoredMarker, reference: DatabaseReference) -> Bool {
+        let marker = source.marker
+        guard marker.databaseId == reference.id, marker.isPayloadFinalized == true,
+              marker.confirmedAt == nil, marker.uploadAttemptID == nil || marker.attemptIsFenced == true,
+              marker.intendedPayloadPath != nil, marker.intendedPayloadSHA512 != nil else { return false }
+        if marker.journalVersion == nil && marker.binding == nil { return true }
+        return state(of: marker) == .ready && marker.keyEpoch == reference.cloudSyncMetadata?.keyEpoch
+            && marker.localCommitBaseline?.hasCompatibleEpoch(reference) == true
+            && PendingUploadQueue.hasBoundAuthority(source, reference: reference)
     }
 
     static func permitsMutation(_ markers: [PendingUploadQueue.Marker], changingKey: Bool) -> Bool {

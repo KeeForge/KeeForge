@@ -128,3 +128,5 @@
 - The cloud merge caller may supply a synchronous replacement fence and captured cache lease to the existing writer. Its final coordinated accessor holds exact reference/source authority through local-owner validation and replacement; no callback awaits, performs KDF or acquires a waiting list lock. The local saver retains all ordinary replacement/outcome and revocation semantics.
 
 - Cloud key publication validates the captured local head operation together with the epoch and cache digest while holding the publication fence.
+
+- Confirmed cloud rekey installation coordinates the cache and registry together and rechecks the exact bound journal while holding immediate list, commit and local-owner locks. Existing and missing cache installation use the already-coordinated replacement seam; key deletion and durable registry publication occur only inside that authorization.

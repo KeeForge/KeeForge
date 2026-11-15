@@ -4103,9 +4103,7 @@ final class DatabaseViewModel {
                   reference.cloudSyncMetadata?.provider == remote.reference.cloudSyncMetadata?.provider,
                   reference.cloudSyncMetadata?.accountId == remote.reference.cloudSyncMetadata?.accountId,
                   reference.cloudSyncMetadata?.fileId == remote.reference.cloudSyncMetadata?.fileId,
-                  sources.allSatisfy({ $0.marker.databaseId == reference.id && CloudJournalDecision.state(of: $0.marker) == .ready
-                    && $0.marker.keyEpoch == reference.cloudSyncMetadata?.keyEpoch
-                    && $0.marker.localCommitBaseline?.hasCompatibleEpoch(reference) == true }) else { throw CloudSaveRecoveryWarning() }
+                  sources.allSatisfy({ CloudJournalDecision.permitsAuthenticatedMergeSource($0, reference: reference) }) else { throw CloudSaveRecoveryWarning() }
             var root = draft.rootGroup
             var meta = draft.meta
             for source in sources {

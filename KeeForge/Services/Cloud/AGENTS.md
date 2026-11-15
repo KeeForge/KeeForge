@@ -55,6 +55,10 @@
 - Metadata can avoid a byte download only through a content-identifying revision declared by the adapter or a matching recorded content digest. WebDAV weak/Last-Modified validators do not identify bytes; FTP’s hash revision does and avoids a second probe transfer. Write guarantees remain separate from this metadata evidence.
 - Dropbox and OneDrive replacement content uploads have no internal retry or uncertain range fallback; shipped create-only behavior is unchanged. OneDrive session setup and reads retain their separate retry policies. A current WebDAV/OneDrive PUT 412 proves rejection only without an earlier uncertain content request; FTP preflight mismatch proves no target install, while post-rename failures remain uncertain. Effective write guarantees describe provider limits, including weak WebDAV validators, large OneDrive uploads and FTP preflight-only writes.
 
+### Journal binding
+
+- New cloud markers capture their operation and original database, provider/account/file identity, factor-preference fingerprint and head/epoch/date before any upload. Confirmed rekey reconciliation coordinates cache and registry together, then immediately tries the list, commit and local-owner locks; it rechecks the exact marker and original or already-installed binding before key or cache effects. A failed or unconfirmed publication retains its journal and known ciphertext. Legacy and unknown bindings do not grant automatic delivery authority; authenticated legacy merge and export remain separately verified recovery paths.
+
 ### Persisted shapes
 
 - Never persist a rendered sentence. A sync failure is stored as a `CloudSyncIssue` code and localized at display time; new error types conform to `CloudSyncIssueConvertible`. Only `.unknown` carries text.

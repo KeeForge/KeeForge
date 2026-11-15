@@ -18,6 +18,28 @@ final class PendingUploadQueueTests: XCTestCase {
         try super.tearDownWithError()
     }
 
+    func test_bindingRejectsCollidingAccountsAndChangedFactors() throws {
+        let metadata = CloudSyncMetadata(provider: "webdav", accountId: "a/b", fileId: "vault", displayPath: "vault",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)
+        let original = DatabaseReference(id: UUID(), nickname: nil, filename: "vault.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: Data([1, 2]), keyFileFilename: "key", isQuickLaunch: false, lastOpenedAt: nil,
+            addedAt: .now, colorTag: nil, legacyKeychainFilename: nil, source: .cloud(metadata))
+        let operationID = UUID()
+        let binding = try PendingUploadQueue.JournalBinding.capture(reference: original, operationID: operationID)
+        let reloaded = try JSONDecoder().decode(PendingUploadQueue.JournalBinding.self, from: JSONEncoder().encode(binding))
+        XCTAssertTrue(reloaded.matchesOriginal(reference: original, operationID: operationID))
+        var foreign = original
+        var foreignMetadata = metadata
+        foreignMetadata = CloudSyncMetadata(provider: "webdav", accountId: "a?b", fileId: "vault", displayPath: "vault",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)
+        foreign.source = .cloud(foreignMetadata)
+        XCTAssertFalse(reloaded.matchesAuthority(reference: foreign, operationID: operationID))
+        foreign = original
+        foreign.keyFileBookmarkData = Data([2, 1])
+        XCTAssertFalse(reloaded.matchesAuthority(reference: foreign, operationID: operationID))
+        XCTAssertFalse(reloaded.matchesAuthority(reference: original, operationID: UUID()))
+    }
+
     func test_enqueue_failedMarkerWriteDoesNotNotify() throws {
         let notificationCounter = Counter()
         let environment = makeEnvironment(

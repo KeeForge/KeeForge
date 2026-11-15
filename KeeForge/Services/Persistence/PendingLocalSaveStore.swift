@@ -729,11 +729,24 @@ enum PendingLocalSaveStore {
         var bookmarkRenewal: DatabaseListStore.DatabaseBookmarkRenewal? = nil
     }
 
-    static func captureCacheReadLease(for reference: DatabaseReference) throws -> CacheReadLease {
+    struct CloudRekeyRecoveryEpoch: Sendable {
+        fileprivate let observed: PreferenceObservation
+        fileprivate let previousDate: Date?
+
+        init?(binding: PendingUploadQueue.JournalBinding, reference: DatabaseReference, operationID: UUID,
+              change: PendingUploadQueue.KeyChange, committedAt: Date) {
+            guard binding.matchesInstalled(reference: reference, operationID: operationID, keyChange: change, committedAt: committedAt) else { return nil }
+            observed = PreferenceObservation(reference)
+            previousDate = binding.baseline?.lastMasterKeyChangeAt
+        }
+    }
+
+    static func captureCacheReadLease(for reference: DatabaseReference, rekeyRecovery: CloudRekeyRecoveryEpoch? = nil) throws -> CacheReadLease {
         try withLock(for: reference.id) {
             try requireNotRemoved(reference.id)
             let state = try loadState(reference.id) ?? OwnerState(version: 1, removed: false)
-            if case .known(let date, _) = state.epoch, date != reference.lastMasterKeyChangeAt { throw OwnershipError.sourceChanged }
+            if case .known(let date, _) = state.epoch, date != reference.lastMasterKeyChangeAt,
+               !(rekeyRecovery?.observed.matches(reference) == true && date == rekeyRecovery?.previousDate) { throw OwnershipError.sourceChanged }
             return CacheReadLease(databaseID: reference.id, epochID: state.epoch.id, masterKeyChangedAt: reference.lastMasterKeyChangeAt, reference: PreferenceObservation(reference))
         }
     }
@@ -853,7 +866,8 @@ enum PendingLocalSaveStore {
     }
 
     static func withCachePublicationAuthorization<T>(
-        for databaseID: UUID, sha512: Data, lease: CacheReadLease? = nil, nonBlocking: Bool = false, _ publish: () throws -> T
+        for databaseID: UUID, sha512: Data, lease: CacheReadLease? = nil, nonBlocking: Bool = false,
+        rekeyRecovery: CloudRekeyRecoveryEpoch? = nil, _ publish: () throws -> T
     ) throws -> T {
         try withLock(for: databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(databaseID)
@@ -865,7 +879,8 @@ enum PendingLocalSaveStore {
                           renewal.before.lastMasterKeyChangeAt == lease.masterKeyChangedAt,
                           lease.reference.matches(renewal.before) else { throw OwnershipError.sourceChanged }
                 }
-                if case .known(let date, _) = state.epoch, date != lease.masterKeyChangedAt { throw OwnershipError.sourceChanged }
+                if case .known(let date, _) = state.epoch, date != lease.masterKeyChangedAt,
+                   !(rekeyRecovery?.observed == lease.reference && date == rekeyRecovery?.previousDate) { throw OwnershipError.sourceChanged }
             }
             if let admission = state.operation.admission, admission.purpose.isMasterKeyChange {
                 guard admission.intendedSHA512 == sha512 else { throw OwnershipError.targetChanged }

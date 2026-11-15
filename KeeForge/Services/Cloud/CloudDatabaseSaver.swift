@@ -108,7 +108,9 @@ enum CloudDatabaseSaver {
                             let bytes = try Data(contentsOf: protected)
                             let sha = FileDigest.sha512(bytes)
                             guard authentication.sources.contains(where: {
-                                $0.id == current.cloudSyncMetadata?.localHeadOperationID && $0.marker.intendedPayloadSHA512 == sha
+                                $0.marker.intendedPayloadSHA512 == sha
+                                    && ($0.id == current.cloudSyncMetadata?.localHeadOperationID
+                                        || ($0.marker.journalVersion == nil && $0.marker.binding == nil))
                             }) else { throw SaveError.saveContextUnavailable }
                             let context = MergeContext(authentication, reference: current, sha512: sha,
                                 target: try PendingLocalSaveStore.targetIdentity(at: protected),
@@ -173,9 +175,7 @@ enum CloudDatabaseSaver {
             let originals = journal.filter { !allowingOutput || $0.id != operationID }
             guard originals.count == sources.count else { throw SaveError.saveContextUnavailable }
             for source in sources {
-                guard source.marker.databaseId == reference.id, CloudJournalDecision.state(of: source.marker) == .ready,
-                      source.marker.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
-                      source.marker.localCommitBaseline?.hasCompatibleEpoch(reference) == true,
+                guard CloudJournalDecision.permitsAuthenticatedMergeSource(source, reference: reference),
                       originals.contains(where: { $0.id == source.id && $0.marker == source.marker }),
                       FileDigest.sha512(try PendingUploadQueue.readImmutablePayload(source)) == source.marker.intendedPayloadSHA512 else {
                     throw SaveError.saveContextUnavailable
@@ -335,6 +335,8 @@ enum CloudDatabaseSaver {
             }
             return try LocalDatabaseSaver.replaceFileAtomically(data, at: url, expectedSHA512: sha, authorization: authorization)
         }
+        var rekeyRegistryIO: DurableFileWriteIO = .init()
+        var rekeyReplacementIO: LocalDatabaseSaver.ReplacementIO = .init()
         var synchronizeCacheFile: @Sendable (URL) throws -> Void = CloudDatabaseSaver.synchronizeCacheFile
         var synchronizeCacheDirectory: @Sendable (URL) throws -> Void = synchronizeDirectory
         var installMissingCache: @Sendable (Data, URL) throws -> Bool = CloudDatabaseSaver.installMissingCache
@@ -501,7 +503,8 @@ enum CloudDatabaseSaver {
             try PendingUploadQueue.recoverLocalCommits(for: reference.id, environment: environment.queue)
             return try PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue)
         }
-        guard CloudJournalDecision.permitsMutation(existing.map(\.marker), changingKey: keyChange != nil) else {
+        guard CloudJournalDecision.permitsMutation(existing.map(\.marker), changingKey: keyChange != nil),
+              mergeContext != nil || !existing.contains(where: { $0.marker.journalVersion == nil }) else {
             throw SaveError.saveContextUnavailable
         }
         let cacheURL = environment.cacheURL(reference)
@@ -575,9 +578,9 @@ enum CloudDatabaseSaver {
             guard latestReference.cloudSyncMetadata?.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
                   latestReference.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else { throw SaveError.saveContextUnavailable }
             var prepared = try PendingUploadQueue.prepare(
-                reference: latestReference, currentData: currentData, intendedData: newData,
+                reference: reference, currentData: currentData, intendedData: newData,
                 cacheURL: cacheURL, keyChange: keyChange,
-                remoteBaseSHA512: baseline.reconciledRemoteSHA512, operationID: mergeContext?.operationID ?? ticket?.operationID ?? saveTicket?.operationID ?? UUID(), environment: environment.queue
+                remoteBaseSHA512: baseline.reconciledRemoteSHA512, authenticatedMergeSources: mergeContext?.sources, operationID: mergeContext?.operationID ?? ticket?.operationID ?? saveTicket?.operationID ?? UUID(), environment: environment.queue
             )
             intent = prepared
             if keyChange != nil { return .replaced() }
@@ -672,16 +675,36 @@ enum CloudDatabaseSaver {
         var reference = reference
         guard var stored = try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue, {
             try PendingUploadQueue.recoverLocalCommits(for: reference.id, environment: environment.queue)
-            guard let currentReference = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else {
+            guard let currentReference = try DatabaseListStore.readDatabasesStrict().first(where: { $0.id == reference.id }) else {
                 throw SaveError.saveContextUnavailable
             }
             reference = currentReference
             try PendingUploadQueue.preserveLegacyPayloads(for: reference, environment: environment.queue)
-            guard let current = PendingUploadQueue.listMarkers(for: reference.id, environment: environment.queue).first(where: { $0.id == snapshot.id }) else {
+            guard let current = try PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first(where: { $0.id == snapshot.id }) else {
                 return nil as PendingUploadQueue.StoredMarker?
             }
             return try PendingUploadQueue.recoverPrepared(current, environment: environment.queue)
         }) else { return nil }
+        let isInstalledRekey = stored.marker.confirmedAt.flatMap { date in
+            stored.marker.keyChange.flatMap { change in
+                stored.marker.binding?.matchesInstalled(reference: reference, operationID: stored.id, keyChange: change, committedAt: date)
+            }
+        } == true
+        guard PendingUploadQueue.hasBoundAuthority(stored, reference: reference) || isInstalledRekey else {
+            if stored.marker.binding == nil, stored.marker.journalVersion == nil,
+               stored.marker.isPayloadFinalized == true,
+               stored.marker.uploadAttemptID == nil || stored.marker.attemptIsFenced == true {
+                try PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
+                return .conflict(remoteRev: nil)
+            }
+            return .retained(updatedReference: reference)
+        }
+        guard let binding = stored.marker.binding,
+              reference.cloudSyncMetadata?.localHeadOperationID == binding.baseline?.headOperationID
+                || reference.cloudSyncMetadata?.localHeadOperationID == stored.id
+                || PendingUploadQueue.localDescendantOwner(of: stored, reference: reference, environment: environment.queue) != nil else {
+            return .retained(updatedReference: reference)
+        }
         if stored.marker.confirmedAt != nil {
             return try recoverConfirmed(stored, reference: reference, environment: environment)
         }
@@ -837,7 +860,13 @@ enum CloudDatabaseSaver {
     private static func verifiedCacheReference(
         owner: PendingUploadQueue.StoredMarker, referenceID: UUID, environment: Environment
     ) -> DatabaseReference? {
-        guard let current = DatabaseListStore.databases.first(where: { $0.id == referenceID }),
+        guard let current = try? DatabaseListStore.readDatabasesStrict().first(where: { $0.id == referenceID }),
+              PendingUploadQueue.hasBoundAuthority(owner, reference: current)
+                || (owner.marker.keyChange.flatMap { change in
+                    owner.marker.confirmedAt.flatMap { date in
+                        owner.marker.binding?.matchesInstalled(reference: current, operationID: owner.id, keyChange: change, committedAt: date)
+                    }
+                } == true),
               current.cloudSyncMetadata?.keyEpoch == owner.marker.keyEpoch,
               current.cloudSyncMetadata?.localHeadOperationID == owner.id,
               (try? environment.readData(environment.cacheURL(current))).map(FileDigest.sha512) == (owner.marker.intendedPayloadSHA512 ?? owner.marker.openTimeSHA512) else { return nil }
@@ -849,10 +878,34 @@ enum CloudDatabaseSaver {
         bytes: Data, environment: Environment
     ) throws -> PendingUploadPushResult {
         do {
+            if stored.marker.keyChange != nil {
+                let snapshot = try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue) {
+                    guard let exact = try PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first(where: { $0.id == stored.id }),
+                          exact.marker == stored.marker else { throw SaveError.rekeyAppliedRemotely }
+                    return exact
+                }
+                let publication = DatabaseListStore.publishConfirmedCloudRekey(snapshot, cache: environment.cacheURL(reference), bytes: bytes,
+                    queue: environment.queue, registryIO: environment.rekeyRegistryIO, replacementIO: environment.rekeyReplacementIO,
+                    backup: { current, previous in
+                        let directory = environment.backupDirectoryURL(current)
+                        try environment.createDirectory(directory)
+                        try environment.writeBackup(previous, directory.appendingPathComponent(backupFilename(for: environment.now())))
+                    }, deleteOldKeys: { current in
+                        KeychainService.deleteCompositeKey(for: current.id)
+                        if let legacy = current.legacyKeychainFilename { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
+                    })
+                switch publication {
+                case .durable(let updated): return .saved(updatedReference: updated)
+                case .retirementUnconfirmed(let updated): return .retained(updatedReference: updated)
+                case .cacheUnconfirmed, .registryNotPublished, .registryUnconfirmed:
+                    return .retained(updatedReference: reference)
+                case .rejected: throw SaveError.rekeyAppliedRemotely
+                }
+            }
             return try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue) {
                 let payloadSHA = FileDigest.sha512(bytes)
                 try PendingUploadQueue.recoverLocalCommits(for: reference.id, environment: environment.queue)
-                guard var current = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else {
+                guard var current = try DatabaseListStore.readDatabasesStrict().first(where: { $0.id == reference.id }) else {
                     throw SaveError.saveContextUnavailable
                 }
                 let descendant = stored.marker.keyChange == nil
@@ -862,30 +915,10 @@ enum CloudDatabaseSaver {
                     lastMasterKeyChangeAt: current.lastMasterKeyChangeAt, hasVerifiedDescendant: descendant != nil))
                 guard completion != .reject else { throw SaveError.saveContextUnavailable }
                 if let rekey = stored.marker.keyChange {
-                    guard PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).contains(where: {
-                        $0.id == stored.id && $0.marker == stored.marker
-                    }) else { throw SaveError.rekeyAppliedRemotely }
-                    let publishingEpoch = completion == .publishKeyEpoch
-                    if !publishingEpoch {
-                        guard let observed = current.cloudSyncMetadata,
-                              observed.localHeadOperationID == stored.id,
-                              case .published(let durable) = DatabaseListStore.compareAndUpdateCloudSyncMetadata(
-                                for: current.id, ifUnchangedFrom: observed, observedReference: current, confirmUnchanged: true, mutate: { _ in }
-                              ) else { throw SaveError.rekeyAppliedRemotely }
-                        current = durable
-                    }
-                    try restoreConfirmedCache(stored, reference: current, bytes: bytes, allowMissing: !publishingEpoch,
-                        beforeReplacement: {
-                            if publishingEpoch {
-                                KeychainService.deleteCompositeKey(for: current.id)
-                                if let legacy = current.legacyKeychainFilename { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
-                            }
-                        }, environment: environment)
-                    if publishingEpoch {
-                        guard let updated = DatabaseListStore.recordCloudLocalCommit(
-                            for: current.id, operationID: stored.id, rekey: rekey, committedAt: stored.marker.confirmedAt ?? .now
-                        ) else { throw SaveError.rekeyAppliedRemotely }
-                        current = updated
+                    guard let binding = stored.marker.binding, let committedAt = stored.marker.confirmedAt,
+                          binding.matchesInstalled(reference: current, operationID: stored.id, keyChange: rekey, committedAt: committedAt),
+                          (try? environment.readData(environment.cacheURL(current))).map(FileDigest.sha512) == stored.marker.intendedPayloadSHA512 else {
+                        throw SaveError.rekeyAppliedRemotely
                     }
                 }
                 guard PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).contains(where: {

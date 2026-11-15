@@ -502,7 +502,7 @@ enum LocalDatabaseSaver {
                     replaceOutcome = try PendingUploadQueue.withCommitLock(for: reference.id) {
                         guard let latest = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
                               PendingUploadQueue.LocalCommitBaseline(reference: reference).hasCompatibleEpoch(latest) else { throw SaveError.saveContextUnavailable }
-                        var intent = try PendingUploadQueue.prepare(reference: latest, currentData: currentData,
+                        var intent = try PendingUploadQueue.prepare(reference: reference, currentData: currentData,
                             intendedData: newData, cacheURL: location.url)
                         let outcome: ReplaceOutcome
                         do { outcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512, writeAuthorization) }
@@ -1116,6 +1116,17 @@ enum LocalDatabaseSaver {
         var observedFailure: @Sendable (String, Error) -> Void = { _, _ in }
     }
 
+    private static func withStagedReplacement<T>(_ data: Data, at target: URL, io: ReplacementIO,
+                                                   _ body: (URL) throws -> T) throws -> T {
+        let manager = FileManager.default
+        let directory = try manager.url(for: .itemReplacementDirectory, in: .userDomainMask,
+            appropriateFor: target, create: true)
+        defer { try? manager.removeItem(at: directory) }
+        let staged = directory.appendingPathComponent("keeforge-save-\(UUID().uuidString)")
+        try io.stage(data, staged)
+        return try body(staged)
+    }
+
     static func replaceFileAtomically(
         _ data: Data, at url: URL, expectedSHA512: Data?,
         authorization: ReplacementAuthorization? = nil, io: ReplacementIO = .init()
@@ -1138,62 +1149,59 @@ enum LocalDatabaseSaver {
                         guard FileDigest.sha512(current) == expectedSHA512 else { return .changed(currentData: current) }
                     }
                     phase = "staging"
-                    let stagingDirectory = try manager.url(for: .itemReplacementDirectory, in: .userDomainMask,
-                        appropriateFor: writingURL, create: true)
-                    defer { try? manager.removeItem(at: stagingDirectory) }
-                    let staged = stagingDirectory.appendingPathComponent("keeforge-save-\(UUID().uuidString)")
-                    try io.stage(data, staged)
-                    let perform: (PendingLocalSaveStore.CommitReceipt?) throws -> ReplaceOutcome = { receipt in
-                        try authorization?.beforeReplacement?()
-                        enteredReplacement = true
-                        phase = "replacement"
-                        var replacementThrew = false
-                        do {
-                            _ = try manager.replaceItemAt(writingURL, withItemAt: staged, backupItemName: nil, options: [])
-                        } catch {
-                            replacementThrew = true
-                            failureObservation = (phase, error)
+                    return try withStagedReplacement(data, at: writingURL, io: io) { staged in
+                        let perform: (PendingLocalSaveStore.CommitReceipt?) throws -> ReplaceOutcome = { receipt in
+                            try authorization?.beforeReplacement?()
+                            enteredReplacement = true
+                            phase = "replacement"
+                            var replacementThrew = false
+                            do {
+                                _ = try manager.replaceItemAt(writingURL, withItemAt: staged, backupItemName: nil, options: [])
+                            } catch {
+                                replacementThrew = true
+                                failureObservation = (phase, error)
+                            }
+                            guard let installed = try? Data(contentsOf: writingURL), FileDigest.sha512(installed) == intended,
+                                  let identity = try? PendingLocalSaveStore.targetIdentity(at: writingURL) else { return .indeterminate }
+                            var installedReceipt = receipt
+                            if installedReceipt == nil, let authorization {
+                                installedReceipt = .init(databaseID: authorization.databaseID, sha512: intended)
+                            }
+                            var durable = false
+                            if !replacementThrew {
+                                do { try io.synchronize(writingURL.deletingLastPathComponent()); durable = true } catch {}
+                            }
+                            let installedTarget = PendingLocalSaveStore.InstalledTarget(target: identity, sha512: intended)
+                            observedEffect = durable ? .confirmed(installedTarget) : .unconfirmed(installedTarget)
+                            installedReceipt?.targetCommit = observedEffect
+                            installedReceipt?.encryptedSnapshot = data
+                            return durable ? .replaced(installedReceipt) : .replacedWithoutConfirmedDurability(installedReceipt)
                         }
-                        guard let installed = try? Data(contentsOf: writingURL), FileDigest.sha512(installed) == intended,
-                              let identity = try? PendingLocalSaveStore.targetIdentity(at: writingURL) else { return .indeterminate }
-                        var installedReceipt = receipt
-                        if installedReceipt == nil, let authorization {
-                            installedReceipt = .init(databaseID: authorization.databaseID, sha512: intended)
+                        if let authorization {
+                            phase = "owner"
+                            let replaceWithOwner = { () throws -> ReplaceOutcome in
+                                let authorized = try PendingLocalSaveStore.withWriteAuthorization(
+                                    for: authorization.databaseID, token: authorization.token,
+                                    expectedMasterKeyChangeAt: authorization.expectedMasterKeyChangeAt,
+                                    enforcesEpoch: authorization.enforcesEpoch, isMasterKeyChange: authorization.isMasterKeyChange,
+                                    association: authorization.association, prepared: authorization.prepared,
+                                    intendedSHA512: intended, observeTarget: {
+                                        let bytes = try Data(contentsOf: readingURL ?? writingURL)
+                                        if let expectedSHA512, FileDigest.sha512(bytes) != expectedSHA512 {
+                                            throw CoordinatedConflict(currentData: bytes)
+                                        }
+                                        return (try PendingLocalSaveStore.targetIdentity(at: writingURL), FileDigest.sha512(bytes))
+                                    }, targetIsSharedCopy: authorization.targetIsSharedCopy,
+                                    cacheLease: authorization.cacheLease, io: authorization.storageIO, perform
+                                )
+                                targetWrite = authorized.targetWrite
+                                return authorized.value
+                            }
+                            if let fence = authorization.coordinatedFence { return try fence(writingURL, replaceWithOwner) }
+                            return try replaceWithOwner()
                         }
-                        var durable = false
-                        if !replacementThrew {
-                            do { try io.synchronize(writingURL.deletingLastPathComponent()); durable = true } catch {}
-                        }
-                        let installedTarget = PendingLocalSaveStore.InstalledTarget(target: identity, sha512: intended)
-                        observedEffect = durable ? .confirmed(installedTarget) : .unconfirmed(installedTarget)
-                        installedReceipt?.targetCommit = observedEffect
-                        installedReceipt?.encryptedSnapshot = data
-                        return durable ? .replaced(installedReceipt) : .replacedWithoutConfirmedDurability(installedReceipt)
+                        return try perform(nil)
                     }
-                    if let authorization {
-                        phase = "owner"
-                        let replaceWithOwner = { () throws -> ReplaceOutcome in
-                            let authorized = try PendingLocalSaveStore.withWriteAuthorization(
-                                for: authorization.databaseID, token: authorization.token,
-                                expectedMasterKeyChangeAt: authorization.expectedMasterKeyChangeAt,
-                                enforcesEpoch: authorization.enforcesEpoch, isMasterKeyChange: authorization.isMasterKeyChange,
-                                association: authorization.association, prepared: authorization.prepared,
-                                intendedSHA512: intended, observeTarget: {
-                                    let bytes = try Data(contentsOf: readingURL ?? writingURL)
-                                    if let expectedSHA512, FileDigest.sha512(bytes) != expectedSHA512 {
-                                        throw CoordinatedConflict(currentData: bytes)
-                                    }
-                                    return (try PendingLocalSaveStore.targetIdentity(at: writingURL), FileDigest.sha512(bytes))
-                                }, targetIsSharedCopy: authorization.targetIsSharedCopy,
-                                cacheLease: authorization.cacheLease, io: authorization.storageIO, perform
-                            )
-                            targetWrite = authorized.targetWrite
-                            return authorized.value
-                        }
-                        if let fence = authorization.coordinatedFence { return try fence(writingURL, replaceWithOwner) }
-                        return try replaceWithOwner()
-                    }
-                    return try perform(nil)
                 } catch let conflict as CoordinatedConflict { return .changed(currentData: conflict.currentData) }
                 catch let failure as LocalSaveBeforeReplacementFailure { throw failure }
                 catch {
@@ -1264,6 +1272,37 @@ enum LocalDatabaseSaver {
             throw LocalSaveBeforeReplacementFailure(underlying: CocoaError(.fileWriteUnknown))
         }
         return finalize(try result.get())
+    }
+
+    /// The caller holds the target coordination and owner authorization.
+    static func replaceAlreadyCoordinated(_ data: Data, at target: URL, expectedSHA512: Data?,
+                                          io: ReplacementIO = .init(), beforeReplacement: () -> Void) -> DurableWriteOutcome {
+        let manager = FileManager.default
+        var enteredReplacement = false
+        do {
+            if let expectedSHA512 {
+                let current = try Data(contentsOf: target)
+                guard FileDigest.sha512(current) == expectedSHA512 else { throw SaveError.saveContextUnavailable }
+            }
+            return try withStagedReplacement(data, at: target, io: io) { staged in
+                beforeReplacement()
+                enteredReplacement = true
+                if expectedSHA512 != nil {
+                    _ = try manager.replaceItemAt(target, withItemAt: staged, backupItemName: nil, options: [])
+                } else {
+                    guard Darwin.link(staged.path, target.path) == 0 else {
+                        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                    }
+                }
+                guard FileDigest.sha512(try Data(contentsOf: target)) == FileDigest.sha512(data) else {
+                    throw SaveError.saveContextUnavailable
+                }
+                try io.synchronize(target.deletingLastPathComponent())
+                return .durable
+            }
+        } catch {
+            return enteredReplacement ? .publishedWithoutConfirmedDurability(error) : .notPublished(error)
+        }
     }
 
     private struct CoordinatedConflict: Error { let currentData: Data }

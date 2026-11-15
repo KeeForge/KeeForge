@@ -987,6 +987,262 @@ final class CloudDatabaseSaverTests: XCTestCase {
 
     // MARK: - Rekey (change master key, #59)
 
+    func testConfirmedRekeyRejectsForeignAuthorityBeforeCacheOrKeyEffects() throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let original = try Data(contentsOf: cache)
+        let output = Data("new encrypted payload".utf8)
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: "new-key")
+        var marker = try PendingUploadQueue.prepare(reference: reference, currentData: original, intendedData: output, cacheURL: cache, keyChange: change)
+        marker.marker.confirmedAt = Date(timeIntervalSince1970: 1234)
+        marker = try PendingUploadQueue.update(marker)
+        var foreign = reference
+        foreign.keyFileFilename = "foreign-key"
+        DatabaseListStore.testUpsert(foreign)
+        var deleted = false
+        let result = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output,
+            backup: { _, _ in XCTFail("No backup on rejected authority") }, deleteOldKeys: { _ in deleted = true })
+        guard case .rejected = result else { return XCTFail("Expected rejection") }
+        for change in 0..<2 {
+            var newer = reference
+            newer.updateCloudSyncMetadata {
+                if change == 0 { $0.localHeadOperationID = UUID() } else { $0.keyEpoch = UUID() }
+            }
+            DatabaseListStore.testUpsert(newer)
+            let rejected = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output,
+                backup: { _, _ in XCTFail("No backup on rejected authority") }, deleteOldKeys: { _ in deleted = true })
+            guard case .rejected = rejected else { return XCTFail("Expected head or epoch rejection") }
+        }
+        XCTAssertFalse(deleted)
+        XCTAssertEqual(try Data(contentsOf: cache), original)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).first?.id, marker.id)
+    }
+
+    func testConfirmedRekeyRejectsOtherRegistryRowSharingCachePath() throws {
+        var reference = try makeCloudReference(remoteRev: "rev-A")
+        let metadata = try XCTUnwrap(reference.cloudSyncMetadata)
+        reference.source = .cloud(CloudSyncMetadata(provider: metadata.provider, accountId: "a/b", fileId: metadata.fileId,
+            displayPath: metadata.displayPath, remoteContentHash: metadata.remoteContentHash, remoteModifiedAt: metadata.remoteModifiedAt,
+            remoteRev: metadata.remoteRev, lastSyncedAt: nil, lastSyncIssue: nil))
+        DatabaseListStore.testUpsert(reference)
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let original = Data("original encrypted payload".utf8)
+        try FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try original.write(to: cache)
+        let output = Data("new encrypted payload".utf8)
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: nil)
+        var marker = try PendingUploadQueue.prepare(reference: reference, currentData: original, intendedData: output, cacheURL: cache, keyChange: change)
+        marker.marker.confirmedAt = Date(timeIntervalSince1970: 1234)
+        marker = try PendingUploadQueue.update(marker)
+        let foreign = DatabaseReference(id: UUID(), nickname: nil, filename: reference.filename, bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil, addedAt: .now,
+            colorTag: nil, legacyKeychainFilename: nil,
+            source: .cloud(CloudSyncMetadata(provider: metadata.provider, accountId: "a?b", fileId: metadata.fileId,
+                displayPath: metadata.displayPath, remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)))
+        XCTAssertEqual(DatabaseListStore.cacheLocation(for: foreign).standardizedFileURL, cache.standardizedFileURL)
+        DatabaseListStore.testUpsert(foreign)
+        var deleted = false
+        let result = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output,
+            backup: { _, _ in XCTFail("Foreign cache") }, deleteOldKeys: { _ in deleted = true })
+        guard case .rejected = result else { return XCTFail("Expected collision rejection") }
+        XCTAssertFalse(deleted)
+        XCTAssertEqual(try Data(contentsOf: cache), original)
+    }
+
+    func testConfirmedRekeyRegistryUnconfirmedRetriesSameMarkerWithoutReplacement() throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let original = try Data(contentsOf: cache)
+        let output = Data("new encrypted payload".utf8)
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: "new-key")
+        var marker = try PendingUploadQueue.prepare(reference: reference, currentData: original, intendedData: output, cacheURL: cache, keyChange: change)
+        marker.marker.confirmedAt = Date(timeIntervalSince1970: 1234)
+        marker.marker.confirmedRemoteRev = "rev-B"
+        marker.marker.confirmedRemoteHash = "hash-B"
+        marker = try PendingUploadQueue.update(marker)
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw CocoaError(.fileWriteUnknown) }
+        var deleted = 0
+        let first = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output, registryIO: io,
+            backup: { _, _ in }, deleteOldKeys: { _ in deleted += 1 })
+        guard case .registryUnconfirmed = first else { return XCTFail("Expected unconfirmed registry") }
+        XCTAssertEqual(try Data(contentsOf: cache), output)
+        XCTAssertEqual(deleted, 1)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).first?.id, marker.id)
+        let second = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output,
+            backup: { _, _ in XCTFail("Already installed") }, deleteOldKeys: { _ in deleted += 1 })
+        guard case .durable(let installed) = second else { return XCTFail("Expected durable confirmation") }
+        XCTAssertEqual(installed.cloudSyncMetadata?.localHeadOperationID, marker.id)
+        XCTAssertEqual(installed.cloudSyncMetadata?.keyEpoch, change.epoch)
+        XCTAssertEqual(installed.cloudSyncMetadata?.remoteRev, "rev-B")
+        XCTAssertEqual(installed.cloudSyncMetadata?.remoteContentHash, "hash-B")
+        XCTAssertEqual(installed.cloudSyncMetadata?.lastSyncedAt, marker.marker.confirmedAt)
+        XCTAssertEqual(deleted, 1)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+    }
+
+    func testConfirmedRekeyRegistryFailureKeepsOutputAndJournalForRetry() throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let original = try Data(contentsOf: cache)
+        let output = Data("new encrypted payload".utf8)
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: nil)
+        var marker = try PendingUploadQueue.prepare(reference: reference, currentData: original, intendedData: output, cacheURL: cache, keyChange: change)
+        marker.marker.confirmedAt = Date(timeIntervalSince1970: 1234)
+        marker = try PendingUploadQueue.update(marker)
+        var io = DurableFileWriteIO()
+        io.write = { _, _, _ in 0 }
+        let first = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output, registryIO: io,
+            backup: { _, _ in }, deleteOldKeys: { _ in })
+        guard case .registryNotPublished = first else { return XCTFail("Expected registry write failure") }
+        XCTAssertEqual(try Data(contentsOf: cache), output)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).first?.id, marker.id)
+        XCTAssertEqual(try DatabaseListStore.readDatabasesStrict().first { $0.id == reference.id }?.cloudSyncMetadata?.keyEpoch,
+                       reference.cloudSyncMetadata?.keyEpoch)
+        let retry = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output,
+            backup: { _, _ in XCTFail("Output was already installed") }, deleteOldKeys: { _ in })
+        guard case .durable = retry else { return XCTFail("Expected same-operation confirmation") }
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertEqual(try Data(contentsOf: cache), output)
+    }
+
+    func testConfirmedRekeyRetirementSyncFailureRetainsRecoveryMaterial() throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let original = try Data(contentsOf: cache)
+        let output = Data("new encrypted payload".utf8)
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: nil)
+        var marker = try PendingUploadQueue.prepare(reference: reference, currentData: original, intendedData: output, cacheURL: cache, keyChange: change)
+        marker.marker.confirmedAt = Date(timeIntervalSince1970: 1234)
+        marker = try PendingUploadQueue.update(marker)
+        var queue = PendingUploadQueue.Environment.live
+        queue.synchronizeRetirementDirectory = { _ in throw CocoaError(.fileWriteUnknown) }
+        var deleted = 0
+        let first = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output, queue: queue,
+            backup: { _, _ in }, deleteOldKeys: { _ in deleted += 1 })
+        guard case .retirementUnconfirmed = first else { return XCTFail("Expected uncertain retirement") }
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).first?.marker, marker.marker)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker), output)
+        XCTAssertEqual(try Data(contentsOf: cache), output)
+        let retry = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output,
+            backup: { _, _ in XCTFail("Already installed") }, deleteOldKeys: { _ in deleted += 1 })
+        guard case .durable = retry else { return XCTFail("Expected durable retirement") }
+        XCTAssertEqual(deleted, 1)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+    }
+
+    func testConfirmedRekeyDoesNotRetireChangedMarkerAfterRegistryPublication() throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let original = try Data(contentsOf: cache)
+        let output = Data("new encrypted payload".utf8)
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: nil)
+        var marker = try PendingUploadQueue.prepare(reference: reference, currentData: original, intendedData: output, cacheURL: cache, keyChange: change)
+        marker.marker.confirmedAt = Date(timeIntervalSince1970: 1234)
+        marker = try PendingUploadQueue.update(marker)
+        let captured = marker
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in
+            var changed = captured
+            changed.marker.isConflicted = true
+            _ = try PendingUploadQueue.update(changed)
+        }
+        let result = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output, registryIO: io,
+            backup: { _, _ in }, deleteOldKeys: { _ in })
+        guard case .retirementUnconfirmed = result else { return XCTFail("Expected retained changed marker") }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertTrue(retained.marker.isConflicted)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), output)
+        XCTAssertEqual(try Data(contentsOf: cache), output)
+    }
+
+    func testConfirmedRekeyStagingFailureDoesNotDeleteKeys() throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let original = try Data(contentsOf: cache)
+        let output = Data("new encrypted payload".utf8)
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: nil)
+        var marker = try PendingUploadQueue.prepare(reference: reference, currentData: original, intendedData: output, cacheURL: cache, keyChange: change)
+        marker.marker.confirmedAt = Date(timeIntervalSince1970: 1234)
+        marker = try PendingUploadQueue.update(marker)
+        var io = LocalDatabaseSaver.ReplacementIO()
+        io.stage = { _, _ in throw CocoaError(.fileWriteUnknown) }
+        var deleted = false
+        let result = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output, replacementIO: io,
+            backup: { _, _ in }, deleteOldKeys: { _ in deleted = true })
+        guard case .rejected = result else { return XCTFail("Expected staging rejection") }
+        XCTAssertFalse(deleted)
+        XCTAssertEqual(try Data(contentsOf: cache), original)
+    }
+
+    func testConfirmedRekeyCacheSyncFailureRetainsMarkerAndDoesNotPublishRegistry() throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let original = try Data(contentsOf: cache)
+        let output = Data("new encrypted payload".utf8)
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: nil)
+        var marker = try PendingUploadQueue.prepare(reference: reference, currentData: original, intendedData: output, cacheURL: cache, keyChange: change)
+        marker.marker.confirmedAt = Date(timeIntervalSince1970: 1234)
+        marker = try PendingUploadQueue.update(marker)
+        var io = LocalDatabaseSaver.ReplacementIO()
+        io.synchronize = { _ in throw CocoaError(.fileWriteUnknown) }
+        let result = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output, replacementIO: io,
+            backup: { _, _ in }, deleteOldKeys: { _ in })
+        guard case .cacheUnconfirmed = result else { return XCTFail("Expected unconfirmed cache") }
+        XCTAssertEqual(try Data(contentsOf: cache), output)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).first?.id, marker.id)
+        XCTAssertEqual(try DatabaseListStore.readDatabasesStrict().first { $0.id == reference.id }?.cloudSyncMetadata?.keyEpoch,
+                       reference.cloudSyncMetadata?.keyEpoch)
+    }
+
+    func testConfirmedRekeyInstallsMissingCacheUnderCapturedAuthority() throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let original = try Data(contentsOf: cache)
+        let output = Data("new encrypted payload".utf8)
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: nil)
+        var marker = try PendingUploadQueue.prepare(reference: reference, currentData: original, intendedData: output, cacheURL: cache, keyChange: change)
+        marker.marker.confirmedAt = Date(timeIntervalSince1970: 1234)
+        marker = try PendingUploadQueue.update(marker)
+        try FileManager.default.removeItem(at: cache)
+        let result = DatabaseListStore.publishConfirmedCloudRekey(marker, cache: cache, bytes: output,
+            backup: { _, _ in XCTFail("Missing cache") }, deleteOldKeys: { _ in })
+        guard case .durable = result else { return XCTFail("Expected installed cache") }
+        XCTAssertEqual(try Data(contentsOf: cache), output)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+    }
+
+    func testRekeyRegistryFailureRecoversSameConfirmedUploadWithoutResend() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cache, entryTitle: "Rekey recovery")
+        let key = try KDBXCrypto.compositeKey(password: "new-rekey-test", keyFileData: nil)
+        let recorder = UploadRecorder()
+        var environment = makeEnvironment(
+            getMetadata: { _ in CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: Int64(context.currentData.count), rev: "rev-A") },
+            upload: { _, data, rev, _ in
+                await recorder.record(data: data, expectedRev: rev)
+                return CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: Int64(data.count), rev: "rev-B")
+            }, downloadRemoteData: { _ in context.currentData })
+        environment.rekeyRegistryIO.write = { _, _, _ in 0 }
+        _ = try await CloudDatabaseSaver.$keyChange.withValue(.init(keyFileBookmarkData: nil, keyFileFilename: nil)) {
+            try await CloudDatabaseSaver.save(draft: context.draft, reference: reference, compositeKey: context.compositeKey,
+                openTimeSHA512: context.openTimeSHA512, expectedRev: "rev-A", kdfPolicy: .mainApp,
+                newCompositeKey: key, environment: environment)
+        }
+        let stored = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertNotNil(stored.marker.confirmedAt)
+        let before = await recorder.callCount()
+        XCTAssertEqual(before, 1)
+        environment.rekeyRegistryIO = .init()
+        guard case .saved? = try CloudDatabaseSaver.recoverConfirmed(stored, reference: reference, environment: environment) else {
+            return XCTFail("Expected confirmed local reconciliation")
+        }
+        let after = await recorder.callCount()
+        XCTAssertEqual(after, 1)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+    }
+
     func testRekeySaveUploadsBytesEncryptedWithNewKey() async throws {
         let reference = try makeCloudReference(remoteRev: "rev-A")
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)

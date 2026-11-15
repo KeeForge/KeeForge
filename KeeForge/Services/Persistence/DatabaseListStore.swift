@@ -1014,12 +1014,6 @@ enum DatabaseListStore {
     }
 
     enum CloudMetadataUpdateResult { case published(DatabaseReference), mismatch(DatabaseReference), removed, writeFailed, visibleUnconfirmed(DatabaseReference) }
-    private static func saveCloudRegistryDurably(_ references: [DatabaseReference], io: DurableFileWriteIO = .init()) -> Bool {
-        guard let anchor = AppGroupContainer.resolvedURL, let data = try? JSONEncoder().encode(references) else { return false }
-        if case .durable = writeWithDurabilityOutcome(data, to: databaseListURL, directoryAnchor: anchor, io: io) { return true }
-        return false
-    }
-
     static func compareAndUpdateCloudSyncMetadata(
         for id: UUID,
         ifUnchangedFrom observed: CloudSyncMetadata,
@@ -1056,51 +1050,183 @@ enum DatabaseListStore {
 
     /// Caller holds the database commit lock; only local publication fields may change.
     static func publishCloudLocalCommit(
-        for id: UUID, operationID: UUID, baseline: PendingUploadQueue.LocalCommitBaseline
+        for id: UUID, operationID: UUID, binding: PendingUploadQueue.JournalBinding, io: DurableFileWriteIO = .init()
     ) -> CloudMetadataUpdateResult {
-        withStateLock {
-            guard var references = try? JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL)) else { return .writeFailed }
-            guard let index = references.firstIndex(where: { $0.id == id }),
-                  references[index].isCloudBacked else { return .removed }
-            let current = references[index]
-            guard baseline.hasCompatibleEpoch(current) else { return .mismatch(current) }
-            if current.cloudSyncMetadata?.localHeadOperationID == operationID {
-                // A prior rename may be visible even though its directory sync failed.
-                guard saveCloudRegistryDurably(references) else { return .writeFailed }
-                return .published(current)
+        var mismatch: DatabaseReference?
+        let result = mutateRegistry(io: io, confirmUnchanged: true) { rows -> RegistryDecision<DatabaseReference> in
+            guard let index = rows.firstIndex(where: { $0.id == id }), rows[index].isCloudBacked else { return .missing }
+            let current = rows[index]
+            guard binding.databaseID == id, binding.operationID == operationID,
+                  let baseline = binding.baseline, binding.matchesAuthority(reference: current, operationID: operationID) else {
+                mismatch = current; return .rejected
             }
-            guard current.cloudSyncMetadata?.localHeadOperationID == baseline.headOperationID else {
-                return .mismatch(current)
-            }
-            references[index].updateCloudSyncMetadata {
+            if current.cloudSyncMetadata?.localHeadOperationID == operationID { return .noop(current) }
+            guard current.cloudSyncMetadata?.localHeadOperationID == baseline.headOperationID else { mismatch = current; return .rejected }
+            rows[index].updateCloudSyncMetadata {
                 $0.localHeadOperationID = operationID
                 $0.lastSyncedAt = nil
             }
-            guard saveCloudRegistryDurably(references) else { return .writeFailed }
-            return .published(references[index])
+            return .write(rows[index])
+        }
+        switch result {
+        case .durable(let reference), .noop(let reference): return .published(reference)
+        case .visibleUnconfirmed(let reference, _): return .visibleUnconfirmed(reference)
+        case .missing: return .removed
+        case .rejected: return mismatch.map(CloudMetadataUpdateResult.mismatch) ?? .writeFailed
+        case .notPublished: return .writeFailed
         }
     }
 
-    @discardableResult
-    static func recordCloudLocalCommit(for id: UUID, operationID: UUID, rekey: PendingUploadQueue.KeyChange? = nil, committedAt: Date = .now) -> DatabaseReference? {
-        withStateLock {
-            guard var references = try? JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL)) else { return nil }
-            guard let index = references.firstIndex(where: { $0.id == id }), references[index].isCloudBacked else { return nil }
-            references[index].updateCloudSyncMetadata {
-                $0.localHeadOperationID = operationID
-                $0.lastSyncedAt = nil
-                if let rekey {
-                    $0.keyEpoch = rekey.epoch
+    enum CloudRekeyPublication {
+        case durable(DatabaseReference)
+        case rejected(Error)
+        case cacheUnconfirmed(Error)
+        case registryNotPublished(Error)
+        case registryUnconfirmed(Error)
+        case retirementUnconfirmed(DatabaseReference)
+    }
+
+    /// The marker snapshot is captured before coordination and reread under the commit lock.
+    static func publishConfirmedCloudRekey(
+        _ snapshot: PendingUploadQueue.StoredMarker, cache: URL, bytes: Data,
+        queue: PendingUploadQueue.Environment = .live, registryIO: DurableFileWriteIO = .init(),
+        replacementIO: LocalDatabaseSaver.ReplacementIO = .init(),
+        backup: (DatabaseReference, Data) throws -> Void,
+        deleteOldKeys: (DatabaseReference) -> Void
+    ) -> CloudRekeyPublication {
+        guard let anchor = AppGroupContainer.resolvedURL,
+              let binding = snapshot.marker.binding, binding.isRecognized, binding.intendedPreferenceFingerprint != nil,
+              let rekey = snapshot.marker.keyChange, let committedAt = snapshot.marker.confirmedAt,
+              let intendedSHA = snapshot.marker.intendedPayloadSHA512,
+              FileDigest.sha512(bytes) == intendedSHA else { return .rejected(SaveError.saveContextUnavailable) }
+        let lease: PendingLocalSaveStore.CacheReadLease
+        let rekeyRecovery: PendingLocalSaveStore.CloudRekeyRecoveryEpoch?
+        do {
+            guard let observed = try readDatabasesStrict().first(where: { $0.id == snapshot.marker.databaseId }) else {
+                return .rejected(SaveError.saveContextUnavailable)
+            }
+            let initial = binding.matchesOriginal(reference: observed, operationID: snapshot.id)
+            let installed = binding.matchesInstalled(reference: observed, operationID: snapshot.id, keyChange: rekey, committedAt: committedAt)
+            guard initial || installed else { return .rejected(SaveError.saveContextUnavailable) }
+            rekeyRecovery = installed ? PendingLocalSaveStore.CloudRekeyRecoveryEpoch(binding: binding, reference: observed,
+                operationID: snapshot.id, change: rekey, committedAt: committedAt) : nil
+            lease = try PendingLocalSaveStore.captureCacheReadLease(for: observed, rekeyRecovery: rekeyRecovery)
+        } catch { return .rejected(error) }
+        var coordinationError: NSError?
+        var result: CloudRekeyPublication?
+        var effectStarted = false
+        NSFileCoordinator().coordinate(writingItemAt: cache, options: [], writingItemAt: databaseListURL, options: [], error: &coordinationError) { target, registry in
+            guard stateLock.try() else { result = .rejected(SaveError.saveContextUnavailable); return }
+            defer { stateLock.unlock() }
+            do {
+                result = try PendingUploadQueue.withCommitLock(for: snapshot.marker.databaseId, environment: queue, nonBlocking: true) {
+                    guard let exact = try PendingUploadQueue.readJournal(for: snapshot.marker.databaseId, environment: queue).first(where: { $0.id == snapshot.id }),
+                          exact.marker == snapshot.marker, binding.databaseID == snapshot.marker.databaseId,
+                          binding.operationID == snapshot.id, binding.baseline == snapshot.marker.localCommitBaseline,
+                          try PendingUploadQueue.readImmutablePayload(exact, environment: queue) == bytes,
+                          var rows = try readRegistry(at: registry),
+                          let index = rows.firstIndex(where: { $0.id == snapshot.marker.databaseId }) else {
+                        return .rejected(SaveError.saveContextUnavailable)
+                    }
+                    let current = rows[index]
+                    guard cache.standardizedFileURL == cacheLocation(for: current).standardizedFileURL,
+                          !rows.contains(where: { $0.id != current.id && cacheLocation(for: $0).standardizedFileURL == cache.standardizedFileURL }) else {
+                        return .rejected(SaveError.saveContextUnavailable)
+                    }
+                    let initial = binding.matchesOriginal(reference: current, operationID: snapshot.id)
+                    let installed = binding.matchesInstalled(reference: current, operationID: snapshot.id,
+                                                              keyChange: rekey, committedAt: committedAt)
+                    guard (initial || installed), lease.reference.matches(current) else { return .rejected(SaveError.saveContextUnavailable) }
+                    return try PendingLocalSaveStore.withCachePublicationAuthorization(for: current.id, sha512: intendedSHA,
+                        lease: lease, nonBlocking: true, rekeyRecovery: rekeyRecovery) {
+                        let oldBytes: Data?
+                        do { oldBytes = try Data(contentsOf: target) }
+                        catch let error as CocoaError where error.code == .fileReadNoSuchFile { oldBytes = nil }
+                        let oldSHA = oldBytes.map(FileDigest.sha512)
+                        if installed, oldSHA != intendedSHA { return .rejected(SaveError.saveContextUnavailable) }
+                        guard oldSHA == nil || oldSHA == snapshot.marker.predecessorSHA512 || oldSHA == intendedSHA else {
+                            return .rejected(SaveError.saveContextUnavailable)
+                        }
+                        if let oldBytes, oldSHA != intendedSHA { try backup(current, oldBytes) }
+                        if !installed && oldSHA != intendedSHA {
+                            switch LocalDatabaseSaver.replaceAlreadyCoordinated(bytes, at: target, expectedSHA512: oldSHA, io: replacementIO,
+                                beforeReplacement: { effectStarted = true; deleteOldKeys(current) }) {
+                            case .durable: break
+                            case .notPublished(let error): return .rejected(error)
+                            case .publishedWithoutConfirmedDurability(let error): return .cacheUnconfirmed(error)
+                            }
+                        } else if !installed {
+                            effectStarted = true
+                            deleteOldKeys(current)
+                        }
+                        if oldSHA == intendedSHA {
+                            let handle = try FileHandle(forUpdating: target)
+                            defer { try? handle.close() }
+                            try registryIO.synchronizeFile(handle.fileDescriptor)
+                            try registryIO.synchronizeParent(target.deletingLastPathComponent())
+                        }
+                        guard try PendingUploadQueue.readJournal(for: current.id, environment: queue).contains(where: {
+                            $0.id == snapshot.id && $0.marker == snapshot.marker
+                        }), try Data(contentsOf: target) == bytes else {
+                            return .cacheUnconfirmed(SaveError.saveContextUnavailable)
+                        }
+                        let remaining = try PendingUploadQueue.readJournal(for: current.id, environment: queue).filter { $0.id != snapshot.id }
+                        var ancestors = Set(snapshot.marker.absorbedOperationIDs ?? [])
+                        if let predecessor = snapshot.marker.predecessorOperationID { ancestors.insert(predecessor) }
+                        ancestors.remove(snapshot.id)
+                        guard ancestors.isDisjoint(with: Set(remaining.map(\.id))) else {
+                            return .retirementUnconfirmed(current)
+                        }
+                        rows[index].updateCloudSyncMetadata {
+                            $0.localHeadOperationID = snapshot.id
+                            $0.keyEpoch = rekey.epoch
+                            if let rev = snapshot.marker.confirmedRemoteRev { $0.remoteRev = rev }
+                            if let hash = snapshot.marker.confirmedRemoteHash { $0.remoteContentHash = hash }
+                            $0.remoteModifiedAt = committedAt
+                            $0.lastSyncedAt = remaining.isEmpty ? committedAt : nil
+                            $0.lastSyncIssue = nil
+                        }
+                        rows[index].keyFileBookmarkData = rekey.keyFileBookmarkData
+                        rows[index].keyFileFilename = rekey.keyFileFilename
+                        rows[index].lastMasterKeyChangeAt = committedAt
+                        let encoder = JSONEncoder()
+                        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                        let registryBytes = try encoder.encode(normalized(rows))
+                        switch writeWithDurabilityOutcome(registryBytes, to: registry, directoryAnchor: anchor, io: registryIO) {
+                        case .durable:
+                            let published = rows[index]
+                            guard let durableRow = try readRegistry(at: registry)?.first(where: { $0.id == current.id }),
+                                  durableRow == published,
+                                  binding.matchesInstalled(reference: durableRow, operationID: snapshot.id, keyChange: rekey, committedAt: committedAt),
+                                  try Data(contentsOf: target) == bytes,
+                                  try PendingUploadQueue.readJournal(for: current.id, environment: queue).contains(where: {
+                                      $0.id == snapshot.id && $0.marker == snapshot.marker
+                                  }) else { return .retirementUnconfirmed(published) }
+                            do {
+                                guard try PendingUploadQueue.dropIfUnchanged(snapshot, environment: queue) else {
+                                    return .retirementUnconfirmed(published)
+                                }
+                            } catch { return .retirementUnconfirmed(published) }
+                            return .durable(published)
+                        case .notPublished(let error): return .registryNotPublished(error)
+                        case .publishedWithoutConfirmedDurability(let error): return .registryUnconfirmed(error)
+                        }
+                    }
                 }
+            } catch {
+                result = effectStarted ? .cacheUnconfirmed(error) : .rejected(error)
             }
-            if let rekey {
-                references[index].keyFileBookmarkData = rekey.keyFileBookmarkData
-                references[index].keyFileFilename = rekey.keyFileFilename
-                references[index].lastMasterKeyChangeAt = committedAt
-            }
-            guard saveCloudRegistryDurably(references) else { return nil }
-            return references[index]
         }
+        if let coordinationError {
+            switch result {
+            case .durable, .registryUnconfirmed: return .registryUnconfirmed(coordinationError)
+            case .registryNotPublished: return .registryNotPublished(coordinationError)
+            case .cacheUnconfirmed: return .cacheUnconfirmed(coordinationError)
+            case .retirementUnconfirmed(let reference): return .retirementUnconfirmed(reference)
+            default: return effectStarted ? .cacheUnconfirmed(coordinationError) : .rejected(coordinationError)
+            }
+        }
+        return result ?? .rejected(CocoaError(.fileWriteUnknown))
     }
 
     @discardableResult
