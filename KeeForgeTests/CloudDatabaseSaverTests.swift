@@ -308,10 +308,8 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Stale Tag Entry")
         let recorder = UploadRecorder()
-        let trace = TestDatabaseSupport.LocalPublicationTrace()
         let environment = makeEnvironment(
             getMetadata: { _ in
-                trace.recordObservation("getMetadata")
                 return CloudFileMetadata(
                     modifiedDate: Date(timeIntervalSince1970: 160),
                     contentHash: "remote-hash-B",
@@ -320,7 +318,6 @@ final class CloudDatabaseSaverTests: XCTestCase {
                 )
             },
             upload: { _, data, expectedRev, progress in
-                trace.recordObservation("upload")
                 await recorder.record(data: data, expectedRev: expectedRev)
                 progress(1)
                 return CloudFileMetadata(
@@ -331,7 +328,6 @@ final class CloudDatabaseSaverTests: XCTestCase {
                 )
             },
             downloadRemoteData: { _ in
-                trace.recordObservation("download")
                 return context.currentData
             }
         )
@@ -344,14 +340,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             expectedRev: "rev-A",
             environment: environment
         )
-        let delivery: CloudDatabaseSaver.PendingUploadPushResult?
-        do {
-            delivery = try await deliverQueuedSave(reference: reference, environment: environment)
-            print("diagnostic F delivery=returned; boundaries=\(trace.summary)")
-        } catch {
-            _ = trace.failure(error, at: "diagnostic F delivery")
-            throw error
-        }
+        let delivery = try await deliverQueuedSave(reference: reference, environment: environment)
         guard case .saved? = delivery else {
             return XCTFail("Expected delivery of the locally committed ciphertext")
         }
