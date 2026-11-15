@@ -376,28 +376,11 @@ final class ExpressUnlockTests: XCTestCase {
         let uploaded = UploadedBytes()
 
         var environment = makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
-        let trace = TestDatabaseSupport.LocalPublicationTrace()
-        let metadata = environment.getMetadata
-        environment.getMetadata = { reference in
-            trace.recordObservation("getMetadata")
-            return try await metadata(reference)
+        let base = try Data(contentsOf: cacheURL)
+        environment.getMetadata = { _ in
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 100), contentHash: nil, size: Int64(base.count), rev: "rev-1")
         }
-        let download = environment.downloadRemoteData
-        environment.downloadRemoteData = { reference in
-            trace.recordObservation("download")
-            return try await download(reference)
-        }
-        let upload = environment.upload
-        environment.upload = { reference, data, rev, progress in
-            trace.recordObservation("upload")
-            return try await upload(reference, data, rev, progress)
-        }
-        let revision = environment.revisionIdentifiesContent
-        environment.revisionIdentifiesContent = { reference, rev in
-            let result = revision(reference, rev)
-            trace.recordObservation("revisionIdentifiesContent=\(result)")
-            return result
-        }
+        environment.downloadRemoteData = { _ in base }
         let result = try await CloudDatabaseSaver.save(
             draft: context.draft, reference: reference, compositeKey: context.compositeKey,
             openTimeSHA512: context.openTimeSHA512, expectedRev: "rev-1", kdfPolicy: .mainApp,
@@ -408,16 +391,43 @@ final class ExpressUnlockTests: XCTestCase {
             return XCTFail("Expected save to succeed.")
         }
         let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first)
-        do {
-            _ = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment)
-            print("diagnostic 1 delivery=returned; boundaries=\(trace.summary)")
-        } catch {
-            _ = trace.failure(error, at: "diagnostic 1 delivery")
-            throw error
+        guard case .saved? = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment) else {
+            return XCTFail("Expected delivery of the locally committed ciphertext")
         }
+        XCTAssertEqual(uploaded.count, 1)
+        XCTAssertEqual(uploaded.data, try Data(contentsOf: cacheURL))
         try assertOpensWithoutTheKDF(
             try XCTUnwrap(uploaded.data), expressKey: XCTUnwrap(expressKey), compositeKey: context.compositeKey
         )
+    }
+
+    func testCloudSaveDoesNotUploadWhenRemoteBytesDiffer() async throws {
+        let cacheURL = try makeScratchCopy(of: .test)
+        let reference = makeCloudReference()
+        let context = try makeSaveContext(data: try Data(contentsOf: cacheURL))
+        let uploaded = UploadedBytes()
+        var environment = makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
+        let remote = Data("different remote bytes".utf8)
+        environment.getMetadata = { _ in
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 100), contentHash: nil, size: Int64(remote.count), rev: "rev-1")
+        }
+        environment.downloadRemoteData = { _ in remote }
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft, reference: reference, compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512, expectedRev: "rev-1", kdfPolicy: .mainApp,
+            environment: environment
+        )
+        guard case .saved = result else { return XCTFail("Expected local ciphertext commit") }
+        let saved = try Data(contentsOf: cacheURL)
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first)
+        guard case .conflict? = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment) else {
+            return XCTFail("Different remote bytes must prevent upload")
+        }
+        XCTAssertEqual(uploaded.count, 0)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), saved)
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first)
+        XCTAssertTrue(retained.marker.isConflicted)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained, environment: environment.queue), saved)
     }
 
     /// The saver never hands out a key for a hardware-key database, whatever
@@ -586,11 +596,13 @@ final class ExpressUnlockTests: XCTestCase {
 private final class UploadedBytes: @unchecked Sendable {
     private let lock = NSLock()
     private var bytes: Data?
+    private var calls = 0
 
     var data: Data? { lock.withLock { bytes } }
+    var count: Int { lock.withLock { calls } }
 
     func record(_ data: Data) {
-        lock.withLock { bytes = data }
+        lock.withLock { bytes = data; calls += 1 }
     }
 }
 
