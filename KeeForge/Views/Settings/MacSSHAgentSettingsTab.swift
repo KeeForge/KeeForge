@@ -12,48 +12,42 @@ struct MacSSHAgentSettingsTab: View {
     @State private var loaded: (session: ObjectIdentifier, candidates: [MacSSHAgentCandidate])?
 
     var body: some View {
-        Form {
-            LabeledContent("SSH agent:") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle("Enable SSH Agent", isOn: $controller.isEnabled)
-                        .accessibilityIdentifier("settings.ssh-agent.toggle")
-                    switch controller.unavailability {
-                    case .socketInUse:
-                        Text("The SSH agent could not start because another app is already using its socket.")
-                            .foregroundStyle(.red)
-                    case .failed:
-                        Text("The SSH agent could not start.").foregroundStyle(.red)
-                    case nil:
-                        EmptyView()
-                    }
-                    Text("SSH clients can sign in with the keys you choose below while their database is unlocked in KeeForge. Locking or closing the database makes its keys unavailable right away.")
-                        .font(.caption).foregroundStyle(.secondary)
+        MacSettingsForm {
+            MacSettingsRow("SSH agent:") {
+                Toggle("Enable SSH Agent", isOn: $controller.isEnabled)
+                    .accessibilityIdentifier("settings.ssh-agent.toggle")
+                switch controller.unavailability {
+                case .socketInUse:
+                    Text("The SSH agent could not start because another app is already using its socket.")
+                        .foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                case .failed:
+                    Text("The SSH agent could not start.").foregroundStyle(.red)
+                case nil:
+                    EmptyView()
                 }
+                settingsCaption("SSH clients can sign in with the keys you choose below while their database is unlocked in KeeForge. Locking or closing the database makes its keys unavailable right away.", indented: true)
             }
             if controller.isEnabled {
-                Divider()
-                LabeledContent("Socket:") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(verbatim: controller.socketPath)
-                            .font(.caption.monospaced())
-                            .textSelection(.enabled)
-                        Button("Copy SSH Configuration") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(controller.configurationSnippet, forType: .string)
-                        }
-                        .accessibilityIdentifier("settings.ssh-agent.copy-configuration")
-                        Text("Paste the copied lines into ~/.ssh/config to use the agent for every host, or set SSH_AUTH_SOCK to the socket path.")
-                            .font(.caption).foregroundStyle(.secondary)
+                MacSettingsSeparator()
+                MacSettingsRow("Socket:") {
+                    // A path has no spaces to wrap at; it breaks anywhere rather than running out of the window.
+                    Text(verbatim: controller.socketPath)
+                        .font(.caption.monospaced())
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                    Button("Copy SSH Configuration") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(controller.configurationSnippet, forType: .string)
                     }
+                    .accessibilityIdentifier("settings.ssh-agent.copy-configuration")
+                    settingsCaption("Paste the copied lines into ~/.ssh/config to use the agent for every host, or set SSH_AUTH_SOCK to the socket path.")
                 }
-                Divider()
-                LabeledContent {
-                    VStack(alignment: .leading, spacing: 8) {
-                        databasePicker
-                        GroupBox { keyRows.frame(maxWidth: .infinity, alignment: .leading) }
-                        Text("KeeForge offers an entry's OpenSSH private key attachment, the format ssh-keygen creates. Ed25519, ECDSA, and RSA keys without a passphrase are supported.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                MacSettingsSeparator()
+                MacSettingsRow {
+                    databasePicker
+                    GroupBox { keyRows.padding(4).frame(maxWidth: .infinity, alignment: .leading) }
+                    settingsCaption("KeeForge offers an entry's OpenSSH private key attachment, the format ssh-keygen creates. Ed25519, ECDSA, and RSA keys without a passphrase are supported.")
                 } label: {
                     if !controller.concealsKeyList, controller.settingsSessions.count == 1, let session {
                         Text("Keys in \(session.databaseReference.displayName):")
@@ -63,8 +57,6 @@ struct MacSSHAgentSettingsTab: View {
                 }
             }
         }
-        .formStyle(.columns)
-        .padding(24)
         .task(id: RefreshID(session: session, isAgentEnabled: controller.isEnabled)) {
             loaded = nil
             guard controller.isEnabled, let session else { return }
@@ -92,7 +84,7 @@ struct MacSSHAgentSettingsTab: View {
                         .tag(Optional(session.databaseReference.id))
                 }
             }
-            .labelsHidden()
+            .macSettingsPopUp()
             .accessibilityIdentifier("settings.ssh-agent.database-picker")
         }
     }

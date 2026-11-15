@@ -206,18 +206,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
         let commit = (bundle.object(forInfoDictionaryKey: "GITCommitHash") as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let credits = NSAttributedString(
-            string: String(localized: "Open-source components and their licenses are listed in Settings › About › Acknowledgments."),
-            attributes: [
-                .font: NSFont.preferredFont(forTextStyle: .callout),
-                .foregroundColor: NSColor.labelColor,
-            ]
-        )
-
-        var options: [NSApplication.AboutPanelOptionKey: Any] = [
-            .applicationVersion: version,
-            .credits: credits,
-        ]
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [.applicationVersion: version]
         if let commit, commit.isEmpty == false {
             options[.version] = commit
         }

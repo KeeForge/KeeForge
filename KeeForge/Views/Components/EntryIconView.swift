@@ -10,6 +10,7 @@ struct EntryIconView: View {
     var customIconData: Data? = nil
     var favicon: PlatformImage? = nil
     var size: CGFloat = Theme.Size.entryIcon
+    @Environment(\.displayScale) private var displayScale
 
     /// KeePass's key, the icon an entry gets when nobody picked one.
     private static let keePassDefaultIconID = 0
@@ -43,10 +44,13 @@ struct EntryIconView: View {
     }
 
     private func image(_ image: PlatformImage) -> some View {
-        Image(platformImage: image)
+        let fullSide = size * (1 - 2 * Theme.EntryIcon.imageInsetRatio)
+        let side = IconBitmapLayout.side(pixelEdge: image.pixelEdge, fullSide: fullSide, scale: displayScale)
+        return Image(platformImage: image)
             .resizable()
+            .interpolation(.high)
             .aspectRatio(contentMode: .fit)
-            .padding(size * Theme.EntryIcon.imageInsetRatio)
+            .frame(width: side, height: side)
             .frame(width: size, height: size)
             .background(Theme.card2, in: shape)
     }
@@ -77,5 +81,25 @@ struct EntryIconView: View {
             second = words[0].dropFirst().first(where: \.isUppercase)
         }
         return (String(first) + (second.map(String.init) ?? "")).uppercased()
+    }
+}
+
+/// How large to draw an icon bitmap in a slot. A favicon is often 16 or 32 px; stretched over a
+/// detail header's 60-70 pt at 2x or 3x it turns to blur. Up to 3x enlargement it fills the slot as
+/// before; past that it is drawn at twice its pixel size, and never under half the slot, centred on
+/// the slot's neutral tile.
+enum IconBitmapLayout {
+    static let fillingUpscale: CGFloat = 3
+    static let tiledUpscale: CGFloat = 2
+    static let minimumFraction: CGFloat = 0.5
+
+    static func side(pixelEdge: CGFloat, fullSide: CGFloat, scale: CGFloat) -> CGFloat {
+        guard pixelEdge > 0, scale > 0, fullSide * scale > pixelEdge * fillingUpscale else { return fullSide }
+        return min(fullSide, max(fullSide * minimumFraction, pixelEdge * tiledUpscale / scale))
+    }
+
+    /// Whether the bitmap is drawn smaller than the slot and so needs a tile behind it.
+    static func isTiled(pixelEdge: CGFloat, fullSide: CGFloat, scale: CGFloat) -> Bool {
+        side(pixelEdge: pixelEdge, fullSide: fullSide, scale: scale) < fullSide
     }
 }

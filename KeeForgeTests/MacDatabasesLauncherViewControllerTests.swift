@@ -38,14 +38,54 @@ final class MacDatabasesLauncherViewControllerTests: XCTestCase {
         XCTAssertEqual(MacDatabasesLauncherViewController.versionText("1.22"), String(localized: "Version \("1.22")"))
         XCTAssertFalse(controller.versionField.stringValue.isEmpty)
         XCTAssertEqual(controller.listLabel.stringValue, String(localized: "Databases"))
+    }
 
-        let addMenu = controller.addMenu()
-        XCTAssertEqual(addMenu.items.map(\.title), buttons.map(\.commandTitle))
-        XCTAssertEqual(addMenu.items.map(\.action), buttons.map(\.action))
-        XCTAssertEqual(controller.addButton.accessibilityIdentifier(), "database.add.button")
-        XCTAssertEqual(controller.addButton.accessibilityLabel(), String(localized: "Add Database"))
-        XCTAssertEqual(controller.removeButton.accessibilityIdentifier(), "databases.remove")
-        XCTAssertEqual(controller.removeButton.accessibilityLabel(), String(localized: "Remove Database from List"))
+    /// At the window's minimum size the brand column and three rows with a problem line fit unclipped.
+    func testTheMinimumSizeFitsTheBrandColumnAndThreeRows() async throws {
+        let (controller, _, _) = await makeController([])
+        let root = controller.view
+        XCTAssertEqual(root.frame.size, DatabasesWindowController.contentSize)
+        let version = root.convert(controller.versionField.bounds, from: controller.versionField)
+        let firstAction = root.convert(controller.newDatabaseButton.bounds, from: controller.newDatabaseButton)
+        let lastAction = root.convert(controller.connectButton.bounds, from: controller.connectButton)
+        XCTAssertGreaterThanOrEqual(version.minY, firstAction.maxY + 16, "The actions stay clear of the version")
+        XCTAssertGreaterThanOrEqual(lastAction.minY, 16)
+        let list = try XCTUnwrap(controller.tableView.enclosingScrollView)
+        XCTAssertGreaterThanOrEqual(list.frame.height,
+            3 * (MacDatabasesLauncherViewController.rowWithDetailHeight + controller.tableView.intercellSpacing.height))
+        XCTAssertEqual(list.frame.minY, 0, "No bar under the list; the brand panel and menus add and remove")
+    }
+
+    /// The press background is the button's own and clears when the click, and the action it sent, ends.
+    func testActionButtonClearsItsPressedBackgroundAfterTheClick() async throws {
+        let (controller, _, _) = await makeController([])
+        let button = controller.newDatabaseButton
+        let window = try XCTUnwrap(button.window)
+        final class Target: NSObject {
+            var backgroundDuringAction: CGColor?
+            var fired = false
+            @objc func fire(_ sender: MacLauncherActionButton) {
+                fired = true
+                backgroundDuringAction = sender.layer?.backgroundColor
+            }
+        }
+        let target = Target()
+        button.target = target
+        button.action = #selector(Target.fire(_:))
+        XCTAssertEqual((button.cell as? NSButtonCell)?.highlightsBy, [], "The cell draws no highlight of its own")
+        let point = button.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), to: nil)
+        func event(_ type: NSEvent.EventType) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+                eventNumber: 0, clickCount: 1, pressure: 1))
+        }
+        // The tracking loop inside mouseDown ends on this queued mouse-up.
+        NSApp.postEvent(try event(.leftMouseUp), atStart: false)
+        button.mouseDown(with: try event(.leftMouseDown))
+        XCTAssertTrue(target.fired)
+        XCTAssertNotNil(target.backgroundDuringAction, "Pressed while the click is down")
+        XCTAssertFalse(button.isPressed)
+        XCTAssertNil(button.layer?.backgroundColor, "Back to normal once the click ends")
     }
 
     /// FirstRun: the brand panel keeps the actions; the list says it is empty, once, with no buttons of its own.
@@ -75,7 +115,6 @@ final class MacDatabasesLauncherViewControllerTests: XCTestCase {
                        String(localized: "Create a database, open a .kdbx file or connect to a server to get started."))
         XCTAssertFalse(controller.emptyStateView.arrangedSubviews.contains { $0 is NSButton })
         XCTAssertTrue(controller.tableView.enclosingScrollView?.isHidden == true)
-        XCTAssertFalse(controller.removeButton.isEnabled)
         XCTAssertEqual(launcher.emptyState, .firstRun)
 
         store.references = [try reference(provider: .dropbox)]
@@ -147,8 +186,6 @@ final class MacDatabasesLauncherViewControllerTests: XCTestCase {
 
         table.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
         XCTAssertEqual(launcher.selectedDatabaseID, second.id)
-        await settle()
-        XCTAssertTrue(controller.removeButton.isEnabled)
 
         launcher.selectedDatabaseID = first.id
         await settle()
@@ -193,15 +230,28 @@ final class MacDatabasesLauncherViewControllerTests: XCTestCase {
         XCTAssertEqual(launcher.pendingRemoval?.id, reference.id)
     }
 
-    func testRemoveButtonAsksAboutTheSelectedDatabase() async throws {
+    func testDeleteKeyAndEditDeleteAskAboutTheSelectedDatabase() async throws {
         let reference = try reference()
         let (controller, _, launcher) = await makeController([reference])
-        XCTAssertFalse(controller.removeButton.isEnabled)
+        let deleteItem = NSMenuItem(title: "", action: #selector(controller.deleteSelection(_:)), keyEquivalent: "")
+        XCTAssertFalse(controller.validateMenuItem(deleteItem), "Nothing selected")
+        let chain = sequence(first: controller.tableView as NSResponder, next: \.nextResponder)
+        XCTAssertTrue(chain.contains { $0 === controller }, "Edit > Delete reaches the launcher from the list")
         launcher.selectedDatabaseID = reference.id
         await settle()
-        XCTAssertTrue(controller.removeButton.isEnabled)
-        controller.removeButton.performClick(nil)
+        XCTAssertTrue(controller.validateMenuItem(deleteItem))
+        controller.deleteSelection(nil)
         XCTAssertEqual(launcher.pendingRemoval?.id, reference.id)
+
+        launcher.pendingRemoval = nil
+        for keyCode: UInt16 in [51, 117] {
+            let key = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                windowNumber: 0, context: nil, characters: "\u{7F}", charactersIgnoringModifiers: "\u{7F}",
+                isARepeat: false, keyCode: keyCode))
+            controller.tableView.keyDown(with: key)
+            XCTAssertEqual(launcher.pendingRemoval?.id, reference.id, "key \(keyCode)")
+            launcher.pendingRemoval = nil
+        }
     }
 
     func testAProblemAddsAThirdLineAndATallerRow() async throws {

@@ -32,7 +32,7 @@
 
 ### Layout
 
-- Mac Settings uses an AppKit `NSTabViewController` with toolbar tabs: General, Security, AutoFill, Quick Search, SSH Agent, Appearance, Servers, About. Content uses hosted `.columns` forms, a bounded width and per-tab heights with scrolling. The title follows the tab; the window can never become main.
+- Mac Settings uses an AppKit `NSTabViewController` with toolbar tabs: General, Security, AutoFill, Quick Search, SSH Agent, Appearance, Servers, About. Every tab lays out on the shared `MacSettingsForm` grid (one right-aligned label column, one control column, separators between groups) at one window width; each tab's height follows its content up to `MacSettingsLayout.maximumHeight`, past which it scrolls, and switching tabs keeps the title bar in place. The title follows the tab; the window can never become main.
 - A fresh controller selects Security; the retained controller preserves selection across close/reopen within the process. Settings reads no focused window's session; only SSH chooses an explicit database. Content and toolbar ids are `settings.tab.` plus the tab's raw value (`general`, `security`, `autofill`, `quick-search`, `ssh-agent`, `appearance`, `servers`, `about`).
 - Disconnect Server and Clear AutoFill Entries use NSAlert sheets; only an accepted confirmation calls the model. Acknowledgments opens as an attached sheet.
 - The screen-lock checkbox is checked and disabled. The strict background-policy checkbox and delay are separate from inactivity; Immediately preserves existing behavior. Touch ID keeps its automatic-prompt meaning.
@@ -52,7 +52,7 @@
 
 ## Tests
 
-- `SettingsWindowControllerTests` covers the native tabs, title, within-process selection, non-main window, capture policy, channel-specific updates and accepted/cancelled confirmation effects.
+- `SettingsWindowControllerTests` covers the native tabs, title, shared width and content-sized heights, within-process selection, non-main window, capture policy, channel-specific updates and accepted/cancelled confirmation effects.
 - `AppSettingsViewModelTests`, `AppSettingsSummaryTests`, `AutoFillStoreInspectorGroupingTests`, `FeedbackSubmissionServiceTests`; `DatabaseListViewModelTests` for the one-database footer condition.
 - `MacSSHAgentControllerTests` (`KeeForgeMacTests` only): the candidate list, its concealment, and the database the list edits. The tab itself has no UI test.
 - UI: `AutoFillTipUITests`, `MacAppSuggestionUITests`, `WhatsNewUITests`, `AutoFillStoreInspectorSmokeUITests`; `AutoFillStoreUITests` needs a provisioned device.

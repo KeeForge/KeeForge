@@ -5,7 +5,7 @@ import SwiftUI
 final class MacDatabaseSettingsSheet {
     let model: MacDatabaseSettingsModel
     let shell: MacFormSheetController
-    private let tabs: NSSegmentedControl
+    let tabs: MacSheetTabBar
     private(set) var masterKeySheet: MacMasterKeySheet?
     private(set) var encryptionSheet: MacEncryptionSettingsSheet?
     private(set) var recoverySheet: MacFormSheetController?
@@ -15,9 +15,7 @@ final class MacDatabaseSettingsSheet {
 
     init(model: MacDatabaseSettingsModel) {
         self.model = model
-        tabs = NSSegmentedControl(labels: model.tabs.map(\.title), trackingMode: .selectOne, target: nil, action: nil)
-        tabs.selectedSegment = 0
-        tabs.setAccessibilityIdentifier("database-settings.tabs")
+        tabs = MacSheetTabBar(tabs: model.tabs.map { ($0.title, $0.symbol) }, identifier: "database-settings.tabs")
         let scope = MacSheetCancellationScope()
         let owner = MacDatabaseSettingsWindow()
         let host = NSHostingController(rootView: MacDatabaseSettingsContent(model: model, window: { owner.window },
@@ -33,8 +31,7 @@ final class MacDatabaseSettingsSheet {
         shell.cancelButton.isHidden = true
         shell.window?.setAccessibilityIdentifier("database-settings.sheet")
         shell.defaultButton.setAccessibilityIdentifier("database-settings.done")
-        tabs.target = self
-        tabs.action = #selector(changeTab)
+        tabs.onSelect = { [weak self] index in self?.changeTab(to: index) }
         owner.sheet = self
         scope.register { [weak self] in
             self?.masterKeySheet?.shell.end()
@@ -43,10 +40,10 @@ final class MacDatabaseSettingsSheet {
         }
     }
 
-    @objc private func changeTab() {
+    private func changeTab(to index: Int) {
         model.commitNickname()
-        guard model.tabs.indices.contains(tabs.selectedSegment) else { return }
-        model.selection = model.tabs[tabs.selectedSegment]
+        guard model.tabs.indices.contains(index) else { return }
+        model.selection = model.tabs[index]
     }
 
     /// Database ▸ Change Master Key… opens it without waiting for the file facts the Security tab shows.
@@ -55,7 +52,7 @@ final class MacDatabaseSettingsSheet {
               let parent = childParent() else { return }
         if selectingSecurityTab, let index = model.tabs.firstIndex(of: .security) {
             model.commitNickname()
-            tabs.selectedSegment = index
+            tabs.selectedIndex = index
             model.selection = .security
         }
         let child = MacMasterKeySheet(session: session)

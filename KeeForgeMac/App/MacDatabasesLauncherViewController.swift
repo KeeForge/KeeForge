@@ -1,11 +1,11 @@
 import AppKit
 
 /// The Databases window's content: a brand panel with the three add actions
-/// beside the list of databases and its add and remove buttons. Sheets and
+/// beside the list of databases. Sheets and
 /// confirmations it asks for are presented by the SwiftUI host around it.
 @MainActor
 final class MacDatabasesLauncherViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate,
-    NSMenuDelegate {
+    NSMenuDelegate, NSMenuItemValidation {
     static let brandPanelWidth: CGFloat = 260
     static let rowHeight: CGFloat = 56
     static let rowWithDetailHeight: CGFloat = 70
@@ -20,8 +20,6 @@ final class MacDatabasesLauncherViewController: NSViewController, NSTableViewDat
     let connectButton = MacLauncherActionButton(title: String(localized: "Connect to Server…"),
         symbol: "server.rack", shortcut: nil, identifier: "databases.connect-server",
         action: #selector(AppDelegate.connectToServer(_:)))
-    let addButton = NSButton()
-    let removeButton = NSButton()
     let listLabel = NSTextField(labelWithString: String(localized: "Databases"))
     let versionField = NSTextField(labelWithString: "")
     let emptyStateView = MacLauncherEmptyStateView()
@@ -161,6 +159,7 @@ final class MacDatabasesLauncherViewController: NSViewController, NSTableViewDat
         tableView.target = self
         tableView.doubleAction = #selector(openClickedDatabase(_:))
         tableView.onOpen = { [weak self] in self?.launcher.openSelection() }
+        tableView.onDelete = { [weak self] in self?.launcher.removeSelection() }
         let menu = NSMenu()
         menu.delegate = self
         tableView.menu = menu
@@ -170,22 +169,8 @@ final class MacDatabasesLauncherViewController: NSViewController, NSTableViewDat
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
 
-        configureSquareButton(addButton, symbol: "plus", label: String(localized: "Add Database"),
-            identifier: "database.add.button", action: #selector(showAddMenu(_:)))
-        configureSquareButton(removeButton, symbol: "minus", label: String(localized: "Remove Database from List"),
-            identifier: "databases.remove", action: #selector(removeSelectedDatabase(_:)))
-        let buttons = NSStackView(views: [addButton, removeButton])
-        buttons.spacing = -1
-        let bottomBar = NSView()
-        let barDivider = NSBox()
-        barDivider.boxType = .separator
-        for view in [buttons, barDivider] {
-            view.translatesAutoresizingMaskIntoConstraints = false
-            bottomBar.addSubview(view)
-        }
-
         let panel = NSView()
-        for view in [listLabel, scrollView, emptyStateView, bottomBar] {
+        for view in [listLabel, scrollView, emptyStateView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             panel.addSubview(view)
         }
@@ -195,39 +180,12 @@ final class MacDatabasesLauncherViewController: NSViewController, NSTableViewDat
             scrollView.topAnchor.constraint(equalTo: listLabel.bottomAnchor, constant: 6),
             scrollView.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: bottomBar.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: panel.bottomAnchor),
             emptyStateView.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
             emptyStateView.centerYAnchor.constraint(equalTo: scrollView.centerYAnchor, constant: -10),
             emptyStateView.leadingAnchor.constraint(greaterThanOrEqualTo: panel.leadingAnchor, constant: 40),
-            bottomBar.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
-            bottomBar.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
-            bottomBar.bottomAnchor.constraint(equalTo: panel.bottomAnchor),
-            bottomBar.heightAnchor.constraint(equalToConstant: 44),
-            barDivider.topAnchor.constraint(equalTo: bottomBar.topAnchor),
-            barDivider.leadingAnchor.constraint(equalTo: bottomBar.leadingAnchor),
-            barDivider.trailingAnchor.constraint(equalTo: bottomBar.trailingAnchor),
-            buttons.leadingAnchor.constraint(equalTo: bottomBar.leadingAnchor, constant: 14),
-            buttons.centerYAnchor.constraint(equalTo: bottomBar.centerYAnchor),
         ])
         return panel
-    }
-
-    private func configureSquareButton(_ button: NSButton, symbol: String, label: String, identifier: String,
-                                       action: Selector) {
-        button.bezelStyle = .smallSquare
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
-        button.imagePosition = .imageOnly
-        button.title = ""
-        button.target = self
-        button.action = action
-        button.toolTip = label
-        button.setAccessibilityLabel(label)
-        button.setAccessibilityIdentifier(identifier)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            button.widthAnchor.constraint(equalToConstant: 24),
-            button.heightAnchor.constraint(equalToConstant: 22),
-        ])
     }
 
     static func versionText(_ version: String?) -> String {
@@ -240,14 +198,13 @@ final class MacDatabasesLauncherViewController: NSViewController, NSTableViewDat
         var rows: [MacDatabasesLauncherViewModel.Row]
         var selectedID: UUID?
         var emptyState: MacDatabasesLauncherViewModel.EmptyState?
-        var canRemove: Bool
         var connectCaption: String
         var canConnect: Bool
     }
 
     private func readState() -> State {
         State(rows: launcher.rows, selectedID: launcher.selectedDatabaseID, emptyState: launcher.emptyState,
-              canRemove: launcher.canRemoveSelection, connectCaption: launcher.connectCaption,
+              connectCaption: launcher.connectCaption,
               canConnect: launcher.canConnect)
     }
 
@@ -266,7 +223,6 @@ final class MacDatabasesLauncherViewController: NSViewController, NSTableViewDat
         }
         emptyStateView.show(state.emptyState)
         scrollView.isHidden = state.emptyState != nil
-        removeButton.isEnabled = state.canRemove
         connectButton.caption = state.connectCaption
         connectButton.isEnabled = state.canConnect
     }
@@ -337,26 +293,15 @@ final class MacDatabasesLauncherViewController: NSViewController, NSTableViewDat
         launcher.perform(choice.action, on: reference)
     }
 
-    // MARK: - Add and remove
+    // MARK: - Remove
 
-    /// The same three commands as the brand panel and the File menu.
-    func addMenu() -> NSMenu {
-        let menu = NSMenu()
-        for button in [newDatabaseButton, openFileButton, connectButton] {
-            let item = NSMenuItem(title: button.commandTitle, action: button.action, keyEquivalent: "")
-            item.isEnabled = button.isEnabled
-            menu.addItem(item)
-        }
-        menu.autoenablesItems = false
-        return menu
-    }
-
-    @objc func showAddMenu(_ sender: NSButton) {
-        addMenu().popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.maxY + 4), in: sender)
-    }
-
-    @objc func removeSelectedDatabase(_ sender: Any?) {
+    /// Edit > Delete (⌘⌫) removes the selected database from the list, like the row menu's Remove.
+    @objc func deleteSelection(_ sender: Any?) {
         launcher.removeSelection()
+    }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        item.action == #selector(deleteSelection(_:)) ? launcher.canRemoveSelection : true
     }
 }
 
@@ -371,17 +316,19 @@ final class MacLauncherRowMenuAction: NSObject {
     }
 }
 
-/// Return opens the selected database.
+/// Return opens the selected database; Delete and Forward Delete remove it from the list.
 @MainActor
 final class MacLauncherTableView: NSTableView {
     var onOpen: (() -> Void)?
+    var onDelete: (() -> Void)?
 
     override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
         // Return and keypad Enter.
-        if event.keyCode == 36 || event.keyCode == 76 {
-            onOpen?()
-        } else {
-            super.keyDown(with: event)
+        case 36, 76: onOpen?()
+        // Delete and Forward Delete.
+        case 51, 117: onDelete?()
+        default: super.keyDown(with: event)
         }
     }
 }
@@ -407,8 +354,10 @@ final class MacLauncherActionButton: NSButton {
         }
     }
 
-    override var isHighlighted: Bool {
-        didSet { layer?.backgroundColor = isHighlighted ? NSColor.quaternaryLabelColor.cgColor : nil }
+    /// The pressed background is the button's own: AppKit highlights the cell directly during a click,
+    /// never through `isHighlighted`, and sends the action before it unhighlights.
+    private(set) var isPressed = false {
+        didSet { refreshPressedBackground() }
     }
 
     override var isEnabled: Bool {
@@ -421,6 +370,7 @@ final class MacLauncherActionButton: NSButton {
         self.title = ""
         isBordered = false
         imagePosition = .noImage
+        (cell as? NSButtonCell)?.highlightsBy = []
         self.action = action
         target = nil
         wantsLayer = true
@@ -478,9 +428,23 @@ final class MacLauncherActionButton: NSButton {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    /// The click's tracking loop, and the action it sends, run inside `super.mouseDown`.
+    override func mouseDown(with event: NSEvent) {
+        isPressed = isEnabled
+        defer { isPressed = false }
+        super.mouseDown(with: event)
+    }
+
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         refreshTileColors()
+        refreshPressedBackground()
+    }
+
+    private func refreshPressedBackground() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = isPressed ? NSColor.quaternaryLabelColor.cgColor : nil
+        }
     }
 
     /// Layer colours are fixed when set, so they are resolved again for each appearance.

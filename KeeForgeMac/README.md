@@ -34,8 +34,8 @@ database locked in its own window on the next launch; the rules are in
 recording off, and `-ui-testing-database-window-size <w>x<h>` sets the database
 window's content size (`MacWindowLaunchOptions`).
 
-The Databases window (780 x 620 pt, title hidden, full-size content so the
-brand panel runs under the traffic lights; tall enough for a 560 pt sheet) is
+The Databases window (780 x 440 pt minimum, title hidden, full-size content so the
+brand panel runs under the traffic lights; it grows to fit a taller sheet) is
 `MacDatabasesLauncherViewController` inside a SwiftUI host for launch notices
 and the export bridge. The brand panel shows the app icon, name and version
 and sends New Database…, Open Database File… and Connect to Server… (captioned
@@ -44,8 +44,8 @@ list renders `MacDatabasesLauncherViewModel.rows` (local, WebDAV and FTP only)
 in an inset `NSTableView`: storage tile, name with Read-Only inline, "file · storage", a problem or
 last-opened line, and Quick Launch, Open (window unlocked) or the
 lock, and Touch ID. Return and double-click open or front the selected row;
-the row menu holds Open and the management items; the bottom bar's + offers
-the three add commands and − removes the selection. With nothing listed the
+the row menu holds Open and the management items; Delete in the list and
+Edit > Delete (⌘⌫) remove the selection. With nothing listed the
 list area shows the empty state alone. It never shows a database's contents.
 The native `MacDatabaseSettingsLauncherPresenter` presents Database Settings
 without a session. `MacDatabasesSheets` presents native New Database and Connect to Server forms
@@ -140,8 +140,9 @@ standard-icon pickers stack over it and update only the form until Save.
 A native alert forwards Save and Lock, Discard and Lock and Keep Editing to its coordinator. New Group
 names its parent in the caption. Entry icons use the same select-then-Use Icon
 shell, with custom icons, their manager and cancellable website download.
-Database Settings uses a 720×540 pt shell with centred native segmented tabs
-(General, Security, Sync for WebDAV/FTP, AutoFill, Backups) and Done. Its hosted
+Database Settings uses a 720×540 pt shell with a centred title over a row of
+icon-over-title tabs (`MacSheetTabBar`: General, Security, Sync for WebDAV/FTP,
+AutoFill, Backups), ruled off from the body and the Done footer. Its hosted
 column forms omit key-file association rows; the unlock page and launcher row
 still manage associations. AutoFill's destination row needs the unlocked session.
 Manage Custom Icons opens its existing sheet. Change Master Key and Encryption

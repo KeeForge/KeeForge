@@ -40,6 +40,7 @@
 - Fetching is opt-in (`showWebsiteIcons`, default off) and goes only to `icons.duckduckgo.com`.
 - The disk cache is a plaintext per-domain fingerprint of the vault. iOS keeps it in the App Group container; macOS keeps it in the app's own Application Support so the fingerprint stays out of shared storage. No extension code reads the cache today; keep the path code Foundation-only because the file is still compiled into both extensions.
 - An icon being stored inside the database is fetched with `cachingToDisk: false` (`FaviconIconEncoder.downloadedIconData(for:)`): it is already kept encrypted, and a second plaintext copy would widen the fingerprint for nothing.
+- The host serves each site's own favicon (often a 16/32/48/64 px `.ico`, sometimes a single 32 px PNG) and takes no size parameter. `FaviconService.image(from:)` decodes the largest frame, for display and for the icon stored in the database. Views that draw a bitmap too small to fill a large slot sharply put it on a neutral tile instead (`IconBitmapLayout`).
 - Fetches use a dedicated ephemeral session, never `URLSession.shared`: its persisted Alt-Svc cache can leave CFNetwork hanging in a QUIC handshake on networks that drop UDP 443. See `sessionConfiguration()`.
 
 ### Feedback and temporary files
