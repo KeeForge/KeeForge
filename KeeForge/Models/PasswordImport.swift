@@ -24,6 +24,9 @@ struct PasswordImportPreview: Sendable {
         case columnCountMismatch
         case malformedQuoting
         case noLoginData
+        /// Fills resolve `{REF:…}` against the whole database, so values from
+        /// a file never carry one.
+        case fieldReference
     }
 
     let items: [Item]
@@ -182,6 +185,8 @@ enum ApplePasswordsCSVImporter {
                 skippedRows.append(.init(row: row, reason: .malformedQuoting))
             } else if record.fields.count != header.fields.count {
                 skippedRows.append(.init(row: row, reason: .columnCountMismatch))
+            } else if record.fields.contains(where: FieldReferenceResolver.containsReference) {
+                skippedRows.append(.init(row: row, reason: .fieldReference))
             } else if let item = item(from: record.fields, row: row, columns: columns) {
                 items.append(item)
             } else {

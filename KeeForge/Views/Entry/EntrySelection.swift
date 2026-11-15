@@ -17,7 +17,7 @@ struct EntryRowSelectAction: View {
     var body: some View {
         let actions = EntryRowActions(entryID: entryID, session: viewModel)
         if actions.canSelect {
-            Button("Select Entries") {
+            Button("Select Entries", systemImage: "checklist") {
                 actions.beginSelection()
             }
             .accessibilityIdentifier(EntryRowActions.selectIdentifier)

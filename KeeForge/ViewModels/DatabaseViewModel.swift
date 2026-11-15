@@ -486,7 +486,10 @@ final class DatabaseViewModel {
     private(set) var databaseReference: DatabaseReference
 
     var sortAscending: Bool {
-        didSet { Self.persistSortAscending(sortAscending) }
+        didSet {
+            Self.persistSortAscending(sortAscending)
+            updateSearchResults()
+        }
     }
 
     private(set) var state: State = .locked
@@ -519,7 +522,10 @@ final class DatabaseViewModel {
     }
     let workspace = DatabaseWorkspaceState()
     var sortOrder: SortOrder {
-        didSet { Self.persistSortOrder(sortOrder) }
+        didSet {
+            Self.persistSortOrder(sortOrder)
+            updateSearchResults()
+        }
     }
 
     private(set) var failedAttempts = 0
@@ -2003,6 +2009,35 @@ final class DatabaseViewModel {
             return groupIndex[id] != nil && id != currentRootGroup?.recycleBinUUID
                 && isGroupInRecycleBin(groupID: id) && !isGroupProtectedFromDeletion(groupID: id)
         }
+    }
+
+    /// Where an item lying directly in the recycle bin came from and when it
+    /// was put there. Nil for anything else: inside a recycled group,
+    /// `LocationChanged` dates the item's last move, not its deletion. The
+    /// date also needs `PreviousParentGroup`: versions before 1.15 recycled
+    /// without stamping either, leaving an older move's `LocationChanged`.
+    func recycleBinOrigin(for item: RecycleBinItem) -> RecycleBinOrigin? {
+        _ = contentRevision
+        guard let bin = recycleBinGroup else { return nil }
+        let xml: OpaqueXMLNodes
+        let deletedAt: Date?
+        switch item {
+        case .entry(let id):
+            guard let entry = bin.entries.first(where: { $0.id == id }) else { return nil }
+            xml = entry.unknownXML
+            deletedAt = entry.locationChanged
+        case .group(let id):
+            guard let group = bin.groups.first(where: { $0.id == id }) else { return nil }
+            xml = group.unknownXML
+            deletedAt = group.locationChanged
+        }
+        guard let parentID = PreviousParentGroupXML.parentID(in: xml) else { return nil }
+        var groupName: String?
+        if let parent = groupIndex[parentID], parentID != bin.id, isGroupInRecycleBin(groupID: parentID) == false {
+            groupName = parentID == visibleRootGroupID ? databaseDisplayName : parent.name
+        }
+        guard groupName != nil || deletedAt != nil else { return nil }
+        return RecycleBinOrigin(groupName: groupName, deletedAt: deletedAt)
     }
 
     func restoreDestinationOptions(for item: RecycleBinItem) -> [MoveDestinationOption] {
@@ -4213,7 +4248,10 @@ final class DatabaseViewModel {
         switch sortOrder {
         case .title:
             return entries.sorted {
-                let result = $0.title.localizedCaseInsensitiveCompare($1.title)
+                var result = $0.title.localizedCaseInsensitiveCompare($1.title)
+                if result == .orderedSame {
+                    result = $0.username.localizedCaseInsensitiveCompare($1.username)
+                }
                 return asc ? result == .orderedAscending : result == .orderedDescending
             }
         case .createdDate:
@@ -4478,7 +4516,7 @@ final class DatabaseViewModel {
     }
 
     private func updateSearchResults() {
-        searchResults = entries(matching: searchText)
+        searchResults = sortedEntries(entries(matching: searchText))
     }
 
     /// The main search's matching rules for a query of the caller's own, so the
@@ -4753,7 +4791,7 @@ final class DatabaseViewModel {
             entry.username,
             entry.url,
             entry.notes,
-        ] + tags)
+        ] + entry.additionalURLs + tags)
         .joined(separator: "\n")
         .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
         .lowercased()

@@ -141,7 +141,7 @@ final class MacEntryListModelTests: XCTestCase {
                        ["Personal", "Personal › Work › Development"])
     }
 
-    func testSortFollowsSortOrderWhileSearchKeepsTreeOrder() async throws {
+    func testSortFollowsSortOrderInEveryModeIncludingSearch() async throws {
         let fixture = try await makeFixture()
         let session = fixture.session
         session.workspace.selectedGroupID = fixture.work.id
@@ -164,8 +164,25 @@ final class MacEntryListModelTests: XCTestCase {
 
         session.searchText = "account"
         let search = MacEntryListSnapshot.make(session: session)
-        XCTAssertEqual(search.rows.map(\.title), ["Account b", "Account A", "Account c", "Home Account"])
+        XCTAssertEqual(search.rows.map(\.title), ["Account A", "Account b", "Account c", "Home Account"])
         XCTAssertEqual(search.resultCount, 4)
+        session.sortAscending = false
+        XCTAssertEqual(MacEntryListSnapshot.make(session: session).rows.map(\.title),
+                       ["Home Account", "Account c", "Account b", "Account A"])
+    }
+
+    func testSearchListsAnEntryByItsAdditionalURL() async throws {
+        let entry = KPEntry(title: "Router", customFields: ["KP2A_URL_1": "https://portal.example.net"])
+        let protectedURL = KPEntry(
+            title: "Hidden",
+            customFields: ["KP2A_URL_1": "https://portal.example.org"],
+            protectedStringKeys: ["KP2A_URL_1"]
+        )
+        let session = try await makeSession(root: KPGroup(name: "Root", entries: [entry, protectedURL]))
+
+        session.searchText = "portal.example"
+
+        XCTAssertEqual(MacEntryListSnapshot.make(session: session).rows.map(\.id), [entry.id])
     }
 
     func testEmptyStatesCarryTodaysTexts() async throws {

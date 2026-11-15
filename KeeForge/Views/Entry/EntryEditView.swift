@@ -21,6 +21,10 @@ struct EntryEditView: View {
 
     @State private var isTOTPSecretVisible: Bool
     @State private var revealedCustomFieldIDs: Set<UUID> = []
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var customFieldNameWidth: CGFloat = 120
+    /// Fields whose name is wider than the name column, so it sits above the value.
+    @State private var wideCustomFieldNameIDs: Set<UUID> = []
     @State private var isManualTOTPEntryActive = false
     @State private var showTOTPScanner = false
     @State private var showTOTPSetupLink = false
@@ -445,50 +449,56 @@ struct EntryEditView: View {
         }
     }
 
+    /// One name/value row, with the field's protection and removal in a menu.
     private func customFieldRow(_ field: Binding<EntryEditViewModel.CustomField>) -> some View {
         let id = field.wrappedValue.id
         let index = formViewModel.customFields.firstIndex { $0.id == id } ?? 0
-        // Every row draws the same two captions, so VoiceOver needs the field's
-        // own name to tell one row's value and Remove button from the next.
         let name = field.wrappedValue.key.trimmingCharacters(in: .whitespacesAndNewlines)
         let valueLabel = name.isEmpty ? String(localized: "Field Value") : name
+        let stacksName = dynamicTypeSize.isAccessibilitySize || wideCustomFieldNameIDs.contains(id)
+        let nameColumnWidth = customFieldNameWidth
+        // One AnyLayout for both arrangements, so the name field keeps focus
+        // while typing moves it between them.
+        let layout = stacksName
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Theme.Spacing.iconText))
 
-        return VStack(alignment: .leading, spacing: 10) {
-            customFieldReorderControls(id: id, index: index)
-            basicFieldRow("Field Name") {
-                TextField(String(localized: "Field Name"), text: field.key)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("entry-edit.custom-field.name-field.\(index)")
-            }
-
-            basicFieldRow("Field Value") {
-                if field.wrappedValue.isProtected {
-                    PasswordInputRow(
-                        title: valueLabel,
-                        text: field.value,
-                        isVisible: customFieldVisibility(id),
-                        fieldAccessibilityIdentifier: "entry-edit.custom-field.value-field.\(index)",
-                        visibilityAccessibilityIdentifier: "entry-edit.custom-field.value-visibility-button.\(index)",
-                        onVisibilityToggle: { toggleCustomFieldVisibility(id) },
-                        usesPasswordAutoFill: false,
-                        axis: .vertical
-                    )
-                } else {
-                    TextField(String(localized: "Field Value"), text: field.value, axis: .vertical)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: Theme.Spacing.iconText) {
+                layout {
+                    TextField(String(localized: "Field Name"), text: field.key)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .accessibilityLabel(valueLabel)
-                        .accessibilityIdentifier("entry-edit.custom-field.value-field.\(index)")
-                }
-            }
+                        .frame(maxWidth: stacksName ? .infinity : nameColumnWidth, alignment: .leading)
+                        .background(alignment: .leading) {
+                            Text(verbatim: field.wrappedValue.key)
+                                .fixedSize()
+                                .hidden()
+                                .accessibilityHidden(true)
+                                .onGeometryChange(for: Bool.self) { $0.size.width > nameColumnWidth } action: { isWide in
+                                    if isWide {
+                                        wideCustomFieldNameIDs.insert(id)
+                                    } else {
+                                        wideCustomFieldNameIDs.remove(id)
+                                    }
+                                }
+                        }
+                        .accessibilityIdentifier("entry-edit.custom-field.name-field.\(index)")
+                        // The Reorder sheet is the visible way to move a field;
+                        // VoiceOver gets the same steps here.
+                        .accessibilityAction(named: Text("Move Up")) {
+                            formViewModel.moveCustomField(id: id, offset: -1)
+                        }
+                        .accessibilityAction(named: Text("Move Down")) {
+                            formViewModel.moveCustomField(id: id, offset: 1)
+                        }
 
-            Toggle("Protect Field", isOn: Binding(
-                get: { field.wrappedValue.isProtected },
-                set: { setCustomFieldProtection(id, isProtected: $0) }
-            ))
-            .accessibilityLabel(name.isEmpty ? Text("Protect Field") : Text("Protect field \(name)"))
-            .accessibilityIdentifier("entry-edit.custom-field.protection.\(index)")
+                    customFieldValueInput(field, index: index, valueLabel: valueLabel)
+                        .foregroundStyle(Theme.labelSecondary)
+                }
+
+                customFieldMenu(field, index: index, name: name)
+            }
 
             if let message = formViewModel.customFieldValidationMessage(for: field.wrappedValue) {
                 Text(message)
@@ -496,16 +506,6 @@ struct EntryEditView: View {
                     .foregroundStyle(Theme.State.danger)
                     .accessibilityIdentifier("entry-edit.custom-field.error.\(index)")
             }
-
-            // Borderless so a tap elsewhere in the row does not trigger it.
-            Button("Remove Field", role: .destructive) {
-                revealedCustomFieldIDs.remove(id)
-                formViewModel.removeCustomField(id: id)
-            }
-            .buttonStyle(.borderless)
-            .font(.footnote)
-            .accessibilityLabel(name.isEmpty ? Text("Remove Field") : Text("Remove field \(name)"))
-            .accessibilityIdentifier("entry-edit.custom-field.remove.\(index)")
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(valueLabel)
@@ -514,28 +514,63 @@ struct EntryEditView: View {
         )
     }
 
-    private func customFieldReorderControls(id: UUID, index: Int) -> some View {
-        HStack {
-            Spacer()
-            Button {
-                formViewModel.moveCustomField(id: id, offset: -1)
-            } label: {
-                Label("Move Up", systemImage: "arrow.up")
-            }
-            .disabled(index == 0)
-            .accessibilityLabel(Text("Move Up"))
-            .accessibilityIdentifier("entry-edit.custom-field.move-up.\(index)")
-            Button {
-                formViewModel.moveCustomField(id: id, offset: 1)
-            } label: {
-                Label("Move Down", systemImage: "arrow.down")
-            }
-            .disabled(index + 1 >= formViewModel.customFields.count)
-            .accessibilityLabel(Text("Move Down"))
-            .accessibilityIdentifier("entry-edit.custom-field.move-down.\(index)")
+    @ViewBuilder
+    private func customFieldValueInput(
+        _ field: Binding<EntryEditViewModel.CustomField>,
+        index: Int,
+        valueLabel: String
+    ) -> some View {
+        let id = field.wrappedValue.id
+        if field.wrappedValue.isProtected {
+            PasswordInputRow(
+                title: valueLabel,
+                text: field.value,
+                isVisible: customFieldVisibility(id),
+                fieldAccessibilityIdentifier: "entry-edit.custom-field.value-field.\(index)",
+                visibilityAccessibilityIdentifier: "entry-edit.custom-field.value-visibility-button.\(index)",
+                onVisibilityToggle: { toggleCustomFieldVisibility(id) },
+                usesPasswordAutoFill: false,
+                axis: .vertical
+            )
+        } else {
+            TextField(String(localized: "Field Value"), text: field.value, axis: .vertical)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityLabel(valueLabel)
+                .accessibilityIdentifier("entry-edit.custom-field.value-field.\(index)")
         }
-        .labelStyle(.iconOnly)
+    }
+
+    private func customFieldMenu(
+        _ field: Binding<EntryEditViewModel.CustomField>,
+        index: Int,
+        name: String
+    ) -> some View {
+        let id = field.wrappedValue.id
+        let menuLabel = name.isEmpty ? String(localized: "Field Options") : String(localized: "Options for \(name)")
+        return Menu {
+            Toggle(isOn: Binding(
+                get: { field.wrappedValue.isProtected },
+                set: { setCustomFieldProtection(id, isProtected: $0) }
+            )) {
+                Label("Protect Field", systemImage: "lock")
+            }
+            .accessibilityIdentifier("entry-edit.custom-field.protection.\(index)")
+
+            Divider()
+
+            Button("Remove Field", systemImage: "trash", role: .destructive) {
+                revealedCustomFieldIDs.remove(id)
+                formViewModel.removeCustomField(id: id)
+            }
+            .accessibilityIdentifier("entry-edit.custom-field.remove.\(index)")
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .frame(width: 30, height: 30)
+        }
         .buttonStyle(.borderless)
+        .accessibilityLabel(menuLabel)
+        .accessibilityIdentifier("entry-edit.custom-field.menu.\(index)")
     }
 
     private func customFieldVisibility(_ id: UUID) -> Binding<Bool> {

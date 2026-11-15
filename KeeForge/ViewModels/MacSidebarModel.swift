@@ -232,6 +232,7 @@ struct MacSidebarGroupActions: Equatable {
     static let newSubgroupIdentifier = "group-row.new-subgroup"
     static let editIdentifier = "group-row.edit-context"
     static let restoreIdentifier = "group-row.restore-context"
+    static let restoreToGroupIdentifier = "group-row.restore-to-group-context"
     static let moveIdentifier = "group-row.move-context"
     static let deleteIdentifier = "group-row.delete-context"
     static let deletePermanentlyIdentifier = "group-row.delete-permanent"
@@ -239,6 +240,8 @@ struct MacSidebarGroupActions: Equatable {
     let canAddSubgroup: Bool
     let canEdit: Bool
     let canRestore: Bool
+    /// Restore already asks where when the original group is gone.
+    let canRestoreToGroup: Bool
     let canMove: Bool
     let canDelete: Bool
     /// Inside the Recycle Bin a delete cannot be undone.
@@ -247,18 +250,20 @@ struct MacSidebarGroupActions: Equatable {
     @MainActor
     init(groupID: UUID, session: DatabaseViewModel) {
         guard session.isSaving == false, session.isReadOnly == false, session.group(withID: groupID) != nil else {
-            self.init(canAddSubgroup: false, canEdit: false, canRestore: false, canMove: false, canDelete: false,
-                      deletesPermanently: false)
+            self.init(canAddSubgroup: false, canEdit: false, canRestore: false, canRestoreToGroup: false, canMove: false,
+                      canDelete: false, deletesPermanently: false)
             return
         }
         let isInRecycleBin = session.isGroupInRecycleBin(groupID: groupID)
         let isProtected = session.isGroupProtectedFromDeletion(groupID: groupID)
         // The Recycle Bin and everything inside it stay non-editable.
         let isEditable = session.currentRootGroup?.recycleBinUUID != groupID && isInRecycleBin == false
+        let canRestore = session.canRestore(.group(groupID))
         self.init(
             canAddSubgroup: isEditable,
             canEdit: isEditable && session.isSyntheticRootGroup(groupID: groupID) == false,
-            canRestore: session.canRestore(.group(groupID)),
+            canRestore: canRestore,
+            canRestoreToGroup: canRestore && session.originalRestoreDestination(for: .group(groupID)) != nil,
             canMove: isEditable && isProtected == false,
             canDelete: isProtected == false,
             deletesPermanently: isInRecycleBin
@@ -266,11 +271,13 @@ struct MacSidebarGroupActions: Equatable {
     }
 
     private init(
-        canAddSubgroup: Bool, canEdit: Bool, canRestore: Bool, canMove: Bool, canDelete: Bool, deletesPermanently: Bool
+        canAddSubgroup: Bool, canEdit: Bool, canRestore: Bool, canRestoreToGroup: Bool, canMove: Bool, canDelete: Bool,
+        deletesPermanently: Bool
     ) {
         self.canAddSubgroup = canAddSubgroup
         self.canEdit = canEdit
         self.canRestore = canRestore
+        self.canRestoreToGroup = canRestoreToGroup
         self.canMove = canMove
         self.canDelete = canDelete
         self.deletesPermanently = deletesPermanently

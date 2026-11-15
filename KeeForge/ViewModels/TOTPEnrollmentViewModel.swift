@@ -73,14 +73,6 @@ final class TOTPEnrollmentViewModel {
         uri.issuer != nil ? uri.accountName : nil
     }
 
-    var prefilledTitle: String {
-        uri.issuer ?? uri.accountName ?? ""
-    }
-
-    var prefilledUsername: String {
-        uri.accountName ?? ""
-    }
-
     /// Whether an empty `filteredEntryCandidates` means "nothing matched"
     /// rather than "this database has no entries".
     var hasActiveSearch: Bool {

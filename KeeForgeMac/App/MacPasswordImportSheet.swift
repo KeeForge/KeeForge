@@ -180,7 +180,7 @@ private struct MacPasswordImportForm: View {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(preview.skippedRows.count, format: .number).accessibilityIdentifier("password-import.skipped-count")
                                 ForEach(preview.skippedRows, id: \.row) { row in
-                                    HStack { Text("Row \(row.row)"); Text(verbatim: "·"); Text(reason(row.reason)) }
+                                    HStack { Text("Row \(row.row)"); Text(verbatim: "·"); Text(row.reason.title) }
                                         .font(.caption).accessibilityIdentifier("password-import.skipped-row")
                                 }
                                 if !preview.skippedRows.isEmpty { caption("Row numbers count the header as row 1, as a spreadsheet app shows them.") }
@@ -213,13 +213,6 @@ private struct MacPasswordImportForm: View {
     }
 
     private func caption(_ text: LocalizedStringKey) -> some View { Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-    private func reason(_ reason: PasswordImportPreview.SkipReason) -> String {
-        switch reason {
-        case .columnCountMismatch: String(localized: "Wrong number of values")
-        case .malformedQuoting: String(localized: "Damaged quotation marks")
-        case .noLoginData: String(localized: "No login data")
-        }
-    }
 }
 
 struct MacImportFinishedSheet: View {

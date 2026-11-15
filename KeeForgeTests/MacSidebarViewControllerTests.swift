@@ -396,6 +396,13 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
 
         try session.deleteGroup(tree.family.id, sendToRecycleBin: true)
         XCTAssertEqual(session.originalRestoreDestination(for: .group(tree.family.id)), tree.personal.id)
+        XCTAssertEqual(controller.contextMenuItems(forGroupID: tree.family.id).compactMap(\.identifier?.rawValue), [
+            "group-row.restore-context", "group-row.restore-to-group-context", "group-row.delete-permanent",
+        ])
+        try perform("group-row.restore-to-group-context", on: tree.family.id)
+        XCTAssertEqual(presentation.pendingMove?.id, PendingMove.restore(.group(tree.family.id)).id,
+                       "Restore to Group… asks even with a recorded parent")
+        XCTAssertTrue(session.isGroupInRecycleBin(groupID: tree.family.id))
         presentation.pendingMove = nil
         try perform("group-row.restore-context", on: tree.family.id)
         XCTAssertNil(presentation.pendingMove, "A recorded parent restores directly")

@@ -8,9 +8,12 @@ import Foundation
 struct EntryRowActions {
     static let copyUsernameIdentifier = "entry-row.copy-username-context"
     static let copyPasswordIdentifier = "entry-row.copy-password-context"
+    static let copyVerificationCodeIdentifier = "entry-row.copy-code-context"
     static let duplicateIdentifier = "entry-row.duplicate-context"
     static let restoreIdentifier = "entry-row.restore-context"
+    static let restoreToGroupIdentifier = "entry-row.restore-to-group-context"
     static let moveIdentifier = "entry-row.move-context"
+    static let changeIconIdentifier = "entry-row.change-icon-context"
     static let selectIdentifier = "entry-row.select-context"
     static let deleteIdentifier = "entry-row.delete-context"
     static let deletePermanentlyIdentifier = "entry-row.delete-permanent"
@@ -69,6 +72,18 @@ struct EntryRowActions {
         copySecret(reason: String(localized: "Copy password"), using: action, copy: copy) {
             session.resolvedPassword(for: $0)
         }
+    }
+
+    var canCopyVerificationCode: Bool {
+        entry?.totpConfig != nil && session.sessionKey != nil
+    }
+
+    /// Not behind the device-owner gate, like the detail's code copy button:
+    /// the code expires on its own.
+    func copyVerificationCode(copy: @MainActor (String) -> Void) {
+        guard let config = session.entry(withID: entryID)?.totpConfig,
+              let sessionKey = session.sessionKey else { return }
+        copy(TOTPGenerator.generateCode(config: config, sessionKey: sessionKey))
     }
 
     private func copySecret(
@@ -136,8 +151,22 @@ struct EntryRowActions {
         PendingMove.restoreOrChooseDestination(.entry(entryID), viewModel: session, choose: chooseDestination)
     }
 
+    /// Restore already asks where when the original group is gone.
+    var canRestoreToGroup: Bool {
+        canRestore && session.originalRestoreDestination(for: .entry(entryID)) != nil
+    }
+
+    var restoreToGroupMove: PendingMove {
+        .restore(.entry(entryID))
+    }
+
     var pendingMove: PendingMove {
         .entry(entryID)
+    }
+
+    /// Changing the icon is an edit that Move's gate already covers.
+    var canChangeIcon: Bool {
+        canMove
     }
 
     /// Moving is what a selection is for.

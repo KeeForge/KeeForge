@@ -9,9 +9,9 @@ import UIKit
 /// passkey assertion, and vault teardown live in
 /// `CredentialProviderCoordinator`. This class only forwards system requests
 /// to the coordinator, hosts the SwiftUI views (`AutoFillSearchView`,
-/// `AutoFillEntryCreatorView`) in `UIHostingController`s, shows
-/// `UIAlertController` prompts, and relays completions/cancellations to the
-/// extension context.
+/// `AutoFillEntryCreatorView`, `AutoFillUnlockView`) in
+/// `UIHostingController`s, shows `UIAlertController` prompts, and relays
+/// completions/cancellations to the extension context.
 @MainActor
 final class CredentialProviderViewController: ASCredentialProviderViewController {
     private lazy var coordinator = CredentialProviderCoordinator(presenter: self)
@@ -257,38 +257,30 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
     // MARK: "Ask this question"
 
     func presentUnlockPrompt(
+        database: DatabaseReference,
         biometricOptionTitle: String?,
         onSubmitPassword: @escaping (String?) -> Void,
         onChooseBiometrics: @escaping () -> Void,
         onCancel: @escaping () -> Void
     ) {
-        let alert = UIAlertController(
-            title: String(localized: "Unlock KeeForge"),
-            message: String(localized: "Enter your master password or use biometrics."),
-            preferredStyle: .alert
+        // Dismissed before each answer runs: the coordinator may present the
+        // next step at once, and it re-prompts only while nothing is shown.
+        let dismissThen: (@escaping () -> Void) -> Void = { [weak self] action in
+            guard let self else {
+                action()
+                return
+            }
+            self.dismiss(animated: false, completion: action)
+        }
+        let unlockView = AutoFillUnlockView(
+            databaseName: database.displayName,
+            filename: database.filename,
+            biometricOptionTitle: biometricOptionTitle,
+            onSubmitPassword: { password in dismissThen { onSubmitPassword(password) } },
+            onChooseBiometrics: { dismissThen(onChooseBiometrics) },
+            onCancel: { dismissThen(onCancel) }
         )
-
-        alert.addTextField { field in
-            field.placeholder = String(localized: "Master Password")
-            field.isSecureTextEntry = true
-            field.textContentType = .password
-        }
-
-        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel) { _ in
-            onCancel()
-        })
-
-        alert.addAction(UIAlertAction(title: String(localized: "Unlock"), style: .default) { [weak alert] _ in
-            onSubmitPassword(alert?.textFields?.first?.text)
-        })
-
-        if let biometricOptionTitle {
-            alert.addAction(UIAlertAction(title: biometricOptionTitle, style: .default) { _ in
-                onChooseBiometrics()
-            })
-        }
-
-        present(alert, animated: true)
+        present(hosting(unlockView), animated: true)
     }
 
     func presentUnlockError(

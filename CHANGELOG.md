@@ -16,11 +16,21 @@
 - Mac Settings opens in its own window with General, Security, AutoFill, Quick Search, SSH Agent, Appearance, Servers, and About tabs. Under Security, KeeForge can wait 1, 5, or 15 minutes in the background before it locks, instead of locking immediately; locking the screen or putting the Mac to sleep still locks at once.
 - On Mac, Database ▸ Database Settings… (⌘I) gathers a database's settings in General, Security, Sync, AutoFill, and Backups tabs. Change Master Key… and Change Encryption Settings… open from there, and Encryption Settings can Benchmark the key derivation so you can see how long unlocking will take.
 - On Mac, File ▸ New Database…, Connect to Server…, Import Passwords…, and Export… open as Mac sheets. Connect to Server adds a WebDAV or FTP server and browses it for the database to open. Database ▸ Discard Pending Upload… throws away changes that could not reach the server, after keeping a backup.
+- On iPhone and iPad, an entry's long-press menu offers Copy Verification Code and Change Icon, with icons and the copy, edit, and delete actions in separate groups. This works in every entry list: groups, All Entries, tags, and search.
+- A tag's entry list on iPhone and iPad has a Lock button and shows how many entries carry the tag.
+- Edit Group on iPhone and iPad shows the icon beside the name and the tags in the same card, and explains what hiding a group from Search & AutoFill does.
+- AutoFill on iPhone and iPad unlocks in a sheet that names the database and its file, with the master password field, Face ID, and Unlock, instead of a system alert.
+- Change Master Key shows the strength of the new password, as New Database does.
+- On iPhone and iPad, the Recycle Bin shows which group each item came from and when it was deleted, and tells you to touch and hold an item to restore or delete it.
+- On iPhone, iPad, and Mac, Restore to Group… puts a recycled item back in a group you choose, next to Restore, which returns it to its original group.
+- In the entry editor on iPhone and iPad, each custom field is one row with its name and value. Protect Field and Remove Field are in the row's menu, and Reorder Fields moves them.
 
 ### Changes
 
 - On Mac, quick search and the AutoFill picker have a new look that matches the rest of the app, and the Light, Dark, or System theme in Settings ▸ Appearance now applies to every window, sheet, panel, and alert.
-
+- Clipboard Clear Timeout in Settings has a Never option, on iPhone, iPad, and Mac (#210). A copied value then stays until you copy something else or the database locks; on iPhone and iPad, locking when KeeForge goes to the background still keeps it so you can paste. The default stays 30 seconds.
+- Sorting by title puts entries with the same title in order of their user name, such as several verification codes for one service (#271).
+- Scanning a verification-code QR code or pasting a setup link in the entry editor fills an empty title and user name from the code's issuer and account, as adding a code from New already did (#270). A title or user name you already entered is kept.
 - AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
   - An entry for an IP address, such as a router, is suggested only on that exact address. Before, entries for other addresses ending in the same two numbers appeared as possible matches.
   - An entry for a subdomain is no longer suggested or filled on a parent that unrelated sites share, such as `localhost`, `github.io`, or `co.uk`.
@@ -31,12 +41,18 @@
 
 ### Fixes
 
+- Search finds an entry by any of its URLs, not only the first one (#289).
+- Search results follow the chosen sort order and direction instead of appearing unsorted (#290).
+- Downloaded website icons are no longer included in device backups; KeeForge fetches them again when needed.
 - In AutoFill, an entry URL with spaces before or after it now matches its website and appears in the system's suggestions (#285).
 - An additional URL kept in a protected field is now treated like any other protected field: hidden until you reveal it, revealed and copied only after the same prompt as the password, and never opened, listed as a website, or matched in AutoFill. Before, iPhone and iPad showed it as plain text with Copy and Open.
 - A username, URL, note, or custom field whose field reference (`{REF:…}`) reads a password or another protected field now shows hidden in lists and entry details, and copying it asks for the same authentication as copying the password. Before, the referenced value appeared and copied without a prompt.
 - After Change Master Key removes the key file, changing the master key again before locking no longer brings the removed key file back. Before, the second change could make the database require a key file you had stopped using.
 - On Mac, New Database refuses to save over a database that is already in your list, instead of replacing it.
 - The entry editor's Title, Username, Password, URL, and Tags labels now appear in the app's language. Before, they stayed in English.
+- An AutoFill suggestion for a website no longer fills an entry whose URL has since changed to another site; the picker opens instead.
+- Password import skips rows that contain a KeePass field reference (`{REF:…}`) and lists them with the other skipped rows. A verification-code setup link no longer prefills a title or user name that contains one.
+- A database whose groups or data nest more than 256 levels deep now reports that it can't be opened instead of closing KeeForge or AutoFill, and a save that would nest that deeply is refused with the group or entry named.
 
 ## v1.22.0 (2026-11-10)
 

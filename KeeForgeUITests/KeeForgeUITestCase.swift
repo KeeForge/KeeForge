@@ -1182,6 +1182,20 @@ class KeeForgeUITestCase: XCTestCase {
         ).firstMatch
     }
 
+    /// Flips Protect Field in the editor's custom-field row menu on iOS.
+    func toggleCustomFieldProtection(
+        at index: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let menu = app.buttons["entry-edit.custom-field.menu.\(index)"]
+        XCTAssertTrue(revealElement(menu), "Custom field menu was not reachable", file: file, line: line)
+        tapElement(menu)
+        let protect = menuButton(identifier: "entry-edit.custom-field.protection.\(index)", label: "Protect Field")
+        XCTAssertTrue(protect.waitForExistence(timeout: 5), "Protect Field did not appear", file: file, line: line)
+        protect.tap()
+    }
+
     /// A list the vault shows: the root's groups, or a collection opened from
     /// a root tile. `rawValue` is the tile's identifier suffix and `label` the
     /// collection screen's title.

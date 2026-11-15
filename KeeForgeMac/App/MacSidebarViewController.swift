@@ -627,6 +627,10 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         if actions.canRestore {
             add(String(localized: "Restore"), MacSidebarGroupActions.restoreIdentifier, #selector(restoreGroup(_:)))
         }
+        if actions.canRestoreToGroup {
+            add(String(localized: "Restore to Group…"), MacSidebarGroupActions.restoreToGroupIdentifier,
+                #selector(restoreGroupToChosenGroup(_:)))
+        }
         if actions.canMove {
             add(String(localized: "Move to Group…"), MacSidebarGroupActions.moveIdentifier, #selector(moveGroup(_:)))
         }
@@ -645,6 +649,7 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         case #selector(newSubgroup(_:)): return actions.canAddSubgroup
         case #selector(editGroup(_:)): return actions.canEdit
         case #selector(restoreGroup(_:)): return actions.canRestore
+        case #selector(restoreGroupToChosenGroup(_:)): return actions.canRestoreToGroup
         case #selector(moveGroup(_:)): return actions.canMove
         case #selector(deleteGroup(_:)): return actions.canDelete
         default: return false
@@ -671,6 +676,11 @@ final class MacSidebarViewController: NSViewController, NSOutlineViewDataSource,
         PendingMove.restoreOrChooseDestination(.group(groupID), viewModel: session) { [presentation] in
             presentation.pendingMove = $0
         }
+    }
+
+    @objc private func restoreGroupToChosenGroup(_ sender: NSMenuItem) {
+        guard let groupID = validatedGroupID(sender) else { return }
+        presentation.pendingMove = .restore(.group(groupID))
     }
 
     @objc private func moveGroup(_ sender: NSMenuItem) {

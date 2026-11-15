@@ -19,6 +19,7 @@ struct TagEntriesView: View {
     /// they leave it nil and the list hosts its own. See
     /// `../Entry/PendingRowActions.swift`.
     var onRequestDeletion: ((PendingDeletion) -> Void)? = nil
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         let entries = viewModel.sortedEntries(viewModel.entries(withTag: tag))
@@ -43,6 +44,12 @@ struct TagEntriesView: View {
         }
         .navigationTitle(tag)
         .navigationBarTitleDisplayMode(.large)
+        .modifier(EntryCountSubtitle(entryCount: entries.count))
+        .toolbar {
+            ToolbarItem(placement: .databaseActions) {
+                DatabaseLockButton(viewModel: viewModel, isCompact: horizontalSizeClass == .compact)
+            }
+        }
     }
 }
 
@@ -59,6 +66,19 @@ private struct TagEntriesList: View {
             onSelectEntry: onSelectEntry,
             onRequestDeletion: onRequestDeletion
         )
+    }
+}
+
+/// The count under the large title from iOS 26, like the group screens.
+private struct EntryCountSubtitle: ViewModifier {
+    let entryCount: Int
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.navigationSubtitle(Text("\(entryCount) entries"))
+        } else {
+            content
+        }
     }
 }
 #endif

@@ -28,6 +28,9 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: read
+
 concurrency:
   group: tests-${{ inputs.ref || github.ref }}
   cancel-in-progress: true

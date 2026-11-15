@@ -331,6 +331,27 @@ final class AutoLockTests: XCTestCase {
         }
         XCTAssertNil(pasteboardString)
     }
+
+    /// Never, which the Settings window's Clipboard Clear Timeout offers,
+    /// schedules no clear timer; a lock still scrubs the copy.
+    func testMacNeverClipboardTimeoutKeepsCopyUntilLock() async throws {
+        XCTAssertTrue(SettingsService.ClipboardTimeout.allCases.contains(.never))
+        SettingsService.autoLockTimeout = .fiveMinutes
+        SettingsService.clipboardTimeout = .never
+        let vm = try await makeUnlockedViewModel()
+
+        ClipboardService.copy("COPY-PROBE-MAC-NEVER")
+        XCTAssertFalse(ClipboardService.isClearScheduled)
+        XCTAssertEqual(pasteboardString, "COPY-PROBE-MAC-NEVER")
+
+        SettingsService.clipboardTimeout = .tenSeconds
+        ClipboardService.copy("COPY-PROBE-MAC-TIMED")
+        XCTAssertTrue(ClipboardService.isClearScheduled)
+
+        vm.lock(manuallyTriggered: true)
+        XCTAssertFalse(ClipboardService.isClearScheduled)
+        XCTAssertNil(pasteboardString)
+    }
 #endif
 
     // The lock-on-background switch and its deferred inactivity check are iOS

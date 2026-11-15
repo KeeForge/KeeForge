@@ -81,6 +81,23 @@ enum XMLText {
         return "<\(name)\(rendered)>\(content)</\(name)>"
     }
 
+    /// How deeply a canonical fragment nests its elements: 1 for a leaf.
+    /// Canonical fragments pair every tag and escape `<` in text and
+    /// attributes, so each `<` opens or closes an element.
+    static func elementDepth(of xml: String) -> Int {
+        var depth = 0
+        var deepest = 0
+        for (byte, next) in zip(xml.utf8, xml.utf8.dropFirst()) where byte == UInt8(ascii: "<") {
+            if next == UInt8(ascii: "/") {
+                depth -= 1
+            } else {
+                depth += 1
+                deepest = max(deepest, depth)
+            }
+        }
+        return deepest
+    }
+
     /// KeePass splits stored tags on `,` and `;`, trims each, and drops
     /// empties. No dedupe, no reordering.
     static func splitTags(_ text: String) -> [String] {

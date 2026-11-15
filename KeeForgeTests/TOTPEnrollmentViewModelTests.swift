@@ -120,43 +120,37 @@ final class TOTPEnrollmentViewModelTests: XCTestCase {
         XCTAssertEqual(model.groupOptions.map(\.depth), [0, 1, 2, 1])
     }
 
-    // MARK: - Prefill derivation
+    // MARK: - Summary
 
-    func testPrefillUsesIssuerAndAccountName() throws {
+    func testSummaryShowsIssuerOverAccountName() throws {
         let model = TOTPEnrollmentViewModel(
             uri: try makeURI("otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&issuer=GitHub"),
             visibleRoot: nil,
             recycleBinGroupID: nil
         )
 
-        XCTAssertEqual(model.prefilledTitle, "GitHub")
-        XCTAssertEqual(model.prefilledUsername, "alice")
         XCTAssertEqual(model.summaryTitle, "GitHub")
         XCTAssertEqual(model.summarySubtitle, "alice")
     }
 
-    func testPrefillFallsBackToAccountNameWithoutIssuer() throws {
+    func testSummaryFallsBackToAccountNameWithoutIssuer() throws {
         let model = TOTPEnrollmentViewModel(
             uri: try makeURI("otpauth://totp/alice@example.com?secret=JBSWY3DPEHPK3PXP"),
             visibleRoot: nil,
             recycleBinGroupID: nil
         )
 
-        XCTAssertEqual(model.prefilledTitle, "alice@example.com")
-        XCTAssertEqual(model.prefilledUsername, "alice@example.com")
         XCTAssertEqual(model.summaryTitle, "alice@example.com")
         XCTAssertNil(model.summarySubtitle)
     }
 
-    func testPrefillIsEmptyWithoutIssuerOrAccountName() throws {
+    func testSummaryHasAFallbackWithoutIssuerOrAccountName() throws {
         let model = TOTPEnrollmentViewModel(
             uri: try makeURI("otpauth://totp/?secret=JBSWY3DPEHPK3PXP"),
             visibleRoot: nil,
             recycleBinGroupID: nil
         )
 
-        XCTAssertEqual(model.prefilledTitle, "")
-        XCTAssertEqual(model.prefilledUsername, "")
         // The localized fallback; asserted non-empty rather than against one
         // locale's wording.
         XCTAssertFalse(model.summaryTitle.isEmpty)

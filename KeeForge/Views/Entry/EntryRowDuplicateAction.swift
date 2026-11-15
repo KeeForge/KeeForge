@@ -13,7 +13,7 @@ struct EntryRowDuplicateAction: View {
     var body: some View {
         let actions = EntryRowActions(entryID: entryID, session: viewModel)
         if actions.canDuplicate {
-            Button("Duplicate") {
+            Button("Duplicate", systemImage: "plus.square.on.square") {
                 guard let editor = actions.makeDuplicateEditor() else { return }
                 onDuplicate(editor)
             }

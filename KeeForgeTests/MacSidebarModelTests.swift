@@ -413,6 +413,7 @@ final class MacSidebarGroupActionsTests: MacSidebarSessionTestCase {
         XCTAssertFalse(actions.canAddSubgroup)
         XCTAssertFalse(actions.canEdit)
         XCTAssertTrue(actions.canRestore)
+        XCTAssertFalse(actions.canRestoreToGroup, "No recorded parent: Restore already asks")
         XCTAssertFalse(actions.canMove)
         XCTAssertTrue(actions.canDelete)
         XCTAssertTrue(actions.deletesPermanently)
@@ -454,6 +455,7 @@ final class MacSidebarGroupActionsTests: MacSidebarSessionTestCase {
         XCTAssertEqual(MacSidebarGroupActions.newSubgroupIdentifier, "group-row.new-subgroup")
         XCTAssertEqual(MacSidebarGroupActions.editIdentifier, "group-row.edit-context")
         XCTAssertEqual(MacSidebarGroupActions.restoreIdentifier, "group-row.restore-context")
+        XCTAssertEqual(MacSidebarGroupActions.restoreToGroupIdentifier, "group-row.restore-to-group-context")
         XCTAssertEqual(MacSidebarGroupActions.moveIdentifier, "group-row.move-context")
     }
 }

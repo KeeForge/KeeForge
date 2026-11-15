@@ -596,7 +596,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             item.representedObject = entryID
             groups[group].append(item)
         }
-        // The bin's rows offer only Restore and Delete Permanently, as RowMenus draws them.
+        // The bin's rows offer only Restore, Restore to Group… and Delete Permanently.
         let isRecycled = session.isEntryInRecycleBin(entryID: entryID)
         if actions.canCopyUsername, isRecycled == false {
             add(0, String(localized: "Copy Username"), EntryRowActions.copyUsernameIdentifier, #selector(copyRowUsername(_:)),
@@ -612,6 +612,10 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         }
         if actions.canRestore {
             add(1, String(localized: "Restore"), EntryRowActions.restoreIdentifier, #selector(restoreEntry(_:)))
+        }
+        if actions.canRestoreToGroup {
+            add(1, String(localized: "Restore to Group…"), EntryRowActions.restoreToGroupIdentifier,
+                #selector(restoreEntryToChosenGroup(_:)))
         }
         if actions.canMove {
             add(1, String(localized: "Move to Group…"), EntryRowActions.moveIdentifier, #selector(moveEntry(_:)))
@@ -645,6 +649,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         case #selector(copyRowPassword(_:)): return actions.canCopyPassword && passwordCopyAction.isAuthenticating == false
         case #selector(duplicateEntry(_:)): return actions.canDuplicate
         case #selector(restoreEntry(_:)): return actions.canRestore
+        case #selector(restoreEntryToChosenGroup(_:)): return actions.canRestoreToGroup
         case #selector(moveEntry(_:)): return actions.canMove
         case #selector(deleteEntry(_:)): return actions.canDelete
         default: return false
@@ -705,6 +710,11 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         EntryRowActions(entryID: entryID, session: session).restore { [presentation] in
             presentation.pendingMove = $0
         }
+    }
+
+    @objc private func restoreEntryToChosenGroup(_ sender: NSMenuItem) {
+        guard let entryID = validatedEntryID(sender) else { return }
+        presentation.pendingMove = EntryRowActions(entryID: entryID, session: session).restoreToGroupMove
     }
 
     @objc private func moveEntry(_ sender: NSMenuItem) {

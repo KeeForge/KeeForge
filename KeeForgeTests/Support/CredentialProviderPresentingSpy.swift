@@ -15,6 +15,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     var didAttachPresentedContent = true
 
     struct UnlockPrompt {
+        let databaseID: UUID
         let biometricOptionTitle: String?
         let onSubmitPassword: (String?) -> Void
         let onChooseBiometrics: () -> Void
@@ -181,12 +182,14 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     }
 
     func presentUnlockPrompt(
+        database: DatabaseReference,
         biometricOptionTitle: String?,
         onSubmitPassword: @escaping (String?) -> Void,
         onChooseBiometrics: @escaping () -> Void,
         onCancel: @escaping () -> Void
     ) {
         unlockPrompt = UnlockPrompt(
+            databaseID: database.id,
             biometricOptionTitle: biometricOptionTitle,
             onSubmitPassword: onSubmitPassword,
             onChooseBiometrics: onChooseBiometrics,

@@ -18,6 +18,7 @@ struct GroupEditView: View {
     /// False for the workspace's coordinator, which outlives this view across a layout change.
     private let ownsCoordinator: Bool
     @FocusState private var notesFocused: Bool
+    @ScaledMetric(relativeTo: .body) private var iconSize = Theme.Size.entryIcon
 
     private var isSavingInProgress: Bool {
         coordinator.isSavingInProgress
@@ -40,29 +41,7 @@ struct GroupEditView: View {
 
     var body: some View {
         Form {
-            Section("Basics") {
-                fieldRow("Name") {
-                    TextField("Group Name", text: $formViewModel.name)
-                        .textInputAutocapitalization(.words)
-                        .accessibilityIdentifier("group-edit.name-field")
-                }
-
-                iconRow
-
-                fieldRow("Tags") {
-                    appliedTagStrip
-
-                    // Single-line on purpose: Return has to submit the tag
-                    // rather than insert a newline, matching the entry editor.
-                    TextField("Add a tag", text: $formViewModel.pendingTagText)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .onSubmit { formViewModel.commitPendingTag() }
-                        .accessibilityIdentifier("group-edit.tags-field")
-
-                    tagSuggestionStrip
-                }
-            }
+            basicsSection
 
             Section("Notes") {
                 TextEditor(text: $formViewModel.notes)
@@ -71,16 +50,7 @@ struct GroupEditView: View {
                     .accessibilityIdentifier("group-edit.notes-field")
             }
 
-            Section("Search & AutoFill") {
-                Toggle("Hide from Search & AutoFill", isOn: $formViewModel.isHiddenFromAutoFill)
-                    .accessibilityIdentifier("group-edit.autofill-toggle")
-
-                if formViewModel.isExclusionInherited {
-                    Text("A parent group is hidden from Search & AutoFill. Turn this off to show this group anyway.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            searchSection
         }
         .scrollDismissesKeyboard(.immediately)
         .macGroupedForm()
@@ -211,29 +181,87 @@ struct GroupEditView: View {
         }
     }
 
-    /// The group's standard KDBX icon, presenting the shared picker sheet. A
-    /// custom icon is deliberately not previewed here: the payload only carries
-    /// a standard `iconID`, and the draft layer keeps the custom icon untouched
-    /// unless the user actually picks a different standard one.
-    private var iconRow: some View {
-        Button {
-            isShowingIconPicker = true
-        } label: {
-            HStack {
-                Text("Icon")
-                Spacer(minLength: 8)
-                StandardIconView(
-                    iconID: formViewModel.iconID,
-                    fallbackSystemName: "folder.fill",
-                    fallbackPalette: .blue
-                )
-                Image(systemName: "chevron.forward")
+    /// The icon beside the name and the tags in the same card, as the entry
+    /// editor does.
+    private var basicsSection: some View {
+        Section {
+            HStack(spacing: Theme.Spacing.iconText) {
+                iconButton
+                nameField
+            }
+
+            tagFields
+        }
+    }
+
+    private var nameField: some View {
+        TextField("Group Name", text: $formViewModel.name)
+            .textInputAutocapitalization(.words)
+            .accessibilityIdentifier("group-edit.name-field")
+    }
+
+    @ViewBuilder
+    private var tagFields: some View {
+        appliedTagStrip
+
+        // Single-line on purpose: Return has to submit the tag
+        // rather than insert a newline, matching the entry editor.
+        TextField("Add a tag", text: $formViewModel.pendingTagText)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .onSubmit { formViewModel.commitPendingTag() }
+            .accessibilityIdentifier("group-edit.tags-field")
+
+        tagSuggestionStrip
+    }
+
+    private var searchSection: some View {
+        Section {
+            Toggle("Hide from Search & AutoFill", isOn: $formViewModel.isHiddenFromAutoFill)
+                .accessibilityIdentifier("group-edit.autofill-toggle")
+
+            if formViewModel.isExclusionInherited {
+                Text("A parent group is hidden from Search & AutoFill. Turn this off to show this group anyway.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        } header: {
+            Text("Search & AutoFill")
+        } footer: {
+            Text("Entries in a hidden group and its subgroups stay in the database but don't appear in search or AutoFill suggestions.")
+        }
+    }
+
+    /// The icon: a tap opens the picker. The pencil badge says it can
+    /// be changed, as on entry detail.
+    private var iconButton: some View {
+        Button {
+            isShowingIconPicker = true
+        } label: {
+            StandardIconView(
+                iconID: formViewModel.iconID,
+                fallbackSystemName: "folder.fill",
+                fallbackPalette: .blue
+            )
+            .font(.title2)
+            .frame(width: iconSize, height: iconSize)
+            .background(
+                Theme.card2,
+                in: RoundedRectangle(cornerRadius: iconSize * Theme.EntryIcon.cornerRatio, style: .continuous)
+            )
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: "pencil.circle.fill")
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, .tint)
+                    .font(.system(size: 14))
+                    .offset(x: 4, y: 4)
+                    .accessibilityHidden(true)
+            }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
+        .accessibilityLabel("Icon")
+        .accessibilityHint("Changes the group icon")
         .accessibilityIdentifier("group-edit.icon-button")
         .accessibilityValue(String(formViewModel.iconID))
     }
@@ -300,23 +328,6 @@ struct GroupEditView: View {
         .accessibilityIdentifier(
             "group-edit.tag-suggestion.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
         )
-    }
-
-    private func fieldRow<Content: View>(
-        _ title: LocalizedStringKey,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            content()
-                .macLabelsHidden()
-                .macFormFieldStyle()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 2)
     }
 
     private func cancelTapped() {

@@ -30,6 +30,7 @@
 ### Clipboard
 
 - iOS: every copy carries a `UIPasteboard` expiration date and `.localOnly`, so the system expires it and it stays off Universal Clipboard. macOS has neither: a copy is marked `org.nspasteboard.ConcealedType` and cleared by an in-process timer.
+- A clear timeout of Never sets no expiration date on iOS and no timer on macOS; only a lock or a later copy removes the value. On iOS a background lock does not scrub, so such a copy can stay on the pasteboard indefinitely. That is the user's explicit choice; the default stays 30 seconds.
 - Both branches clear only while `changeCount` still matches the app's own write, so a later copy by the user is never clobbered.
 - `clearOwnedContents()` runs on every lock. The single exception is iOS backgrounding (`../../ViewModels/AGENTS.md`), where the expiration date bounds the copy instead. macOS has no such bound, so a missed scrub there leaves the secret on the pasteboard.
 - The AutoFill extension calls only the iOS branch (verification-code copy). The macOS timer would die with the extension process, so the coordinator gates the feature on `#if os(iOS)`; the Mac extension compiles the AppKit branch without calling it.

@@ -38,16 +38,6 @@ struct EntryDetailView: View {
         viewModel.entry(withID: entryID)
     }
 
-    /// What the entry displays today, which is what the picker opens on. A
-    /// `<CustomIconUUID>` outranks `<IconID>` in KeePass, so the custom icon
-    /// wins here for the same reason it wins on screen.
-    private static func iconSelection(of entry: KPEntry) -> EntryIconSelection {
-        if let uuid = entry.customIconUUID {
-            return .custom(uuid: uuid)
-        }
-        return .standard(iconID: entry.iconID)
-    }
-
     /// The entry's icon, opening the picker when the database can take the edit.
     ///
     /// Read-only databases render the same icon as a plain image: a button that
@@ -93,17 +83,6 @@ struct EntryDetailView: View {
             .background(Circle().fill(Color(.systemGroupedBackground)).padding(-2))
             .offset(x: 6, y: 6)
             .accessibilityHidden(true)
-    }
-
-    private func changeEntryIcon(_ icon: EntryIconSelection) {
-        do {
-            try viewModel.setEntryIcon(icon, entryID: entryID)
-            Task {
-                await viewModel.saveHandlingError()
-            }
-        } catch {
-            viewModel.presentSaveError(error)
-        }
     }
 
     private var sessionKey: SymmetricKey? {
@@ -260,21 +239,7 @@ struct EntryDetailView: View {
                     EntryHistoryView(entryID: entryID, viewModel: viewModel)
                 }
                 .sheet(isPresented: $isShowingIconPicker) {
-                    EntryIconPickerView(
-                        entryTitle: entry.title,
-                        selection: Self.iconSelection(of: entry),
-                        customIcons: viewModel.customIcons,
-                        databaseViewModel: viewModel,
-                        canDownloadFavicon: viewModel.canDownloadFavicon(forEntryID: entryID),
-                        onSelect: { icon in changeEntryIcon(icon) },
-                        onDownloadFavicon: {
-                            try await viewModel.downloadFavicon(forEntryID: entryID)
-                            // Outside the picker's cancellable task on purpose:
-                            // the icon is in the draft by now, and closing the
-                            // sheet mid-save would leave it unwritten.
-                            await Task { await viewModel.saveHandlingError() }.value
-                        }
-                    )
+                    EntryIconChangeSheet(entryID: entryID, viewModel: viewModel)
                 }
             } else {
                 ContentUnavailableView(

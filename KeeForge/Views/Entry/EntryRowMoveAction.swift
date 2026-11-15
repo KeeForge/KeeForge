@@ -14,7 +14,7 @@ struct EntryRowMoveAction: View {
         let actions = EntryRowActions(entryID: entryID, session: viewModel)
         RestoreRowAction(item: .entry(entryID), viewModel: viewModel, onChooseDestination: onMove)
         if actions.canMove {
-            Button("Move to Group") {
+            Button("Move to Group", systemImage: "folder") {
                 onMove(actions.pendingMove)
             }
             .accessibilityIdentifier(EntryRowActions.moveIdentifier)

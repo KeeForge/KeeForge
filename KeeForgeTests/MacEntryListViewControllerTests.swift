@@ -387,6 +387,30 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(presentation.pendingDeletion?.confirmationTitle, String(localized: "Delete \(2) Entries?"))
     }
 
+    func testARecycledEntryWithItsGroupStillThereOffersRestoreToGroup() async throws {
+        let (controller, session, presentation, tree) = try await makeController()
+        let entryID = tree.work.entries[0].id
+        try session.deleteEntry(entryID, sendToRecycleBin: true)
+        XCTAssertEqual(session.originalRestoreDestination(for: .entry(entryID)), tree.work.id)
+
+        let items = controller.contextMenuItems(forEntryID: entryID)
+        XCTAssertEqual(identifiers(items), [
+            EntryRowActions.restoreIdentifier, EntryRowActions.restoreToGroupIdentifier,
+            EntryRowActions.deletePermanentlyIdentifier,
+        ])
+        XCTAssertEqual(items.map(\.title), [
+            String(localized: "Restore"), String(localized: "Restore to Group…"), "", String(localized: "Delete Permanently"),
+        ])
+        let restoreToGroup = try XCTUnwrap(items.first { $0.identifier?.rawValue == EntryRowActions.restoreToGroupIdentifier })
+        XCTAssertTrue(controller.validateMenuItem(restoreToGroup))
+        try perform(restoreToGroup)
+        XCTAssertEqual(presentation.pendingMove?.id, PendingMove.restore(.entry(entryID)).id)
+        XCTAssertTrue(session.isEntryInRecycleBin(entryID: entryID), "It asks for the destination first")
+
+        XCTAssertFalse(identifiers(controller.contextMenuItems(forEntryID: tree.gone.id))
+            .contains(EntryRowActions.restoreToGroupIdentifier), "No recorded group: Restore already asks")
+    }
+
     func testMenuActionsSetThePresentationAndCopyThroughTheCommands() async throws {
         let (controller, session, presentation, tree) = try await makeController(configure: { _, entries in
             entries[1].username = "{REF:U@T:Account 00}"

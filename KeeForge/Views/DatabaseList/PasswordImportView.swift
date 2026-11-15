@@ -200,7 +200,7 @@ struct PasswordImportView: View {
         Section {
             ForEach(skippedRows, id: \.row) { skippedRow in
                 LabeledContent {
-                    Text(Self.reasonText(skippedRow.reason))
+                    Text(skippedRow.reason.title)
                         .multilineTextAlignment(.trailing)
                 } label: {
                     Text("Row \(skippedRow.row)")
@@ -278,17 +278,6 @@ struct PasswordImportView: View {
 
     private var destinationGroupName: String {
         sessionViewModel.group(withID: viewModel.destinationGroupID)?.name ?? ""
-    }
-
-    private static func reasonText(_ reason: PasswordImportPreview.SkipReason) -> String {
-        switch reason {
-        case .columnCountMismatch:
-            String(localized: "Wrong number of values")
-        case .malformedQuoting:
-            String(localized: "Damaged quotation marks")
-        case .noLoginData:
-            String(localized: "No login data")
-        }
     }
 
     private func progressBadge(_ title: LocalizedStringKey) -> some View {

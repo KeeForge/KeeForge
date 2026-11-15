@@ -1258,6 +1258,73 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.entry(withID: entry.id)?.username, entry.username)
     }
 
+    func testRecycleBinOriginNamesTheFormerGroupAndDeletionTimeOfDirectItemsOnly() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let work = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Work" })
+        let entry = try XCTUnwrap(work.entries.first)
+        let social = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Social" })
+        let nestedEntry = try XCTUnwrap(social.entries.first)
+        XCTAssertNil(vm.recycleBinOrigin(for: .entry(entry.id)), "A live entry has no recycle-bin origin")
+
+        let beforeDeletion = Date()
+        try vm.deleteEntry(entry.id, sendToRecycleBin: true)
+        try vm.deleteGroup(social.id, sendToRecycleBin: true)
+
+        let entryOrigin = try XCTUnwrap(vm.recycleBinOrigin(for: .entry(entry.id)))
+        XCTAssertEqual(entryOrigin.groupName, "Work")
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(entryOrigin.deletedAt), beforeDeletion.addingTimeInterval(-1))
+        let groupOrigin = try XCTUnwrap(vm.recycleBinOrigin(for: .group(social.id)))
+        XCTAssertEqual(groupOrigin.groupName, vm.databaseDisplayName, "The database root is named after the database")
+        XCTAssertNil(
+            vm.recycleBinOrigin(for: .entry(nestedEntry.id)),
+            "Inside a recycled group LocationChanged dates the last move, not the deletion"
+        )
+
+        try vm.deleteGroup(work.id, sendToRecycleBin: true)
+        let orphanedOrigin = try XCTUnwrap(vm.recycleBinOrigin(for: .entry(entry.id)))
+        XCTAssertNil(orphanedOrigin.groupName, "A former group that is itself recycled is not named")
+        XCTAssertNotNil(orphanedOrigin.deletedAt)
+    }
+
+    func testRecycleBinOriginIsWithheldForItemsRecycledWithoutAPreviousParent() async throws {
+        let active = KPGroup(name: "Active")
+        var legacy = KPEntry(title: "Legacy")
+        legacy.locationChanged = Date(timeIntervalSinceReferenceDate: 0)
+        var stamped = KPEntry(title: "Stamped")
+        stamped.locationChanged = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        stamped.unknownXML = OpaqueXMLNodes(nodes: [.init(insertionIndex: 0,
+            xml: "<PreviousParentGroup>\(active.id.kdbxBase64String)</PreviousParentGroup>")])
+        let bin = KPGroup(name: "Recycle Bin", entries: [legacy, stamped])
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "Visible", groups: [active, bin])], recycleBinUUID: bin.id)
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertNil(
+            vm.recycleBinOrigin(for: .entry(legacy.id)),
+            "Without PreviousParentGroup, LocationChanged may date an older move, not the deletion"
+        )
+        XCTAssertEqual(
+            vm.recycleBinOrigin(for: .entry(stamped.id)),
+            RecycleBinOrigin(groupName: "Active", deletedAt: stamped.locationChanged)
+        )
+    }
+
+    func testRecycleBinOriginSummaryJoinsGroupAndRelativeDate() {
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let locale = Locale(identifier: "en_US")
+        let from = String(localized: "From \("Work")")
+        XCTAssertEqual(
+            RecycleBinOrigin(groupName: "Work", deletedAt: now.addingTimeInterval(-86_400)).summary(relativeTo: now, locale: locale),
+            from + " · " + String(localized: "Deleted \("yesterday")")
+        )
+        XCTAssertEqual(RecycleBinOrigin(groupName: "Work", deletedAt: nil).summary(relativeTo: now, locale: locale), from)
+        XCTAssertEqual(
+            RecycleBinOrigin(groupName: nil, deletedAt: now.addingTimeInterval(60)).summary(relativeTo: now, locale: locale),
+            String(localized: "Deleted \("now")"),
+            "A clock skewed into the future reads as now"
+        )
+    }
+
     func testRecycleBinRestoreNestedItemsAndDestinationVisibility() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
@@ -2618,6 +2685,36 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertTrue(vm.isGroupExcludedFromAutoFill(groupID: parent.id))
         XCTAssertFalse(vm.isGroupExcludedFromAutoFill(groupID: child.id))
+    }
+
+    func testSearchMatchesAdditionalURLFields() async throws {
+        let entry = KPEntry(
+            title: "Router",
+            url: "https://admin.example.com",
+            customFields: ["KP2A_URL_1": "https://portal.example.net"]
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", entries: [entry]))
+
+        vm.searchText = "portal.example"
+
+        XCTAssertEqual(vm.searchResults.map(\.id), [entry.id])
+    }
+
+    func testSearchResultsFollowTheSortOrderAndResortWhenItChanges() async throws {
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "B", entries: [KPEntry(title: "Shared Zulu")]),
+            KPGroup(name: "A", entries: [KPEntry(title: "Shared Alpha"), KPEntry(title: "Shared Mike")]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+        vm.sortOrder = .title
+        vm.sortAscending = true
+
+        vm.searchText = "Shared"
+        XCTAssertEqual(vm.searchResults.map(\.title), ["Shared Alpha", "Shared Mike", "Shared Zulu"])
+
+        vm.sortAscending = false
+        XCTAssertEqual(vm.searchResults.map(\.title), ["Shared Zulu", "Shared Mike", "Shared Alpha"])
+        vm.sortAscending = true
     }
 
     func testEntriesInGroupHiddenFromSearchAreExcludedFromSearchResults() async throws {
