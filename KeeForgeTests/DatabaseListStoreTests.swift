@@ -33,6 +33,18 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(storedReferences.first?.filename, "personal.kdbx")
     }
 
+    func testReadOnlyRejectsReferenceObservedBeforeRelink() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "before.kdbx"))
+        let replacement = try makeTemporaryFileURL(name: "after.kdbx")
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: original.id, to: replacement))
+
+        XCTAssertFalse(DatabaseListStore.setReadOnly(true, for: original))
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == original.id }))
+        XCTAssertEqual(stored.bookmarkData, relinked.bookmarkData)
+        XCTAssertFalse(stored.isReadOnly)
+        XCTAssertTrue(stored.hasUnverifiedRelink)
+    }
+
     func testAddRejectsSameLocalFileTwice() throws {
         let url = try makeTemporaryFileURL(name: "duplicate.kdbx")
         let firstReference = try DatabaseListStore.add(url: url)

@@ -918,6 +918,8 @@ enum DatabaseListStore {
     static func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) -> Bool {
         succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
             guard let index = rows.firstIndex(where: { $0.id == reference.id }) else { return .missing }
+            guard PendingLocalSaveStore.PreferenceObservation(reference).matches(rows[index]),
+                  rows[index].hardwareKey == reference.hardwareKey else { return .rejected }
             guard rows[index].isReadOnly != isReadOnly else { return .noop(()) }
             rows[index].isReadOnly = isReadOnly
             return .write(())
