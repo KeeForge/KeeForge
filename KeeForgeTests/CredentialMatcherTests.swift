@@ -121,7 +121,43 @@ final class CredentialMatcherTests: XCTestCase {
         let searched = AutoFillSearchResults(entries: [], searchEntries: [entry], possibleEntries: [], query: "vt.cvmd.com.ar", hasExpandedSearch: true)
         XCTAssertEqual(searched.entries.map(\.id), [entry.id])
     }
+
+    func testAddWebsiteMenuItemNamesTheHostOnlyForEntriesWithoutIt() {
+        let addition = AutoFillURLAddition(host: "login.example.com", url: "https://login.example.com") { _ in }
+        let bank = makeEntry(title: "Bank", url: "https://bank.test")
+        let stored = makeEntry(title: "Example Login", url: "https://login.example.com/signin")
+        XCTAssertEqual(addition.menuTitle(for: bank), "Add login.example.com to This Entry")
+        XCTAssertNil(addition.menuTitle(for: stored), "An entry that already stores the host offers no menu item")
+    }
+
+    func testMacDatabaseSwitcherIsTitledWithTheOpenDatabase() {
+        let personal = DatabaseReference(id: UUID(), nickname: "Personal", filename: "personal.kdbx", isQuickLaunch: false, addedAt: .distantPast)
+        let work = DatabaseReference(id: UUID(), nickname: nil, filename: "work.kdbx", isQuickLaunch: false, addedAt: .distantPast)
+        let open = CredentialProviderDatabaseSwitcherContext(databases: [personal, work], currentDatabaseID: work.id) { _, _ in }
+        XCTAssertEqual(open.currentDisplayName, "work")
+        let unknown = CredentialProviderDatabaseSwitcherContext(databases: [personal], currentDatabaseID: nil) { _, _ in }
+        XCTAssertNil(unknown.currentDisplayName)
+    }
     #endif
+
+    func testEmptyStateNamesTheRequestedSiteUntilTheUserSearches() {
+        let requested = AutoFillEmptyStateCopy(searchText: "", initialSearchText: "", didEditSearch: false, requestHost: "shop.example.net")
+        XCTAssertEqual(requested.requestedSite, "shop.example.net")
+        XCTAssertEqual(requested.title, "Nothing for this site yet")
+        XCTAssertFalse(requested.showsSearchMiss)
+
+        let prefilled = AutoFillEmptyStateCopy(searchText: "example.net", initialSearchText: "example.net", didEditSearch: false, requestHost: "shop.example.net")
+        XCTAssertEqual(prefilled.requestedSite, "example.net")
+
+        let typed = AutoFillEmptyStateCopy(searchText: "bank", initialSearchText: "", didEditSearch: true, requestHost: "shop.example.net")
+        XCTAssertNil(typed.requestedSite)
+        XCTAssertEqual(typed.title, "No Credentials Found")
+        XCTAssertTrue(typed.showsSearchMiss)
+
+        let cleared = AutoFillEmptyStateCopy(searchText: "  ", initialSearchText: "", didEditSearch: true, requestHost: nil)
+        XCTAssertEqual(cleared.title, "No Credentials Found")
+        XCTAssertFalse(cleared.showsSearchMiss)
+    }
 
     // MARK: - Helpers
 

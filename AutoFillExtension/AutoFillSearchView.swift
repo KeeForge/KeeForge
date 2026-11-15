@@ -25,6 +25,28 @@ struct AutoFillSearchResults {
     }
 }
 
+/// What the empty picker says: it names the requesting site while the search
+/// is still the one KeeForge filled in; a search the user typed has no site.
+struct AutoFillEmptyStateCopy: Equatable {
+    let requestedSite: String?
+    /// A typed search found nothing, and no site is named instead.
+    let showsSearchMiss: Bool
+
+    init(searchText: String, initialSearchText: String, didEditSearch: Bool, requestHost: String?) {
+        if didEditSearch == false, searchText == initialSearchText {
+            let site = initialSearchText.isEmpty ? requestHost : initialSearchText
+            requestedSite = site?.isEmpty == false ? site : nil
+        } else {
+            requestedSite = nil
+        }
+        showsSearchMiss = requestedSite == nil && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var title: String {
+        requestedSite == nil ? String(localized: "No Credentials Found") : String(localized: "Nothing for this site yet")
+    }
+}
+
 struct AutoFillSearchView: View {
     let entries: [KPEntry]
     let searchEntries: [KPEntry]
@@ -56,7 +78,9 @@ struct AutoFillSearchView: View {
     @State private var didEditSearch = false
     @State private var showsAllEntries = false
     @State private var entryPendingURLAddition: KPEntry?
+    #if os(iOS)
     @ScaledMetric(relativeTo: .body) private var entryIconSize = Theme.Size.entryIcon
+    #endif
 
     init(
         entries: [KPEntry],
@@ -182,26 +206,165 @@ struct AutoFillSearchView: View {
     /// (see `AutoFillMacChrome.swift`).
     private var macHeader: some View {
         AutoFillMacHeader {
-            VStack(spacing: 10) {
-                HStack(spacing: 12) {
+            VStack(spacing: 9) {
+                HStack(spacing: 10) {
                     Text("Choose Credential")
-                        .font(.headline)
-                    Spacer()
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     if let databaseSwitcher {
                         databaseSwitcherMenu(databaseSwitcher)
                             .fixedSize()
                     }
                 }
-                TextField("Search entries", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("autofill.search-field")
+                AutoFillMacSearchField(text: $searchText)
             }
         }
     }
+
+    /// Click to fill; the add-website action lives in the row's context menu.
+    private func macEntryButton(
+        _ entry: KPEntry,
+        identifier: String,
+        addIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) { macEntryRow(entry) }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(identifier)
+            .contextMenu {
+                if let urlAddition, let title = urlAddition.menuTitle(for: entry) {
+                    Button {
+                        entryPendingURLAddition = entry
+                    } label: {
+                        Label(title, systemImage: "link.badge.plus")
+                    }
+                    .accessibilityIdentifier(addIdentifier)
+                }
+            }
+    }
+
+    private func macEntryRow(_ entry: KPEntry) -> some View {
+        HStack(spacing: 10) {
+            AutoFillEntryIcon(
+                entry: entry,
+                customIconData: entry.customIconUUID.flatMap { customIcons[$0] },
+                size: 28
+            )
+            VStack(alignment: .leading, spacing: 1) {
+                Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                if !entry.username.isEmpty {
+                    Text(entry.username)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                let hosts = Set(CredentialMatcher.webURLs(of: entry).compactMap { SiteHost($0)?.name }).sorted()
+                if !hosts.isEmpty {
+                    Text(hosts.joined(separator: ", "))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+            if entry.isExpired() {
+                StatusBadge(text: String(localized: "Expired"), tone: .danger)
+                    .accessibilityIdentifier("autofill.entry.expired")
+            }
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+    }
+
+    private var macNoCredentialsFoundView: some View {
+        let copy = emptyStateCopy
+        return VStack(spacing: 0) {
+            Image(systemName: "key")
+                .font(.system(size: 30, weight: .medium))
+                .foregroundStyle(.tint)
+                .frame(width: 76, height: 76)
+                .background(Theme.accentSoft, in: Circle())
+                .accessibilityHidden(true)
+            Text(copy.title)
+                .font(.system(size: 17, weight: .bold))
+                .multilineTextAlignment(.center)
+                .padding(.top, 16)
+                .accessibilityIdentifier("autofill.no-credentials-found")
+            if let site = copy.requestedSite {
+                Text(verbatim: site)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 6)
+            } else if copy.showsSearchMiss {
+                Text("No credentials match this search.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 6)
+            }
+            if onCreateEntry != nil || canShowAllEntries {
+                VStack(spacing: 8) {
+                    if let onCreateEntry {
+                        Button(action: onCreateEntry) {
+                            Label(
+                                copy.requestedSite == nil ? String(localized: "Create New Credential") : String(localized: "Create Login for This Site"),
+                                systemImage: "plus"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("autofill.create-entry.empty-state")
+                    }
+                    if canShowAllEntries {
+                        Button(action: showAllEntries) {
+                            Text("Show All Credentials")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("autofill.show-all-entries.empty-state")
+                    }
+                }
+                .controlSize(.large)
+                .frame(width: 260)
+                .padding(.top, 22)
+            }
+            Spacer(minLength: 16)
+            if let sharedCopyDate {
+                Label {
+                    Text("Searched the copy from \(sharedCopyDate.formatted(date: .abbreviated, time: .shortened)). Unlock this database in KeeForge to refresh it.")
+                        .accessibilityIdentifier("autofill.shared-copy-notice")
+                } icon: {
+                    Image(systemName: "clock")
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 40)
+        .padding(.top, 40)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
     #endif
+
+    /// Mac section headers are 11 pt; iOS keeps the list's own style.
+    private func sectionHeader(_ title: LocalizedStringKey) -> some View {
+        #if os(macOS)
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+        #else
+        Text(title)
+        #endif
+    }
 
     private var entryList: some View {
         List {
+            #if os(iOS)
             if filteredEntries.isEmpty && !filteredPossibleEntries.isEmpty {
                 Section {
                     Text("No exact matches were found. These credentials are possible matches only.")
@@ -209,8 +372,14 @@ struct AutoFillSearchView: View {
                         .accessibilityIdentifier("autofill.possible-matches.explanation")
                 }
             }
+            #endif
             Section {
                 ForEach(filteredEntries) { entry in
+                    #if os(macOS)
+                    macEntryButton(entry, identifier: "autofill.entry.exact", addIdentifier: "autofill.entry.add-url") {
+                        onSelect(entry)
+                    }
+                    #else
                     if let urlAddition, !urlAddition.isStored(on: entry) {
                         VStack(alignment: .leading, spacing: 8) {
                             Button { onSelect(entry) } label: { entryRow(entry) }
@@ -223,13 +392,19 @@ struct AutoFillSearchView: View {
                         Button { onSelect(entry) } label: { entryRow(entry) }
                             .accessibilityIdentifier("autofill.entry.exact")
                     }
+                    #endif
                 }
             } header: {
-                if !filteredEntries.isEmpty { Text("Matches") }
+                if !filteredEntries.isEmpty { sectionHeader("Matches") }
             }
             if !filteredPossibleEntries.isEmpty {
-                Section("Possible matches") {
+                Section {
                     ForEach(filteredPossibleEntries) { entry in
+                        #if os(macOS)
+                        macEntryButton(entry, identifier: "autofill.entry.possible.use", addIdentifier: "autofill.entry.possible.add-url") {
+                            onSelectPossible(entry)
+                        }
+                        #else
                         VStack(alignment: .leading, spacing: 8) {
                             Button { onSelectPossible(entry) } label: { entryRow(entry) }
                                 .buttonStyle(.borderless)
@@ -239,7 +414,22 @@ struct AutoFillSearchView: View {
                                     .accessibilityIdentifier("autofill.entry.possible.add-url")
                             }
                         }
+                        #endif
                     }
+                } header: {
+                    #if os(macOS)
+                    VStack(alignment: .leading, spacing: 2) {
+                        sectionHeader("Possible matches")
+                        if filteredEntries.isEmpty {
+                            Text("No exact matches were found. These credentials are possible matches only.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .accessibilityIdentifier("autofill.possible-matches.explanation")
+                        }
+                    }
+                    #else
+                    Text("Possible matches")
+                    #endif
                 }
             }
             // Only when something is already listed; the empty state
@@ -249,6 +439,10 @@ struct AutoFillSearchView: View {
                     Button(action: showAllEntries) {
                         Label("Show All Credentials", systemImage: "list.bullet")
                     }
+                    #if os(macOS)
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.tint)
+                    #endif
                     .accessibilityIdentifier("autofill.show-all-entries")
                 }
             }
@@ -267,40 +461,24 @@ struct AutoFillSearchView: View {
 
     @ViewBuilder
     private var noCredentialsFoundView: some View {
-        if PlatformDesign.followsIOSDesign {
-            designedNoCredentialsFoundView
-        } else {
-            ContentUnavailableView {
-                noCredentialsFoundLabel
-            } description: {
-                VStack(spacing: 8) {
-                    if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text("No credentials match this search.")
-                    }
-                    if let sharedCopyDate {
-                        sharedCopyNotice(sharedCopyDate)
-                    }
-                }
-            } actions: {
-                if canShowAllEntries {
-                    Button("Show All Credentials", action: showAllEntries)
-                        .accessibilityIdentifier("autofill.show-all-entries.empty-state")
-                }
-                if let onCreateEntry {
-                    Button("Create New Credential", action: onCreateEntry)
-                        .accessibilityIdentifier("autofill.create-entry.empty-state")
-                }
-            }
-        }
+        #if os(macOS)
+        macNoCredentialsFoundView
+        #else
+        designedNoCredentialsFoundView
+        #endif
     }
 
-    /// The site the request came from, while its search is still the one
-    /// KeeForge filled in; a search the user typed has no site to name.
-    private var requestedSite: String? {
-        guard didEditSearch == false, searchText == initialSearchText else { return nil }
-        let site = initialSearchText.isEmpty ? urlAddition?.host : initialSearchText
-        return site?.isEmpty == false ? site : nil
+    private var emptyStateCopy: AutoFillEmptyStateCopy {
+        AutoFillEmptyStateCopy(
+            searchText: searchText,
+            initialSearchText: initialSearchText,
+            didEditSearch: didEditSearch,
+            requestHost: urlAddition?.host
+        )
     }
+
+    #if os(iOS)
+    private var requestedSite: String? { emptyStateCopy.requestedSite }
 
     /// Names the site when there is one, offers creating a login for it and
     /// listing everything as one card, and keeps the shared-copy note short.
@@ -420,16 +598,6 @@ struct AutoFillSearchView: View {
         .accessibilityIdentifier(identifier)
     }
 
-    private var noCredentialsFoundLabel: some View {
-        Label("No Credentials Found", systemImage: "magnifyingglass")
-            .accessibilityIdentifier("autofill.no-credentials-found")
-    }
-
-    private func sharedCopyNotice(_ date: Date) -> some View {
-        Text("Searched KeeForge’s copy of this database from \(date.formatted(date: .abbreviated, time: .shortened)). To find newer credentials, unlock this database in KeeForge. For cloud databases, use Sync Now in Database Details.")
-            .accessibilityIdentifier("autofill.shared-copy-notice")
-    }
-
     /// Borderless, like the row's selection button beside it: two
     /// default-style buttons in one List row share a tap target.
     private func addURLButton(for entry: KPEntry, host: String) -> some View {
@@ -439,19 +607,10 @@ struct AutoFillSearchView: View {
             Label("Add \(host) to this entry", systemImage: "link.badge.plus")
         }
         .buttonStyle(.borderless)
-        .font(PlatformDesign.followsIOSDesign ? Theme.Font.subhead : .caption)
+        .font(Theme.Font.subhead)
     }
 
-    @ViewBuilder
     private func entryRow(_ entry: KPEntry) -> some View {
-        if PlatformDesign.followsIOSDesign {
-            designedEntryRow(entry)
-        } else {
-            legacyEntryRow(entry)
-        }
-    }
-
-    private func designedEntryRow(_ entry: KPEntry) -> some View {
         HStack(spacing: Theme.Spacing.iconText) {
             AutoFillEntryIcon(
                 entry: entry,
@@ -478,41 +637,7 @@ struct AutoFillSearchView: View {
             }
         }
     }
-
-    private func legacyEntryRow(_ entry: KPEntry) -> some View {
-        HStack {
-            StandardIconView(iconID: entry.iconID)
-                .font(.system(size: 16))
-                .frame(width: 28)
-
-            VStack(alignment: .leading) {
-                Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                if !entry.username.isEmpty {
-                    Text(entry.username)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                let hosts = Set(CredentialMatcher.webURLs(of: entry).compactMap { SiteHost($0)?.name }).sorted()
-                if !hosts.isEmpty {
-                    Text(hosts.joined(separator: ", "))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            if entry.isExpired() {
-                Label("Expired", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.red)
-                    .accessibilityIdentifier("autofill.entry.expired")
-            }
-        }
-        .contentShape(Rectangle())
-    }
+    #endif
 
     /// Lightweight per-database picker: lists AutoFill-enabled databases only,
     /// marks the currently open one with a checkmark, and hands taps on any
@@ -536,8 +661,16 @@ struct AutoFillSearchView: View {
                 .accessibilityIdentifier("autofill.database-switcher.\(database.id.uuidString)")
             }
         } label: {
+            #if os(macOS)
+            Label(databaseSwitcher.currentDisplayName ?? String(localized: "Switch Database"), systemImage: "cylinder.split.1x2")
+                .labelStyle(.titleAndIcon)
+            #else
             Label("Switch Database", systemImage: "cylinder.split.1x2")
+            #endif
         }
+        #if os(macOS)
+        .help(Text("Switch Database"))
+        #endif
         .accessibilityIdentifier("autofill.database-switcher")
     }
 }
@@ -630,3 +763,19 @@ private struct AutoFillEntryIcon: View {
             }
     }
 }
+
+#if os(macOS)
+extension AutoFillURLAddition {
+    /// The row menu's title for adding the host, or nil when the entry already stores it.
+    func menuTitle(for entry: KPEntry) -> String? {
+        isStored(on: entry) ? nil : String(localized: "Add \(host) to This Entry")
+    }
+}
+
+extension CredentialProviderDatabaseSwitcherContext {
+    /// The open database's name, which the Mac switcher shows as its title.
+    var currentDisplayName: String? {
+        databases.first { $0.id == currentDatabaseID }?.displayName
+    }
+}
+#endif

@@ -692,6 +692,58 @@
         }
       }
     },
+    "Add %@ to This Entry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ zu diesem Eintrag hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir %@ a esta entrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter %@ à cette entrée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi %@ a questa voce"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このエントリに %@ を追加"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить %@ в эту запись"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 %@ 添加到此条目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將 %@ 加入此項目"
+          }
+        }
+      }
+    },
     "Add Website" : {
       "localizations" : {
         "de" : {
@@ -5900,58 +5952,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋項目"
-          }
-        }
-      }
-    },
-    "Searched KeeForge’s copy of this database from %@. To find newer credentials, unlock this database in KeeForge. For cloud databases, use Sync Now in Database Details." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Durchsucht wurde die Kopie dieser Datenbank in KeeForge vom %@. Entsperre diese Datenbank in KeeForge, um neuere Zugangsdaten zu finden. Wähle bei Cloud-Datenbanken „Jetzt synchronisieren“ in den Datenbankdetails."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Se buscó en la copia de esta base de datos de KeeForge del %@. Para encontrar credenciales más recientes, desbloquea esta base de datos en KeeForge. Para las bases de datos en la nube, usa «Sincronizar ahora» en «Detalles de la base de datos»."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recherche effectuée dans la copie de cette base de données enregistrée par KeeForge le %@. Pour trouver des identifiants plus récents, déverrouillez cette base de données dans KeeForge. Pour les bases de données cloud, utilisez « Synchroniser maintenant » dans « Détails de la base de données »."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La ricerca è stata eseguita nella copia di KeeForge di questo database, risalente al %@. Per trovare credenziali più recenti, sblocca questo database in KeeForge. Per i database nel cloud, usa «Sincronizza ora» in «Dettagli del database»."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 時点の KeeForge のデータベースのコピーを検索しました。新しい認証情報を見つけるには、KeeForge でこのデータベースのロックを解除してください。クラウドデータベースの場合は、「データベースの詳細」で「今すぐ同期」を選択してください。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Поиск выполнен в копии этой базы данных в KeeForge от %@. Чтобы найти более новые учётные данные, разблокируйте эту базу данных в KeeForge. Для облачных баз данных используйте «Синхронизировать» в разделе «Сведения о базе данных»."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已搜索 KeeForge 保存的此数据库副本（%@）。要查找更新的凭据，请在 KeeForge 中解锁此数据库。对于云端数据库，请在“数据库详细信息”中选择“立即同步”。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已搜尋 KeeForge 儲存的此資料庫副本（%@）。若要尋找較新的憑證，請在 KeeForge 中解鎖此資料庫。雲端資料庫請在「資料庫詳細資訊」中選擇「立即同步」。"
           }
         }
       }
