@@ -273,8 +273,10 @@ enum DatabaseListStore {
     /// AutoFill-enabled database, else nil. Never returns a database with
     /// AutoFill disabled.
     static var defaultAutoFillDatabase: DatabaseReference? {
-        let currentDatabases = loadDatabases()
+        defaultAutoFillDatabase(in: loadDatabases())
+    }
 
+    static func defaultAutoFillDatabase(in currentDatabases: [DatabaseReference]) -> DatabaseReference? {
         if let activeReference = activeAutoFillDatabase(in: currentDatabases) {
             return activeReference
         }

@@ -1066,12 +1066,12 @@ final class DatabaseViewModel {
     /// Relinks this database to `url` and returns to the unlock form, so the
     /// next unlock reads the picked file under the same reference.
     func relinkDatabaseFile(to url: URL) throws {
-        guard canRelinkDatabaseFile,
-              let relinkedReference = try DatabaseListStore.relinkLocalDatabase(
+        guard canRelinkDatabaseFile else { return }
+        guard let relinkedReference = try DatabaseListStore.relinkLocalDatabase(
                 observed: databaseReference,
                 to: url
               ) else {
-            return
+            throw DatabaseListStore.RegistryWriteError.unavailable
         }
         databaseReference = relinkedReference
         canRemoveMissingDocumentsFile = false

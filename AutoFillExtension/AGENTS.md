@@ -14,6 +14,7 @@
 ### Request lifecycle
 
 - `cleanup()` is the extension's only lock: it drops the session key, composite key, parsed vault, and pending request state. Every completion path (success, cancel, error-alert dismissal, silent-request failure, extension configuration) must go through the completion helpers (`finishRequest`) so it runs before the shell touches the extension context. A path that completes the context directly leaves a decrypted vault in memory.
+- Identifier resolution reads a strict registry snapshot before deleting stale system identities; an unavailable registry skips that cleanup and does not revoke an already authenticated fill.
 - `CredentialProviderCoordinatorTests` pins a test per completion path and `CredentialProviderShellMacTests` the Mac shell's routing. This is the designated lifecycle regression gate, on iOS and macOS.
 - The Mac shell also routes `NSAlert` dismissal and window close (`viewDidDisappear` calls `cancelActiveRequestIfNeeded()`) through the coordinator; window close has no iOS analogue.
 - Mac `viewDidAppear` signals `presentationDidBecomeActive()` on a later main-loop turn, never synchronously: AppKit suppresses an `NSAlert.runModal()` started inside the window-ordering transaction, turning the unlock prompt into a silent cancel.

@@ -395,9 +395,16 @@ final class CredentialProviderCoordinator {
     }
     #endif
 
+    private var registryReadError: Error?
+    private var registryInitializationUnconfirmed = false
+
     init(presenter: (any CredentialProviderPresenting)? = nil) {
         self.presenter = presenter
-        _ = DatabaseListStore.initializeRegistry()
+        switch DatabaseListStore.initializeRegistry() {
+        case .initialized, .alreadyPresent: break
+        case .notPublished(let error): registryReadError = error
+        case .visibleUnconfirmed(let error): registryInitializationUnconfirmed = true; registryReadError = error
+        }
     }
 
     // MARK: - Request entry points (forwarded by the shell)
@@ -939,7 +946,8 @@ final class CredentialProviderCoordinator {
         // identifier with no fallback — show the explanatory empty state
         // instead of an unlock prompt that could never succeed.
         guard let databaseReference = resolveInteractiveRequestDatabase() else {
-            presentNoEnabledDatabasesState()
+            if let registryReadError { showErrorAndRetry(registryReadError) }
+            else { presentNoEnabledDatabasesState() }
             return
         }
 
@@ -1017,25 +1025,30 @@ final class CredentialProviderCoordinator {
     /// - No identifier (manual search, OTC list, passkey parameters) → the
     ///   default database.
     private func resolveRequestDatabase(forRecordIdentifier recordIdentifier: String?) -> RequestDatabaseResolution {
+        guard !registryInitializationUnconfirmed else { return .unavailable }
+        let references: [DatabaseReference]
+        do { references = try DatabaseListStore.readDatabasesStrict(); registryReadError = nil }
+        catch { registryReadError = error; return .unavailable }
+        let fallback = DatabaseListStore.defaultAutoFillDatabase(in: references)
         guard let recordIdentifier else {
-            guard let fallback = DatabaseListStore.defaultAutoFillDatabase else { return .unavailable }
+            guard let fallback else { return .unavailable }
             return .database(fallback)
         }
 
         switch CredentialRecordIdentifier.parse(recordIdentifier) {
         case .current(let identifier):
-            if let reference = DatabaseListStore.databases.first(where: { $0.id == identifier.databaseID }),
+            if let reference = references.first(where: { $0.id == identifier.databaseID }),
                reference.autoFillEnabled {
                 return .database(reference)
             }
             CredentialIdentityStoreManager.removeIdentities(forDatabase: identifier.databaseID)
-            return .stale(fallback: DatabaseListStore.defaultAutoFillDatabase)
+            return .stale(fallback: fallback)
         case .legacy:
-            guard let fallback = DatabaseListStore.defaultAutoFillDatabase else { return .unavailable }
+            guard let fallback else { return .unavailable }
             return .database(fallback)
         case .unrecognized:
             CredentialIdentityStoreManager.clearStore()
-            return .stale(fallback: DatabaseListStore.defaultAutoFillDatabase)
+            return .stale(fallback: fallback)
         }
     }
 
@@ -1085,6 +1098,7 @@ final class CredentialProviderCoordinator {
     private func removeStaleIdentityIfEntryMissing(recordIdentifier: String?) {
         guard let recordIdentifier else { return }
         guard findEntry(byRecordIdentifier: recordIdentifier) == nil else { return }
+        guard (try? DatabaseListStore.readDatabasesStrict()) != nil else { return }
 
         switch CredentialRecordIdentifier.parse(recordIdentifier) {
         case .current:

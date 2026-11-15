@@ -1844,6 +1844,22 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNotNil(presenter.unlockPrompt, "Never a dead tap — the fallback unlock prompt must present")
     }
 
+    func test_resolution_corruptRegistryDoesNotRemoveIdentities() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        _ = try makeRegisteredDatabase(named: "registry-corrupt.kdbx")
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        try Data("{broken".utf8).write(to: url)
+        let removal = expectation(description: "No identity removal")
+        removal.isInverted = true
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in removal.fulfill() }
+        let identifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
+        coordinator.prepareInterfaceToProvideCredential(for: makePasswordIdentity(recordIdentifier: identifier))
+        coordinator.presentationDidBecomeActive()
+        await fulfillment(of: [removal], timeout: 0.2)
+        XCTAssertNotNil(presenter.unlockError)
+        XCTAssertNil(presenter.noEnabledDatabasesState)
+    }
+
     func test_resolution_disabledDatabaseTreatedAsUnknown() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let databaseA = try makeRegisteredDatabase(named: "a.kdbx")
