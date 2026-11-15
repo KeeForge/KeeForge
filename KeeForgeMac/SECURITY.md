@@ -180,15 +180,26 @@ each session's unsaved-work deferral. A session-specific lock leaves other
 sessions unlocked. These requests do not depend on the iOS-only
 `lockOnBackground` setting.
 
-Under the strict option, one deactivation does not lock at once: the one caused
+The strict policy's app-background delay defaults to Immediately, including for
+existing installs. Users can opt into 1, 5 or 15 minutes while KeeForge stays
+inactive. Activation, a completed lock of the last open session, stopping the
+monitor, or changing the delay invalidates its pending deadline; a lock of one
+session never cancels the deadline protecting others. Screen lock, screensaver,
+sleep and fast user switching bypass the delay, invalidate the deadline and
+request locks immediately. The system-authentication hold below is unchanged
+and settles independently of the background delay.
+
+Under the strict option, one deactivation is held: the one caused
 by KeeForge's own Touch ID, Apple Watch, or login-password prompt. macOS shows
 that prompt from a separate process, which takes the foreground from the app, so
 locking there would lock the vault the prompt was asked for (#203). The exemption
 is tied to that process, not to a prompt having been requested: the application
 in front must be the system's authentication UI, recognized by its bundle
 identifier (`com.apple.LocalAuthentication.UIAgent`) in a bundle on the signed
-system volume. A deactivation with any other application in front locks as
-before, also while a request is pending and its prompt has not appeared yet.
+system volume. A deactivation with any other application in front follows the configured
+background delay, also while a request is pending and its prompt has not
+appeared yet. An existing authentication hold still locks immediately if
+another application comes forward.
 
 While the deactivation is held, retained sessions stay open behind the prompt.
 Any other application coming forward requests locks for all of them. When the

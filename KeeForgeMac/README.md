@@ -65,6 +65,18 @@ always-mounted `MacDatabaseRootView`: that session's locked page or unlocked
 content, its `MacBiometricAutoUnlockObserver`, and enrollment sheets bound to
 this database. The window title is the database name in every state.
 
+## App Settings
+
+The retained, non-main Settings window uses native toolbar tabs (General,
+Security, AutoFill, Quick Search, SSH Agent, Appearance, Servers, About),
+hosting column forms at a bounded width with per-tab sizes and scrolling.
+It starts on Security and remembers selection within the process. Clear AutoFill
+Entries and Disconnect Server ask in native alert sheets; Acknowledgments is an
+attached sheet. Settings never reads the frontmost database; SSH explicitly
+chooses one. Screen locking is always on. The strict background policy can
+optionally wait 1, 5 or 15 minutes (default Immediately); system lock triggers
+and authentication-hold settlement stay immediate. Updates are direct-build only.
+
 ## Locked window
 
 A locked window has no toolbar, only its name in the titlebar.

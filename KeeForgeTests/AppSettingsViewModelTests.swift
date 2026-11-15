@@ -8,7 +8,7 @@ final class AppSettingsViewModelTests: XCTestCase {
         "autoUnlockWithFaceID",
         "showWebsiteIcons", "showDatabaseUsageStats", "showWhatsNewAfterUpdates", "appearanceMode", "appAccentColor",
         "quickAutoFillEnabled", "autoFillCopyTOTP", "sortOrder", "sortAscending",
-        "macLockPolicy", "blockScreenCapture",
+        "macLockPolicy", "macBackgroundLockDelay", "blockScreenCapture",
     ].map { "KeeForge.\($0)" }
     private var savedStandard: [String: Any] = [:]
     private var savedShared: [String: Any] = [:]
@@ -29,6 +29,31 @@ final class AppSettingsViewModelTests: XCTestCase {
             AppGroupContainer.defaults.set(savedShared[key], forKey: key)
         }
         try await super.tearDown()
+    }
+
+    func testMacServerAccountsOnlyIncludesWebDAVAndFTPAndKeepsTheSharedAccountList() {
+        let accounts = ["dropbox", "onedrive", "webdav", "ftp"].map {
+            CloudAccount(id: $0, displayName: $0, provider: $0)
+        }
+        let model = AppSettingsViewModel(loadCloudAccounts: { accounts })
+        XCTAssertEqual(model.cloudAccounts, accounts)
+        XCTAssertEqual(model.macServerAccounts.map(\.provider), ["webdav", "ftp"])
+    }
+
+    func testBackgroundDelayPersistsBeforeEffectAndReloadDoesNotReplayIt() {
+        var observed: [SettingsService.MacBackgroundLockDelay] = []
+        let model = AppSettingsViewModel(backgroundLockDelayDidChange: {
+            observed.append(SettingsService.macBackgroundLockDelay)
+        })
+        XCTAssertEqual(model.macBackgroundLockDelay, .immediately)
+        model.macBackgroundLockDelay = .fiveMinutes
+        model.macBackgroundLockDelay = .fiveMinutes
+        XCTAssertEqual(observed, [.fiveMinutes])
+        XCTAssertEqual(AppSettingsViewModel().macBackgroundLockDelay, .fiveMinutes)
+        SettingsService.macBackgroundLockDelay = .oneMinute
+        model.reload()
+        XCTAssertEqual(model.macBackgroundLockDelay, .oneMinute)
+        XCTAssertEqual(observed, [.fiveMinutes])
     }
 
     func testTimeoutIsPersistedBeforeResettingTheLiveTimerAndUnchangedValuesDoNothing() {

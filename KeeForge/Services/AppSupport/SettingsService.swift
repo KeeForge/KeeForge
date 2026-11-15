@@ -19,6 +19,7 @@ enum SettingsService {
         static let appAccentColor = "KeeForge.appAccentColor"
         static let hasTipped = "KeeForge.hasTipped"
         static let successfulAutoFillCount = "KeeForge.successfulAutoFillCount"
+        static let macBackgroundLockDelay = "KeeForge.macBackgroundLockDelay"
         static let macLockPolicy = "KeeForge.macLockPolicy"
         static let blockScreenCapture = "KeeForge.blockScreenCapture"
         static let passwordGeneratorOptions = "KeeForge.passwordGeneratorOptions"
@@ -181,6 +182,24 @@ enum SettingsService {
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: Key.macLockPolicy)
         }
+    }
+
+    enum MacBackgroundLockDelay: Int, CaseIterable, Sendable {
+        case immediately = 0, oneMinute = 60, fiveMinutes = 300, fifteenMinutes = 900
+
+        var title: String {
+            switch self {
+            case .immediately: String(localized: "Immediately")
+            case .oneMinute: String(localized: "1 Minute")
+            case .fiveMinutes: String(localized: "5 Minutes")
+            case .fifteenMinutes: String(localized: "15 Minutes")
+            }
+        }
+    }
+
+    static var macBackgroundLockDelay: MacBackgroundLockDelay {
+        get { MacBackgroundLockDelay(rawValue: UserDefaults.standard.integer(forKey: Key.macBackgroundLockDelay)) ?? .immediately }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: Key.macBackgroundLockDelay) }
     }
 
     // MARK: - Appearance Mode

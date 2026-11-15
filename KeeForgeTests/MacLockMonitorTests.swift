@@ -11,6 +11,7 @@ final class MacLockMonitorTests: XCTestCase {
     private var workspaceCenter: NotificationCenter!
     private var distributedCenter: NotificationCenter!
     private var monitor: MacLockMonitor!
+    private var backgroundDelay: SettingsService.MacBackgroundLockDelay = .immediately
     private var policy: SettingsService.MacLockPolicy = .screenLockOrSleep
     private var receivedTriggers: [MacLockMonitor.Trigger] = []
     private var becameActiveCount = 0
@@ -48,6 +49,7 @@ final class MacLockMonitorTests: XCTestCase {
         appCenter = NotificationCenter()
         workspaceCenter = NotificationCenter()
         distributedCenter = NotificationCenter()
+        backgroundDelay = .immediately
         policy = .screenLockOrSleep
         receivedTriggers = []
         becameActiveCount = 0
@@ -60,6 +62,7 @@ final class MacLockMonitorTests: XCTestCase {
             workspaceNotificationCenter: workspaceCenter,
             distributedNotificationCenter: distributedCenter,
             lockPolicyProvider: { [weak self] in self?.policy ?? .screenLockOrSleep },
+            backgroundLockDelayProvider: { [weak self] in self?.backgroundDelay ?? .immediately },
             authenticationPromptProvider: { [weak self] in self?.isAuthenticationPromptPending ?? false },
             frontmostApplicationProvider: { [weak self] in self?.frontmostApplication },
             reactivationGracePeriod: reactivationGracePeriod,
@@ -80,6 +83,98 @@ final class MacLockMonitorTests: XCTestCase {
         monitor.stop()
         monitor = nil
         try await super.tearDown()
+    }
+
+    func testBackgroundDelaySchedulesOnceAndLocksAtDeadline() {
+        policy = .appDeactivates
+        backgroundDelay = .fiveMinutes
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        XCTAssertTrue(receivedTriggers.isEmpty)
+        XCTAssertEqual(scheduledDeadlines.count, 1)
+        XCTAssertEqual(scheduledDeadlines.first?.delay, 300)
+        scheduledDeadlines.first?.work()
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+        scheduledDeadlines.first?.work()
+        XCTAssertEqual(receivedTriggers.count, 1)
+    }
+
+    func testActivationCancelsBackgroundDeadlineAndOldDeadlineCannotLockNextCycle() {
+        policy = .appDeactivates
+        backgroundDelay = .oneMinute
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        scheduledDeadlines[0].work()
+        XCTAssertTrue(receivedTriggers.isEmpty)
+        scheduledDeadlines[1].work()
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+    }
+
+    func testEverySystemTriggerLocksImmediatelyAndCancelsBackgroundDeadline() {
+        policy = .appDeactivates
+        backgroundDelay = .fifteenMinutes
+        let notifications: [(NotificationCenter, Notification.Name, MacLockMonitor.Trigger)] = [
+            (distributedCenter, MacLockMonitor.screenIsLockedNotification, .screenLocked),
+            (distributedCenter, MacLockMonitor.screensaverDidStartNotification, .screensaverStarted),
+            (workspaceCenter, NSWorkspace.willSleepNotification, .systemWillSleep),
+            (workspaceCenter, NSWorkspace.sessionDidResignActiveNotification, .sessionResignedActive),
+        ]
+        for (center, name, trigger) in notifications {
+            receivedTriggers = []
+            appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+            center.post(name: name, object: nil)
+            XCTAssertEqual(receivedTriggers, [trigger])
+            scheduledDeadlines.last?.work()
+            XCTAssertEqual(receivedTriggers, [trigger])
+        }
+    }
+
+    func testSessionLockAndSettingChangeCancelBackgroundDeadline() {
+        policy = .appDeactivates
+        backgroundDelay = .oneMinute
+        for name in [MacLockMonitor.sessionDidLockNotification, MacLockMonitor.backgroundDelayDidChangeNotification] {
+            appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+            appCenter.post(name: name, object: nil)
+            scheduledDeadlines.last?.work()
+            XCTAssertTrue(receivedTriggers.isEmpty)
+        }
+    }
+
+    func testStoppedMonitorAndDisabledPolicyRejectQueuedBackgroundDeadline() {
+        policy = .appDeactivates
+        backgroundDelay = .oneMinute
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        policy = .screenLockOrSleep
+        scheduledDeadlines.last?.work()
+        XCTAssertTrue(receivedTriggers.isEmpty)
+        policy = .appDeactivates
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        monitor.stop()
+        scheduledDeadlines.last?.work()
+        XCTAssertTrue(receivedTriggers.isEmpty)
+    }
+
+    func testOneSessionLockDoesNotCancelTheDeadlineForOtherOpenSessions() {
+        policy = .appDeactivates
+        backgroundDelay = .oneMinute
+        monitor.hasSessionsToLock = { true }
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        appCenter.post(name: MacLockMonitor.sessionDidLockNotification, object: nil)
+        scheduledDeadlines.last?.work()
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+    }
+
+    func testBackgroundDelayDoesNotChangeAuthenticationHoldSettlement() {
+        policy = .appDeactivates
+        backgroundDelay = .fifteenMinutes
+        isAuthenticationPromptPending = true
+        frontmostApplication = promptHost
+        appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+        XCTAssertTrue(scheduledDeadlines.isEmpty)
+        monitor.handleApplicationDidActivate(otherApp)
+        XCTAssertEqual(receivedTriggers, [.appResignedActive])
+        XCTAssertTrue(scheduledDeadlines.isEmpty)
     }
 
     // MARK: - Deterministic lock triggers (fire under every policy)

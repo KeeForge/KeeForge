@@ -48,6 +48,8 @@ final class MacLockMonitor {
         case appResignedActive
     }
 
+    static let backgroundDelayDidChangeNotification = Notification.Name("KeeForge.macBackgroundDelayDidChange")
+    static let sessionDidLockNotification = Notification.Name("KeeForge.macSessionDidLock")
     static let screenIsLockedNotification = Notification.Name("com.apple.screenIsLocked")
     static let screensaverDidStartNotification = Notification.Name("com.apple.screensaver.didstart")
 
@@ -114,11 +116,15 @@ final class MacLockMonitor {
     /// It can never extend a vault past a lock trigger — those lock immediately
     /// regardless of how active the user is.
     var onUserActivity: ((UUID) -> Void)?
+    var hasSessionsToLock: () -> Bool = { false }
     var windowRegistry: MacDatabaseWindowRegistry?
 
     private let notificationCenter: NotificationCenter
     private let workspaceNotificationCenter: NotificationCenter
     private let distributedNotificationCenter: NotificationCenter
+    private let backgroundLockDelayProvider: @MainActor () -> SettingsService.MacBackgroundLockDelay
+    private var backgroundDeadline = 0
+    private var hasBackgroundDeadline = false
     private let lockPolicyProvider: LockPolicyProvider
     private let isAuthenticationPromptPending: AuthenticationPromptProvider
     private let frontmostApplication: FrontmostApplicationProvider
@@ -142,6 +148,7 @@ final class MacLockMonitor {
         workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
         distributedNotificationCenter: NotificationCenter = DistributedNotificationCenter.default(),
         lockPolicyProvider: @escaping LockPolicyProvider = { SettingsService.macLockPolicy },
+        backgroundLockDelayProvider: @escaping @MainActor () -> SettingsService.MacBackgroundLockDelay = { SettingsService.macBackgroundLockDelay },
         authenticationPromptProvider: @escaping AuthenticationPromptProvider = {
             BiometricService.isBiometricAuthInProgress
         },
@@ -157,6 +164,7 @@ final class MacLockMonitor {
         self.workspaceNotificationCenter = workspaceNotificationCenter
         self.distributedNotificationCenter = distributedNotificationCenter
         self.lockPolicyProvider = lockPolicyProvider
+        self.backgroundLockDelayProvider = backgroundLockDelayProvider
         self.isAuthenticationPromptPending = authenticationPromptProvider
         self.frontmostApplication = frontmostApplicationProvider
         self.reactivationGracePeriod = reactivationGracePeriod
@@ -184,11 +192,16 @@ final class MacLockMonitor {
             monitor.handleLockTrigger(.appResignedActive)
         }
         observe(notificationCenter, NSApplication.didBecomeActiveNotification) { monitor in
+            monitor.cancelBackgroundDeadline()
             monitor.endHeldDeactivation()
             monitor.onDidBecomeActive?()
         }
         observe(notificationCenter, BiometricService.authenticationInProgressDidChangeNotification) { monitor in
             monitor.handleAuthenticationPromptStateChange()
+        }
+        observe(notificationCenter, Self.backgroundDelayDidChangeNotification) { $0.cancelBackgroundDeadline() }
+        observe(notificationCenter, Self.sessionDidLockNotification) { monitor in
+            if !monitor.hasSessionsToLock() { monitor.cancelBackgroundDeadline() }
         }
         observeApplicationActivation()
 
@@ -236,6 +249,7 @@ final class MacLockMonitor {
             NSEvent.removeMonitor(activityMonitor)
         }
         activityMonitor = nil
+        cancelBackgroundDeadline()
         lastActivityForwardedAt.removeAll()
         endHeldDeactivation()
     }
@@ -303,6 +317,7 @@ final class MacLockMonitor {
     private func lockOnHeldDeactivation() {
         endHeldDeactivation()
         guard lockPolicyProvider() == .appDeactivates else { return }
+        cancelBackgroundDeadline()
         onLockTriggered?(.appResignedActive)
     }
 
@@ -353,9 +368,29 @@ final class MacLockMonitor {
                 reactivationDeadline += 1
                 return
             }
+            let delay = backgroundLockDelayProvider().rawValue
+            if delay > 0 {
+                guard !hasBackgroundDeadline else { return }
+                endHeldDeactivation()
+                hasBackgroundDeadline = true
+                let deadline = backgroundDeadline
+                scheduleDeadline(TimeInterval(delay)) { [weak self] in
+                    guard let self, self.hasBackgroundDeadline, self.backgroundDeadline == deadline else { return }
+                    self.cancelBackgroundDeadline()
+                    guard self.lockPolicyProvider() == .appDeactivates else { return }
+                    self.onLockTriggered?(.appResignedActive)
+                }
+                return
+            }
         }
+        cancelBackgroundDeadline()
         endHeldDeactivation()
         onLockTriggered?(trigger)
+    }
+
+    private func cancelBackgroundDeadline() {
+        hasBackgroundDeadline = false
+        backgroundDeadline += 1
     }
 
     private func observe(

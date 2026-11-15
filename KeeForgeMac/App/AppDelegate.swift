@@ -64,6 +64,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
             sessionStore.handleAppDidBecomeActive()
             Task { await listViewModel.drainPendingUploadsOnAppActive() }
         }
+        macLockMonitor.hasSessionsToLock = { sessionStore.openSessions.contains { $0.state == .unlocked || $0.state == .unlocking } }
         macLockMonitor.windowRegistry = databaseWindowRegistry
         let coordinator = self.windowCoordinator
         macLockMonitor.onUserActivity = {
@@ -118,8 +119,8 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     @objc func showSettings(_ sender: Any?) {
         if settingsWindowController == nil {
             settingsWindowController = SettingsWindowController(listViewModel: listViewModel, sessionStore: sessionStore,
-                quickAccess: macQuickAccess, sshAgent: macSSHAgent)
-            if let window = settingsWindowController?.window { screenProtectionService.applyCapturePolicy(to: window) }
+                quickAccess: macQuickAccess, sshAgent: macSSHAgent,
+                prepareWindow: { [screenProtectionService] in screenProtectionService.applyCapturePolicy(to: $0) })
         }
         settingsWindowController?.showWindow(sender)
         settingsWindowController?.window?.makeKeyAndOrderFront(sender)

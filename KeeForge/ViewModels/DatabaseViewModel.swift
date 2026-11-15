@@ -2456,6 +2456,7 @@ final class DatabaseViewModel {
         workspace.resetForLock()
         #if os(macOS)
         grantPendingWindowCloseIfNeeded()
+        NotificationCenter.default.post(name: MacLockMonitor.sessionDidLockNotification, object: nil)
         #endif
     }
 

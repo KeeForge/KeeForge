@@ -49,7 +49,7 @@
 
 ### Mac lock, window close, quick access
 
-- Screen lock, screensaver, sleep, and session resign request locks for every session. App deactivation locks only under the strict `MacLockPolicy`.
+- Screen lock, screensaver, sleep, and session resign request locks immediately for every session and cancel any background deadline. App deactivation locks only under the strict `MacLockPolicy`, after `macBackgroundLockDelay` (app-local, default Immediately). Activation, delay edits, stop, and the last open session locking cancel that deadline; one session locking must not remove the protection of others. Authentication holds retain their independent immediate settlement.
 - Under the strict policy, a deactivation caused by the app's own authentication prompt is held, not excused: it needs both a pending request (`BiometricService.isBiometricAuthInProgress`) and the system authentication UI in front (`ForegroundApplication.isSystemAuthenticationPrompt`). Any other application coming forward locks.
 - When the last pending request ends the hold settles: KeeForge is active again within `defaultReactivationGracePeriod`, or it locks.
 - The close guard proxies only registered database windows and preserves their delegates. Prompt grants and answers must match the original registration and session; repeated closes cannot stack prompts. The single-window shell retains its locked selection on close and registers again on reopen.

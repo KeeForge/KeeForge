@@ -99,7 +99,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - A `MacEntryDetailModel` reveal holds while the lock cycle, content revision and selected entry it was granted under stay the same, and the model is on screen. Leaving the screen mid-prompt cancels it; leaving while the entry stays selected (the inline editor) keeps the flag, leaving after a selection change, `invalidate()` and the presentation's `reset()` drop it. A saved edit changes the content revision, so it conceals. Strength is computed only from a revealed password.
 - `MacQuickSearchViewModel` holds no entry data: it reads the focused database's live session on every access and re-checks the database, session, lock cycle, and content after the password prompt. Each `Result` carries its database ID; a copy needs that database to still be the focused, unlocked one, and Open in KeeForge reveals the entry only in that database's session, after the app fronted its window.
 - `commitPendingTag()` is never called from the tag field's setter (rewriting a focused field drops keystrokes), and `normalizedTags()` includes the pending token. Both editors share these rules.
-- `AppSettingsViewModel.reload()` reads persisted values without replaying effects.
+- `AppSettingsViewModel.reload()` reads persisted values without replaying effects. Mac background-delay writes persist before notifying the lock monitor; iOS has no UI or behavior for that preference. A completed Mac session lock notifies the monitor so it can invalidate the background deadline only once no session remains open.
 
 ## Tests
 

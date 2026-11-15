@@ -80,17 +80,4 @@ struct CheckForUpdatesCommand: View {
     }
 }
 
-/// The Updates section of the Mac Settings window's About tab.
-struct SoftwareUpdateSettingsSection: View {
-    @Bindable private var service = SoftwareUpdateService.shared
-
-    var body: some View {
-        Section("Updates") {
-            Toggle("Automatically Check for Updates", isOn: $service.automaticallyChecksForUpdates)
-                .accessibilityIdentifier("settings.updates.automatic-checks")
-            CheckForUpdatesCommand()
-                .accessibilityIdentifier("settings.updates.check-now")
-        }
-    }
-}
 #endif

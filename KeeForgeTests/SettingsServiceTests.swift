@@ -64,6 +64,20 @@ final class SettingsServiceTests: XCTestCase {
 
     // MARK: - Defaults
 
+    func testMacBackgroundDelayDefaultsToImmediatelyAndRoundTripsLocally() {
+        let key = "KeeForge.macBackgroundLockDelay"
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(saved, forKey: key) }
+        UserDefaults.standard.removeObject(forKey: key)
+        XCTAssertEqual(SettingsService.macBackgroundLockDelay, .immediately)
+        for delay in SettingsService.MacBackgroundLockDelay.allCases {
+            SettingsService.macBackgroundLockDelay = delay
+            XCTAssertEqual(SettingsService.macBackgroundLockDelay, delay)
+        }
+        UserDefaults.standard.set(42, forKey: key)
+        XCTAssertEqual(SettingsService.macBackgroundLockDelay, .immediately)
+    }
+
     func testAutoLockTimeoutDefaultsToImmediately() {
         UserDefaults.standard.removeObject(forKey: autoLockKey)
         XCTAssertEqual(SettingsService.autoLockTimeout, .immediately)
