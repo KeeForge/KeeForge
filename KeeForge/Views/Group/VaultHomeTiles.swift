@@ -15,7 +15,7 @@ struct VaultHomeTiles: View {
             count: dynamicTypeSize.isAccessibilitySize ? 1 : 2
         )
         LazyVGrid(columns: columns, spacing: Theme.Spacing.tileGap) {
-            ForEach(DatabaseCollection.allCases, id: \.self) { collection in
+            ForEach(DatabaseCollection.vaultTiles, id: \.self) { collection in
                 VaultHomeTile(collection: collection, count: counts[collection], isInSidebar: isInSidebar) {
                     open(collection)
                 }
@@ -73,7 +73,7 @@ private struct VaultHomeTile: View {
     private var circleColor: AnyShapeStyle {
         switch collection {
         case .allEntries: AnyShapeStyle(.tint)
-        case .verificationCodes: AnyShapeStyle(Theme.tileCodes)
+        case .verificationCodes, .passkeys: AnyShapeStyle(Theme.tileCodes)
         case .tags: AnyShapeStyle(Theme.tileTags)
         case .recycleBin: AnyShapeStyle(Theme.tileTrash)
         }

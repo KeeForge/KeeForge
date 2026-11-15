@@ -33,6 +33,28 @@ final class TOTPViewModelTests: XCTestCase {
         vm.stop()
     }
 
+    func testTheTimerTicksOnWholeSecondsEverySecond() throws {
+        let vm = TOTPViewModel(config: TOTPConfig(secret: encryptSecret("JBSWY3DPEHPK3PXP")), sessionKey: testKey)
+        let before = Date()
+        vm.start()
+        defer { vm.stop() }
+        let timer = try XCTUnwrap(vm.timer)
+        let fire = timer.fireDate.timeIntervalSince1970
+        XCTAssertEqual(fire, fire.rounded(.down), "Every countdown on one code reads the same second")
+        XCTAssertGreaterThan(fire, before.timeIntervalSince1970)
+        XCTAssertLessThanOrEqual(fire, before.timeIntervalSince1970 + 1.5)
+        XCTAssertEqual(timer.timeInterval, 1)
+        vm.stop()
+        XCTAssertNil(vm.timer)
+        XCTAssertFalse(timer.isValid)
+    }
+
+    func testNextWholeSecondIsAlwaysAhead() {
+        XCTAssertEqual(TOTPViewModel.nextWholeSecond(after: Date(timeIntervalSince1970: 100.3)).timeIntervalSince1970, 101)
+        XCTAssertEqual(TOTPViewModel.nextWholeSecond(after: Date(timeIntervalSince1970: 100)).timeIntervalSince1970, 101)
+        XCTAssertEqual(TOTPViewModel.nextWholeSecond(after: Date(timeIntervalSince1970: 100.999)).timeIntervalSince1970, 101)
+    }
+
     func testGroupedCodeSplitsAnEvenLengthCodeInTheMiddle() {
         XCTAssertEqual(TOTPViewModel.grouped("284019"), "284 019")
         XCTAssertEqual(TOTPViewModel.grouped("12345678"), "1234 5678")

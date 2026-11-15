@@ -1,8 +1,7 @@
 #if os(iOS)
 import SwiftUI
 
-/// A database in the iPhone and iPad list. The macOS sidebar keeps
-/// `DatabaseRowView`.
+/// A database in the iPhone and iPad list.
 struct DatabaseListRow: View {
     let reference: DatabaseReference
     let status: DatabaseRowStatus

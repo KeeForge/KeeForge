@@ -170,8 +170,9 @@ public final class FTPSession {
 
     /// Size and modification time of a file, or nil only once the server has
     /// shown it is not there. RFC 3659 and RFC 959 both allow 550 for "not
-    /// found" and "not allowed to look", so a 550 is checked against SIZE and
-    /// then a listing of the parent; if neither settles it, `accessDenied`.
+    /// found" and "not allowed to look", and rclone's server answers 450 for
+    /// a missing file, so either is checked against SIZE and then a listing
+    /// of the parent; if neither settles it, `accessDenied`.
     public func stat(_ path: String) async throws -> FTPListEntry? {
         let mlst = try await command("MLST", path)
         if mlst.code == 250 {
@@ -181,7 +182,7 @@ public final class FTPSession {
             }
             return entry
         }
-        guard mlst.code == 550 || Self.isNotImplemented(mlst) else { throw FTPClientError.unexpectedReply(mlst) }
+        guard Self.isUnavailable(mlst) || Self.isNotImplemented(mlst) else { throw FTPClientError.unexpectedReply(mlst) }
 
         let size = try await command("SIZE", path)
         if size.code == 213 {
@@ -195,9 +196,9 @@ public final class FTPSession {
                 modifiedStamp: try await modificationStamp(of: path)
             )
         }
-        guard size.code == 550 || Self.isNotImplemented(size) else { throw FTPClientError.unexpectedReply(size) }
+        guard Self.isUnavailable(size) || Self.isNotImplemented(size) else { throw FTPClientError.unexpectedReply(size) }
 
-        return try await entryInParentListing(of: path, refusal: size.code == 550 ? size : mlst)
+        return try await entryInParentListing(of: path, refusal: Self.isUnavailable(size) ? size : mlst)
     }
 
     private func modificationStamp(of path: String) async throws -> String? {
@@ -206,8 +207,12 @@ public final class FTPSession {
             let value = mdtm.message.trimmingCharacters(in: .whitespaces)
             return FTPListingParser.isTimeVal(value) ? value : nil
         }
-        guard mdtm.code == 550 || Self.isNotImplemented(mdtm) else { throw FTPClientError.unexpectedReply(mdtm) }
+        guard Self.isUnavailable(mdtm) || Self.isNotImplemented(mdtm) else { throw FTPClientError.unexpectedReply(mdtm) }
         return nil
+    }
+
+    private static func isUnavailable(_ reply: FTPReply) -> Bool {
+        reply.code == 550 || reply.code == 450
     }
 
     private func entryInParentListing(of path: String, refusal: FTPReply) async throws -> FTPListEntry? {

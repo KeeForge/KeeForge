@@ -64,10 +64,46 @@ final class SettingsServiceTests: XCTestCase {
 
     // MARK: - Defaults
 
+    func testMacBackgroundDelayDefaultsToImmediatelyAndRoundTripsLocally() {
+        let key = "KeeForge.macBackgroundLockDelay"
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(saved, forKey: key) }
+        UserDefaults.standard.removeObject(forKey: key)
+        XCTAssertEqual(SettingsService.macBackgroundLockDelay, .immediately)
+        for delay in SettingsService.MacBackgroundLockDelay.allCases {
+            SettingsService.macBackgroundLockDelay = delay
+            XCTAssertEqual(SettingsService.macBackgroundLockDelay, delay)
+        }
+        UserDefaults.standard.set(42, forKey: key)
+        XCTAssertEqual(SettingsService.macBackgroundLockDelay, .immediately)
+    }
+
+    #if os(iOS)
     func testAutoLockTimeoutDefaultsToImmediately() {
         UserDefaults.standard.removeObject(forKey: autoLockKey)
         XCTAssertEqual(SettingsService.autoLockTimeout, .immediately)
+        XCTAssertEqual(
+            SettingsService.AutoLockTimeout.allCases,
+            [.immediately, .thirtySeconds, .oneMinute, .fiveMinutes, .never]
+        )
     }
+
+    func testStoredImmediatelyStaysImmediately() {
+        UserDefaults.standard.set("Immediately", forKey: autoLockKey)
+        XCTAssertEqual(SettingsService.autoLockTimeout, .immediately)
+    }
+    #else
+    func testMacAutoLockTimeoutDefaultsToFiveMinutesWithoutImmediately() {
+        UserDefaults.standard.removeObject(forKey: autoLockKey)
+        XCTAssertEqual(SettingsService.autoLockTimeout, .fiveMinutes)
+        XCTAssertEqual(SettingsService.AutoLockTimeout.allCases, [.thirtySeconds, .oneMinute, .fiveMinutes, .never])
+    }
+
+    func testMacStoredImmediatelyReadsAsFiveMinutes() {
+        UserDefaults.standard.set("Immediately", forKey: autoLockKey)
+        XCTAssertEqual(SettingsService.autoLockTimeout, .fiveMinutes)
+    }
+    #endif
 
     func testAuthenticationGracePeriodDefaultsToAlwaysAsk() {
         UserDefaults.standard.removeObject(forKey: authenticationGraceKey)
@@ -194,7 +230,9 @@ final class SettingsServiceTests: XCTestCase {
     // MARK: - Seconds values
 
     func testAutoLockTimeoutSeconds() {
+        #if os(iOS)
         XCTAssertEqual(SettingsService.AutoLockTimeout.immediately.seconds, 0)
+        #endif
         XCTAssertEqual(SettingsService.AutoLockTimeout.thirtySeconds.seconds, 30)
         XCTAssertEqual(SettingsService.AutoLockTimeout.oneMinute.seconds, 60)
         XCTAssertEqual(SettingsService.AutoLockTimeout.fiveMinutes.seconds, 300)
@@ -217,13 +255,14 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(SettingsService.ClipboardTimeout.tenSeconds.seconds, 10)
         XCTAssertEqual(SettingsService.ClipboardTimeout.thirtySeconds.seconds, 30)
         XCTAssertEqual(SettingsService.ClipboardTimeout.oneMinute.seconds, 60)
+        XCTAssertNil(SettingsService.ClipboardTimeout.never.seconds)
     }
 
     // MARK: - Invalid raw value fallback
 
     func testAutoLockTimeoutFallsBackOnInvalidValue() {
         UserDefaults.standard.set("bogus", forKey: autoLockKey)
-        XCTAssertEqual(SettingsService.autoLockTimeout, .immediately)
+        XCTAssertEqual(SettingsService.autoLockTimeout, .defaultValue)
     }
 
     func testAuthenticationGracePeriodFallsBackToAlwaysAskOnInvalidValue() {
@@ -479,13 +518,13 @@ final class SettingsServiceTests: XCTestCase {
 
     func testPrivacyCoverIncludesSettingsWindow() {
         // The SSH Agent tab can show vault titles and key fingerprints.
-        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "com_apple_SwiftUI_Settings_window"))
+        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "settings"))
         XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "SettingsWindow"))
     }
 
     func testPrivacyCoverAppliesToVaultAndUnknownWindows() {
         XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: nil))
-        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "com_apple_SwiftUI_Window-1"))
+        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "main"))
     }
 
     @MainActor

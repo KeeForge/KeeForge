@@ -72,8 +72,9 @@ enum PendingUploadRecovery {
         )
     }
 
-    static func hasConflicts(for reference: DatabaseReference, environment: Environment = .live) -> Bool {
-        environment.listMarkers(reference.id).contains(where: \.marker.isConflicted)
+    /// What the conflicted markers record; a provisional marker's base hash is included, which only errs toward caution.
+    static func conflictedPayloadSHA512s(for reference: DatabaseReference, environment: Environment = .live) -> Set<Data> {
+        Set(environment.listMarkers(reference.id).filter(\.marker.isConflicted).map(\.marker.openTimeSHA512))
     }
 
     static func lookUpPayloads(for reference: DatabaseReference, environment: Environment = .live) -> Lookup {

@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 struct DatabaseCreationView: View {
@@ -136,9 +137,7 @@ struct DatabaseCreationView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                #if os(iOS)
                 .tint(Theme.labelSecondary)
-                #endif
                 .accessibilityIdentifier("database-create.destination-picker")
             } header: {
                 Text("Database")
@@ -235,9 +234,7 @@ struct DatabaseCreationView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                #if os(iOS)
                 .tint(Theme.labelSecondary)
-                #endif
                 .accessibilityIdentifier("database-create.cipher-picker")
 
                 Picker("Key Derivation", selection: $viewModel.kdfPreset) {
@@ -246,9 +243,7 @@ struct DatabaseCreationView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                #if os(iOS)
                 .tint(Theme.labelSecondary)
-                #endif
                 .accessibilityIdentifier("database-create.kdf-preset-picker")
             } header: {
                 Text("Advanced")
@@ -305,28 +300,16 @@ struct DatabaseCreationView: View {
     private var advancedFooter: String {
         let cipherName = viewModel.cipher.displayName
         let kdfSummary = viewModel.kdfPreset.parameterSummary
-        #if os(macOS)
-        return String(localized: "KeeForge creates KDBX 4 databases encrypted with \(cipherName) and Argon2id key derivation (\(kdfSummary)). Stronger settings take longer to unlock.")
-        #else
         return String(localized: "KeeForge creates KDBX 4 databases encrypted with \(cipherName) and Argon2id key derivation (\(kdfSummary)). Stronger settings take longer to unlock and may exceed AutoFill's memory limit on some devices.")
-        #endif
     }
 
     private var destinationFooter: String {
         switch viewModel.destinationChoice {
         case .files:
-            #if os(macOS)
-            return String(localized: "After you click Create, KeeForge asks where to save the encrypted .kdbx database.")
-            #else
             return String(localized: "After you tap Create, Files will ask where to save the encrypted .kdbx database.")
-            #endif
         case .dropbox, .oneDrive, .webDAV, .ftp:
             let providerName = selectedCloudProvider?.displayName ?? String(localized: "cloud")
-            #if os(macOS)
-            return String(localized: "After you click Create, choose the \(providerName) folder for the encrypted .kdbx database.")
-            #else
             return String(localized: "After you tap Create, choose the \(providerName) folder for the encrypted .kdbx database.")
-            #endif
         }
     }
 
@@ -461,3 +444,4 @@ private struct CreationErrorBanner: View {
         .accessibilityIdentifier("database-create.error")
     }
 }
+#endif

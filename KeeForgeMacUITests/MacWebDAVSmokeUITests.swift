@@ -48,25 +48,54 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
         XCTAssertTrue(passwordField.waitForExistence(timeout: 15), "⌘L did not lock the WebDAV-backed vault")
     }
 
-    func testSyncShortcutAndStatusPopoverRemainAvailableAfterSync() {
+    /// The status card's Sync Now reaches the cloud sync and its line reports
+    /// the outcome, and the window's Discard Pending Upload… stays dimmed; the
+    /// wording and gates are unit-tested in `MacDatabaseStatusTests`.
+    func testSyncNowFromTheStatusCardReportsTheDatabaseSynced() {
         unlockSuccessfully()
-        XCTAssertFalse(app.staticTexts["database.cloud-sync-status.title"].exists)
+        let window = databaseWindow
+        let syncNow = window.buttons["database.cloud-sync-now"].firstMatch
+        XCTAssertTrue(syncNow.waitForExistence(timeout: 10), "The status card offers no Sync Now for a WebDAV database")
 
         for _ in 0..<2 {
-            clickToolbarButton(identifier: "database.cloud-sync-now", overflowLabel: "Sync Now")
-            clickToolbarButton(identifier: "database.cloud-sync-status.details", overflowLabel: "Cloud Sync")
-            XCTAssertTrue(waitForSyncStatusTitle(containing: "up to date"), "Sync Now did not report the database as up to date")
-            app.buttons["database.cloud-sync-status.dismiss"].firstMatch.click()
+            waitUntilEnabled(syncNow, timeout: 15)
+            XCTAssertTrue(syncNow.isEnabled, "Sync Now stayed dimmed")
+            syncNow.click()
+            XCTAssertTrue(waitForStatusLine(containing: "Synced just now"), "Sync Now did not report the database as synced")
+            XCTAssertFalse(window.buttons["cloud-sync-failure.ok"].exists || window.buttons["cloud-sync-failure.reconnect"].exists,
+                           "Sync Now reported a failure")
         }
+
+        // With nothing waiting to upload, Database ▸ Discard Pending Upload… is dimmed.
+        let databaseMenu = app.menuBars.menuBarItems["Database"].firstMatch
+        XCTAssertTrue(databaseMenu.waitForExistence(timeout: 5), "No Database menu")
+        databaseMenu.click()
+        let discard = databaseMenu.menuItems["Discard Pending Upload…"].firstMatch
+        XCTAssertTrue(discard.waitForExistence(timeout: 5), "The Database menu has no Discard Pending Upload…")
+        XCTAssertFalse(discard.isEnabled, "Discard Pending Upload… is enabled with no pending upload")
+        app.typeKey(.escape, modifierFlags: [])
+
+        // Database Settings has a Sync tab for a WebDAV database, and it reports the sync healthy.
+        typeCommandShortcut("i")
+        let settings = window.sheets.matching(identifier: "database-settings.sheet").firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), "⌘I did not open Database Settings")
+        let tabs = settings.descendants(matching: .any)["database-settings.tabs"].firstMatch
+        XCTAssertTrue(tabs.waitForExistence(timeout: 5), "Database Settings has no tabs")
+        let syncTab = tabs.descendants(matching: .any).matching(NSPredicate(format: "label == 'Sync' OR title == 'Sync'")).firstMatch
+        XCTAssertTrue(syncTab.waitForExistence(timeout: 5), "A WebDAV database has no Sync tab")
+        syncTab.click()
+        let healthy = settings.staticTexts.matching(NSPredicate(format: "value == 'Healthy' OR label == 'Healthy'")).firstMatch
+        XCTAssertTrue(healthy.waitForExistence(timeout: 10), "The Sync tab does not report the database healthy")
+        settings.buttons["database-settings.done"].firstMatch.click()
+        XCTAssertTrue(settings.waitForNonExistence(timeout: 10), "Done did not close Database Settings")
     }
 
-    /// Re-queries the popover's title every pass: a sync outcome rebuilds the
-    /// toolbar controls and the popover with them.
-    private func waitForSyncStatusTitle(containing expected: String, timeout: TimeInterval = 15) -> Bool {
+    /// Re-queries the line every pass: a sync outcome rebuilds the card.
+    private func waitForStatusLine(containing expected: String, timeout: TimeInterval = 15) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
-            let titles = app.staticTexts.matching(identifier: "database.cloud-sync-status.title").allElementsBoundByIndex
-            if titles.contains(where: { displayText(of: $0).contains(expected) }) {
+            let lines = databaseWindow.staticTexts.matching(identifier: "sidebar.status-card.line").allElementsBoundByIndex
+            if lines.contains(where: { displayText(of: $0).contains(expected) }) {
                 return true
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))

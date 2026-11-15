@@ -404,6 +404,23 @@ final class SecretAccessSessionTests: XCTestCase {
         XCTAssertTrue(vm.secretAccess.requiresAuthentication)
     }
 
+    func testFailedKeepEditingStillLocksWhenAnotherTriggerReplacedTheRequestDuringThePrompt() async throws {
+        let harness = SecretAccessGateHarness()
+        let vm = try await makeUnlockedViewModel(harness)
+        vm.setEditorHasUnsavedChanges(true, editorID: UUID())
+        vm.lockRequest()
+        let first = try XCTUnwrap(vm.pendingLockRequest)
+        harness.duringPrompt = { vm.lockRequest(cause: .background) }
+        harness.promptSucceeds = false
+
+        await vm.continueEditingAfterLockRequest()
+
+        XCTAssertNotEqual(first.cause, .background)
+        guard case .locked = vm.state else {
+            return XCTFail("Expected locked, got \(vm.state)")
+        }
+    }
+
     func testKeepEditingAfterAManualLockDoesNotReopenTheGracePeriod() async throws {
         let harness = SecretAccessGateHarness()
         let vm = try await makeUnlockedViewModel(harness)

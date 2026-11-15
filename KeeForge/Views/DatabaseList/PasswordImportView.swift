@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -16,7 +17,7 @@ struct PasswordImportView: View {
         self.sessionViewModel = sessionViewModel
         _viewModel = State(
             initialValue: PasswordImportViewModel(
-                destinationGroupID: sessionViewModel.visibleRootGroupID ?? UUID(),
+                destinationGroupID: sessionViewModel.workspaceRootGroupID ?? UUID(),
                 duplicateCandidates: { [weak sessionViewModel] in
                     sessionViewModel?.importDuplicateCandidates ?? []
                 },
@@ -120,6 +121,7 @@ struct PasswordImportView: View {
                 viewModel.discardPreview()
             }
         }
+        .macSheetCancellation { viewModel.discardPreview() }
         .onDisappear {
             viewModel.discardPreview()
         }
@@ -198,7 +200,7 @@ struct PasswordImportView: View {
         Section {
             ForEach(skippedRows, id: \.row) { skippedRow in
                 LabeledContent {
-                    Text(Self.reasonText(skippedRow.reason))
+                    Text(skippedRow.reason.title)
                         .multilineTextAlignment(.trailing)
                 } label: {
                     Text("Row \(skippedRow.row)")
@@ -278,19 +280,6 @@ struct PasswordImportView: View {
         sessionViewModel.group(withID: viewModel.destinationGroupID)?.name ?? ""
     }
 
-    private static func reasonText(_ reason: PasswordImportPreview.SkipReason) -> String {
-        switch reason {
-        case .columnCountMismatch:
-            String(localized: "Wrong number of values")
-        case .malformedQuoting:
-            String(localized: "Damaged quotation marks")
-        case .noLoginData:
-            String(localized: "No login data")
-        case .fieldReference:
-            String(localized: "Contains a field reference ({REF:…})")
-        }
-    }
-
     private func progressBadge(_ title: LocalizedStringKey) -> some View {
         ProgressView(title)
             .padding()
@@ -316,3 +305,4 @@ struct PasswordImportView: View {
         .accessibilityIdentifier("password-import.error")
     }
 }
+#endif

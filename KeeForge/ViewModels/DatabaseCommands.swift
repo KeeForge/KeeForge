@@ -2,35 +2,70 @@ import Foundation
 
 @MainActor
 struct DatabaseCommands {
+    /// The Mac window's inline entry editor. While one is open, the commands that would start
+    /// another edit or move the selection out from under it are off, and the entry commands act
+    /// on the edited entry (none while a new entry is being created).
+    enum OpenEditor: Equatable {
+        case none
+        case entry(UUID)
+        case newEntry
+    }
+
     let session: DatabaseViewModel?
     let passwordCopyAction: EntrySecretAction
+    let openEditor: OpenEditor
 
-    init(session: DatabaseViewModel?, passwordCopyAction: EntrySecretAction = EntrySecretAction()) {
+    init(
+        session: DatabaseViewModel?,
+        passwordCopyAction: EntrySecretAction = EntrySecretAction(),
+        openEditor: OpenEditor = .none
+    ) {
         self.session = session
         self.passwordCopyAction = passwordCopyAction
+        self.openEditor = openEditor
     }
 
     var isUnlocked: Bool { session?.state == .unlocked }
     private var isEditable: Bool { isUnlocked && session?.isReadOnly == false }
-    private var selectedEntry: KPEntry? {
-        guard isUnlocked, let session, let entryID = session.workspace.commandEntryID else { return nil }
-        return session.entry(withID: entryID)
+    private func entry(withID entryID: UUID) -> KPEntry? {
+        guard isUnlocked else { return nil }
+        return session?.entry(withID: entryID)
     }
+    /// The entry the copy and Large Type commands act on.
+    var commandEntryID: UUID? {
+        guard let session else { return nil }
+        return switch openEditor {
+        case .none: session.workspace.commandEntryID
+        case .entry(let entryID): entryID
+        case .newEntry: nil
+        }
+    }
+    private var isEditorClosed: Bool { openEditor == .none }
 
-    var canNewEntry: Bool { isEditable }
-    var canNewGroup: Bool { isEditable }
+    var canNewEntry: Bool { isEditable && isEditorClosed }
+    var canNewGroup: Bool { isEditable && isEditorClosed }
     // The draft stays dirty until the save lands, so `isSaving` is what stops a repeated save.
     var canSave: Bool {
         isUnlocked && session?.isDirty == true && session?.isReadOnly == false && session?.isSaving == false
     }
     var canCloseDatabase: Bool { session != nil }
-    var canCopyUsername: Bool { selectedEntry?.username.isEmpty == false }
-    var canCopyPassword: Bool { selectedEntry?.hasPassword == true && !passwordCopyAction.isAuthenticating }
-    var canCopyURL: Bool { selectedEntry?.url.isEmpty == false }
-    var canCopyVerificationCode: Bool { selectedEntry?.totpConfig != nil && session?.sessionKey != nil }
-    var canEditEntry: Bool { session?.canEditSelectedEntry == true }
-    var canDelete: Bool { session?.deletableSelection != nil }
-    var canFind: Bool { isUnlocked }
+    var canCopyUsername: Bool { commandEntryID.map { canCopyUsername(entryID: $0) } ?? false }
+    var canCopyPassword: Bool { commandEntryID.map { canCopyPassword(entryID: $0) } ?? false }
+    var canCopyURL: Bool { commandEntryID.map { canCopyURL(entryID: $0) } ?? false }
+    var canCopyVerificationCode: Bool { commandEntryID.map { canCopyVerificationCode(entryID: $0) } ?? false }
+    var canShowPasswordInLargeType: Bool { commandEntryID.map { canShowPasswordInLargeType(entryID: $0) } ?? false }
+    func canCopyUsername(entryID: UUID) -> Bool { entry(withID: entryID)?.username.isEmpty == false }
+    func canCopyPassword(entryID: UUID) -> Bool {
+        entry(withID: entryID)?.hasPassword == true && !passwordCopyAction.isAuthenticating
+    }
+    func canShowPasswordInLargeType(entryID: UUID) -> Bool { canCopyPassword(entryID: entryID) }
+    func canCopyURL(entryID: UUID) -> Bool { entry(withID: entryID)?.url.isEmpty == false }
+    func canCopyVerificationCode(entryID: UUID) -> Bool {
+        entry(withID: entryID)?.totpConfig != nil && session?.sessionKey != nil
+    }
+    var canEditEntry: Bool { isEditorClosed && session?.canEditSelectedEntry == true }
+    var canDelete: Bool { isEditorClosed && session?.deletableSelection != nil }
+    var canFind: Bool { isUnlocked && isEditorClosed }
     var canLock: Bool { isUnlocked }
 
     /// Mirrors the row context menus: a permanent delete has to say so in the menu bar too.
@@ -39,63 +74,191 @@ struct DatabaseCommands {
         return switch session.deletableSelection {
         case .entry(let id): session.isEntryInRecycleBin(entryID: id)
         case .group(let id): session.isGroupInRecycleBin(groupID: id)
-        case nil: false
+        case .entries, nil: false
         }
     }
 
-    func newEntry() { session?.requestNewEntry() }
-    func newGroup() { session?.requestNewGroup() }
+    func newEntry() {
+        guard isEditorClosed else { return }
+        session?.requestNewEntry()
+    }
+    func newGroup() {
+        guard isEditorClosed else { return }
+        session?.requestNewGroup()
+    }
     @discardableResult
     func save() -> Task<Void, Never>? {
         guard let session else { return nil }
         return Task { await session.saveHandlingError() }
     }
-    func copyUsername() {
-        guard let session, let entry = selectedEntry else { return }
-        ClipboardService.copy(session.resolvingFieldReferences(entry.username))
-    }
-    func copyPassword(activeSession: @escaping @MainActor () -> DatabaseViewModel?) {
-        guard let session else { return }
-        Self.copySelectedEntryPassword(in: session, action: passwordCopyAction, activeSession: activeSession)
-    }
-    func copyURL() {
-        guard let session, let entry = selectedEntry else { return }
-        ClipboardService.copy(session.resolvingFieldReferences(entry.url))
-    }
-    /// Not behind the device-owner gate, matching the entry detail view: the code expires on its own.
-    func copyVerificationCode() {
-        guard let session, let config = selectedEntry?.totpConfig, let sessionKey = session.sessionKey else { return }
-        ClipboardService.copy(TOTPGenerator.generateCode(config: config, sessionKey: sessionKey))
-    }
-    func editEntry() { session?.requestEntryEdit() }
-    func deleteSelection() { session?.requestDeleteSelection() }
-    func find() { session?.requestSearchFocus() }
-    func lock() { session?.lockRequest(manuallyTriggered: true) }
-
-    /// Same device-owner gate as reveal/copy in the entry detail view, skipped only inside the
-    /// session's authentication grace period or when the device has no protection at all.
+    /// `currentSession` answers, after any authentication, which session the command's origin still shows.
     @discardableResult
-    static func copySelectedEntryPassword(
-        in viewModel: DatabaseViewModel,
-        action: EntrySecretAction,
-        activeSession: @escaping @MainActor () -> DatabaseViewModel?,
+    func copyUsername(
+        entryID: UUID,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
         authenticate: (@MainActor () async throws -> Void)? = nil,
         copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
     ) -> Task<Void, Never>? {
-        guard let entryID = viewModel.workspace.commandEntryID,
-              viewModel.entry(withID: entryID)?.hasPassword == true else { return nil }
+        guard let session, entry(withID: entryID) != nil else { return nil }
+        return Self.copyEntryField(\.username, entryID: entryID, in: session, action: passwordCopyAction,
+                                   currentSession: currentSession, authenticate: authenticate, copy: copy)
+    }
+    @discardableResult
+    func copyPassword(
+        entryID: UUID,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    ) -> Task<Void, Never>? {
+        guard let session, isUnlocked else { return nil }
+        return Self.copyEntryPassword(entryID: entryID, in: session, action: passwordCopyAction,
+                                      currentSession: currentSession, authenticate: authenticate, copy: copy)
+    }
+    @discardableResult
+    func copyURL(
+        entryID: UUID,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    ) -> Task<Void, Never>? {
+        guard let session, entry(withID: entryID) != nil else { return nil }
+        return Self.copyEntryField(\.url, entryID: entryID, in: session, action: passwordCopyAction,
+                                   currentSession: currentSession, authenticate: authenticate, copy: copy)
+    }
+    /// Not behind the device-owner gate, matching the entry detail view: the code expires on its own.
+    func copyVerificationCode(entryID: UUID, copy: (String) -> Void = { ClipboardService.copy($0) }) {
+        guard let session, let config = entry(withID: entryID)?.totpConfig, let sessionKey = session.sessionKey else {
+            return
+        }
+        copy(TOTPGenerator.generateCode(config: config, sessionKey: sessionKey))
+    }
+    @discardableResult
+    func showPasswordInLargeType(
+        entryID: UUID,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        present: @escaping @MainActor (String) -> Void
+    ) -> Task<Void, Never>? {
+        guard let session, isUnlocked else { return nil }
+        return Self.showEntryPasswordInLargeType(entryID: entryID, in: session, action: passwordCopyAction,
+                                                 currentSession: currentSession, authenticate: authenticate,
+                                                 present: present)
+    }
+    func editEntry() {
+        guard isEditorClosed else { return }
+        session?.requestEntryEdit()
+    }
+    func deleteSelection() {
+        guard isEditorClosed else { return }
+        session?.requestDeleteSelection()
+    }
+    func lock() { session?.lockRequest(manuallyTriggered: true, cause: .manual) }
+
+    /// Same device-owner gate as reveal/copy in the entry detail view, skipped only inside the
+    /// session's authentication grace period or when the device has no protection at all. The
+    /// disclosure also needs the lock cycle, content and selection the request started from.
+    @discardableResult
+    static func copyEntryPassword(
+        entryID: UUID,
+        in viewModel: DatabaseViewModel,
+        action: EntrySecretAction,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    ) -> Task<Void, Never>? {
+        guard viewModel.entry(withID: entryID)?.hasPassword == true else { return nil }
+        return discloseEntrySecret(entryID: entryID, in: viewModel, action: action,
+                                   reason: String(localized: "Copy password"),
+                                   currentSession: currentSession, authenticate: authenticate,
+                                   value: { viewModel.resolvedPassword(for: $0) }, disclose: copy)
+    }
+
+    /// Large Type takes the password's reveal gate and rechecks; `present` gets the plaintext only after them.
+    @discardableResult
+    static func showEntryPasswordInLargeType(
+        entryID: UUID,
+        in viewModel: DatabaseViewModel,
+        action: EntrySecretAction,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        present: @escaping @MainActor (String) -> Void
+    ) -> Task<Void, Never>? {
+        guard viewModel.entry(withID: entryID)?.hasPassword == true else { return nil }
+        return discloseEntrySecret(entryID: entryID, in: viewModel, action: action,
+                                   reason: String(localized: "View password"),
+                                   currentSession: currentSession, authenticate: authenticate,
+                                   value: { viewModel.resolvedPassword(for: $0) }, disclose: present)
+    }
+
+    /// A plain field copies at once; one whose field references reach a protected value
+    /// takes the password's gate and rechecks. Nil when nothing waits on authentication.
+    @discardableResult
+    static func copyEntryField(
+        _ field: KeyPath<KPEntry, String> & Sendable,
+        entryID: UUID,
+        in viewModel: DatabaseViewModel,
+        action: EntrySecretAction,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    ) -> Task<Void, Never>? {
+        copyEntryValue(entryID: entryID, in: viewModel, action: action, isProtected: false,
+                       raw: { $0[keyPath: field] }, currentSession: currentSession,
+                       authenticate: authenticate, copy: copy)
+    }
+
+    /// `copyEntryField` for any stored string `raw` reads from the entry (an extra URL, a custom
+    /// or passkey field, a history version's field). A protected field always takes the gate.
+    @discardableResult
+    static func copyEntryValue(
+        entryID: UUID,
+        in viewModel: DatabaseViewModel,
+        action: EntrySecretAction,
+        isProtected: Bool,
+        raw: @escaping @MainActor (KPEntry) -> String?,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    ) -> Task<Void, Never>? {
+        guard let entry = viewModel.entry(withID: entryID), let rawValue = raw(entry) else { return nil }
+        if isProtected == false, case .resolved(let value) = viewModel.fieldReferenceResolution(of: rawValue) {
+            copy(value)
+            return nil
+        }
+        return discloseEntrySecret(entryID: entryID, in: viewModel, action: action,
+                                   reason: String(localized: "Copy protected field"),
+                                   currentSession: currentSession, authenticate: authenticate,
+                                   value: { raw($0).map(viewModel.resolvingFieldReferencesIncludingProtectedValues) },
+                                   disclose: copy)
+    }
+
+    /// The one disclosure path for a protected value: the session's device-owner gate, then the
+    /// origin's session, lock cycle, content and selection, then `isCurrent`, all rechecked after
+    /// authentication. `value` reads the entry as it is then; nil discloses nothing.
+    @discardableResult
+    static func discloseEntrySecret(
+        entryID: UUID,
+        in viewModel: DatabaseViewModel,
+        action: EntrySecretAction,
+        reason: String,
+        currentSession: @escaping @MainActor () -> DatabaseViewModel?,
+        authenticate: (@MainActor () async throws -> Void)? = nil,
+        isCurrent: @escaping @MainActor () -> Bool = { true },
+        value: @escaping @MainActor (KPEntry) -> String?,
+        disclose: @escaping @MainActor (String) -> Void
+    ) -> Task<Void, Never>? {
         let isCurrentSession = EntrySecretAction.currentSession(viewModel)
         let secretAccess = viewModel.secretAccess
         return action.perform(
             authenticate: authenticate ?? {
                 if secretAccess.requiresAuthentication {
-                    try await secretAccess.authenticate(reason: String(localized: "Copy password"))
+                    try await secretAccess.authenticate(reason: reason)
                 }
             },
-            isCurrent: { activeSession() === viewModel && isCurrentSession() },
+            isCurrent: { currentSession() === viewModel && isCurrentSession() && isCurrent() },
             disclose: {
-                guard let entry = viewModel.entry(withID: entryID) else { return }
-                copy(viewModel.resolvedPassword(for: entry))
+                guard let entry = viewModel.entry(withID: entryID), let secret = value(entry) else { return }
+                disclose(secret)
             }
         )
     }

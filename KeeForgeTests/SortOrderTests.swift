@@ -56,6 +56,21 @@ final class SortOrderTests: XCTestCase {
         XCTAssertEqual(sorted.map(\.title), ["Apple", "banana", "cherry"])
     }
 
+    func testSortEntriesWithTheSameTitleByUsername() {
+        viewModel.sortOrder = .title
+        let entries = [
+            KPEntry(title: "GitHub", username: "zoe"),
+            KPEntry(title: "Bank", username: "carol"),
+            KPEntry(title: "github", username: "Alice"),
+            KPEntry(title: "GitHub", username: "bob"),
+        ]
+
+        XCTAssertEqual(viewModel.sortedEntries(entries).map(\.username), ["carol", "Alice", "bob", "zoe"])
+
+        viewModel.sortAscending = false
+        XCTAssertEqual(viewModel.sortedEntries(entries).map(\.username), ["zoe", "bob", "Alice", "carol"])
+    }
+
     func testSortEntriesByCreatedDate() {
         viewModel.sortOrder = .createdDate
         let old = Date(timeIntervalSince1970: 1_000_000)

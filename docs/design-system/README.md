@@ -1,6 +1,6 @@
 # KeeForge Design System
 
-KeeForge's iOS design, written down so the Mac redesign (and any new screen) can reuse it. It describes the shipping iPhone and iPad UI. Where this folder and the code disagree, the code wins: `KeeForge/Views/Components/Theme.swift` and `KeeForge/Resources/Theme.xcassets` are the source of the tokens, and the views under `KeeForge/Views/` are the source of the components. Update this folder in the same change when either moves.
+KeeForge's iOS design, written down so any new screen can reuse it; the last section says how the Mac app applies it. It describes the shipping iPhone and iPad UI. Where this folder and the code disagree, the code wins: `KeeForge/Views/Components/Theme.swift` and `KeeForge/Resources/Theme.xcassets` are the source of the tokens, and the views under `KeeForge/Views/` are the source of the components. Update this folder in the same change when either moves.
 
 - [tokens.json](tokens.json): colors (light and dark, with usage and contrast notes), text styles, spacing, radii and sizes. Sizes are points at the default Dynamic Type size.
 - [components.md](components.md): KeeForge's own parts and the native controls it relies on.
@@ -74,13 +74,12 @@ KeeForge is a KeePass password manager for iPhone, iPad and Mac. Its look is nat
 
 - System transitions only. Codes change with a numeric content transition; favicons fade in. Nothing else animates.
 
-## Bringing it to macOS
+## How the Mac applies it
 
-The Mac app today uses system colors and controls (`Theme.State` maps `success`, `warning` and `danger` to the system green, orange and red there). To redesign it from this system:
+The Mac app is AppKit with hosted SwiftUI content, and keeps the platform's own look rather than this system's iOS styling:
 
-- Keep native first: the window toolbar, sidebar `List`, `Table`, `Form` with `.grouped` style, menus and sheets stay system controls. Do not port iOS bar buttons, the bottom toolbar or large titles.
-- Bring over the tokens that have no Mac equivalent: `card`, `card-2`, `fill`, `label-secondary`, `success`, `warning`, `danger`, `danger-soft`, `digit`, `symbol` and the tile hues. Prefer the system accent on Mac unless the person chose one.
-- Keep the parts: home tiles (in the sidebar or a collection's overview), entry icons with monograms, status badges, the strength meter, colored passwords, verification code rows and the failure card. They carry the brand across platforms.
+- Native first: an `NSToolbar` window toolbar, an `NSOutlineView` sidebar, one `NSTableView` entry list, menus, AppKit sheets and `NSAlert`. The SwiftUI forms those sheets and the Settings tabs host use `.formStyle(.columns)`. iOS bar buttons, the bottom toolbar and large titles are not ported.
+- System colors: `Theme.State` maps `success`, `warning` and `danger` to the system green, orange and red there.
 - Use macOS text styles in place of iOS sizes: rows use `.body` names over `.callout`/`.subheadline` details, which is what the Mac row does today. Keep monospaced faces for secrets.
 - Scale sizes to Mac density: entry icons 24–28pt in lists, controls at regular size, no 44pt touch targets.
 - Keep hover and keyboard parity: every row action in a context menu also lives in the menu bar with a shortcut.

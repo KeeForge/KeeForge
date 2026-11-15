@@ -26,6 +26,17 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(candidate.urls.first, "https://example.com")
     }
 
+    func testAProtectedExtraURLIsNeitherAWebURLNorACandidateURL() {
+        var entry = makeEntry(title: "Work", url: "https://example.com", customFields: [
+            "KP2A_URL_1": "https://secret.example.com",
+            "KP2A_URL_2": "https://intranet.example.com",
+        ])
+        entry.protectedStringKeys = ["KP2A_URL_1"]
+        XCTAssertEqual(entry.additionalURLs, ["https://intranet.example.com"])
+        XCTAssertEqual(CredentialMatcher.webURLs(of: entry), ["https://example.com", "https://intranet.example.com"])
+        XCTAssertEqual(CredentialMatcher.candidate(entry).urls, ["https://example.com", "https://intranet.example.com"])
+    }
+
     func testWebURLsDropStoredAppIDs() {
         let entry = makeEntry(title: "MyBank", url: "A1B2C3D4E5.com.mybank.app", customFields: ["KP2A_URL_1": "https://mybank.app"])
         XCTAssertEqual(CredentialMatcher.webURLs(of: entry), ["https://mybank.app"])
@@ -110,7 +121,43 @@ final class CredentialMatcherTests: XCTestCase {
         let searched = AutoFillSearchResults(entries: [], searchEntries: [entry], possibleEntries: [], query: "vt.cvmd.com.ar", hasExpandedSearch: true)
         XCTAssertEqual(searched.entries.map(\.id), [entry.id])
     }
+
+    func testAddWebsiteMenuItemNamesTheHostOnlyForEntriesWithoutIt() {
+        let addition = AutoFillURLAddition(host: "login.example.com", url: "https://login.example.com") { _ in }
+        let bank = makeEntry(title: "Bank", url: "https://bank.test")
+        let stored = makeEntry(title: "Example Login", url: "https://login.example.com/signin")
+        XCTAssertEqual(addition.menuTitle(for: bank), "Add login.example.com to This Entry")
+        XCTAssertNil(addition.menuTitle(for: stored), "An entry that already stores the host offers no menu item")
+    }
+
+    func testMacDatabaseSwitcherIsTitledWithTheOpenDatabase() {
+        let personal = DatabaseReference(id: UUID(), nickname: "Personal", filename: "personal.kdbx", isQuickLaunch: false, addedAt: .distantPast)
+        let work = DatabaseReference(id: UUID(), nickname: nil, filename: "work.kdbx", isQuickLaunch: false, addedAt: .distantPast)
+        let open = CredentialProviderDatabaseSwitcherContext(databases: [personal, work], currentDatabaseID: work.id) { _, _ in }
+        XCTAssertEqual(open.currentDisplayName, "work")
+        let unknown = CredentialProviderDatabaseSwitcherContext(databases: [personal], currentDatabaseID: nil) { _, _ in }
+        XCTAssertNil(unknown.currentDisplayName)
+    }
     #endif
+
+    func testEmptyStateNamesTheRequestedSiteUntilTheUserSearches() {
+        let requested = AutoFillEmptyStateCopy(searchText: "", initialSearchText: "", didEditSearch: false, requestHost: "shop.example.net")
+        XCTAssertEqual(requested.requestedSite, "shop.example.net")
+        XCTAssertEqual(requested.title, "Nothing for this site yet")
+        XCTAssertFalse(requested.showsSearchMiss)
+
+        let prefilled = AutoFillEmptyStateCopy(searchText: "example.net", initialSearchText: "example.net", didEditSearch: false, requestHost: "shop.example.net")
+        XCTAssertEqual(prefilled.requestedSite, "example.net")
+
+        let typed = AutoFillEmptyStateCopy(searchText: "bank", initialSearchText: "", didEditSearch: true, requestHost: "shop.example.net")
+        XCTAssertNil(typed.requestedSite)
+        XCTAssertEqual(typed.title, "No Credentials Found")
+        XCTAssertTrue(typed.showsSearchMiss)
+
+        let cleared = AutoFillEmptyStateCopy(searchText: "  ", initialSearchText: "", didEditSearch: true, requestHost: nil)
+        XCTAssertEqual(cleared.title, "No Credentials Found")
+        XCTAssertFalse(cleared.showsSearchMiss)
+    }
 
     // MARK: - Helpers
 
@@ -132,5 +179,29 @@ final class CredentialMatcherTests: XCTestCase {
             expires: expired,
             expiryTime: expired ? .distantPast : nil
         )
+    }
+
+    func testListsRequestedSiteIgnoresExpiry() {
+        let expired = KPEntry(title: "Old", url: "https://github.com", expires: true, expiryTime: .distantPast)
+        let github = [ASCredentialServiceIdentifier(identifier: "https://github.com", type: .URL)]
+        XCTAssertTrue(CredentialMatcher.listsRequestedSite(expired, for: github))
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: [expired], for: github).isEmpty)
+        XCTAssertFalse(CredentialMatcher.listsRequestedSite(
+            expired, for: [ASCredentialServiceIdentifier(identifier: "gitlab.com", type: .domain)]
+        ))
+    }
+
+    /// A strict match accepts a stored subdomain; a suggestion published for
+    /// the parent host must not fill an entry that moved to that subdomain.
+    func testListsRequestedSiteRequiresTheSuggestedHostItself() {
+        let moved = KPEntry(title: "Admin", url: "https://admin.example.com")
+        let parent = [ASCredentialServiceIdentifier(identifier: "example.com", type: .domain)]
+        XCTAssertFalse(CredentialMatcher.strictMatchedEntries(from: [moved], for: parent).isEmpty)
+        XCTAssertFalse(CredentialMatcher.listsRequestedSite(moved, for: parent))
+
+        let www = KPEntry(title: "Example", url: "https://www.example.com/login")
+        XCTAssertTrue(CredentialMatcher.listsRequestedSite(
+            www, for: [ASCredentialServiceIdentifier(identifier: "https://example.com", type: .URL)]
+        ))
     }
 }

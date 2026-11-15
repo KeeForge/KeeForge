@@ -1,3 +1,4 @@
+#if os(iOS)
 import CryptoKit
 import SwiftUI
 
@@ -114,3 +115,4 @@ struct VerificationCodeRow: View {
         dynamicTypeSize.isAccessibilitySize ? nil : 1
     }
 }
+#endif

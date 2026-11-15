@@ -2405,6 +2405,114 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertEqual(vm.state, .locked)
     }
 
+    /// Cancel while the provider is still answering: the answer, an offline
+    /// copy with a sync issue, reaches neither the session nor the stored
+    /// reference, and the correct password it would have opened with is moot.
+    func testCancellingDuringTheCloudReadLeavesNoSyncStatusBehind() async throws {
+        let openedData = try fixtureData()
+        let reference = try makeStoredManualReference()
+        let syncStarted = PendingFlag(false)
+        let providerAnswers = PendingFlag(false)
+        defer { providerAnswers.value = true }
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, progress in
+                syncStarted.value = true
+                progress(0.5)
+                try await Self.waitUntil { providerAnswers.value }
+                var offline = reference
+                offline.updateCloudSyncMetadata { $0.lastSyncIssue = .networkUnavailable }
+                return Self.resolution(offline, data: openedData, status: .offlineCached)
+            },
+            pendingUploadMarkerCheck: { _ in true }
+        )
+        let unlock = Task { await vm.unlock(password: fixturePassword) }
+        try await Self.waitUntil { syncStarted.value }
+        await Task.yield()
+
+        XCTAssertTrue(vm.cancelUnlockAttempt())
+        XCTAssertEqual(vm.state, .locked)
+        providerAnswers.value = true
+        await unlock.value
+        try await Task.sleep(for: .milliseconds(50))
+
+        assertNoSyncStatus(on: vm, reference: reference)
+    }
+
+    /// Cancel behind the Touch ID prompt: the prompt then succeeds and the
+    /// overlapping sync finishes, but neither may unlock or leave status.
+    func testCancellingDuringTheBiometricPromptDropsTheOverlappingSync() async throws {
+        let openedData = try fixtureData()
+        let reference = try makeStoredManualReference()
+        let syncFinished = PendingFlag(false)
+        let promptAnswers = PendingFlag(false)
+        defer { promptAnswers.value = true }
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, progress in
+                progress(0.5)
+                var offline = reference
+                offline.updateCloudSyncMetadata { $0.lastSyncIssue = .networkUnavailable }
+                syncFinished.value = true
+                return Self.resolution(offline, data: openedData, status: .offlineCached)
+            },
+            biometricCompositeKeyOperation: { [fixturePassword] _, _ in
+                try await Self.waitUntil { promptAnswers.value }
+                return QuickUnlockKeys(storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil))
+            },
+            pendingUploadMarkerCheck: { _ in true }
+        )
+        let unlock = Task { await vm.unlockWithBiometrics() }
+        try await Self.waitUntil { syncFinished.value }
+        await Task.yield()
+
+        XCTAssertTrue(vm.cancelUnlockAttempt())
+        promptAnswers.value = true
+        let outcome = await unlock.value
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(outcome, .failed)
+        XCTAssertTrue(vm.didManuallyLock)
+        assertNoSyncStatus(on: vm, reference: reference)
+    }
+
+    /// Sync Now replacing the open tree reads `.unlocking`, but it is not an
+    /// open that Cancel may end.
+    func testCancelUnlockAttemptIsRefusedWhileSyncNowReplacesTheTree() async throws {
+        let vm = try await makeViewModelParsingANewerCopy()
+        let trigger = triggerWhenParsing(vm) {
+            XCTAssertFalse(vm.canCancelUnlockAttempt)
+            XCTAssertFalse(vm.cancelUnlockAttempt())
+        }
+
+        await vm.syncCloudNow()
+        let didTrigger = await trigger.value
+
+        XCTAssertTrue(didTrigger, "Cancel must be tried while the copy is parsed")
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertFalse(vm.didManuallyLock)
+    }
+
+    private func assertNoSyncStatus(
+        on vm: DatabaseViewModel,
+        reference: DatabaseReference,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(vm.state, .locked, file: file, line: line)
+        XCTAssertNil(vm.rootGroup, file: file, line: line)
+        XCTAssertNil(vm.openFailure, file: file, line: line)
+        XCTAssertNil(vm.cloudSyncBannerText, file: file, line: line)
+        XCTAssertNil(vm.cloudSyncProgress, file: file, line: line)
+        XCTAssertNil(vm.cloudSyncOutcome, file: file, line: line)
+        XCTAssertFalse(vm.isCloudRefreshPending, file: file, line: line)
+        XCTAssertFalse(vm.hasPendingCloudUploads, file: file, line: line)
+        XCTAssertNil(vm.databaseReference.cloudSyncMetadata?.lastSyncIssue, file: file, line: line)
+        let stored = DatabaseListStore.databases.first { $0.id == reference.id }
+        XCTAssertNotNil(stored, file: file, line: line)
+        XCTAssertNil(stored?.cloudSyncMetadata?.lastSyncIssue, file: file, line: line)
+    }
+
     /// A progress report still queued when the sync is applied must not bring
     /// the progress bar back over the unlocked database.
     func testProgressReportedAfterTheOpenSyncWasAppliedIsDropped() async throws {

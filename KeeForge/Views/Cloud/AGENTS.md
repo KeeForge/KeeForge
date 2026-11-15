@@ -1,10 +1,10 @@
 # Cloud Views
 
-**Scope:** the cloud file and folder browser and the manual WebDAV and FTP connect forms. Folder-wide UI rules, including the macOS grouped-form modifiers these forms need, are in `../AGENTS.md`.
+**Scope:** the cloud file and folder browser and the manual WebDAV and FTP connect forms. Folder-wide UI rules are in `../AGENTS.md`.
 
 ## Ownership
 
-- `CloudFileBrowserView` picks the manual form from the provider's connect seam (`WebDAVConnecting` or `FTPConnecting`); other providers use hosted sign-in. Connection logic is in `WebDAVConnectViewModel` / `FTPConnectViewModel`, listing and selection in `CloudFileBrowserSession` and `CloudFolderBrowserViewModel`.
+- `CloudFileBrowserView` (iOS only; the Mac connects and browses through `MacConnectServerSheet` and `MacRemoteBrowserViewController`) picks the manual form from the provider's connect seam (`WebDAVConnecting` or `FTPConnecting`); other providers use hosted sign-in. Connection logic is in `WebDAVConnectViewModel` / `FTPConnectViewModel`, listing and selection in `CloudFileBrowserSession` and `CloudFolderBrowserViewModel`.
 
 ## Invariants
 

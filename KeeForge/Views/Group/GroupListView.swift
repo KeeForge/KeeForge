@@ -1,6 +1,8 @@
 import OneTimeCodes
 import SwiftUI
 
+#if os(iOS)
+
 struct GroupListView: View {
     /// Identifies the group whose icon picker is showing. A wrapper rather than a bare
     /// `UUID?` so `sheet(item:)` has an `Identifiable` to key on without retroactively
@@ -20,9 +22,7 @@ struct GroupListView: View {
     /// iPad split view: pushes onto the sidebar's own stack, which is not the
     /// workspace's navigation path.
     var onOpenRoute: ((DatabaseRoute) -> Void)? = nil
-    #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #endif
     @State private var showSettings = false
     @State private var pendingDeletion: PendingDeletion?
     @State private var isShowingNewGroupSheet = false
@@ -69,19 +69,15 @@ struct GroupListView: View {
         listedGroup?.entries ?? []
     }
 
+    /// The bin itself or a group inside it.
     private var isRecycleBin: Bool {
         guard let listedGroup else { return false }
         return viewModel.currentRootGroup?.recycleBinUUID == listedGroup.id
+            || viewModel.isGroupInRecycleBin(groupID: listedGroup.id)
     }
 
     private var isCompact: Bool {
-        // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
-        // uses the regular layout.
-        #if os(iOS)
         horizontalSizeClass == .compact
-        #else
-        false
-        #endif
     }
 
     private var canCreateHere: Bool {
@@ -90,11 +86,9 @@ struct GroupListView: View {
 
     /// From iOS 26 compact screens put search and New in a bottom bar.
     private var usesBottomToolbar: Bool {
-        #if os(iOS)
         if #available(iOS 26.0, *) {
             return isCompact
         }
-        #endif
         return false
     }
 
@@ -118,10 +112,11 @@ struct GroupListView: View {
         let entries: [KPEntry] = switch collection {
         case .allEntries: viewModel.allEntries
         case .verificationCodes: viewModel.verificationCodeEntries
+        case .passkeys: viewModel.passkeyEntries
         case .tags, .recycleBin: []
         case nil: visibleEntries
         }
-        return entries.map(\.id).filter { EntryRowMoveAction.isAvailable(entryID: $0, viewModel: viewModel) }
+        return entries.map(\.id).filter { EntryRowActions(entryID: $0, session: viewModel).canSelect }
     }
 
     var body: some View {
@@ -274,7 +269,6 @@ struct GroupListView: View {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(iOS)
             content
                 .sheet(isPresented: view.$isShowingQRScanner, onDismiss: {
                     view.codeToEnroll = view.scannedCode
@@ -289,9 +283,6 @@ struct GroupListView: View {
                         view.codeToEnroll = nil
                     }
                 }
-            #else
-            content
-            #endif
         }
     }
 
@@ -352,14 +343,12 @@ struct GroupListView: View {
                 isShowingNewGroupSheet = true
             }
 
-            #if os(iOS)
             Divider()
 
             Button("Scan QR Code", systemImage: "qrcode.viewfinder") {
                 isShowingQRScanner = true
             }
             .accessibilityIdentifier("entry-list.scan-qr")
-            #endif
         } label: {
             Image(systemName: "plus")
         }
@@ -370,13 +359,11 @@ struct GroupListView: View {
     /// The root's sync status and read-only state in words, then its tiles.
     @ViewBuilder
     private var homeSections: some View {
-        #if os(iOS)
         if pinsCloudTitle == false, CloudSyncStatusRow.isVisible(for: viewModel) {
             Section {
                 CloudSyncStatusRow(viewModel: viewModel)
             }
         }
-        #endif
         if viewModel.isReadOnly {
             Section {
                 Label {
@@ -416,7 +403,6 @@ struct GroupListView: View {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(iOS)
             if view.pinsCloudTitle {
                 content
                     .navigationBarTitleDisplayMode(.inline)
@@ -442,12 +428,8 @@ struct GroupListView: View {
             } else {
                 content
             }
-            #else
-            content
-            #endif
         }
 
-        #if os(iOS)
         private var title: some View {
             Group {
                 if view.viewModel.searchText.isEmpty == false {
@@ -459,7 +441,6 @@ struct GroupListView: View {
             .font(.largeTitle.bold())
             .lineLimit(1)
         }
-        #endif
     }
 
     /// The database's name on iPhone sits level with Lock, Sort, and More,
@@ -468,16 +449,12 @@ struct GroupListView: View {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(iOS)
             if view.isRoot, view.usesBottomToolbar, view.pinsCloudTitle == false,
                view.viewModel.workspace.entrySelection == nil {
                 content.toolbarTitleDisplayMode(.inlineLarge)
             } else {
                 content
             }
-            #else
-            content
-            #endif
         }
     }
 
@@ -489,7 +466,6 @@ struct GroupListView: View {
         let view: GroupListView
 
         func body(content: Content) -> some View {
-            #if os(iOS)
             if #available(iOS 26.0, *), view.usesBottomToolbar, view.viewModel.workspace.entrySelection == nil {
                 content
                     .toolbar {
@@ -505,9 +481,6 @@ struct GroupListView: View {
             } else {
                 content
             }
-            #else
-            content
-            #endif
         }
     }
 
@@ -539,6 +512,8 @@ struct GroupListView: View {
             return allEntriesSummary
         case .verificationCodes:
             return String(localized: "\(viewModel.collectionCounts.verificationCodes) entries")
+        case .passkeys:
+            return String(localized: "\(viewModel.collectionCounts.passkeys) entries")
         case .tags:
             return String(localized: "\(viewModel.collectionCounts.tags) tags in this database")
         case .recycleBin:
@@ -561,7 +536,6 @@ struct GroupListView: View {
         let isTitlePinned: Bool
 
         func body(content: Content) -> some View {
-            #if os(iOS)
             if #available(iOS 26.0, *) {
                 if let subtitle, isTitlePinned == false {
                     content
@@ -573,18 +547,13 @@ struct GroupListView: View {
             } else {
                 content
             }
-            #else
-            content
-            #endif
         }
     }
 
     private var showsSummaryAsSubtitle: Bool {
-        #if os(iOS)
         if #available(iOS 26.0, *) {
             return true
         }
-        #endif
         return false
     }
 
@@ -601,11 +570,7 @@ struct GroupListView: View {
     /// the controls pinned above the list. On iPhone the root shows the sync
     /// status as a row and the bar's actions stay in the bar.
     private var pinsCloudTitle: Bool {
-        #if os(iOS)
         return onSelectEntry != nil && CloudSyncControls.isVisible(for: viewModel)
-        #else
-        return false
-        #endif
     }
 
     @ViewBuilder
@@ -627,6 +592,13 @@ struct GroupListView: View {
                 ),
                 emptyTitle: "No Verification Codes",
                 emptyDescription: "Entries with a verification code appear here."
+            )
+        case .passkeys:
+            flatEntriesSection(
+                viewModel.passkeyEntries,
+                summary: String(localized: "Passkeys saved through AutoFill appear here."),
+                emptyTitle: "No Passkeys",
+                emptyDescription: "Passkeys saved through AutoFill appear here."
             )
         case .tags:
             TagListRows(viewModel: viewModel)
@@ -847,28 +819,18 @@ struct GroupListView: View {
             if viewModel.isReadOnly == false {
                 Divider()
 
-                Button(isRecycleBin ? "Delete Permanently" : "Delete", systemImage: "trash", role: .destructive) {
-                    pendingDeletion = .entry(
-                        PendingEntryDeletion(
-                            entryID: entry.id,
-                            sendToRecycleBin: !isRecycleBin
-                        )
-                    )
+                let actions = EntryRowActions(entryID: entry.id, session: viewModel)
+                Button(actions.deleteTitle, systemImage: "trash", role: .destructive) {
+                    pendingDeletion = actions.pendingDeletion
                 }
-                .accessibilityIdentifier(
-                    isRecycleBin ? "entry-row.delete-permanent" : "entry-row.delete-context"
-                )
+                .accessibilityIdentifier(actions.deleteAccessibilityIdentifier)
             }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if viewModel.isReadOnly == false {
-                Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
-                    pendingDeletion = .entry(
-                        PendingEntryDeletion(
-                            entryID: entry.id,
-                            sendToRecycleBin: !isRecycleBin
-                        )
-                    )
+                let actions = EntryRowActions(entryID: entry.id, session: viewModel)
+                Button(actions.deleteTitle, role: .destructive) {
+                    pendingDeletion = actions.pendingDeletion
                 }
                 .tint(Theme.State.danger)
                 .accessibilityIdentifier("entry-row.delete-swipe")
@@ -1026,16 +988,17 @@ extension ToolbarItemPlacement {
     /// placement keeps the items and truncates the title instead.
     static var databaseActions: ToolbarItemPlacement {
         #if compiler(>=6.4)
-        #if os(iOS)
         if #available(iOS 27.0, *) {
             return .topBarPinnedTrailing
         }
-        #endif
         #endif
         return .topBarTrailing
     }
 }
 
+#endif
+
+#if os(iOS)
 struct NewGroupSheet: View {
     @Binding var name: String
     @Binding var errorMessage: String?
@@ -1087,6 +1050,9 @@ struct NewGroupSheet: View {
     }
 }
 
+#endif
+
+#if os(iOS)
 struct GroupRow: View {
     let groupID: UUID
     @Bindable var viewModel: DatabaseViewModel
@@ -1160,19 +1126,11 @@ struct EntryRow: View {
 
     @ScaledMetric(relativeTo: .body) private var iconSize = Theme.Size.entryIcon
 
-    var body: some View {
-        if PlatformDesign.followsIOSDesign {
-            designedRow
-        } else {
-            macRow
-        }
-    }
-
     private var title: String {
         entry.title.isEmpty ? String(localized: "(untitled)") : entry.title
     }
 
-    private var designedRow: some View {
+    var body: some View {
         HStack(spacing: Theme.Spacing.iconText) {
             FaviconEntryIconView(entry: entry, customIconData: customIconData, size: iconSize)
 
@@ -1220,63 +1178,6 @@ struct EntryRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
-
-    private var macRow: some View {
-        HStack {
-            FaviconView(url: entry.url, iconID: entry.iconID, size: 24, customIconData: customIconData)
-                .frame(width: 28)
-
-            VStack(alignment: .leading) {
-                Text(title)
-                    .font(.body)
-                if !username.isEmpty {
-                    Text(username)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let folderPath, folderPath.isEmpty == false {
-                    HStack(spacing: 4) {
-                        Image(systemName: "folder")
-                            .accessibilityHidden(true)
-                        Text(folderPath)
-                            .lineLimit(1)
-                            .truncationMode(.head)
-                            .accessibilityIdentifier("entry-row.folder")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            if entry.isExpired() {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .accessibilityLabel("Expired")
-                    .accessibilityIdentifier("entry-row.expired")
-            }
-
-            if entry.hasPasskey {
-                Image(systemName: "person.badge.key.fill")
-                    .font(.caption)
-                    .foregroundStyle(.purple)
-                    .accessibilityLabel("Has a passkey")
-                    .accessibilityIdentifier("entry-row.passkey")
-            }
-
-            if entry.totpConfig != nil {
-                Image(systemName: "clock")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-                    .accessibilityLabel("Has a verification code")
-                    .accessibilityIdentifier("entry-row.totp")
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-    }
 }
 
 /// "From Banking · Deleted yesterday" under a Recycle Bin row's name.
@@ -1305,3 +1206,4 @@ private struct EntryRowBadge: View {
             .background(Theme.accentSoft, in: Circle())
     }
 }
+#endif

@@ -3,7 +3,7 @@ import AppKit
 import Foundation
 import Observation
 
-/// An entry of the unlocked database that holds a private key, as Settings
+/// An entry of an unlocked database that holds a private key, as Settings
 /// lists it.
 struct MacSSHAgentCandidate: Identifiable, Sendable, Equatable {
     enum Status: Sendable, Equatable {
@@ -40,16 +40,17 @@ struct MacSSHAgentCandidate: Identifiable, Sendable, Equatable {
 /// Owns the opt-in SSH agent: the socket while it is turned on, the entries
 /// each database serves through it, and the key list Settings shows.
 ///
-/// Every request reads the chosen entries from the one active session at that
-/// moment, so the agent offers nothing while that session is locked, closed,
-/// or has a lock pending (`DatabaseViewModel.isLockPending`), and a lock that
-/// lands mid-signature withholds the signature (`SSHAgentRequestHandler`).
-/// Parsed keys are kept only for the lease they were read under
-/// (`SSHAgentKeyCache`) and dropped the moment it ends.
+/// Every request reads the chosen entries of every open session at that
+/// moment. A session offers nothing while it is locked, closed, or has a lock
+/// pending (`DatabaseViewModel.isLockPending`), whatever the others do, and a
+/// lock that lands mid-signature withholds the signature
+/// (`SSHAgentRequestHandler`). Parsed keys are kept per session, only for the
+/// lease they were read under (`SSHAgentKeyCache`), and dropped the moment it
+/// ends. Window focus plays no part.
 @MainActor
 @Observable
 final class MacSSHAgentController {
-    typealias SessionProvider = @MainActor () -> DatabaseViewModel?
+    typealias SessionsProvider = @MainActor () -> [DatabaseViewModel]
 
     var isEnabled: Bool {
         didSet {
@@ -71,18 +72,23 @@ final class MacSSHAgentController {
     /// The entries served per database, keyed by `DatabaseReference.id`.
     private(set) var selectedEntryIDs: [UUID: Set<UUID>]
 
+    /// The database Settings ▸ SSH Agent lists keys for, when the user picked
+    /// one; see `settingsSession`.
+    var settingsDatabaseID: UUID?
+
     /// True while another app is frontmost. The Settings window receives the
     /// privacy cover, and the SSH tab also removes its key rows from the view.
     private(set) var concealsKeyList = false
 
     let socketPath: String
 
-    @ObservationIgnored var sessionProvider: SessionProvider
+    /// The open sessions in a stable order; the first holding a key lists it.
+    @ObservationIgnored var sessionsProvider: SessionsProvider
     private let defaults: UserDefaults
     private let notificationCenter: NotificationCenter
     @ObservationIgnored private let keyCache: SSHAgentKeyCache
-    /// The lease whose end `keyCache` is being watched for.
-    @ObservationIgnored private var watchedLease: SSHAgentLease?
+    /// Per session, the lease whose end `keyCache` is being watched for.
+    @ObservationIgnored private var watchedLeases: [ObjectIdentifier: SSHAgentLease] = [:]
     @ObservationIgnored private var server: SSHAgentSocketServer?
     @ObservationIgnored private var isStarted = false
     @ObservationIgnored private var observers: [any NSObjectProtocol] = []
@@ -100,13 +106,13 @@ final class MacSSHAgentController {
         defaults: UserDefaults = .standard,
         notificationCenter: NotificationCenter = .default,
         keyCache: SSHAgentKeyCache = SSHAgentKeyCache(),
-        sessionProvider: @escaping SessionProvider = { nil }
+        sessionsProvider: @escaping SessionsProvider = { [] }
     ) {
         self.socketPath = socketPath
         self.defaults = defaults
         self.notificationCenter = notificationCenter
         self.keyCache = keyCache
-        self.sessionProvider = sessionProvider
+        self.sessionsProvider = sessionsProvider
         isEnabled = SettingsService.macSSHAgentEnabled(in: defaults)
         selectedEntryIDs = SettingsService.macSSHAgentSelectedEntryIDs(in: defaults)
     }
@@ -149,16 +155,23 @@ final class MacSSHAgentController {
         }
         selectedEntryIDs[databaseID] = entryIDs.isEmpty ? nil : entryIDs
         SettingsService.setMacSSHAgentSelectedEntryIDs(selectedEntryIDs, in: defaults)
-        keyCache.removeAll()
+        for session in sessionsProvider() where session.databaseReference.id == databaseID {
+            keyCache.removeAll(forSession: ObjectIdentifier(session))
+        }
     }
 
-    /// The chosen entries of the active session, read at the moment of a
-    /// request. Empty unless the agent is on and that session is unlocked
-    /// with no lock pending.
+    /// The chosen entries of every open session, read at the moment of a
+    /// request, in session order. Empty unless the agent is on; a session
+    /// contributes only while it is unlocked with no lock pending.
     func keySources() -> [SSHAgentKeySource] {
-        guard isEnabled,
-              let session = sessionProvider(),
-              session.state == .unlocked,
+        guard isEnabled else { return [] }
+        let sessions = sessionsProvider()
+        forgetLeases(ofSessionsOtherThan: sessions)
+        return sessions.flatMap(keySources(in:))
+    }
+
+    private func keySources(in session: DatabaseViewModel) -> [SSHAgentKeySource] {
+        guard session.state == .unlocked,
               session.isLockPending == false,
               let entryIDs = selectedEntryIDs[session.databaseReference.id]
         else { return [] }
@@ -170,30 +183,54 @@ final class MacSSHAgentController {
         }
     }
 
-    /// A lock has to take the parsed keys with it at once, not at the next
-    /// request, which may never come. The change handler runs inside the
-    /// session's own mutation, on the main actor, before the new value is set.
+    /// A session that is no longer open takes its keys and its watch with it;
+    /// a later session at the same address must be watched afresh.
+    private func forgetLeases(ofSessionsOtherThan sessions: [DatabaseViewModel]) {
+        let open = Set(sessions.map(ObjectIdentifier.init))
+        for id in watchedLeases.keys where open.contains(id) == false {
+            watchedLeases[id] = nil
+            keyCache.removeAll(forSession: id)
+        }
+    }
+
+    /// A lock has to take the session's parsed keys with it at once, not at
+    /// the next request, which may never come. The change handler runs inside
+    /// the session's own mutation, on the main actor, before the new value is
+    /// set. Other sessions' keys stay.
     private func emptyKeyCacheWhenLeaseEnds(_ lease: SSHAgentLease, of session: DatabaseViewModel) {
-        guard watchedLease != lease else { return }
+        let id = lease.session
+        guard watchedLeases[id] != lease else { return }
         // The handler captures the cache generation before reading sources.
         // Invalidating an empty initial lease would discard its first parse.
-        if watchedLease != nil {
-            keyCache.removeAll()
+        if watchedLeases[id] != nil {
+            keyCache.removeAll(forSession: id)
         }
-        watchedLease = lease
+        watchedLeases[id] = lease
         withObservationTracking {
             _ = session.state
             _ = session.lockCycleID
             _ = session.isLockPending
             _ = session.contentRevision
         } onChange: { [weak self, keyCache] in
-            keyCache.removeAll()
+            keyCache.removeAll(forSession: id)
             MainActor.assumeIsolated {
-                if self?.watchedLease == lease {
-                    self?.watchedLease = nil
+                if self?.watchedLeases[id] == lease {
+                    self?.watchedLeases[id] = nil
                 }
             }
         }
+    }
+
+    /// The unlocked sessions Settings can list keys for, in session order.
+    var settingsSessions: [DatabaseViewModel] {
+        sessionsProvider().filter { $0.state == .unlocked }
+    }
+
+    /// The session Settings lists keys for: the one the user picked while it
+    /// is open and unlocked, otherwise the first unlocked session.
+    var settingsSession: DatabaseViewModel? {
+        let sessions = settingsSessions
+        return sessions.first { $0.databaseReference.id == settingsDatabaseID } ?? sessions.first
     }
 
     /// Every live entry of `session` whose attachments include a private key,
@@ -235,13 +272,6 @@ final class MacSSHAgentController {
         server?.stop()
         server = nil
         unavailability = nil
-        keyCache.removeAll()
-    }
-
-    /// Called when the app changes which database session is active, even if
-    /// the former session is still unlocked. No key from it may stay cached.
-    func activeSessionDidChange() {
-        watchedLease = nil
         keyCache.removeAll()
     }
 

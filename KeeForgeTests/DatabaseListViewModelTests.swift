@@ -67,6 +67,30 @@ final class DatabaseListViewModelTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testListReconciliationDoesNotAdoptAnUnauthenticatedLocalKeyEpoch() async throws {
+        let setup = try await makePreferenceDatabase()
+        defer { setup.database.lock() }
+        let authenticated = setup.database.databaseReference
+        var changed = authenticated
+        changed.nickname = "New name"
+        changed.lastMasterKeyChangeAt = authenticated.lastMasterKeyChangeAt?.addingTimeInterval(60)
+        changed.keyFileFilename = "foreign.keyx"
+        changed.keyFileBookmarkData = Data("foreign key bookmark".utf8)
+        DatabaseListStore.testUpsert(changed)
+        setup.database.reconcileReference(changed)
+        XCTAssertEqual(setup.database.databaseReference.nickname, "New name")
+        XCTAssertEqual(setup.database.databaseReference.lastMasterKeyChangeAt, authenticated.lastMasterKeyChangeAt)
+        XCTAssertEqual(setup.database.databaseReference.keyFileBookmarkData, authenticated.keyFileBookmarkData)
+        let before = try Data(contentsOf: setup.url)
+        try setup.database.applyEntryEdit(.createEntry(parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: XCTUnwrap(setup.database.rootGroup)),
+            draft: EntryDraftPayload(title: "Old epoch", password: "preserved")))
+        do { try await setup.database.save(); XCTFail("A list callback cannot authorize a save under another epoch") }
+        catch { XCTAssertTrue(error is PendingLocalSaveStore.OwnershipError) }
+        XCTAssertEqual(try Data(contentsOf: setup.url), before)
+        XCTAssertTrue(setup.database.isDirty)
+        XCTAssertEqual(setup.effects.withLock { $0.encryptions }, 1)
+    }
+
     func testSettledSelectClearUsesOnlyFieldCASAndAllowsExplicitSave() async throws {
         let setup = try await makePreferenceDatabase()
         defer { setup.database.lock() }
@@ -371,6 +395,80 @@ final class DatabaseListViewModelTests: XCTestCase {
             if denyTargetDirectorySync { XCTFail("Expected directory warning") }
         } catch { if denyTargetDirectorySync { XCTAssertTrue(error is SaveDurabilityWarning) } else { throw error } }
         return (database, database.databaseReference, url, first, second, keyFileData, effects)
+    }
+
+    func testListMutationsReconcileOnlyMatchingOpenSessionWithoutAView() async throws {
+        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "first.kdbx"))
+        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "second.kdbx"))
+        let list = DatabaseListViewModel()
+        let store = DatabaseSessionStore()
+        store.installListHooks(on: list)
+        let matching = store.open(first)
+        let other = store.open(second)
+        let cycle = matching.lockCycleID
+        let keyURL = try makeTemporaryFileURL(name: "new.keyx")
+
+        list.setNickname("Renamed", for: first)
+        XCTAssertEqual(matching.databaseDisplayName, "Renamed")
+        list.setReadOnly(true, for: first)
+        XCTAssertTrue(matching.isReadOnly)
+        try await list.setKeyFile(url: keyURL, for: first)
+        XCTAssertEqual(matching.databaseReference.keyFileFilename, "new.keyx")
+        XCTAssertNotNil(matching.databaseReference.keyFileBookmarkData)
+        try await list.setKeyFile(url: nil, for: first)
+        XCTAssertNil(matching.databaseReference.keyFileBookmarkData)
+        XCTAssertNil(matching.databaseReference.keyFileFilename)
+        XCTAssertEqual(matching.databaseReference.nickname, "Renamed")
+        XCTAssertEqual(matching.state, .locked)
+        XCTAssertEqual(matching.lockCycleID, cycle)
+        XCTAssertEqual(other.databaseReference, second)
+        await list.removeDatabase(first)
+        XCTAssertNil(store.session(for: first.id))
+        XCTAssertTrue(store.session(for: second.id) === other)
+    }
+
+    func testApplicationAutoFillHookRefreshesOnlyMatchingUnlockedSessionAndIgnoresRetiredID() async throws {
+        let previousQuickAutoFill = SettingsService.quickAutoFillEnabled
+        defer { SettingsService.quickAutoFillEnabled = previousQuickAutoFill }
+        SettingsService.quickAutoFillEnabled = true
+        let fixtureURL = try KDBXTestFixture.test.url(in: Bundle(for: Self.self))
+        let first = try TestDatabaseSupport.makeReference(for: fixtureURL, autoFillEnabled: false)
+        let second = try TestDatabaseSupport.makeReference(for: fixtureURL, autoFillEnabled: false)
+        DatabaseListStore.testUpsert(first)
+        DatabaseListStore.testUpsert(second)
+        let list = DatabaseListViewModel()
+        let store = DatabaseSessionStore()
+        store.installListHooks(on: list)
+        let matching = store.open(first)
+        let other = store.open(second)
+        defer { matching.lock(); other.lock() }
+        await matching.unlock(password: KDBXTestFixture.test.password)
+        await other.unlock(password: KDBXTestFixture.test.password)
+        XCTAssertEqual(matching.state, .unlocked)
+        XCTAssertEqual(other.state, .unlocked)
+        let fake = FakeCredentialIdentityStore()
+        CredentialIdentityStoreManager.storeProviderOverride = fake
+        var populatedIDs: [UUID] = []
+        CredentialIdentityStoreManager.populateObserver = { id, _ in populatedIDs.append(id) }
+        let refreshed = expectation(description: "AutoFill identities refreshed")
+        fake.onMutation = { refreshed.fulfill() }
+
+        await list.setAutoFillEnabled(true, for: first)
+
+        await fulfillment(of: [refreshed], timeout: 5)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        XCTAssertEqual(populatedIDs, [first.id])
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, first.id)
+        XCTAssertTrue(matching.databaseReference.autoFillEnabled)
+        XCTAssertFalse(other.databaseReference.autoFillEnabled)
+        let delayed = try XCTUnwrap(list.autoFillEnabledRefreshHandler)
+        store.retire(first.id, force: true)
+        fake.onMutation = { XCTFail("A retired session must not refresh AutoFill") }
+        delayed(first.id)
+        delayed(UUID())
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        XCTAssertEqual(populatedIDs, [first.id])
+        XCTAssertNil(store.session(for: first.id))
     }
 
     func testMoveDatabasesPublishesTheNewOrderImmediately() throws {
@@ -708,9 +806,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         reference.lastOpenedAt = Date().addingTimeInterval(-3_600)
         DatabaseListStore.testUpsert(reference)
 
-        let viewModel = DatabaseListViewModel()
-
-        XCTAssertNotNil(viewModel.lastOpenedDescription(for: reference))
+        XCTAssertNotNil(DatabaseListViewModel.lastOpenedDescription(for: reference))
     }
 
     func testLastOpenedDescriptionHidesWhenUsageStatsAreDisabled() throws {
@@ -719,9 +815,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         DatabaseListStore.testUpsert(reference)
         SettingsService.showDatabaseUsageStats = false
 
-        let viewModel = DatabaseListViewModel()
-
-        XCTAssertNil(viewModel.lastOpenedDescription(for: reference))
+        XCTAssertNil(DatabaseListViewModel.lastOpenedDescription(for: reference))
     }
 
     // MARK: - AutoFill enablement tip
@@ -1013,6 +1107,23 @@ final class DatabaseListViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.pendingUploadAlert?.kind, .conflict)
         XCTAssertEqual(viewModel.pendingUploadAlert?.databaseId, reference.id)
+    }
+
+    func testAPushForADatabaseWindowReturnsItsFailureInsteadOfShowingIt() async {
+        let reference = makeCloudReference()
+        let viewModel = DatabaseListViewModel(
+            pendingUploadDrainer: makeDrainer(
+                markers: [makeStoredMarker(databaseId: reference.id)],
+                reference: reference,
+                pushPendingUpload: { _, _, _ in throw CloudProviderError.notAuthenticated }
+            )
+        )
+
+        let alert = await viewModel.pushPendingChanges(for: reference, presentsAlert: false)
+
+        XCTAssertEqual(alert?.kind, .notAuthenticated)
+        XCTAssertEqual(alert?.databaseId, reference.id)
+        XCTAssertNil(viewModel.pendingUploadAlert, "The Databases window shows nothing for another window's push")
     }
 
     func testAppActiveDrainStaysSilentOnConflict() async {

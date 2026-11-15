@@ -47,6 +47,8 @@ extension PendingGroupDeletion {
 enum PendingDeletion: Identifiable {
     case entry(PendingEntryDeletion)
     case group(PendingGroupDeletion)
+    /// Several picked entries, all sent to the recycle bin (Mac multiple selection).
+    case entries(Set<UUID>)
 
     var id: String {
         switch self {
@@ -54,6 +56,9 @@ enum PendingDeletion: Identifiable {
             "entry-\(action.id)"
         case .group(let action):
             "group-\(action.id)"
+        case .entries:
+            // A session has one selection, so it has one such deletion at a time.
+            "entries"
         }
     }
 }
@@ -71,6 +76,8 @@ extension PendingDeletion {
             action.sendToRecycleBin
                 ? String(localized: "Delete Group?")
                 : String(localized: "Delete Permanently?")
+        case .entries(let entryIDs):
+            String(localized: "Delete \(entryIDs.count) Entries?")
         }
     }
 
@@ -82,6 +89,8 @@ extension PendingDeletion {
             sendToRecycleBin = action.sendToRecycleBin
         case .group(let action):
             sendToRecycleBin = action.sendToRecycleBin
+        case .entries:
+            sendToRecycleBin = true
         }
         return sendToRecycleBin ? String(localized: "Delete") : String(localized: "Delete Permanently")
     }
@@ -95,6 +104,8 @@ extension PendingDeletion {
                 : String(localized: "This entry will be removed immediately and cannot be restored from KeeForge.")
         case .group(let action):
             Self.groupDeletionMessage(for: action)
+        case .entries:
+            String(localized: "The selected entries will be moved to the recycle bin.")
         }
     }
 
@@ -108,6 +119,9 @@ extension PendingDeletion {
                 try viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
             case .group(let action):
                 try viewModel.deleteGroup(action.groupID, sendToRecycleBin: action.sendToRecycleBin)
+            case .entries(let entryIDs):
+                try viewModel.recycleEntries(entryIDs: entryIDs)
+                viewModel.workspace.endEntrySelection()
             }
             Task { await viewModel.saveHandlingError() }
         } catch {
@@ -151,15 +165,14 @@ extension PendingDeletion {
     }
 }
 
+#if os(iOS)
 /// Hosts a list's own delete confirmation, and nothing when the list raises it
 /// to a host that already owns one.
 ///
 /// Two sibling `.alert(item:)` on one presentation context collide and SwiftUI
 /// silently drops one, so the second host never presents. An embedded entry
 /// list hits that whenever its container already hosts a `PendingDeletion`:
-/// the search results render inside `GroupListView`, and on macOS the search
-/// results and the tag browser render inside the workspace's content column.
-/// Those lists hand their confirmation to the container instead of adding a
+/// the search results render inside `GroupListView`. Those lists hand their confirmation to the container instead of adding a
 /// host; a list that is its own pushed screen keeps hosting it here.
 struct ListScopedDeletionAlert: ViewModifier {
     @Binding var pending: PendingDeletion?
@@ -174,6 +187,7 @@ struct ListScopedDeletionAlert: ViewModifier {
         }
     }
 }
+#endif
 
 /// Identifies the item whose Move-to-Group picker is showing, so
 /// `sheet(item:)` has an `Identifiable` to key on.
@@ -242,8 +256,24 @@ extension PendingMove {
             viewModel.presentSaveError(error)
         }
     }
+
+    /// Restores straight to the item's original parent when it still exists;
+    /// otherwise hands the destination picker to `choose`.
+    @MainActor
+    static func restoreOrChooseDestination(
+        _ item: DatabaseViewModel.RecycleBinItem,
+        viewModel: DatabaseViewModel,
+        choose: (PendingMove) -> Void
+    ) {
+        if let destinationID = viewModel.originalRestoreDestination(for: item) {
+            PendingMove.restore(item).apply(destinationGroupID: destinationID, viewModel: viewModel)
+        } else {
+            choose(.restore(item))
+        }
+    }
 }
 
+#if os(iOS)
 struct RestoreRowAction: View {
     let item: DatabaseViewModel.RecycleBinItem
     let viewModel: DatabaseViewModel
@@ -252,11 +282,7 @@ struct RestoreRowAction: View {
     var body: some View {
         if viewModel.canRestore(item) {
             Button("Restore", systemImage: "arrow.uturn.backward") {
-                if let destinationID = viewModel.originalRestoreDestination(for: item) {
-                    PendingMove.restore(item).apply(destinationGroupID: destinationID, viewModel: viewModel)
-                } else {
-                    onChooseDestination(.restore(item))
-                }
+                PendingMove.restoreOrChooseDestination(item, viewModel: viewModel, choose: onChooseDestination)
             }
             .accessibilityIdentifier(identifier)
 
@@ -272,15 +298,16 @@ struct RestoreRowAction: View {
 
     private var identifier: String {
         switch item {
-        case .entry: "entry-row.restore-context"
+        case .entry: EntryRowActions.restoreIdentifier
         case .group: "group-row.restore-context"
         }
     }
 
     private var restoreToGroupIdentifier: String {
         switch item {
-        case .entry: "entry-row.restore-to-group-context"
+        case .entry: EntryRowActions.restoreToGroupIdentifier
         case .group: "group-row.restore-to-group-context"
         }
     }
 }
+#endif

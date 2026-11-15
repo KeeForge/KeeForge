@@ -11,17 +11,69 @@ The Mac app uses the shared [EncryptedValue](../KeeForge/Models/EncryptedValue.s
 model: passwords, TOTP secrets, and passkey private keys are sealed with a
 per-session AES-GCM key. [DatabaseSessionStore](../KeeForge/ViewModels/DatabaseSessionStore.swift)
 owns sessions by database UUID, each with its own key and authentication grant.
-This is logical isolation within one process; the current interface still opens
-at most one database at a time. The passkey PEM is removed from ordinary custom
+This is logical isolation within one process; each open database has its own
+window and session. The passkey PEM is removed from ordinary custom
 fields and decrypted when needed for signing. Lock clears only the owning
 session's key, composite key, parsed tree, draft, attachment pool, and retained
 key-file data from the [database session](../KeeForge/ViewModels/DatabaseViewModel.swift).
 
+While a database window shows its unlock form, the
+[form](../KeeForge/ViewModels/MacUnlockFormModel.swift) clears the typed master
+password before each attempt runs, by password or Touch ID, and drops it whenever
+the window shows a page that can neither show nor clear it (opening, recovery,
+unavailable). It keeps a chosen key file's bytes across failed attempts so the
+user need not pick it again. Unlocking, Clear (also of the database's associated
+key file, for that attempt), a new pick, a cleared or changed key-file
+association, every lock of that session (including Cancel while opening) and
+closing the window wipe them with `SecureWipe`.
+
+Reconnect for a WebDAV or FTP database (recovery page, status card, notice,
+including a cached copy opened while the saved sign-in is rejected) shows the Connect to Server form as a sheet on that window, prefilled with the
+stored server address and username but never the password. It accepts only the
+reference's own account, so a mistyped address cannot attach another account's
+credential, and a successful connect replaces that account's Keychain item. The
+sheet closes, and its password is dropped, on lock and window close. The unlock password field never copies, cuts,
+drags or serves its text to Services, and neither field offers completion or a
+content type that Passwords would fill.
+
+Discarding a conflicted AutoFill upload has two entry points: the Databases
+window's row and Database ▸ Discard Pending Upload… in an unlocked database
+window. Both go through `CloudSyncCoordinator.discardConflictedPendingUploads`,
+which backs up the cached copy before dropping a marker it protects and keeps
+the marker if the backup fails. The window's command is refused while the draft
+is unsaved, a save runs, the editor or a sheet is open; its alert defaults to
+Cancel, ends on lock and close, and drops an answer once any of those holds.
+It is also refused in a read-only window, while an earlier discard runs (which
+also holds Merge Changes and Push), and when the session opened the conflicted
+AutoFill save itself from the cached copy, whose next save would upload it again.
+
+The Databases window owns its native New Database, Connect to Server and remote
+browser sheets through [MacDatabasesSheets](App/MacDatabasesSheets.swift).
+New master passwords stay in `DatabaseCreationViewModel` until creation succeeds
+or the sheet ends; cancel and window close clear them and reject late results.
+Local creation writes the prepared encrypted bytes directly to the save-panel
+URL, then registers the database and its encrypted shared cache. Key-file creation
+writes only to the chosen URL, wipes the generated buffer, then reads and bookmarks
+that file; cancelling database creation leaves the user-saved key file in place.
+
+[MacConnectServerSheet](App/MacConnectServerSheet.swift) also serves Reconnect
+through [MacServerReconnectSheet](App/MacServerReconnectSheet.swift), retaining the
+same account-ID check. Server passwords live only in the shared connect models;
+end and late results clear them, and Cancel/Escape are blocked while connecting.
+The launcher prefills the latest connected account's address and username, never
+its password; only the account ID is remembered outside the existing account and
+token stores. WebDAV requires HTTPS unless Allow Unencrypted HTTP is enabled.
+Both FTP plaintext and concurrent-save warnings appear while unencrypted FTP is
+allowed. The browser binds listings and selections to its account and drops stale
+loads on account replacement or end; it has no account menu. Provider credentials
+use `CloudTokenStore` with AfterFirstUnlockThisDeviceOnly protection.
+
 Biometric unlock stores composite keys in the Keychain, not raw master passwords.
 [KeychainService](../KeeForge/Services/Security/KeychainService.swift) uses the
 Data Protection Keychain with `WhenUnlockedThisDeviceOnly` and
-`biometryCurrentSet` access control, which on the Mac also admits an authorized
-Apple Watch (see "Lock and unlock lifecycle"). The app and extension share the
+`biometryCurrentSet` access control, or on the Mac
+`[.biometryCurrentSet, .or, .companion]`, which also admits an authorized Apple
+Watch (see "Lock and unlock lifecycle"). The app and extension share the
 team-prefixed `com.keevault.sharedkeychain` group. It must remain the first
 keychain access group: items written without an explicit `kSecAttrAccessGroup`
 land there.
@@ -60,6 +112,63 @@ Keep app-only plaintext metadata in the Mac app's own sandbox:
   app-local defaults on macOS. Account display names and server paths do not
   belong in shared defaults; the extension does not need these account records.
 
+[MacWindowRestorationStore](../KeeForge/Services/AppSupport/MacWindowRestorationStore.swift)
+defines versionless JSON storage under `MacWindowRestoration` in injected app-local
+UserDefaults, outside the App Group suite. It stores ordered database UUIDs and
+window frames, Databases-window visibility and frame, and an optional frontmost
+database UUID. It has no fields for sessions, unlocked state, keys, authentication
+grants, passwords, search text, selected entries/groups/tags, editor drafts,
+enrollment URIs, database titles, paths, or bookmarks. UUIDs are resolved against
+the database list and planned windows are always locked.
+
+`MacWindowCoordinator` is its only writer and the only owner of top-level frames:
+database windows and the Databases window have no AppKit frame autosave and are
+not restorable through AppKit state restoration. It records the topology when a
+database window opens, closes for good, moves, resizes (once, at the end of a live
+resize), is minimized or comes to the front, and when the Databases window is
+shown, moved or closed. Nothing is recorded until launch has restored the previous
+topology, so a launch presentation or an early quit cannot overwrite it.
+
+On launch, after the transition notice and What's New, each recorded database that
+is still in the list and supported comes back as a new, locked session in its own
+window, with its frame fitted to the current screens; the recorded frontmost one is
+fronted. Missing, removed and unsupported databases are skipped silently.
+Restoration only shows the unlock screen: it never authenticates, reads no stored
+key, and registers each window as restoring, so the automatic Touch ID prompt stays
+off until the user turns to that window with a click or key press in it, or opens
+that database again explicitly (Databases window, Open, Quick Access or a file).
+That first deliberate interaction itself asks for one automatic attempt, even in a
+window that is already key.
+Restoration takes precedence over Quick Launch, which runs only when no window was
+restored and no file arrived. A file that arrives at launch for a restored database
+fronts that window instead of opening a second one.
+
+On quit, including logout and restart, the coordinator first waits out every
+write in flight, locked sessions included, then asks about each window's
+unsaved write in turn, front window first, with the close prompt, collecting every
+answer before writing anything. A session it asks about holds a pending lock, as a
+window-close prompt does, until the quit ends. A window whose editor still holds fields is asked
+first, fronted, through the editor's own lock prompt (Save and Lock, Discard and
+Lock, Keep Editing), and the quit goes on once that window has locked. Keep
+Editing, Cancel, or a failed save or key or settings change cancels the quit with
+every window, session and draft as it was. Only when every
+window has settled does the store keep the pre-quit topology and stop recording,
+so the closes that termination brings never save an empty set. Don't Save leaves
+the unsaved draft as it was answered for to end with the process; work added to
+that window while a later prompt is up stops the quit. Removing a database from
+the list also removes its split geometry and its entry in the record.
+
+The Databases window, or that database's own locked window on its recovery
+page, refuses to remove a database whose session has unsaved work (a dirty
+draft, an editor holding fields, or a write in flight) and says to save or close
+its window first, because removal retires the session unconditionally. Both ask
+before removing, check again after the confirmation (the database window also
+checks that the same window still owns the database), and run the same cleanup.
+The alerts are native sheets queued per window: a refusal raised as the
+confirmation ends waits for it and is never dropped, and closing the window ends
+them unanswered.
+A reference that vanishes outside the app still force-retires its session.
+
 [DatabaseListStore](../KeeForge/Services/Persistence/DatabaseListStore.swift)
 owns production cache writes, scoped by database UUID for local caches and by
 provider, account, and file ID for cloud caches. Backups, pending uploads, and
@@ -70,26 +179,116 @@ an exhaustive audit of every App Group writer.
 [AppGroupIsolationTests](../KeeForgeTests/AppGroupIsolationTests.swift) protect
 unit tests from reaching the user's real shared container.
 
+## Group and icon sheets
+
+The window's [MacWorkspaceSheets](App/MacWorkspaceSheets.swift) owns the group
+form, its nested parent/icon pickers, and the entry icon sheet. A parent pick
+changes only the form. Save stages the fields and validated move in one draft
+before one save; self, descendant and Recycle Bin destinations are refused in
+[DatabaseViewModel](../KeeForge/ViewModels/DatabaseViewModel.swift). Cancelling the group form or an unconfirmed icon selection writes
+nothing. The separate custom-icon manager saves immediately. Lock ends and clears the forms and nested sheets and cancels pending
+favicon downloads through [MacIconPickerModel](../KeeForge/ViewModels/MacIconPickerModel.swift).
+A favicon explicitly downloaded by the user still sends only the website domain
+to DuckDuckGo through the existing service, independently of automatic-icon
+settings. Once an icon is staged, its save continues even if the sheet closes.
+
+## Import and export
+
+`MacPasswordImportSheet` reads the Apple Passwords CSV once, in place, from the
+`NSOpenPanel` URL through `PasswordImportViewModel`'s size-limited off-main loader.
+It never copies the CSV. The plaintext preview is discarded after import, when
+the sheet closes, and on lock or invalidation; a late read cannot restore it.
+Import is refused while locked, read-only, saving, or the workspace is frozen by
+an inline editor. The source CSV stays where the user picked it; the form and
+result remind the user to delete it after checking the imported entries.
+
+`MacDatabaseExporter` reads only encrypted KDBX bytes from the current local file,
+server cache, or a backup through `DatabaseExportService`, and writes directly to
+the `NSSavePanel` destination without staging a temporary file. All Mac export
+entry points use this exporter. File ▸ Export remains available from a locked
+database window when its encrypted copy is readable; it needs no unlock key.
+The export error alert shows the system's reason. There is no plaintext export.
+
 ## Lock and unlock lifecycle
+
+[AppDelegate](App/AppDelegate.swift) owns the session store, lock services, and
+AppKit main menu. [MacWindowCoordinator](App/MacWindowCoordinator.swift) keeps one
+window per open database, keyed by the database UUID; each
+[DatabaseWindowController](App/DatabaseWindowController.swift) holds its session
+directly for its whole life, so its content, commands, close, enrollment and
+automatic unlock can never act on another database's session. Opening a database
+never locks or retires another. Database commands resolve, at validation and at
+dispatch, to the key database window or the window a key sheet belongs to; with
+Settings key, to the main database window; with the Databases window key, to
+nothing. A password copy re-checks after authentication that the same controller
+still owns that session. Each database window keeps its root host mounted across
+lock and unlock. A completed lock drops the native split controller and toolbar;
+the window-owned sheet and alert presenters end attached presentations top-down
+on lock, close and invalidation. Callbacks are bound to the originating lock
+cycle; a delayed Keep Editing authentication or Save and Lock completion cannot
+change a later cycle’s lock state. The shell synchronously cancels registered pending authentication/import
+work and clears hosted content, without cancelling an in-flight database write.
+Presentation state resets and the window controller closes the inline editor, which
+drops its form, imports and reveals. Split-view autosave retains only column geometry and collapse
+state in defaults, one name per database UUID.
+
+[Database Settings](App/MacDatabaseSettingsSheet.swift) is attached to its originating
+database window and ends with that window's lock cycle, including its group picker
+and its master-key and encryption sheets, which never cancel a write already running. Launcher settings hold only a reference: no destination
+group or key-changing action is available there. The session records only whether
+a password and key file were supplied at typed unlock or rekey; these non-secret
+composition flags are cleared on lock and are unavailable for a composite-key-only
+or hardware-key unlock and after a rekey that reached only the remote. A rekey
+replaces the session's key-file bytes, so a removed key file is never carried into
+the next change. They are never persisted or inferred from a key-file association. AutoFill
+participation still writes through the list model and its matching-session refresh
+bridge. KDBX 3.1 and hardware-key databases stay read-only in either settings context.
+The sheet does not edit key-file associations; the unlock page, launcher row and
+master-key change keep their own association paths. Backups remain encrypted
+copies exported through the existing exporter, without restore or plaintext export.
+
+The Databases window lists and manages database references and never shows a
+database's contents or holds a session. A verification-code link binds to the
+database window targeted when it arrives; without one, the Databases window asks
+which database to use, and a later focus change never moves it.
+
+[SettingsWindowController](App/SettingsWindowController.swift) retains a separate
+Settings window. It reads no window's session; the SSH Agent tab shows the
+database picked in its menu, or the first unlocked one until the user picks.
+Closing and reopening it preserves the selected tab within the process.
+
 
 [MacLockMonitor](../KeeForge/Services/AppSupport/MacLockMonitor.swift) requests a
 lock on screen lock, screensaver start, system sleep, fast-user-switch session
-resign, and closure of the last UI-hosting window. App deactivation also requests
+resign. App deactivation also requests
 a lock under the strict `SettingsService.macLockPolicy` option. These app-global
 requests reach every retained session through DatabaseSessionStore, subject to
 each session's unsaved-work deferral. A session-specific lock leaves other
 sessions unlocked. These requests do not depend on the iOS-only
 `lockOnBackground` setting.
 
-Under the strict option, one deactivation does not lock at once: the one caused
+The strict policy's app-background delay defaults to Immediately, including for
+existing installs. Users can opt into 1, 5 or 15 minutes while KeeForge stays
+inactive. Activation within the delay, a completed lock of the last open session, stopping the
+monitor, or changing the delay invalidates its pending deadline; activation after
+the delay has passed on the wall clock (a napped timer that has not fired) locks
+instead. A lock of one
+session never cancels the deadline protecting others. Screen lock, screensaver,
+sleep and fast user switching bypass the delay, invalidate the deadline and
+request locks immediately. The system-authentication hold below is unchanged
+and settles independently of the background delay.
+
+Under the strict option, one deactivation is held: the one caused
 by KeeForge's own Touch ID, Apple Watch, or login-password prompt. macOS shows
 that prompt from a separate process, which takes the foreground from the app, so
 locking there would lock the vault the prompt was asked for (#203). The exemption
 is tied to that process, not to a prompt having been requested: the application
 in front must be the system's authentication UI, recognized by its bundle
 identifier (`com.apple.LocalAuthentication.UIAgent`) in a bundle on the signed
-system volume. A deactivation with any other application in front locks as
-before, also while a request is pending and its prompt has not appeared yet.
+system volume. A deactivation with any other application in front follows the configured
+background delay, also while a request is pending and its prompt has not
+appeared yet. An existing authentication hold still locks immediately if
+another application comes forward.
 
 While the deactivation is held, retained sessions stay open behind the prompt.
 Any other application coming forward requests locks for all of them. When the
@@ -102,9 +301,22 @@ This leaves those sessions open for as long as the prompt stays unanswered with
 nothing else brought forward, the same exposure as leaving KeeForge itself in
 front. Auto-Lock Timeout and the other lock requests still apply then.
 
-The separate Auto-Lock Timeout controls inactivity. The monitor resets every
-retained session's timer on deliberate keyboard, click, and scroll activity
-inside KeeForge; mouse movement and activity in other apps do not count.
+The separate Auto-Lock Timeout controls inactivity. Deliberate keyboard, click,
+and scroll activity resets only the receiving database window's session timer,
+throttled per database. Sheets and child windows resolve to their database parent.
+Settings, panels, unregistered windows, mouse movement, and other apps do not
+extend database deadlines. App activation evaluates existing timed deadlines
+without renewing them; AutoFill cache refresh and pending-upload draining remain global.
+
+**The default inactivity lock is 5 minutes.** On Mac, Auto-Lock Timeout offers
+30 seconds, 1 minute, 5 minutes and Never, and defaults to 5 minutes. Immediately
+is iOS-only: a Mac install that stored it, or stored nothing, reads as 5 minutes
+([AutoLockTimeout](../KeeForge/Services/AppSupport/SettingsService.swift)). The
+strict policy's background delay covers locking as soon as KeeForge is left.
+Never starts no inactivity timer; with it and the default lock policy, which
+locks only on screen lock, screensaver, sleep or a user switch, unlocked
+databases stay open while the user stays logged in with the screen unlocked,
+until one of those events or a window close.
 
 **Unsaved work can defer a lock indefinitely.** An open editor or dirty draft
 keeps the session and decrypted tree available while the Save / Discard / Keep
@@ -115,14 +327,39 @@ unsaved work. That authentication does not remove the memory exposure while the
 prompt remains unanswered.
 
 [MacWindowCloseGuard](../KeeForge/Services/AppSupport/MacWindowCloseGuard.swift)
-resolves unsaved work before allowing the last host window to close, so a deferred
-prompt cannot be stranded after its window disappears. Sheets and panels do not
-count as host windows; Settings and minimized main windows do. Cancel keeps the
-window and session open.
+resolves unsaved work independently for each registered database window. Repeated
+close requests share its pending prompt; cancel and failed save retain the window
+and session. A close waits out a write in flight on that session, locked or not,
+including a master-key or encryption-settings change on a clean database, then asks
+again; if a key or settings change failed, the window stays with its error. A
+committed close locks exactly that session, regardless of other open
+windows; an opening or unlock still in flight is superseded, so its late result
+cannot open the database. Cancel on the opening page supersedes the attempt the
+same way, as a manual lock: the key check finishes in the background and its
+result is dropped, and no automatic prompt follows until the next activation. The committed close then retires that session from the
+store and releases the window's controller. The app stays running with zero
+windows; the Databases window reopens a database in a new, locked window.
+
+[MacDatabaseWindowRegistry](../KeeForge/Services/AppSupport/MacDatabaseWindowRegistry.swift),
+owned by AppDelegate, maps window object identity to database UUIDs. The
+coordinator registers each database window once, before showing it, and
+unregisters it on committed close. Unregistering invalidates pending close
+callbacks; sessions hold no AppKit objects. The Databases window, Settings and
+panels are not registered database hosts.
 
 Revealing or copying a password or protected field asks for device-owner
 authentication through the session's
-[SecretAccessGate](../KeeForge/Services/Security/SecretAccessGate.swift). With
+[SecretAccessGate](../KeeForge/Services/Security/SecretAccessGate.swift). The
+same holds for a field whose KeePass `{REF:…}` reference reaches a password or
+protected field, directly or through other references: the entry list and quick
+search show it as the concealed mask, the detail view shows it as a protected
+field, and Copy Username or Copy URL waits on the same prompt and rechecks as
+Copy Password. Ungated paths resolve only unprotected targets
+([FieldReferenceResolver](../KeeForge/Models/FieldReferenceResolver.swift)).
+A protected `KP2A_URL_*` field is a protected custom field, not a website: the
+live detail, a History version and its comparison show it concealed with gated
+reveal and copy, and it is never opened, listed as a website, used for AutoFill
+matching or published as a suggestion ([KPEntry.additionalURLFields](../KeeForge/Models/Entry.swift)). With
 the Authentication Grace Period setting at its default, Always Ask, every such
 action prompts. A longer setting (at most five minutes) skips the prompt for that
 long after an unlock or a successful authentication. The grant is held in memory
@@ -132,13 +369,21 @@ and on a failed or cancelled prompt, and is not extended by using it. Under the
 default lock policy, switching to another app does not lock and therefore does
 not end the period either; the strict policy ends it with the lock.
 
+A website field opens only an `http` or `https` URL with a host, or a bare host
+read as `https://<value>`, the reading AutoFill matching uses; any other value
+(`file:`, `javascript:`, custom app schemes) is shown as text to copy, with no
+link or open button ([SiteHost.openableURL](../Packages/SiteMatching/Sources/SiteMatching/SiteHost.swift)).
+
 The opt-in Auto-Unlock with Touch ID setting prompts when a database opens in
 its foreground key window or the user returns to that window: app or window
 activation, or the screen unlocking or login session returning while KeeForge
 stays the active app. Those events, rather than scene phase or a new lock cycle,
 drive this flow. It needs Touch ID itself; an Apple Watch alone never prompts on
 its own, matching the setting, which appears only with Touch ID.
-The queued attempt rechecks the foreground window, eligibility, and lock cycle;
+Automatic attempts share one prompt gate across windows. The queued attempt
+rechecks the registered key window's session, visibility, attached sheets (the
+locked window's open panels, Remove from List alert and Send Feedback are
+sheets), restoration suppression, eligibility, and lock cycle;
 a screen-lock, sleep, or other lock arriving first invalidates it. A manual lock
 stays locked until a later activation or an explicit unlock. Each lock cycle has
 at most one presented automatic prompt, so cancellation or password fallback does
@@ -204,13 +449,58 @@ and content revision after device-owner authentication. Detail and editor action
 also reject changed navigation, selection, or inputs; changing the selected entry
 conceals its fields. A successful prompt does not authorize a later session.
 
+Large Type (the detail's Show in Large Type button and View ▸ Show in Large
+Type) shows the selected entry's password in a floating panel, one numbered tile
+per character. It takes the same device-owner gate and rechecks as reveal
+(`DatabaseCommands.showEntryPasswordInLargeType`, reason "View password"), and
+the panel ([MacLargeTypePanelController](App/MacLargeTypePanelController.swift))
+receives the plaintext only after them. The app has one such panel; opening
+another replaces it. It holds the password only while open and drops it, with
+its hosted view, when it closes: on any key, key equivalent or click, Escape, on
+losing key status, and on lock, a content change, another or a multiple
+selection, its database window closing, or the app resigning active. Because it
+closes on resign active, the blur cover, which skips this untitled panel, never
+has to cover it. It applies Block Screen Capture to itself when it is created,
+before it is first shown, since the key-window sweep would only reach it once
+it is key; the same best-effort limits apply.
+
+The History sheet ([MacEntryHistorySession](../KeeForge/ViewModels/MacEntryHistorySession.swift))
+compares the selected stored version with the current entry. Protected values
+(and values reached through a protected field reference) are decrypted in memory
+only to compare; the sheet shows only that such a value differs ("Different
+from the current password"), never its current value, and the version's own
+protected values stay masked until the same gated reveal as the detail. That
+"differs" mark does disclose, without the gate, whether two stored values are
+equal. Copies from a version take the same gate and clipboard path, with copy
+ticks of the sheet's own. The sheet closes and drops its reveals on lock, on a
+content change (the version list may have changed), when the selected entry
+changes, and when the window resets.
+
+The Password Generator panel ([MacPasswordGeneratorPanelController](App/MacPasswordGeneratorPanelController.swift),
+Database ▸ Password Generator) holds no vault data: its suggestion lives in the
+panel's model until regenerated or the panel closes, and closing drops it. It
+opens only while the command-target database is unlocked and closes when no
+database is unlocked. Copy goes through `ClipboardService` (concealed marker,
+clear timer, clear on lock). It applies Block Screen Capture to itself when it
+is created, like the Large Type panel.
+
+The Verification Codes list shows each entry's live code; only the codes on
+screen are kept, and that cache is cleared when the list stops showing or the
+database locks.
+
 Custom-field drag reordering uses a native list of field names. Field values
 are not displayed in that list or its drag previews.
+
+Dragging entries onto a sidebar group puts only entry UUIDs on the drag
+pasteboard, under a private type tagged with the database and window UUIDs; no
+title, username or secret is written, the general pasteboard is not touched,
+and drags outside the app are offered no operation. The drag image is the row
+as drawn on screen, nothing more.
 
 [ScreenProtectionService](../KeeForge/Services/Security/ScreenProtectionService.swift)
 places a blur cover over all app windows, including Settings, when the app
 resigns active and removes it on activation. The SSH Agent tab also removes
-the active session's vault-derived entry titles and key fingerprints from its
+the listed database's vault-derived entry titles and key fingerprints from its
 view while the app is inactive
 ([MacSSHAgentController](../KeeForge/Services/SSHAgent/MacSSHAgentController.swift)
 `concealsKeyList`). This cover is independent of the capture-blocking toggle.
@@ -227,11 +517,17 @@ copies with `org.nspasteboard.ConcealedType`, a convention for cooperating clipb
 managers rather than an access restriction. Clipboard ownership is app-global:
 a timer and a completed lock of any database clear the copy only when the
 pasteboard's `changeCount` still matches KeeForge's write, preserving anything
-copied subsequently.
+copied subsequently. With the clear timeout set to Never there is no timer, so
+only a lock or a later copy removes the value.
 
 macOS has no equivalent of the iOS `.localOnly` and `.expirationDate` copy options.
-Copied secrets can follow the user's Universal Clipboard setting, and KeeForge's
-in-process clear timer cannot survive termination. Mac locks do not use the iOS
+Copied secrets can follow the user's Universal Clipboard setting. The clear timer
+lives in the process, so a quit that goes ahead clears a still-owned copy itself,
+with the same `changeCount` guard (`MacWindowCoordinator`); it locks no session.
+Quit, logout, restart and every other `NSApplication.terminate` reach
+`applicationShouldTerminate`, and the app does not opt into sudden termination. A
+force quit, crash or kill skips that clear and leaves the copy on the pasteboard
+until something replaces it. Mac locks do not use the iOS
 backgrounding exemption that keeps a copy available for pasting. A deferred lock
 has not yet performed that clear.
 
@@ -244,25 +540,37 @@ settings live in the app's own defaults. The shortcut is registered through
 Carbon's `RegisterEventHotKey`, which needs no Accessibility permission and fails
 rather than taking over a combination another app holds.
 
-The panel reads the one active session on every render and holds no entry data
+The panel searches exactly one database: the one whose window the user last
+focused, which the app reports by database ID. It names that database, reads
+its session on every render, and holds no entry data or session reference
 itself. It shows entry titles, user names, and folder paths only while that
-session is unlocked, regardless of other retained sessions; a locked or missing
-session sends the user to the main window. Locking that active session therefore
-empties it. Closing the last main window still locks, so quick search needs that window open or minimized.
+session is unlocked. When it is locked or closed the panel shows its locked or
+no-database state and sends the user to KeeForge; it never falls back to
+another unlocked database. Locking that database therefore empties it. Closing
+a database window locks its session, so quick search needs that window open or
+minimized.
 
-Copying follows the main window's rules: the password waits on the same
+Each result carries the ID of the database it came from. A copy is refused
+unless that database is still the focused one and unlocked. Open in KeeForge
+asks the app to front that database's window and selects the entry only there,
+so an entry UUID that also exists in another open database (a copy of the same
+file) is never selected in the wrong one.
+
+Copying follows the database window's rules: the password waits on the same
 device-owner prompt as ⇧⌘C, skipped only inside the session's authentication
 grace period, and is re-checked against the session after it,
-while the user name and verification code copy without a prompt. Copies go
+while the user name and verification code copy without a prompt, unless the
+user name's field references reach a protected value. Copies go
 through `ClipboardService`, with its concealed marker, clear timer, and
 clear-on-lock.
 
 A new panel presentation invalidates an earlier pending password copy. Losing
 focus to the authentication prompt may hide the panel and clear its query without
-invalidating that copy; the original session and content must still match.
+invalidating that copy; the focused database, its session, lock cycle, and
+content must still match, so a focus change while the prompt is up cancels it.
 
 The panel is a non-activating, borderless `NSPanel`. It cannot become a main
-window, so it never counts as a UI-hosting window for the lock monitor. It is
+window and is not registered as a database host. It is
 not titled, so the resign-active blur cover skips it. Because a search usually
 starts while another app is active, the panel closes when it loses key status
 and does not rely on that cover. It applies the Block Screen Capture setting to
@@ -288,10 +596,13 @@ is not a socket are left alone and reported.
 
 The agent writes no keys anywhere. Which entries it serves is a per-database list of entry
 UUIDs in the app's own defaults, chosen in Settings ▸ SSH Agent. Every request
-reads those entries from the one active session at that moment, so nothing is
-offered while that session is locked, closed, or has a lock pending: one waiting
-on unsaved work or a window-close prompt, or Retry Save and Lock writing before it
-locks.
+reads those entries from every open session at that moment and offers the union.
+A session offers nothing while it is locked, closed, or has a lock pending: one
+waiting on unsaved work, a window-close prompt, or a quit prompt that has asked
+about it, or Retry Save and Lock writing before it locks. Locking or closing one database never withdraws keys another
+unlocked database offers, and which window has focus plays no part. A key chosen
+in two databases is listed once, and a sign request uses the first session that
+offers it when the request arrives.
 The private key is read from the decrypted attachment pool for each request and
 parsed off the main thread. A key file over 64 KiB, several times the largest
 supported key, is refused before it is decoded, a `KeeAgent.settings` over the same
@@ -299,11 +610,14 @@ size is not parsed, and the list of identities is cut to the 256 KiB message lim
 so what an attachment can make one request do is bounded. A parsed key is kept in
 memory only for the same entry, the same lock cycle of the same session, and
 byte-identical key file content, so an unchanged key is not parsed for every
-request. That cache is emptied the moment the session locks or a lock becomes
-pending, when the selection changes, and when the agent is turned off; a key parsed
-from a read of the session that such an event has overtaken is not kept. After signing, the agent reads the session
-again and withholds the signature if the session's lock cycle, the selection, or the
-entry's key attachment has changed. No key file is written to disk and no key is exported.
+request. Keys are held per session: a session's parsed keys are dropped the moment
+it locks or a lock becomes pending, when its selection changes, and at the next
+request once it is no longer open; everything is dropped when the agent is turned
+off. A key parsed from a read that such an event for its session has overtaken is
+not kept. After signing, the agent reads the sessions again and withholds the
+signature unless the same entry of the same session is still offered under the
+same lock cycle with the same key attachment, even when another session offers the
+same key. No key file is written to disk and no key is exported.
 
 Supported keys are unencrypted OpenSSH private keys (`openssh-key-v1`) for Ed25519,
 ECDSA P-256/P-384/P-521, and RSA. RSA signs only with `rsa-sha2-256` or
@@ -316,8 +630,8 @@ and protocol extensions, fail.
 
 Like `ssh-agent`, the agent cannot tell one local process from another. Any process
 running as the user that can reach the socket can list the chosen public keys and
-obtain signatures while the database is unlocked, and there is no per-signature
-confirmation. That also holds for an entry whose `KeeAgent.settings` asks for a
+obtain signatures while a database that offers them is unlocked, and there is no
+per-signature confirmation. That also holds for an entry whose `KeeAgent.settings` asks for a
 confirmation or a lifetime in KeeAgent or KeePassXC: KeeForge reads only the key's
 attachment name from that file, and choosing the entry in Settings is the consent. Forwarding the agent to a remote host extends the same ability to that
 host for the length of the connection. A signature is not bound to a destination
@@ -334,14 +648,31 @@ another user.
 ## Plaintext attachment files and disk encryption
 
 [AttachmentPreviewFileStore](../KeeForge/Services/AppSupport/AttachmentPreviewFileStore.swift)
-writes plaintext temporary files for preview/share, removes them on dismissal and
-completed lock of their owning session, and purges orphaned files at launch
-while no session has tracked previews. Quick Look or another
-receiving application may retain its own copies outside KeeForge's control.
+writes plaintext temporary files for preview/share, and purges orphaned files at
+launch while no session has tracked previews. On the Mac each database window
+owns one [AttachmentPreviewSession](../KeeForge/ViewModels/AttachmentPreviewSession.swift),
+driven by [MacAttachmentPreviewController](App/MacAttachmentPreviewController.swift).
+It writes a file only when the user asks for Quick Look (click, the eye or Space)
+or Share on an attachment row, holds at most one per window, and removes it when
+the Quick Look panel gives up control, when the share picker is cancelled or the
+chosen service reports success or failure, when the selected entry changes or
+that attachment changes, when the window closes, and on lock (the session's
+`clear(owner:)` stays as the backstop). Quick Look closing by its own close
+control or the system counts as an end even while the panel keeps this window as
+its controller; hiding while the app is inactive does not. A share callback
+carries the shared file's URL (a picker's cancel, the picker itself), so a late
+callback from an earlier share never removes a newer one. A quit that goes ahead,
+after the unsaved-work prompts, closes every window's preview and removes the
+whole preview directory, since AppKit does not close windows on quit. A service
+that never reports back keeps its file until one of those triggers. Quick Look's Open with… and the share
+recipient may retain their own copies outside KeeForge's control.
 
-The preview consumer validates its request and session after asynchronous loading
-and before creating a plaintext file, so a completed lock or dismissed preview
-cannot be followed by a late file write from that request.
+The session validates its request after asynchronous loading and immediately
+before creating a plaintext file (same window session, unlocked, same lock cycle,
+the entry still selected, the attachment unchanged), so a completed lock or a
+closed preview cannot be followed by a late file write from that request.
+Attachments are not protected values, so neither action takes the device-owner
+gate.
 
 [PlatformCompat.atomicProtected](../KeeForge/Extensions/PlatformCompat.swift)
 uses atomic writes without iOS's per-file `.completeFileProtection` on macOS.

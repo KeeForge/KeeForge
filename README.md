@@ -11,7 +11,7 @@
 <p align="center">
   A free, open-source KeePass manager for iPhone, iPad, and Mac.
   <br />
-  Native SwiftUI, local-first storage, AutoFill, passkeys, TOTP, cloud sync, KDBX editing, and attachment viewing.
+  Native SwiftUI on iPhone and iPad and native AppKit on Mac, local-first storage, AutoFill, passkeys, TOTP, cloud sync, KDBX editing, and attachment viewing.
 </p>
 
 <p align="center">
@@ -34,7 +34,7 @@
 
 ## Why KeeForge?
 
-KeeForge is a native KeePass client for iPhone, iPad, and Mac, built for people who want their vault to stay theirs. Open `.kdbx` databases from local files or WebDAV on every platform, with iCloud Drive, Dropbox, OneDrive, and other Files providers on iPhone and iPad; unlock with a master password, key file, or biometrics; then browse, search, edit, save, and AutoFill without handing your vault to a hosted password service.
+KeeForge is a native KeePass client for iPhone, iPad, and Mac, built for people who want their vault to stay theirs. Open `.kdbx` databases from local files, WebDAV or FTP on every platform, with iCloud Drive, Dropbox, OneDrive, and other Files providers on iPhone and iPad; unlock with a master password, key file, or biometrics; then browse, search, edit, save, and AutoFill without handing your vault to a hosted password service.
 
 ## Public Beta
 
@@ -53,7 +53,7 @@ Beta availability can differ between iPhone, iPad, and Mac while Apple reviews e
 | **AutoFill** | Native password AutoFill in apps and browsers, with biometric unlock, plus passkey registration on every platform; iPhone and iPad additionally provide QuickType suggestions and password-entry creation from the extension. |
 | **Passkeys** | Detect and authenticate FIDO2/WebAuthn passkeys stored in KeePassXC-compatible custom fields. |
 | **TOTP** | Live one-time password display, copy support, and countdowns on every platform, plus verification-code AutoFill on iOS 18+ and Mac. |
-| **Cloud sync** | WebDAV browsing and read/write sync on every platform. Dropbox and OneDrive integration is currently available on iPhone and iPad; Mac users can open their synced folders as local files. |
+| **Cloud sync** | WebDAV and FTP browsing and read/write sync on every platform. Dropbox and OneDrive integration is currently available on iPhone and iPad; Mac users can open their synced folders as local files. |
 | **Attachments** | View KeePass entry attachments, preview supported files with QuickLook, and share them from short-lived protected temporary files. Add and remove attachments in the entry editor. |
 | **Native on every screen** | Focused iPhone navigation, a split-view iPad workspace, and a desktop-optimized native Mac app with menus, commands, and Touch ID. |
 | **Security** | AES-GCM in-memory secret encryption, failed-unlock backoff, decompression bomb limits, and constant-time HMAC comparison. |
@@ -90,7 +90,7 @@ KeeForge/
 ├── ViewModels/       # Database list, unlock, save, search, sort, TOTP state
 ├── Views/            # SwiftUI screens, editor, settings, tip jar, reusable controls
 AutoFillExtension/    # AutoFill credential provider, passkey auth, credential creation
-KeeForgeMac/          # Native macOS app configuration and entitlements
+KeeForgeMac/          # Native macOS app: AppKit shell, configuration and entitlements
 KeeForgeMacUITests/   # XCUITest coverage for the macOS app
 KeeForgeTests/        # Unit tests
 KeeForgeUITests/      # XCUITest coverage

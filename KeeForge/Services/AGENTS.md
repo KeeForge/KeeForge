@@ -22,7 +22,7 @@
 
 ### Compatibility with shipped installs
 
-- These are read by installs already on devices; do not rename or reshape them: the App Group `group.com.keevault.shared`, the Keychain group `com.keevault.sharedkeychain` and its item naming, stored bookmark data, `database-list.json`, the cache directories (`databases/`, `cloud-cache/`), the backup layout (`Library/Application Support/backups/<database id>/yyyyMMdd-HHmmss-uuuuuu.kdbx`, UTC), and `pending-uploads/<database id>/`.
+- These are read by installs already on devices; do not rename or reshape them: the App Group `group.com.keevault.shared`, the Keychain group `com.keevault.sharedkeychain` and its item naming, stored bookmark data, `database-list.json`, the cache directories (`databases/`, `cloud-cache/`), the backup layout (`Library/Application Support/backups/<database id>/yyyyMMdd-HHmmss-uuuuuu.kdbx`, UTC, plus the retained `yyyyMMdd-HHmmss-uuuuuu-autofill.kdbx` backups that pruning skips), `pending-uploads/<database id>/`, and `pending-local-saves/<database UUID>/`.
 - All App Group access goes through `Persistence/AppGroupContainer`. What may be written there is in `Persistence/AGENTS.md`.
 - `com.keevault.sharedkeychain` stays first in every target's `keychain-access-groups`. Full statement in `Security/AGENTS.md`.
 - A persisted type that gains a non-optional field needs a hand-written decoder default. The database list decodes all-or-nothing (a throw shows an empty list) and an undecodable upload marker is skipped, leaving its save uncovered.

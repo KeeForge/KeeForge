@@ -132,13 +132,13 @@ targets:
       - package: SiteMatching
       - package: YubiKit
     sources:
-      # KeeForgeCommands.swift (menu bar), MacLockMonitor.swift (lock
+      # MacLockMonitor.swift (lock
       # lifecycle), MacWindowCloseGuard.swift (window close), the menu bar
       # quick access pair MacQuickAccessController.swift / MacGlobalHotKey.swift,
       # and the SSH agent (Services/SSHAgent) are macOS-only: members of
       # KeeForgeMac, excluded here.
       - path: KeeForge/App
-        excludes: ["README.md", "AGENTS.md", "KeeForgeCommands.swift"]
+        excludes: ["README.md", "AGENTS.md"]
       - path: KeeForge/Models
         excludes: ["README.md", "AGENTS.md"]
       - path: KeeForge/Services
@@ -213,8 +213,11 @@ targets:
       - package: OneTimeCodes
       - package: RemoteFileTransports
     sources:
-      - path: KeeForge/App
+      # AppKit owns Mac startup; the direct overlay inherits these sources.
+      - path: KeeForgeMac/App
         excludes: ["README.md", "AGENTS.md"]
+      - path: KeeForge/App
+        excludes: ["README.md", "AGENTS.md", "KeeForgeApp.swift"]
       - path: KeeForge/Models
         excludes: ["README.md", "AGENTS.md"]
       # The Mac app offers only WebDAV and FTP, so the Dropbox and OneDrive

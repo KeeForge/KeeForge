@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// Manual connect form for FTP servers, presented in place of a hosted OAuth
@@ -16,6 +17,17 @@ struct FTPConnectView: View {
         onCancel: @escaping () -> Void
     ) {
         _viewModel = State(initialValue: FTPConnectViewModel(connector: connector))
+        self.onConnected = onConnected
+        self.onCancel = onCancel
+    }
+
+    /// A form prepared by the caller, such as Reconnect's prefilled one.
+    init(
+        viewModel: FTPConnectViewModel,
+        onConnected: @escaping (CloudAccount) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        _viewModel = State(initialValue: viewModel)
         self.onConnected = onConnected
         self.onCancel = onCancel
     }
@@ -130,3 +142,4 @@ struct FTPConnectView: View {
         }
     }
 }
+#endif

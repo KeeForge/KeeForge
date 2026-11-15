@@ -1,0 +1,298 @@
+#if os(macOS)
+import AppKit
+import XCTest
+@testable import KeeForge
+
+@MainActor
+final class MacWorkspaceToolbarTests: XCTestCase {
+    func testItemsKeepTheWorkspaceToolbarIdentifiersLabelsAndOrder() async throws {
+        let (toolbar, window, splitView) = try await makeToolbarAndSplitView()
+        defer { window.close() }
+        XCTAssertEqual(toolbar.toolbar.items.map(\.itemIdentifier.rawValue), [
+            "sidebar.left", "workspace.sidebar-separator", "workspace.search", "entry-list.add-entry",
+            "database.read-only-indicator", "workspace.list-separator",
+            NSToolbarItem.Identifier.flexibleSpace.rawValue, "workspace.database-title",
+            NSToolbarItem.Identifier.flexibleSpace.rawValue, "workspace.database-status",
+            "database-details.button", "database.cloud-sync-now", "lock.button",
+        ])
+        let statusInsets = toolbar.statusLineView.edgeInsets
+        XCTAssertGreaterThanOrEqual(min(statusInsets.left, statusInsets.right), 8,
+                                    "The status text keeps clear of the item's rounded background")
+        XCTAssertNil(toolbar.items[NSToolbarItem.Identifier("settings.button")], "App Settings is ⌘, and the app menu")
+        let separators = [MacWorkspaceToolbar.Item.sidebarSeparator, MacWorkspaceToolbar.Item.listSeparator]
+            .compactMap { toolbar.items[$0] as? NSTrackingSeparatorToolbarItem }
+        XCTAssertEqual(separators.map(\.dividerIndex), [0, 1], "Search and New Entry sit over the entry list")
+        XCTAssertTrue(separators.allSatisfy { $0.splitView === splitView })
+        XCTAssertNil(toolbar.items[NSToolbarItem.Identifier("sort.menu")], "Sort moved to the list header")
+        XCTAssertNil(toolbar.items[NSToolbarItem.Identifier("entry-detail.edit")], "Edit is in the detail header")
+        let labels = [
+            "sidebar.left": "Hide Sidebar", "lock.button": "Lock Database",
+            "database.read-only-indicator": "Read-only database", "entry-list.add-entry": "New Entry",
+            "database-details.button": "Database Settings", "database.cloud-sync-now": "Sync Now",
+        ]
+        for (identifier, label) in labels {
+            let item = try XCTUnwrap(toolbar.items[NSToolbarItem.Identifier(identifier)], identifier)
+            XCTAssertEqual(item.label, localized(label), identifier)
+            XCTAssertEqual(item.toolTip, localized(label), identifier)
+            XCTAssertEqual(item.view?.accessibilityIdentifier(), identifier)
+            XCTAssertEqual(item.view?.accessibilityLabel(), localized(label), identifier)
+            XCTAssertEqual(item.view?.toolTip, localized(label), identifier)
+            XCTAssertEqual(item.menuFormRepresentation?.title, localized(label), identifier)
+            XCTAssertFalse(item.isNavigational, identifier)
+        }
+        XCTAssertEqual(toolbar.searchItem.searchField.placeholderString,
+                       String(localized: "Search \(toolbar.session.databaseDisplayName)"))
+        XCTAssertNotEqual(toolbar.session.databaseDisplayName, "")
+        XCTAssertFalse(toolbar.toolbar.allowsUserCustomization)
+    }
+
+    func testSearchFieldAndSessionTextAreBoundBothWays() async throws {
+        let (toolbar, window) = try await makeToolbar()
+        defer { window.close() }
+        let field = toolbar.searchItem.searchField
+        toolbar.session.searchText = "GitHub"
+        await Task { @MainActor in }.value
+        XCTAssertEqual(field.stringValue, "GitHub")
+        field.stringValue = "Work"
+        toolbar.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: field))
+        XCTAssertEqual(toolbar.session.searchText, "Work")
+        await Task { @MainActor in }.value
+        XCTAssertEqual(field.stringValue, "Work")
+    }
+
+    func testItemStateFollowsWritabilityAndDatabaseCommands() async throws {
+        for readOnly in [false, true] {
+            let (toolbar, window) = try await makeToolbar(readOnly: readOnly)
+            defer { window.close() }
+            let session = toolbar.session
+            XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.add]?.isHidden, readOnly)
+            XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.readOnly]?.isHidden, !readOnly)
+            session.workspace.selectedEntryID = try XCTUnwrap(session.rootGroup?.allEntries.first).id
+            await Task { @MainActor in }.value
+            let commands = DatabaseCommands(session: session)
+            XCTAssertEqual((toolbar.items[MacWorkspaceToolbar.Item.add]?.view as? NSControl)?.isEnabled, commands.canNewEntry)
+        }
+    }
+
+    func testTheInlineEditorDisablesSearchAndNewEntryButKeepsLock() async throws {
+        let presentation = MacWorkspacePresentation()
+        let (toolbar, window, _) = try await makeToolbarAndSplitView(presentation: presentation)
+        defer { window.close() }
+        let session = toolbar.session
+        let add = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.add]?.view as? NSControl)
+        let lock = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.lock]?.view as? NSControl)
+        presentation.beginNewEntry(in: session)
+        await Task { @MainActor in }.value
+        XCTAssertFalse(toolbar.searchItem.searchField.isEnabled)
+        XCTAssertFalse(add.isEnabled)
+        XCTAssertTrue(lock.isEnabled, "Lock stays: it asks the editor first")
+
+        presentation.closeEntryEditor()
+        await Task { @MainActor in }.value
+        XCTAssertTrue(toolbar.searchItem.searchField.isEnabled)
+        XCTAssertTrue(add.isEnabled)
+    }
+
+    func testTheStatusItemsShowOnlyWhileTheSidebarIsHidden() async throws {
+        let presentation = MacWorkspacePresentation()
+        let (toolbar, window, _) = try await makeToolbarAndSplitView(presentation: presentation)
+        defer { window.close() }
+        let statusItems = MacWorkspaceToolbar.statusItemIdentifiers.compactMap { toolbar.items[$0] }
+        XCTAssertEqual(statusItems.count, 4)
+        XCTAssertTrue(statusItems.allSatisfy(\.isHidden), "The sidebar's card has them")
+
+        presentation.isSidebarCollapsed = true
+        await Task { @MainActor in }.value
+        XCTAssertFalse(toolbar.items[MacWorkspaceToolbar.Item.databaseStatus]?.isHidden ?? true)
+        XCTAssertFalse(toolbar.items[MacWorkspaceToolbar.Item.databaseSettings]?.isHidden ?? true)
+        XCTAssertFalse(toolbar.items[MacWorkspaceToolbar.Item.lock]?.isHidden ?? true)
+        XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.syncNow]?.isHidden, true, "A local database has no Sync Now")
+        XCTAssertEqual(toolbar.statusLineView.textField.stringValue, String(localized: "On This Mac"))
+        XCTAssertEqual(toolbar.statusLineView.accessibilityIdentifier(), "workspace.database-status")
+        XCTAssertEqual((toolbar.items[MacWorkspaceToolbar.Item.lock]?.view as? NSControl)?.isEnabled,
+                       DatabaseCommands(session: toolbar.session).canLock)
+
+        (toolbar.items[MacWorkspaceToolbar.Item.databaseSettings]?.view as? NSButton)?.performClick(nil)
+        XCTAssertTrue(presentation.isShowingDatabaseDetails)
+
+        presentation.isSidebarCollapsed = false
+        await Task { @MainActor in }.value
+        XCTAssertTrue(statusItems.allSatisfy(\.isHidden))
+    }
+
+    func testHidingTheSidebarShortensThePlaceholderAndFlipsTheToggle() async throws {
+        let presentation = MacWorkspacePresentation()
+        let (toolbar, window, _) = try await makeToolbarAndSplitView(presentation: presentation)
+        defer { window.close() }
+        let field = toolbar.searchItem.searchField
+        let fullName = String(localized: "Search \(toolbar.session.databaseDisplayName)")
+        let toggle = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.toggleSidebar])
+        await Task { @MainActor in }.value
+        XCTAssertEqual(field.placeholderString, fullName)
+        XCTAssertEqual(field.accessibilityLabel(), fullName)
+        XCTAssertEqual(toggle.toolTip, String(localized: "Hide Sidebar"))
+
+        presentation.isSidebarCollapsed = true
+        await Task { @MainActor in }.value
+        XCTAssertEqual(field.placeholderString, String(localized: "Search"))
+        XCTAssertEqual(field.accessibilityLabel(), fullName, "The label still names the database")
+        for title in [toggle.label, toggle.toolTip, toggle.view?.toolTip, toggle.view?.accessibilityLabel(),
+                      toggle.menuFormRepresentation?.title] {
+            XCTAssertEqual(title, String(localized: "Show Sidebar"))
+        }
+
+        presentation.isSidebarCollapsed = false
+        await Task { @MainActor in }.value
+        XCTAssertEqual(field.placeholderString, fullName)
+        XCTAssertEqual(toggle.toolTip, String(localized: "Hide Sidebar"))
+    }
+
+    func testTheSearchFieldFitsTheListAndTheStatusIsPlainText() async throws {
+        let (toolbar, window) = try await makeToolbar()
+        defer { window.close() }
+        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 320, isSidebarCollapsed: false), 252)
+        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 260, isSidebarCollapsed: false), 192,
+                       "Search and New Entry fit the list's minimum width")
+        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 400, isSidebarCollapsed: true), 192,
+                       "Beside the window controls and the sidebar toggle, the same field as beside a shown sidebar")
+        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 260, isSidebarCollapsed: true), 90,
+                       "Too narrow for a field: the system collapses it to an icon")
+        XCTAssertEqual(
+            MacWorkspaceToolbar.searchFieldWidth(listWidth: MacWorkspaceSplitViewController.collapsedListMinimumThickness,
+                                                 isSidebarCollapsed: true),
+            MacWorkspaceToolbar.searchFieldWidth(listWidth: MacWorkspaceSplitViewController.listMinimumThickness,
+                                                 isSidebarCollapsed: false),
+            "The list a hidden sidebar widens holds the field a shown sidebar leaves")
+        let splitView = try XCTUnwrap(window.contentView as? NSSplitView)
+        splitView.setPosition(200, ofDividerAt: 0)
+        splitView.setPosition(500, ofDividerAt: 1)
+        await Task { @MainActor in }.value
+        XCTAssertEqual(toolbar.searchItem.preferredWidthForSearchField,
+                       MacWorkspaceToolbar.searchFieldWidth(listWidth: splitView.arrangedSubviews[1].frame.width,
+                                                            isSidebarCollapsed: false))
+        XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.databaseStatus]?.isBordered, false)
+    }
+
+    func testTheDatabaseNameIsPlainAndCentredOverTheDetail() async throws {
+        let (toolbar, window) = try await makeToolbar()
+        defer { window.close() }
+        await Task { @MainActor in }.value
+        let item = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.title])
+        XCTAssertFalse(item.isBordered, "Plain text, no shared background")
+        XCTAssertEqual(toolbar.titleView.titleField.stringValue, toolbar.session.databaseDisplayName)
+        XCTAssertEqual(toolbar.titleView.titleField.accessibilityIdentifier(), "workspace.database-title")
+
+        let splitView = try XCTUnwrap(window.contentView as? NSSplitView)
+        let detail = splitView.arrangedSubviews[2]
+        let view = toolbar.titleView
+        // Laid out standalone, standing in for the stretch the toolbar gives it.
+        let host = NSView(frame: NSRect(x: 0, y: 0, width: 1080, height: 700))
+        host.addSubview(view)
+        view.translatesAutoresizingMaskIntoConstraints = true
+        view.frame = NSRect(x: 520, y: 650, width: 480, height: 28)
+        detail.frame = NSRect(x: 500, y: 0, width: 580, height: 650)
+        host.addSubview(detail)
+        window.contentView = host
+        view.layout()
+        let title = view.convert(view.titleField.frame, to: nil)
+        let column = detail.convert(detail.bounds, to: nil)
+        XCTAssertEqual(title.midX, column.midX, accuracy: 1, "Centred on the detail column, not on the item")
+        XCTAssertGreaterThan(view.titleField.frame.width, ceil(view.titleField.intrinsicContentSize.width), "Never truncated")
+        XCTAssertFalse(view.clipsToBounds)
+    }
+
+    func testReadOnlyFollowsTheNameAndExplainsWhenClicked() async throws {
+        for readOnly in [false, true] {
+            let (toolbar, window) = try await makeToolbar(readOnly: readOnly)
+            defer { window.close() }
+            await Task { @MainActor in }.value
+            let button = toolbar.titleView.readOnlyButton
+            XCTAssertEqual(button.isHidden, !readOnly)
+            XCTAssertEqual(button.accessibilityIdentifier(), "toolbar.title.read-only")
+            XCTAssertEqual(button.title, localized("Read-Only"), "A control, so Title Case as the ReadOnly board draws it")
+            XCTAssertTrue(button.target === toolbar)
+            XCTAssertEqual(button.action, NSSelectorFromString("explainReadOnly:"),
+                           "The glasses item's explanation, no new path")
+            XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.readOnly]?.view.flatMap { ($0 as? NSButton)?.action },
+                           button.action)
+        }
+    }
+
+    func testReadOnlyKeepsThePairCentredAndTruncatesTheNameFirst() async throws {
+        let (toolbar, window) = try await makeToolbar(readOnly: true)
+        defer { window.close() }
+        await Task { @MainActor in }.value
+        let splitView = try XCTUnwrap(window.contentView as? NSSplitView)
+        let detail = splitView.arrangedSubviews[2]
+        let view = toolbar.titleView
+        let host = NSView(frame: NSRect(x: 0, y: 0, width: 1080, height: 700))
+        host.addSubview(view)
+        view.translatesAutoresizingMaskIntoConstraints = true
+        view.frame = NSRect(x: 520, y: 650, width: 480, height: 28)
+        host.addSubview(detail)
+        window.contentView = host
+
+        detail.frame = NSRect(x: 500, y: 0, width: 580, height: 650)
+        view.layout()
+        let column = detail.convert(detail.bounds, to: nil)
+        var title = view.convert(view.titleField.frame, to: nil)
+        var pill = view.convert(view.readOnlyButton.frame, to: nil)
+        XCTAssertGreaterThan(pill.minX, title.minX)
+        XCTAssertEqual((title.minX + 8 + pill.maxX) / 2, column.midX, accuracy: 1, "The name and Read-Only centre together")
+        XCTAssertGreaterThan(view.titleField.frame.width, ceil(view.titleField.intrinsicContentSize.width))
+
+        view.titleField.stringValue = String(repeating: "Household Finances ", count: 6)
+        detail.frame = NSRect(x: 600, y: 0, width: 300, height: 650)
+        view.layout()
+        let narrow = detail.convert(detail.bounds, to: nil)
+        title = view.convert(view.titleField.frame, to: nil)
+        pill = view.convert(view.readOnlyButton.frame, to: nil)
+        XCTAssertLessThan(view.titleField.frame.width, view.titleField.intrinsicContentSize.width, "The name truncates")
+        XCTAssertEqual(view.readOnlyButton.frame.width, ceil(view.readOnlyButton.intrinsicContentSize.width),
+                       "Read-Only never truncates")
+        XCTAssertGreaterThanOrEqual(title.minX, narrow.minX)
+        XCTAssertLessThanOrEqual(pill.maxX, narrow.maxX)
+    }
+
+    func testNewEntryIsOneButtonThatCreatesAnEntry() async throws {
+        let (toolbar, window) = try await makeToolbar()
+        defer { window.close() }
+        let button = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.add]?.view as? NSButton)
+        XCTAssertFalse(button is NSPopUpButton, "No New Group in a pull-down: the File menu and sidebar have it")
+        let requests = toolbar.session.workspace.newEntryRequestID
+        button.performClick(nil)
+        XCTAssertEqual(toolbar.session.workspace.newEntryRequestID, requests + 1)
+    }
+
+    private func makeToolbar(readOnly: Bool = false) async throws -> (MacWorkspaceToolbar, NSWindow) {
+        let (toolbar, window, _) = try await makeToolbarAndSplitView(readOnly: readOnly)
+        return (toolbar, window)
+    }
+
+    private func makeToolbarAndSplitView(
+        readOnly: Bool = false, presentation: MacWorkspacePresentation = MacWorkspacePresentation()
+    ) async throws -> (MacWorkspaceToolbar, NSWindow, NSSplitView) {
+        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        var reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
+        reference.isReadOnly = readOnly
+        let session = DatabaseViewModel(databaseReference: reference,
+            quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })
+        await session.unlock(password: "testpassword123")
+        XCTAssertEqual(session.state, .unlocked)
+        addTeardownBlock { @MainActor in session.lockRequest(force: true) }
+        // Three panes and no autosave name, so nothing is written to the host app's defaults.
+        let splitView = NSSplitView()
+        splitView.isVertical = true
+        for _ in 0..<3 { splitView.addArrangedSubview(NSView()) }
+        let toolbar = MacWorkspaceToolbar(session: session, presentation: presentation, splitView: splitView)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 700),
+                              styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = splitView
+        window.toolbar = toolbar.toolbar
+        return (toolbar, window, splitView)
+    }
+
+    private func localized(_ key: String) -> String { String(localized: String.LocalizationValue(key)) }
+}
+#endif
