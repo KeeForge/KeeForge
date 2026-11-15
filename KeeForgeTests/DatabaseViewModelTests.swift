@@ -5617,6 +5617,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let fixedDate = Date(timeIntervalSince1970: 1_775_603_700)
         let recorder = ConflictCopyRecorder()
         let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.testUpsert(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
         let vm = try makeViewModel(
             reference: reference,
@@ -5655,6 +5656,41 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(call.bytes, conflictBytes)
         XCTAssertNil(vm.draft)
         XCTAssertNil(vm.saveConflict)
+    }
+
+    func testConflictCopyRejectsChangedTargetOrFactorsDuringEncryption() async throws {
+        for changeTarget in [true, false] {
+            let reference = makeCloudReference(remoteRev: "rev-A")
+            DatabaseListStore.testUpsert(reference)
+            let fixtureData = try Data(contentsOf: fixtureURL())
+            let gate = AsyncGate()
+            let started = expectation(description: "encryption started")
+            let recorder = ConflictCopyRecorder()
+            let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference), data: fixtureData, status: .current)
+            }, cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+                .conflict(remoteSHA512: Data([1]), remoteData: Data([2]))
+            }, conflictCopyEncryptionOperation: { _, _, _ in
+                await gate.pause(started: started)
+                return Data([3])
+            }, cloudConflictCopyOperation: { _, path, bytes in
+                await recorder.record(filename: path, bytes: bytes)
+            })
+            await vm.unlock(password: fixturePassword)
+            vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Conflict")
+            try await vm.save()
+            let work = Task { try await vm.saveAsConflictCopy() }
+            await gate.waitUntilPaused()
+            var changed = vm.databaseReference
+            if changeTarget {
+                changed.source = .cloud(CloudSyncMetadata(provider: "dropbox", accountId: "other", fileId: "/other", displayPath: "/other", remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil))
+            } else { changed.keyFileBookmarkData = Data([9]) }
+            DatabaseListStore.testUpsert(changed)
+            await gate.resume()
+            do { try await work.value; XCTFail("Expected authority rejection") } catch {}
+            let call = await recorder.firstCall()
+            XCTAssertNil(call)
+        }
     }
 
     // MARK: - Conflict copies are create-only (M8)
@@ -5718,7 +5754,9 @@ final class DatabaseViewModelTests: XCTestCase {
                 fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx", bytes: Data("conflict-copy".utf8),
                 providerResolver: { _ in provider }, creationEnvironment: creationEnvironment)
             XCTFail("Expected conflict")
-        } catch CloudProviderError.conflict { }
+        } catch let error as CloudFileCreationCoordinator.UncertainCreation {
+            guard case .conflict = error.underlying as? CloudProviderError else { return XCTFail("Expected conflict") }
+        }
         XCTAssertEqual(provider.createdPaths, ["/Vaults/vault (conflict 2026-04-07 161500).kdbx"])
         let intents = try PendingUploadQueue.listCreations(environment: creationEnvironment.queue)
         XCTAssertEqual(intents.first?.intent.phase, .attempting)
@@ -5747,8 +5785,8 @@ final class DatabaseViewModelTests: XCTestCase {
                 providerResolver: { _ in provider }, creationEnvironment: creationEnvironment
             )
             XCTFail("Expected the provider error to surface.")
-        } catch let error as CloudProviderError {
-            XCTAssertEqual(error, .insufficientSpace)
+        } catch let error as CloudFileCreationCoordinator.UncertainCreation {
+            XCTAssertEqual(error.underlying as? CloudProviderError, .insufficientSpace)
         }
 
         XCTAssertEqual(provider.createdPaths.count, 1, "A real failure must not be retried under new names.")

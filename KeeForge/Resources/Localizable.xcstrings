@@ -13179,6 +13179,64 @@
         }
       }
     },
+    "Cloud creation may have succeeded. Open Cloud Recovery to keep or recover the encrypted copy." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Cloud-Erstellung war möglicherweise erfolgreich. Öffne die Cloud-Wiederherstellung, um die verschlüsselte Kopie zu behalten oder wiederherzustellen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud creation may have succeeded. Open Cloud Recovery to keep or recover the encrypted copy."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es posible que la creación en la nube se haya completado. Abre Recuperación en la nube para conservar o recuperar la copia cifrada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La création dans le cloud a peut-être réussi. Ouvrez la récupération cloud pour conserver ou récupérer la copie chiffrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La creazione nel cloud potrebbe essere riuscita. Apri Recupero cloud per conservare o recuperare la copia cifrata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドでの作成は完了した可能性があります。暗号化されたコピーを保持または復旧するには、「クラウドの復旧」を開いてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создание в облаке могло завершиться. Откройте восстановление облака, чтобы сохранить или восстановить зашифрованную копию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端创建可能已成功。请打开云端恢复，以保留或恢复加密副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雲端建立可能已成功。請開啟雲端復原，以保留或復原加密副本。"
+          }
+        }
+      }
+    },
     "Cloud Database Unavailable" : {
       "localizations" : {
         "de" : {
@@ -27305,6 +27363,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "前往 Mac App Store 取得 KeeForge。原生 Mac App 支援 macOS 15 或更新版本，提供自動填寫，並可使用你的本機和 WebDAV 資料庫。"
+          }
+        }
+      }
+    },
+    "Finish Cloud Recovery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud-Wiederherstellung abschließen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish Cloud Recovery"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finalizar recuperación en la nube"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminer la récupération cloud"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completa recupero cloud"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドの復旧を完了"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завершить восстановление облака"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成云端恢复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成雲端復原"
           }
         }
       }
@@ -46775,6 +46891,64 @@
         }
       }
     },
+    "Retry Cloud Creation" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud-Erstellung erneut versuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry Cloud Creation"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reintentar creación en la nube"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réessayer la création cloud"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riprova creazione cloud"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドでの作成を再試行"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить создание в облаке"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试云端创建"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重試雲端建立"
+          }
+        }
+      }
+    },
     "Retry Save" : {
       "localizations" : {
         "de" : {
@@ -54543,6 +54717,64 @@
         }
       }
     },
+    "The cloud file was created. Finish recovery to complete this operation." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Cloud-Datei wurde erstellt. Schließe die Wiederherstellung ab, um diesen Vorgang zu beenden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cloud file was created. Finish recovery to complete this operation."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se creó el archivo en la nube. Finaliza la recuperación para completar esta operación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier cloud a été créé. Terminez la récupération pour achever cette opération."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file nel cloud è stato creato. Completa il recupero per terminare questa operazione."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドファイルが作成されました。この操作を完了するには復旧を終了してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Облачный файл создан. Завершите восстановление, чтобы закончить операцию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端文件已创建。请完成恢复以结束此操作。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雲端檔案已建立。請完成復原以結束此操作。"
+          }
+        }
+      }
+    },
     "The cloud service is busy or temporarily unavailable. Try again in a moment." : {
       "localizations" : {
         "de" : {
@@ -59663,6 +59895,122 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此 KeeForge 版本缺少開啟該資料庫所需的雲端同步設定。"
+          }
+        }
+      }
+    },
+    "This cloud creation has not been sent. You can retry it or export its encrypted copy." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Cloud-Erstellung wurde nicht gesendet. Du kannst sie erneut versuchen oder ihre verschlüsselte Kopie exportieren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This cloud creation has not been sent. You can retry it or export its encrypted copy."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta creación en la nube no se ha enviado. Puedes volver a intentarlo o exportar su copia cifrada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette création dans le cloud n’a pas été envoyée. Vous pouvez réessayer ou exporter sa copie chiffrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa creazione nel cloud non è stata inviata. Puoi riprovare o esportare la copia cifrata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このクラウドでの作成は送信されていません。再試行するか、暗号化されたコピーを書き出せます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запрос на создание в облаке не отправлен. Вы можете повторить попытку или экспортировать зашифрованную копию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此云端创建请求尚未发送。你可以重试或导出其加密副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此雲端建立請求尚未傳送。你可以重試或匯出其加密副本。"
+          }
+        }
+      }
+    },
+    "This cloud creation may already have happened. Keep an encrypted copy; it cannot be retried safely." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Cloud-Erstellung wurde möglicherweise bereits ausgeführt. Bewahre eine verschlüsselte Kopie auf; ein erneuter Versuch ist nicht sicher."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This cloud creation may already have happened. Keep an encrypted copy; it cannot be retried safely."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es posible que esta creación en la nube ya se haya realizado. Conserva una copia cifrada; no es seguro volver a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette création dans le cloud a peut-être déjà eu lieu. Conservez une copie chiffrée ; une nouvelle tentative ne serait pas sûre."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa creazione nel cloud potrebbe essere già avvenuta. Conserva una copia cifrata; non è sicuro riprovare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このクラウドでの作成は既に完了した可能性があります。暗号化されたコピーを保持してください。安全に再試行することはできません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Возможно, файл уже создан в облаке. Сохраните зашифрованную копию; безопасно повторить попытку невозможно."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端创建可能已经完成。请保留加密副本；无法安全地重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雲端建立可能已經完成。請保留加密副本；無法安全地重試。"
           }
         }
       }

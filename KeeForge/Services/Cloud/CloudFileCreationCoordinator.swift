@@ -15,6 +15,24 @@ final class CloudCreationLifetime: @unchecked Sendable {
 // Only a response to this invocation can confirm its fenced attempt.
 enum CloudFileCreationCoordinator {
     enum RecoveryError: Error { case unavailable, uncertain, registrationRejected, registrationUnconfirmed }
+    struct UncertainCreation: LocalizedError {
+        let underlying: any Error
+        var errorDescription: String? { String(localized: "Cloud creation may have succeeded. Open Cloud Recovery to keep or recover the encrypted copy.") }
+    }
+
+    struct RecoveryActions: Equatable {
+        let export: Bool
+        let retry: Bool
+        let complete: Bool
+        static func forPhase(_ phase: PendingUploadQueue.CreationIntent.Phase) -> RecoveryActions {
+            switch phase {
+            case .prepared: .init(export: true, retry: true, complete: false)
+            case .attempting: .init(export: true, retry: false, complete: false)
+            case .confirmed: .init(export: true, retry: false, complete: true)
+            case .completed: .init(export: false, retry: false, complete: false)
+            }
+        }
+    }
 
     struct Environment: Sendable {
         var queue: PendingUploadQueue.Environment = .live
@@ -49,8 +67,10 @@ enum CloudFileCreationCoordinator {
         try lifetime.claim()
         let attempting = try PendingUploadQueue.transitionCreation(stored, to: .attempting, environment: environment.queue)
         try lifetime.claim()
-        let response = try await environment.createFile(provider, accountID, target, bytes)
-        guard !response.file.id.isEmpty else { throw RecoveryError.uncertain }
+        let response: CloudCreatedFile
+        do { response = try await environment.createFile(provider, accountID, target, bytes) }
+        catch { throw UncertainCreation(underlying: error) }
+        guard !response.file.id.isEmpty else { throw UncertainCreation(underlying: RecoveryError.uncertain) }
         var receipt = referenceTemplate
         var metadata = CloudSyncMetadata(provider: provider, accountId: accountID, fileId: response.file.id,
             displayPath: response.file.path, remoteContentHash: response.metadata.contentHash,
@@ -58,10 +78,22 @@ enum CloudFileCreationCoordinator {
             lastSyncedAt: response.metadata.modifiedDate, lastSyncIssue: nil)
         metadata.localHeadOperationID = operationID
         receipt.source = .cloud(metadata)
-        let confirmed = try PendingUploadQueue.transitionCreation(attempting, to: .confirmed, receipt: receipt, environment: environment.queue)
+        let confirmed: PendingUploadQueue.StoredCreation
+        do { confirmed = try PendingUploadQueue.transitionCreation(attempting, to: .confirmed, receipt: receipt, environment: environment.queue) }
+        catch { throw UncertainCreation(underlying: error) }
         try Task.checkCancellation()
         try lifetime.claim()
         return try complete(confirmed, environment: environment)
+    }
+
+    static func retryPrepared(operationID: UUID, lifetime: CloudCreationLifetime = CloudCreationLifetime(),
+                              environment: Environment = .live) async throws -> DatabaseReference {
+        guard let stored = try PendingUploadQueue.listCreations(environment: environment.queue).first(where: { $0.intent.operationID == operationID }),
+              stored.intent.phase == .prepared else { throw RecoveryError.unavailable }
+        let bytes = try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue)
+        return try await create(operationID: operationID, provider: stored.intent.provider, accountID: stored.intent.accountID,
+            target: stored.intent.target, bytes: bytes, referenceTemplate: stored.intent.referenceTemplate,
+            isConflictCopy: stored.intent.isConflictCopy, lifetime: lifetime, environment: environment)
     }
 
     static func resumeKnownRegistration(operationID: UUID, environment: Environment = .live) throws -> DatabaseReference {

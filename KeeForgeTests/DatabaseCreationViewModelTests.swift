@@ -294,7 +294,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.creationError, CloudProviderError.notAuthenticated.localizedDescription)
     }
 
-    func testCreateInCloudFormatsConflictErrorAsFriendlyDuplicateMessage() async throws {
+    func testCreateInCloudReportsAmbiguousConflictForRecovery() async throws {
         let viewModel = DatabaseCreationViewModel(
             environment: cloudEnvironment { _, _, _, _, _ in
                 throw CloudProviderError.conflict(remoteRev: "rev-existing")
@@ -312,12 +312,9 @@ final class DatabaseCreationViewModelTests: XCTestCase {
 
         XCTAssertNil(created)
         XCTAssertFalse(viewModel.isCreating)
-        // cloudCreationMessage(for:) special-cases .conflict: during creation a
-        // remote-rev conflict means the name is already taken, so the save-flow
-        // "reload before saving" wording would mislead here.
         XCTAssertEqual(
             viewModel.creationError,
-            "A database with this name already exists in this cloud folder."
+            "Cloud creation may have succeeded. Open Cloud Recovery to keep or recover the encrypted copy."
         )
         // On failure secrets stay put so the user can retry without retyping.
         XCTAssertEqual(viewModel.password, "cloud password")
@@ -341,7 +338,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         )
 
         XCTAssertNil(created)
-        XCTAssertEqual(viewModel.creationError, CloudProviderError.insufficientSpace.localizedDescription)
+        XCTAssertEqual(viewModel.creationError, "Cloud creation may have succeeded. Open Cloud Recovery to keep or recover the encrypted copy.")
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
     }
 

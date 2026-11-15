@@ -3516,27 +3516,45 @@ final class DatabaseViewModel {
 
         let copyCycle = lockCycleID
         let copyRevision = contentRevision
+        let copyReference = databaseReference
         let bytes = try await conflictCopyEncryptionOperation(
             draft,
             compositeKey,
             saveConflict.remoteData
         )
-        guard !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision, case .unlocked = state else { throw SaveError.saveContextUnavailable }
-        let filename = conflictCopyFilename(for: databaseReference.filename)
+        guard !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision,
+              databaseReference == copyReference, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+        let filename = conflictCopyFilename(for: copyReference.filename)
 
-        switch databaseReference.source {
+        switch copyReference.source {
         case .local:
-            try await localConflictCopyOperation(databaseReference, filename, bytes)
+            try await localConflictCopyOperation(copyReference, filename, bytes)
         case .cloud(let metadata):
+            let stillCurrent = try await Task.detached {
+                try DatabaseListStore.readDatabasesStrict().contains { Self.matchesConflictCopyAuthority(copyReference, $0) }
+            }.value
+            guard stillCurrent, !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision,
+                  databaseReference == copyReference, case .unlocked = state else { throw SaveError.saveContextUnavailable }
             let fileID = Self.siblingCloudConflictFileID(
                 currentFileID: metadata.fileId,
                 filename: filename
             )
-            try await cloudConflictCopyOperation(databaseReference, fileID, bytes)
+            try await cloudConflictCopyOperation(copyReference, fileID, bytes)
         }
 
-        guard !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+        guard !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision,
+              databaseReference == copyReference, case .unlocked = state else { throw SaveError.saveContextUnavailable }
         discardDraft()
+    }
+
+    nonisolated static func matchesConflictCopyAuthority(_ captured: DatabaseReference, _ current: DatabaseReference) -> Bool {
+        guard let original = captured.cloudSyncMetadata, let latest = current.cloudSyncMetadata else { return false }
+        return captured.id == current.id && original.provider == latest.provider && original.accountId == latest.accountId
+            && original.fileId == latest.fileId && original.localHeadOperationID == latest.localHeadOperationID
+            && original.keyEpoch == latest.keyEpoch && captured.lastMasterKeyChangeAt == current.lastMasterKeyChangeAt
+            && PendingLocalSaveStore.PreferenceObservation(captured).matches(current)
+            && captured.hardwareKey == current.hardwareKey && captured.legacyKeychainFilename == current.legacyKeychainFilename
+            && captured.isReadOnly == current.isReadOnly && captured.filename == current.filename
     }
 
     /// Reconciles the file that caused the conflict into the current draft and

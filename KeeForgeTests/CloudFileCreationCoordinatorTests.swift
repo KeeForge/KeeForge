@@ -31,6 +31,35 @@ final class CloudFileCreationCoordinatorTests: XCTestCase {
         return (root, queue, reference)
     }
 
+    func testRecoveryActionsMatchPersistedPhase() {
+        let actions = CloudFileCreationCoordinator.RecoveryActions.forPhase
+        XCTAssertEqual(actions(.prepared), .init(export: true, retry: true, complete: false))
+        XCTAssertEqual(actions(.attempting), .init(export: true, retry: false, complete: false))
+        XCTAssertEqual(actions(.confirmed), .init(export: true, retry: false, complete: true))
+        XCTAssertEqual(actions(.completed), .init(export: false, retry: false, complete: false))
+    }
+
+    func testExplicitPreparedRetryUsesPersistedPayload() async throws {
+        let (root, queue, reference) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let transport = Transport(fails: true)
+        var environment = CloudFileCreationCoordinator.Environment()
+        environment.queue = queue
+        environment.createFile = { _, _, _, bytes in
+            guard bytes == Data([1, 2, 3]) else { throw CloudProviderError.invalidConfiguration }
+            return try await transport.create()
+        }
+        let id = UUID()
+        _ = try PendingUploadQueue.prepareCreation(operationID: id, provider: "webdav", accountID: "account",
+            target: "/vault", payload: Data([1, 2, 3]), referenceTemplate: reference, isConflictCopy: false, environment: queue)
+        do { _ = try await CloudFileCreationCoordinator.retryPrepared(operationID: id, environment: environment); XCTFail("Expected uncertain response") }
+        catch is CloudFileCreationCoordinator.UncertainCreation {}
+        do { _ = try await CloudFileCreationCoordinator.retryPrepared(operationID: id, environment: environment); XCTFail("Attempting cannot retry") }
+        catch is CloudFileCreationCoordinator.RecoveryError {}
+        let count = await transport.count()
+        XCTAssertEqual(count, 1)
+    }
+
     func testLostResponseCannotResendAndRetainsBytes() async throws {
         let (root, queue, reference) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }

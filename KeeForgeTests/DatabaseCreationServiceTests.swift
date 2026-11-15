@@ -479,7 +479,8 @@ final class DatabaseCreationServiceTests: XCTestCase {
                 environment: environment
             )
             XCTFail("Expected upload failure.")
-        } catch CloudProviderError.networkUnavailable {
+        } catch let error as CloudFileCreationCoordinator.UncertainCreation {
+            XCTAssertEqual(error.underlying as? CloudProviderError, .networkUnavailable)
             XCTAssertTrue(DatabaseListStore.databases.isEmpty)
             XCTAssertEqual(recorder.uploadedPath, "/Upload Failure.kdbx")
         } catch {
