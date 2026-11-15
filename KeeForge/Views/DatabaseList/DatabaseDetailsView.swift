@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// Per-database settings and file facts, shared by the two places that show
@@ -25,8 +26,6 @@ struct DatabaseDetailsView: View {
     /// presents its own.
     var onSelectKeyFile: (() -> Void)?
 
-    private let onClose: (() -> Void)?
-
     @Environment(\.dismiss) private var dismiss
     @State private var listViewModel: DatabaseListViewModel
     @State private var nickname = ""
@@ -49,13 +48,11 @@ struct DatabaseDetailsView: View {
         reference: DatabaseReference,
         listViewModel: DatabaseListViewModel? = nil,
         sessionViewModel: DatabaseViewModel? = nil,
-        onSelectKeyFile: (() -> Void)? = nil,
-        onClose: (() -> Void)? = nil
+        onSelectKeyFile: (() -> Void)? = nil
     ) {
         self.reference = reference
         self.sessionViewModel = sessionViewModel
         self.onSelectKeyFile = onSelectKeyFile
-        self.onClose = onClose
         self.ownsListViewModel = listViewModel == nil
         _listViewModel = State(initialValue: listViewModel ?? DatabaseListViewModel())
     }
@@ -79,7 +76,7 @@ struct DatabaseDetailsView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") {
                         saveNickname()
-                        if let onClose { onClose() } else { dismiss() }
+                        dismiss()
                     }
                     .accessibilityIdentifier("database-details.close")
                 }
@@ -583,22 +580,6 @@ struct DatabaseDetailsView: View {
     }
 
     private var exportSection: some View {
-        #if os(macOS)
-        Section {
-            Button(DatabaseExportLabels.currentCopy) {
-                exportRequest = .currentCopy(currentReference)
-            }
-            .accessibilityIdentifier("database-details.export-copy")
-        } header: {
-            Text("Export")
-        } footer: {
-            if currentReference.isCloudBacked {
-                Text("Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
-            } else {
-                Text("Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
-            }
-        }
-        #else
         Section {
             Button("Export…") {
                 exportRequest = .currentCopy(currentReference)
@@ -611,7 +592,6 @@ struct DatabaseDetailsView: View {
                 Text("Export a copy of the database via iOS Sharing.")
             }
         }
-        #endif
     }
 
     private var backupsSection: some View {
@@ -752,19 +732,11 @@ struct DatabaseDetailsView: View {
         if sessionViewModel != nil {
             Section {
                 Group {
-                    #if os(macOS)
-                    Button {
-                        NSApp.sendAction(#selector(AppDelegate.showSettings(_:)), to: nil, from: nil)
-                    } label: {
-                        Label("App Settings", systemImage: "gearshape")
-                    }
-                    #else
                     Button {
                         showAppSettings = true
                     } label: {
                         Label("App Settings", systemImage: "gearshape")
                     }
-                    #endif
                 }
                 .accessibilityIdentifier("database-details.app-settings")
             }
@@ -881,3 +853,4 @@ struct DatabaseDetailsView: View {
         date.formatted(date: .abbreviated, time: .shortened)
     }
 }
+#endif

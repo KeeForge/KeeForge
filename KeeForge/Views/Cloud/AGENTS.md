@@ -4,7 +4,7 @@
 
 ## Ownership
 
-- `CloudFileBrowserView` picks the manual form from the provider's connect seam (`WebDAVConnecting` or `FTPConnecting`); other providers use hosted sign-in. Connection logic is in `WebDAVConnectViewModel` / `FTPConnectViewModel`, listing and selection in `CloudFileBrowserSession` and `CloudFolderBrowserViewModel`.
+- `CloudFileBrowserView` (iOS only; the Mac connects and browses through `MacConnectServerSheet` and `MacRemoteBrowserViewController`) picks the manual form from the provider's connect seam (`WebDAVConnecting` or `FTPConnecting`); other providers use hosted sign-in. Connection logic is in `WebDAVConnectViewModel` / `FTPConnectViewModel`, listing and selection in `CloudFileBrowserSession` and `CloudFolderBrowserViewModel`.
 
 ## Invariants
 

@@ -1,5 +1,6 @@
 import SwiftUI
 
+#if os(iOS)
 struct SettingsView: View {
     var viewModel: DatabaseViewModel? = nil
     /// The app's shared `DatabaseListViewModel` — the instance whose
@@ -11,19 +12,11 @@ struct SettingsView: View {
 
     @State private var settings = AppSettingsViewModel()
     @State private var feedbackContext: FeedbackComposerContext?
-    #if os(macOS)
-    @Environment(MacQuickAccessController.self) private var quickAccess: MacQuickAccessController?
-    @Environment(MacSSHAgentController.self) private var sshAgent: MacSSHAgentController?
-    #endif
     @State private var biometricType = BiometricService.availableType
 
     var body: some View {
         Group {
-            #if os(macOS)
-            macSettingsLayout
-            #else
             iosSettingsLayout
-            #endif
         }
         .tint(resolvedAppAccentColor)
         .preferredColorScheme(preferredColorScheme)
@@ -36,12 +29,6 @@ struct SettingsView: View {
         }
     }
 
-    #if os(macOS)
-    private var macSettingsLayout: some View {
-        MacSettingsTabsBridge(listViewModel: listViewModel, sessionStore: sessionStore,
-                              quickAccess: quickAccess, sshAgent: sshAgent)
-    }
-    #else
     private var iosSettingsLayout: some View {
         NavigationStack {
             Form {
@@ -62,7 +49,6 @@ struct SettingsView: View {
             }
         }
     }
-    #endif
 
     private var preferredColorScheme: ColorScheme? {
         switch settings.appearanceMode {
@@ -296,16 +282,11 @@ private struct AutoFillSettingsView: View {
             Section {
                 Toggle("Quick AutoFill", isOn: $quickAutoFillEnabled)
             } footer: {
-                #if os(macOS)
-                Text("KeeForge suggests credentials from the databases selected below when macOS offers to fill a password. Authentication is required when you choose a suggestion.")
-                #else
                 Text("KeeForge suggests credentials from the databases selected below in the keyboard bar. Authentication is required when you tap a suggestion.")
-                #endif
             }
 
             databasesSection
 
-            #if os(iOS)
             // The Mac extension supplies verification codes directly. This
             // copy fallback stays iOS-only because its pasteboard expiration
             // survives the short-lived extension process there.
@@ -315,14 +296,11 @@ private struct AutoFillSettingsView: View {
             } footer: {
                 Text("When AutoFill fills a password, it also copies the entry's verification code for code fields iOS does not recognize. You'll confirm the fill in KeeForge, and the code clears after the Clipboard Clear Timeout.")
             }
-            #endif
 
             clearEntriesSection
         }
-        #if os(iOS)
         .navigationTitle("AutoFill")
         .navigationBarTitleDisplayMode(.inline)
-        #endif
         .onAppear {
             listViewModel.reload()
         }
@@ -364,14 +342,6 @@ private struct AutoFillSettingsView: View {
                     Text("AutoFill is on, but no databases are selected.")
                 }
 
-                #if os(macOS)
-                // Gated on the store's runtime flag, not the platform: macOS
-                // 26.5 reported no incremental updates, macOS 27.0.1 reports
-                // them. Only the copy is macOS-specific.
-                if quickAutoFillEnabled, listViewModel.isAutoFillLimitedToOneDatabase {
-                    Text("macOS shows suggestions from one database at a time — whichever you unlocked most recently. Unlock another selected database to switch which entries appear.")
-                }
-                #endif
             }
         }
     }
@@ -422,29 +392,18 @@ private struct AutoFillSettingsView: View {
                 .accessibilityIdentifier("settings.autofill.turn-on")
             }
 
-            #if os(iOS)
             Button("Open iOS AutoFill Settings") {
                 Task { await AutoFillStatusService.openAutoFillSettings() }
             }
             .accessibilityIdentifier("settings.autofill.open-ios-settings")
-            #else
-            Button("Open AutoFill Settings…") {
-                Task { await AutoFillStatusService.openAutoFillSettings() }
-            }
-            .accessibilityIdentifier("settings.autofill.open-mac-settings")
-            #endif
         } footer: {
             VStack(alignment: .leading, spacing: 8) {
                 if isProviderEnabled == false {
-                    #if os(macOS)
-                    Text("KeeForge isn't enabled as an AutoFill provider yet. Turn it on under General > AutoFill & Passwords to fill passwords in Safari and other apps.")
-                    #else
                     Text("KeeForge isn't enabled as an AutoFill provider yet. Turn it on to fill passwords in Safari and other apps.")
 
                     if listViewModel.isAutoFillEnableRequestRejected {
                         Text("The last attempt did not turn it on. Open iOS AutoFill Settings and enable KeeForge there.")
                     }
-                    #endif
                 } else if isProviderEnabled == true {
                     Text("KeeForge is enabled as an AutoFill provider.")
                 }
@@ -456,11 +415,7 @@ private struct AutoFillSettingsView: View {
     /// value both have to go through the catalog explicitly — a bare literal
     /// here ships as English.
     private var providerStatusTitle: String {
-        #if os(macOS)
-        String(localized: "AutoFill in macOS")
-        #else
         String(localized: "AutoFill in iOS")
-        #endif
     }
 
     private var providerStatusText: String {
@@ -716,6 +671,7 @@ private enum AppVersion {
         return "\(short) (\(displayCommit))"
     }
 }
+#endif
 
 extension SettingsService.AppAccentColor {
     var color: Color {

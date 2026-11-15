@@ -30,6 +30,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     private let titleObservation = MacObservation()
     private let unlockFormObservation = MacObservation()
     private let lockedPageObservation = MacObservation()
+    private(set) lazy var removalAlerts = window.map { MacAlertQueue(window: $0) }
     let filePanels: MacFilePanels
     /// The locked pages' form, kept across the locked, opening and error pages.
     private(set) lazy var unlockForm = MacUnlockFormModel(session: session, filePicker: filePanels)
@@ -198,6 +199,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
 
     /// Stops observing once the window has closed for good.
     func invalidate() {
+        removalAlerts?.end()
         workspaceAlerts.invalidate()
         workspaceSheets.invalidate()
         databaseExportTask?.cancel()

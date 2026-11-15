@@ -2,20 +2,6 @@
 import AppKit
 import SwiftUI
 
-struct MacSettingsTabsBridge: NSViewControllerRepresentable {
-    let listViewModel: DatabaseListViewModel
-    let sessionStore: DatabaseSessionStore?
-    let quickAccess: MacQuickAccessController?
-    let sshAgent: MacSSHAgentController?
-
-    func makeNSViewController(context: Context) -> MacSettingsTabController {
-        MacSettingsTabController(listViewModel: listViewModel, sessionStore: sessionStore,
-                                 quickAccess: quickAccess, sshAgent: sshAgent)
-    }
-
-    func updateNSViewController(_ controller: MacSettingsTabController, context: Context) {}
-}
-
 struct MacSecuritySettingsTab: View {
     @Bindable var settings: AppSettingsViewModel
 

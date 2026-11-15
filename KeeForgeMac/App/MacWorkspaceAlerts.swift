@@ -432,6 +432,17 @@ enum MacRemoveFromListAlert {
         _ kind: Kind, for reference: DatabaseReference, on window: NSWindow,
         completion: @escaping @MainActor (Bool) -> Void
     ) {
+        guard let queue = (window.windowController as? DatabaseWindowController)?.removalAlerts else {
+            completion(false)
+            return
+        }
+        // Queued: a refusal raised as the confirmation ends waits for it to detach.
+        queue.enqueue(makeAlert(kind, for: reference)) { response in
+            completion(kind == .confirm && response == .alertFirstButtonReturn)
+        }
+    }
+
+    static func makeAlert(_ kind: Kind, for reference: DatabaseReference) -> NSAlert {
         let alert = NSAlert()
         switch kind {
         case .confirm:
@@ -439,7 +450,7 @@ enum MacRemoveFromListAlert {
             alert.informativeText = String(
                 localized: "“\(reference.displayName)” will be removed from KeeForge, including its cached copy and saved biometric key.")
             alert.addButton(withTitle: String(localized: "Remove")).hasDestructiveAction = true
-            alert.addButton(withTitle: String(localized: "Cancel"))
+            alert.addButton(withTitle: String(localized: "Cancel")).keyEquivalent = "\u{1b}"
         case .refused:
             alert.alertStyle = .warning
             alert.messageText = String(localized: "Can’t Remove Database")
@@ -447,8 +458,6 @@ enum MacRemoveFromListAlert {
                 localized: "“\(reference.displayName)” has unsaved changes. Save them or close its window, then remove it.")
             alert.addButton(withTitle: String(localized: "OK"))
         }
-        MacWorkspaceAlerts.presentAsSheet(alert, on: window) { response in
-            completion(kind == .confirm && response == .alertFirstButtonReturn)
-        }
+        return alert
     }
 }

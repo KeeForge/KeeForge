@@ -7496,58 +7496,6 @@
         }
       }
     },
-    "After you click Create, choose the %@ folder for the encrypted .kdbx database." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nachdem du auf „Erstellen“ geklickt hast, wähle den Ordner „%@“ für die verschlüsselte .kdbx-Datenbank."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Después de hacer clic en «Crear», elige la carpeta «%@» para la base de datos .kdbx cifrada."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Après avoir cliqué sur « Créer », choisissez le dossier « %@ » pour la base de données .kdbx chiffrée."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dopo aver fatto clic su Crea, scegli la cartella %@ per il database .kdbx crittografato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「作成」をクリックしたら、暗号化された .kdbx データベースを保存する%@のフォルダを選択してください。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "После нажатия «Создать» выберите папку %@ для зашифрованной базы данных .kdbx."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "点按“创建”后，请为加密 .kdbx 数据库选择 %@ 文件夹。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點按「建立」後，請為加密 .kdbx 資料庫選擇 %@ 資料夾。"
-          }
-        }
-      }
-    },
     "After you click Create, KeeForge asks where to save the encrypted .kdbx database." : {
       "localizations" : {
         "de" : {
@@ -29269,58 +29217,6 @@
         }
       }
     },
-    "Export" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Exportación"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Exportation"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Esporta"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き出し"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Экспортировать"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导出"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匯出"
-          }
-        }
-      }
-    },
     "Export a copy of the database via iOS Sharing." : {
       "localizations" : {
         "de" : {
@@ -36245,58 +36141,6 @@
         }
       }
     },
-    "KeeForge creates KDBX 4 databases encrypted with %@ and Argon2id key derivation (%@). Stronger settings take longer to unlock." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge erstellt KDBX-4-Datenbanken, die mit %1$@ verschlüsselt sind und Argon2id zur Schlüsselableitung verwenden (%2$@). Stärkere Einstellungen verlängern das Entsperren."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge crea bases de datos KDBX 4 cifradas con %1$@ y derivación de claves Argon2id (%2$@). Los ajustes más fuertes tardan más en desbloquear."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge crée des bases de données KDBX 4 chiffrées avec %1$@ et une dérivation de clé Argon2id (%2$@). Des réglages plus forts allongent le déverrouillage."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge crea database KDBX 4 crittografati con %@ e derivazione della chiave Argon2id (%@). Le impostazioni più forti richiedono più tempo per lo sblocco."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge は、%1$@ で暗号化し、Argon2id で鍵導出（%2$@）を行う KDBX 4 データベースを作成します。設定を強くするほど、ロック解除に時間がかかります。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge создаёт базы данных KDBX 4, зашифрованные %@, с формированием ключа Argon2id (%@). Более сильные параметры увеличивают время разблокировки."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge 创建使用 %1$@ 加密和 Argon2id 密钥派生（%2$@）的 KDBX 4 数据库。更强的设置会延长解锁时间。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge 會建立使用 %1$@ 加密和 Argon2id 金鑰衍生（%2$@）的 KDBX 4 資料庫。更強的設定會延長解鎖時間。"
-          }
-        }
-      }
-    },
     "KeeForge generates only time-based verification codes. Other code setups are kept in a protected field named OTPAuth." : {
       "localizations" : {
         "de" : {
@@ -37281,58 +37125,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 尚未啟用為自動填寫提供者。開啟後即可在 Safari 和其他 App 中填寫密碼。"
-          }
-        }
-      }
-    },
-    "KeeForge isn't enabled as an AutoFill provider yet. Turn it on under General > AutoFill & Passwords to fill passwords in Safari and other apps." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge ist noch nicht als AutoFill-Anbieter aktiviert. Aktiviere KeeForge unter „Allgemein“ > „AutoFill & Passwörter“, um Passwörter in Safari und anderen Apps auszufüllen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge todavía no está habilitado como proveedor de Autorrelleno. Actívalo en «General» > «Autorrelleno y contraseñas» para rellenar contraseñas en Safari y otras aplicaciones."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge n'est pas encore activé en tant que fournisseur de Remplissage automatique. Activez-le dans « Général » > « Remplissage automatique et mots de passe » pour remplir les mots de passe dans Safari et d'autres apps."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge non è ancora abilitato come provider di inserimento automatico. Attivalo in Generali > Inserimento automatico e password per inserire le password in Safari e in altre app."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge はまだ自動入力の提供元として有効になっていません。「一般」>「自動入力とパスワード」でオンにすると、Safari や他の App でパスワードを入力できます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge ещё не включён как поставщик автозаполнения. Включите его в разделе «Основные» > «Автозаполнение и пароли», чтобы заполнять пароли в Safari и других приложениях."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge 尚未启用为自动填充提供方。请在“通用”>“自动填充与密码”中开启，即可在 Safari 和其他 App 中填充密码。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge 尚未啟用為自動填寫提供者。請在「一般」>「自動填寫與密碼」中開啟，即可在 Safari 和其他 App 中填寫密碼。"
           }
         }
       }
@@ -55976,58 +55768,6 @@
         }
       }
     },
-    "Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Speichert eine Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwende sie, um Änderungen mit einer anderen KeePass-App in deine Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Guarda una copia de la base de datos tal como la tiene KeeForge actualmente. Úsala para combinar los cambios en tu archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enregistre une copie de la base de données telle que KeeForge la possède actuellement. Utilisez-la pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Salva una copia del database così come si trova attualmente in KeeForge. Usala per unire le modifiche al tuo file principale con un'altra app KeePass quando un caricamento sul cloud è bloccato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge が現在保持している状態のデータベースのコピーを保存します。クラウドへのアップロードが滞っているときに、他の KeePass App でメインのファイルに変更を統合するために使用できます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сохраняет копию базы данных в том виде, в каком она сейчас есть в KeeForge. Используйте её, чтобы объединить изменения с основным файлом в другом приложении KeePass, если облачная отправка застряла."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存 KeeForge 当前所持有的数据库副本。当云端上传卡住时，可用它在其他 KeePass App 中将更改合并到你的主文件。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "儲存 KeeForge 目前所持有的資料庫副本。當雲端上傳卡住時，可用它在其他 KeePass App 中將變更合併到你的主檔案。"
-          }
-        }
-      }
-    },
     "Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
       "localizations" : {
         "de" : {
@@ -72684,58 +72424,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "若要在 Safari 和其他 App 中填寫 KeeForge 的密碼，請在 iOS 自動填寫設定中啟用 KeeForge。"
-          }
-        }
-      }
-    },
-    "To fill passwords from KeeForge in Safari and other apps, enable KeeForge in System Settings under General > AutoFill & Passwords." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Um Passwörter aus KeeForge in Safari und anderen Apps auszufüllen, aktiviere KeeForge in den Systemeinstellungen unter „Allgemein“ > „AutoFill & Passwörter“."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Para rellenar contraseñas de KeeForge en Safari y otras apps, activa KeeForge en Ajustes del Sistema, en «General» > «Autorrelleno y contraseñas»."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pour remplir des mots de passe depuis KeeForge dans Safari et d'autres apps, activez KeeForge dans Réglages Système, sous « Général » > « Remplissage automatique et mots de passe »."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Per inserire le password di KeeForge in Safari e in altre app, abilita KeeForge in Impostazioni di Sistema, in Generali > Inserimento automatico e password."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Safari や他の App で KeeForge のパスワードを入力するには、「システム設定」の「一般」>「自動入力とパスワード」で KeeForge を有効にしてください。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Чтобы заполнять пароли из KeeForge в Safari и других приложениях, включите KeeForge в Системных настройках в разделе «Основные» > «Автозаполнение и пароли»."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "若要在 Safari 和其他 App 中填充 KeeForge 的密码，请在“系统设置”的“通用”>“自动填充与密码”中启用 KeeForge。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "若要在 Safari 和其他 App 中填寫 KeeForge 的密碼，請在「系統設定」的「一般」>「自動填寫與密碼」中啟用 KeeForge。"
           }
         }
       }

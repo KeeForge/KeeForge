@@ -149,7 +149,11 @@ The Databases window, or that database's own locked window on its recovery
 page, refuses to remove a database whose session has unsaved work (a dirty
 draft, an editor holding fields, or a write in flight) and says to save or close
 its window first, because removal retires the session unconditionally. Both ask
-before removing and run the same cleanup.
+before removing, check again after the confirmation (the database window also
+checks that the same window still owns the database), and run the same cleanup.
+The alerts are native sheets queued per window: a refusal raised as the
+confirmation ends waits for it and is never dropped, and closing the window ends
+them unanswered.
 A reference that vanishes outside the app still force-retires its session.
 
 [DatabaseListStore](../KeeForge/Services/Persistence/DatabaseListStore.swift)

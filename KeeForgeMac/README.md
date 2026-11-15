@@ -57,9 +57,10 @@ without a session. `MacDatabasesSheets` presents native New Database and Connect
 and the remote file/folder table, driven by the launcher's sheet request. New
 Database scrolls within the 560 pt shell with Advanced Options collapsed and
 uses native save/key-file panels. Connect opens directly with WebDAV/FTP segments,
-then browses the connected account with history and ancestor navigation. The host
-keeps rename, key file, export, removal and pending-upload presentations in
-SwiftUI. It also presents the
+then browses the connected account with history and ancestor navigation. `MacDatabasesAlerts`
+asks Remove, Rename, Discard Pending Upload and the pending-upload and
+selection prompts with native alerts queued one at a time, and the key file
+through the native open panel; the SwiftUI host keeps the export bridge and presents the
 transition notice and What's New, once per launch, and asks which database a
 verification-code link belongs to when no database window was targeted.
 

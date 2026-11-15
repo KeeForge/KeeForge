@@ -94,6 +94,48 @@ final class DatabaseWindowControllerTests: XCTestCase {
         }
     }
 
+    /// Remove from List asks through the window's queue: a refusal raised as the
+    /// confirmation answers is shown next, and close or invalidation ends both.
+    func testRemoveFromListAlertsQueueInTheWindowAndEndOnCloseAndInvalidation() throws {
+        for closeWindow in [true, false] {
+            let controller = try load(DatabaseWindowController(session: try makeSession(), windowRegistry: registry(),
+                enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false))
+            let window = try XCTUnwrap(controller.window)
+            let queue = try XCTUnwrap(controller.removalAlerts)
+            var shown: [NSAlert] = []
+            var answers: [@MainActor (NSApplication.ModalResponse) -> Void] = []
+            queue.present = { alert, parent, completion in
+                XCTAssertTrue(parent === window)
+                shown.append(alert)
+                answers.append(completion)
+            }
+            let reference = controller.session.databaseReference
+            var results: [Bool] = []
+            MacRemoveFromListAlert.present(.confirm, for: reference, on: window) { confirmed in
+                results.append(confirmed)
+                MacRemoveFromListAlert.present(.refused, for: reference, on: window) { results.append($0) }
+            }
+            XCTAssertEqual(shown.map(\.messageText), [String(localized: "Remove Database?")])
+            XCTAssertEqual(shown.first?.buttons.last?.keyEquivalent, "\u{1b}", "Cancel answers Escape")
+
+            answers[0](.alertFirstButtonReturn)
+            XCTAssertEqual(results, [true])
+            XCTAssertEqual(shown.map(\.messageText), [String(localized: "Remove Database?"), String(localized: "Can’t Remove Database")],
+                           "The refusal raised by the answer is shown, not dropped")
+            XCTAssertEqual(shown.last?.buttons.first?.keyEquivalent, "\r", "OK keeps Return")
+
+            MacRemoveFromListAlert.present(.confirm, for: reference, on: window) { results.append($0) }
+            XCTAssertEqual(queue.queuedCount, 1, "Waits behind the refusal")
+            if closeWindow { window.close() } else { controller.invalidate() }
+            XCTAssertNil(queue.presentedAlert)
+            XCTAssertEqual(queue.queuedCount, 0)
+            answers[1](.alertFirstButtonReturn)
+            XCTAssertEqual(results, [true], "A late answer after close does nothing")
+            XCTAssertEqual(shown.count, 2)
+            controller.invalidate()
+        }
+    }
+
     func testInitialContentSizeIsChosenByTheCoordinatorAndNeverBelowTheMinimum() throws {
         let large = try load(DatabaseWindowController(session: try makeSession(), windowRegistry: registry(),
             enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false, initialContentSize: NSSize(width: 1440, height: 900)))
