@@ -639,7 +639,7 @@ final class MacWorkspacePresentationTests: XCTestCase {
         defer { DatabaseListStore.clearAll() }
         let file = CloudFile(id: "/Vaults/cached.kdbx", name: "cached.kdbx", path: "/Vaults/cached.kdbx",
                              isFolder: false, modifiedDate: Date(timeIntervalSince1970: 100), size: 128)
-        let reference = DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue, accountId: "acct-1", file: file)
+        let reference = try DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue, accountId: "acct-1", file: file)
         let fixture = KDBXTestFixture.test
         let data = try fixture.data(in: Bundle(for: Self.self))
         let resolution: @Sendable (DatabaseReference, CloudSyncResolution.Status) -> CloudSyncResolution = { reference, status in
@@ -669,7 +669,7 @@ final class MacWorkspacePresentationTests: XCTestCase {
         defer { DatabaseListStore.clearAll() }
         let file = CloudFile(id: "/Vaults/open.kdbx", name: "open.kdbx", path: "/Vaults/open.kdbx",
                              isFolder: false, modifiedDate: Date(timeIntervalSince1970: 100), size: 128)
-        let reference = DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue, accountId: "acct-1", file: file)
+        let reference = try DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue, accountId: "acct-1", file: file)
         let fixture = KDBXTestFixture.test
         let data = try fixture.data(in: Bundle(for: Self.self))
         let resolution: @Sendable (DatabaseReference, CloudSyncResolution.Status) -> CloudSyncResolution = { reference, status in
@@ -716,7 +716,7 @@ final class MacWorkspacePresentationTests: XCTestCase {
             DatabaseListStore.clearAll()
             let file = CloudFile(id: "/Vaults/open.kdbx", name: "open.kdbx", path: "/Vaults/open.kdbx",
                                  isFolder: false, modifiedDate: Date(timeIntervalSince1970: 100), size: 128)
-            let reference = DatabaseListStore.addCloud(provider: kind.rawValue, accountId: "acct-reconnect", file: file)
+            let reference = try DatabaseListStore.addCloud(provider: kind.rawValue, accountId: "acct-reconnect", file: file)
             let fixture = KDBXTestFixture.test
             let data = try fixture.data(in: Bundle(for: Self.self))
             let database = DatabaseViewModel(
