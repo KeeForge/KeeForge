@@ -1519,6 +1519,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 guard case .conflict? = try await CloudDatabaseSaver.deliver(marker, reference: firstReference, environment: delivery) else {
                     return XCTFail("Remote divergence must retain the first session's encrypted output")
                 }
+                print("diagnostic 7 firstPending=\(first.hasPendingCloudUploads) secondPending=\(second.hasPendingCloudUploads) journalCount=\((try? PendingUploadQueue.readJournal(for: firstReference.id).count) ?? -1)")
                 XCTAssertTrue(first.hasPendingCloudUploads)
                 XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker),
                     try Data(contentsOf: DatabaseListStore.cacheLocation(for: firstReference)))
@@ -1796,6 +1797,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         let savedSHA512 = FileDigest.sha512(savedData)
         let gate = SaveGate()
         let refreshRecorder = RefreshRecorder()
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = makeViewModel(
             reference: try makeStoredManualReference(),
             openedData: openedData,
@@ -1810,7 +1812,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
             },
             cloudSaveOperation: { _, _, _, _, _, _, _, _ in
                 .saved(newSHA512: savedSHA512)
-            }
+            },
+            localPublicationFailure: { trace.record($0, $1) }
         )
         await vm.unlock(password: fixturePassword)
 
@@ -1820,7 +1823,13 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         try vm.applyEntryEdit(
             .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Saved Mid-Sync", password: "p"))
         )
-        try await vm.save()
+        do {
+            try await vm.save()
+            print("diagnostic 8 save=returned; boundaries=\(trace.summary)")
+        } catch {
+            _ = trace.failure(error, at: "diagnostic 8 save")
+            throw error
+        }
         XCTAssertFalse(vm.isDirty)
         await gate.open()
         await syncTask.value
@@ -1891,6 +1900,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         let refreshGate = SaveGate()
         let saveGate = SaveGate()
         let refreshRecorder = RefreshRecorder()
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = makeViewModel(
             reference: try makeStoredManualReference(),
             openedData: openedData,
@@ -1917,7 +1927,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                     metadata.remoteRev = "rev-C"
                 }
                 return .saved(newSHA512: savedSHA512)
-            }
+            },
+            localPublicationFailure: { trace.record($0, $1) }
         )
         await vm.unlock(password: fixturePassword)
 
@@ -1934,7 +1945,13 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(200))
         XCTAssertNil(vm.cloudSyncOutcome, "Sync Now must not settle while a save is in flight")
         await saveGate.open()
-        try await saveTask.value
+        do {
+            try await saveTask.value
+            print("diagnostic 5 save=returned; boundaries=\(trace.summary)")
+        } catch {
+            _ = trace.failure(error, at: "diagnostic 5 save")
+            throw error
+        }
         await syncTask.value
 
         XCTAssertEqual(refreshRecorder.references.count, 2, "The response that predates the save must be fetched again")
@@ -2397,6 +2414,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { _, _, _, _, _, _, _, _ in
             throw CloudProviderError.networkUnavailable
         },
+        localPublicationFailure: @escaping @Sendable (String, Error) -> Void = { _, _ in },
         pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { _ in false },
         importStagingOperation: @escaping DatabaseViewModel.ImportStagingOperation = DatabaseViewModel.stageImportedEntries
     ) -> DatabaseViewModel {
@@ -2406,6 +2424,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 Self.resolution(reference, data: openedData, status: .refreshSkipped)
             },
             cloudRefreshOperation: cloudRefreshOperation,
+            localPublicationFailure: localPublicationFailure,
             cloudSaveOperation: cloudSaveOperation,
             pendingUploadMarkerCheck: pendingUploadMarkerCheck,
             importStagingOperation: importStagingOperation

@@ -375,7 +375,29 @@ final class ExpressUnlockTests: XCTestCase {
         let context = try makeSaveContext(data: try Data(contentsOf: cacheURL))
         let uploaded = UploadedBytes()
 
-        let environment = makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
+        var environment = makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let metadata = environment.getMetadata
+        environment.getMetadata = { reference in
+            trace.recordObservation("getMetadata")
+            return try await metadata(reference)
+        }
+        let download = environment.downloadRemoteData
+        environment.downloadRemoteData = { reference in
+            trace.recordObservation("download")
+            return try await download(reference)
+        }
+        let upload = environment.upload
+        environment.upload = { reference, data, rev, progress in
+            trace.recordObservation("upload")
+            return try await upload(reference, data, rev, progress)
+        }
+        let revision = environment.revisionIdentifiesContent
+        environment.revisionIdentifiesContent = { reference, rev in
+            let result = revision(reference, rev)
+            trace.recordObservation("revisionIdentifiesContent=\(result)")
+            return result
+        }
         let result = try await CloudDatabaseSaver.save(
             draft: context.draft, reference: reference, compositeKey: context.compositeKey,
             openTimeSHA512: context.openTimeSHA512, expectedRev: "rev-1", kdfPolicy: .mainApp,
@@ -386,7 +408,13 @@ final class ExpressUnlockTests: XCTestCase {
             return XCTFail("Expected save to succeed.")
         }
         let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first)
-        _ = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment)
+        do {
+            _ = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment)
+            print("diagnostic 1 delivery=returned; boundaries=\(trace.summary)")
+        } catch {
+            _ = trace.failure(error, at: "diagnostic 1 delivery")
+            throw error
+        }
         try assertOpensWithoutTheKDF(
             try XCTUnwrap(uploaded.data), expressKey: XCTUnwrap(expressKey), compositeKey: context.compositeKey
         )

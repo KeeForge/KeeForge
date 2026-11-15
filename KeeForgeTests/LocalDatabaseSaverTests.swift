@@ -1096,6 +1096,8 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let cacheWrites = WriteCounter()
         let cachePath = cacheURL.standardizedFileURL.resolvingSymlinksInPath().path
         var environment = LocalDatabaseSaver.Environment.live
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        environment.localPublicationFailure = { trace.record($0, $1) }
         let liveReplace = environment.replaceFileAtomically
         environment.replaceFileAtomically = { data, url, expectedSHA512, authorization in
             if url.standardizedFileURL.resolvingSymlinksInPath().path == cachePath {
@@ -1116,6 +1118,14 @@ final class LocalDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
+        let resultKind: String
+        switch result {
+        case .saved: resultKind = "saved"
+        case .committedWithoutConfirmedDurability: resultKind = "unconfirmed"
+        case .indeterminate: resultKind = "indeterminate"
+        case .conflict: resultKind = "conflict"
+        }
+        print("diagnostic 3 result=\(resultKind) registryPresent=\(DatabaseListStore.databases.contains { $0.id == reference.id }) cacheExists=\(FileManager.default.fileExists(atPath: cacheURL.path)) writes=\(cacheWrites.count) boundaries=\(trace.summary)")
         guard case .saved(let newSHA512, _, _) = result else {
             XCTFail("Expected save to succeed.")
             return

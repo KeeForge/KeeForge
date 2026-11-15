@@ -3528,8 +3528,10 @@ final class DatabaseViewModelTests: XCTestCase {
         }()
         let cacheURL = DatabaseListStore.cacheLocation(for: resolvedReference)
 
+        let observedReference = makeCloudReference()
+        print("diagnostic 12 sameIdentity=\(observedReference.id == resolvedReference.id) registryPresent=\(DatabaseListStore.databases.contains { $0.id == observedReference.id })")
         let vm = DatabaseViewModel(
-            databaseReference: makeCloudReference(),
+            databaseReference: observedReference,
             cloudSyncOperation: { _, _ in
                 CloudSyncResolution(
                     reference: resolvedReference,
@@ -5042,6 +5044,7 @@ final class DatabaseViewModelTests: XCTestCase {
         ])
         let reference = makeCloudReference(remoteRev: "rev-A")
         let fixtureData = try Data(contentsOf: fixtureURL())
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = try makeViewModel(
             reference: reference,
             cloudSyncOperation: { reference, _ in
@@ -5052,6 +5055,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
+            localPublicationFailure: { trace.record($0, $1) },
             cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _, _ in
                 recorder.record(
                     openTimeSHA512: openTimeSHA512,
@@ -5067,7 +5071,13 @@ final class DatabaseViewModelTests: XCTestCase {
         try await vm.save()
         XCTAssertNotNil(vm.saveConflict)
 
-        try await vm.mergeAndSave()
+        do {
+            try await vm.mergeAndSave()
+            print("diagnostic 13 operation=returned; boundaries=\(trace.summary)")
+        } catch {
+            _ = trace.failure(error, at: "diagnostic 13 operation")
+            throw error
+        }
 
         let calls = recorder.recordedCalls
         XCTAssertEqual(calls.count, 2)
@@ -8991,6 +9001,7 @@ final class DatabaseViewModelTests: XCTestCase {
         DatabaseListStore.update(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
         let capture = EncryptionSettingsCapture()
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = try makeViewModel(
             reference: reference,
             cloudSyncOperation: { reference, _ in
@@ -9001,6 +9012,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
+            localPublicationFailure: { trace.record($0, $1) },
             cloudSaveOperation: { _, reference, compositeKey, _, _, expectedRev, newCompositeKey, encryptionSettings in
                 capture.record(
                     compositeKey: compositeKey,
@@ -9017,7 +9029,13 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
+        do {
+            try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
+            print("diagnostic 9 operation=returned; boundaries=\(trace.summary)")
+        } catch {
+            _ = trace.failure(error, at: "diagnostic 9 operation")
+            throw error
+        }
 
         XCTAssertEqual(capture.expectedRev, "rev-A")
         XCTAssertEqual(capture.change?.cipherID, KDBXOuterCipher.chaCha20.uuid)
