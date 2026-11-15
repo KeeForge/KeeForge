@@ -88,8 +88,8 @@ struct MacEntryListSnapshot: Equatable {
         var systemImage: String {
             switch self {
             case .searchPrompt: "magnifyingglass"
-            case .noResults: "doc.text.magnifyingglass"
-            case .noTagEntries: "tag.slash"
+            case .noResults: "magnifyingglass"
+            case .noTagEntries: "tray"
             case .noVerificationCodes: DatabaseCollection.verificationCodes.systemImage
             case .noPasskeys: DatabaseCollection.passkeys.systemImage
             case .noDatabaseEntries, .noGroupEntries: "tray"

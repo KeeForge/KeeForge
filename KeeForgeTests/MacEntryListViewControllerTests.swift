@@ -154,6 +154,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         let header = controller.header
         XCTAssertFalse(header.isHidden)
         XCTAssertEqual(header.titleField.stringValue, "Work")
+        XCTAssertEqual(header.titleField.toolTip, "Work", "A truncated title is readable in full")
         XCTAssertEqual(header.titleField.accessibilityIdentifier(), "entry-list.header.title")
         XCTAssertEqual(header.subtitleField.accessibilityIdentifier(), "entry-list.header.subtitle")
         XCTAssertEqual(header.frame.height, MacEntryListHeaderView.height)
@@ -187,6 +188,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         await settle()
         XCTAssertEqual(header.titleField.stringValue, "#\u{2009}missing", "A tag follows an accent #")
         XCTAssertEqual(header.titleField.accessibilityLabel(), "missing")
+        XCTAssertEqual(header.titleField.toolTip, "missing", "The tooltip carries the tag without its accent #")
         XCTAssertEqual(header.subtitleField.stringValue, "\(String(localized: "Tag")) · \(String(localized: "\(0) entries"))")
     }
 
@@ -607,6 +609,14 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         controller.emptyView.importButton.performClick(nil)
         XCTAssertTrue(presentation.passwordImport)
         presentation.passwordImport = false
+        controller.view.layoutSubtreeIfNeeded()
+        let importButton = controller.emptyView.importButton
+        let buttons = controller.emptyView.actionsStack
+        XCTAssertEqual(buttons.orientation, .vertical)
+        XCTAssertEqual(newEntry.superview, importButton.superview)
+        XCTAssertEqual(newEntry.frame.minY - importButton.frame.maxY, 8, accuracy: 0.5,
+                       "Import Passwords… sits 8 pt under New Entry")
+        XCTAssertEqual(newEntry.frame.midX, importButton.frame.midX, accuracy: 0.5)
         newEntry.performClick(nil)
         XCTAssertEqual(presentation.entryEditor?.form.createDestinationGroupID, tree.other.id, "New Entry is created in the empty group")
         presentation.closeEntryEditor()
@@ -644,6 +654,41 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertFalse(readOnly.emptyView.isHidden)
         XCTAssertTrue(readOnly.emptyView.importButton.isHidden)
         XCTAssertTrue(readOnly.emptyView.newEntryButton.isHidden, "A read-only database offers no New Entry")
+    }
+
+    func testThePlaceholderUsesTheBoardMetricsAndSitsAboveCentrePerState() async throws {
+        let (controller, session, _, tree) = try await makeController()
+        let empty = controller.emptyView
+        func lift() -> CGFloat {
+            controller.view.layoutSubtreeIfNeeded()
+            let stack = empty.contentStack.frame
+            return empty.isFlipped ? empty.bounds.midY - stack.midY : stack.midY - empty.bounds.midY
+        }
+
+        session.workspace.selectedGroupID = tree.other.id
+        await settle()
+        XCTAssertEqual(lift(), 45, accuracy: 0.5, "An empty group sits 45 pt above centre")
+        XCTAssertEqual(empty.imageView.symbolConfiguration, NSImage.SymbolConfiguration(pointSize: 36, weight: .regular))
+        XCTAssertEqual(empty.titleField.font?.pointSize, 15)
+        XCTAssertEqual(empty.messageField.font?.pointSize, 12)
+        XCTAssertLessThanOrEqual(empty.messageField.preferredMaxLayoutWidth, MacEntryListEmptyView.messageWrapWidth)
+        XCTAssertLessThanOrEqual(empty.messageField.preferredMaxLayoutWidth,
+                                 empty.bounds.width - 2 * MacEntryListEmptyView.sideMargin,
+                                 "The message wraps inside the column's margins")
+
+        session.workspace.selectedCollection = .verificationCodes
+        await settle()
+        XCTAssertEqual(lift(), 45, accuracy: 0.5)
+
+        session.workspace.selectedTag = "missing"
+        await settle()
+        XCTAssertEqual(empty.state, .noTagEntries)
+        XCTAssertEqual(lift(), 25, accuracy: 0.5)
+
+        session.searchText = "zzz"
+        await settle()
+        XCTAssertEqual(empty.titleField.font?.pointSize, 14, "No Results uses the smaller title")
+        XCTAssertEqual(lift(), 8, accuracy: 0.5)
     }
 
     func testTheHeaderFollowsTheBinAndTheHiddenSidebar() async throws {

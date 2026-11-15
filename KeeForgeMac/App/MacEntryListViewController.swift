@@ -1200,30 +1200,52 @@ final class MacCountdownRingView: NSView {
 // MARK: - Empty state
 
 /// The native counterpart of `ContentUnavailableView`: a symbol, a title, a
-/// message, and New Entry under an empty group's message.
+/// message, and New Entry above Import Passwords… under an empty group's message.
 final class MacEntryListEmptyView: NSView {
+    static let messageWrapWidth: CGFloat = 260
+    static let sideMargin: CGFloat = 24
+
     let imageView = NSImageView()
     let titleField = NSTextField(labelWithString: "")
     let messageField = NSTextField(wrappingLabelWithString: "")
     let newEntryButton = NSButton(title: "", target: nil, action: nil)
     let importButton = NSButton(title: String(localized: "Import Passwords…"), target: nil, action: nil)
+    let actionsStack: NSStackView
+    let contentStack: NSStackView
     var onImport: (@MainActor () -> Void)?
     var onNewEntry: (@MainActor () -> Void)?
     private(set) var state: MacEntryListSnapshot.EmptyState?
+    private var centerYConstraint: NSLayoutConstraint?
+
+    /// How far the block sits above the column's centre, as the boards draw each state.
+    static func lift(for state: MacEntryListSnapshot.EmptyState?) -> CGFloat {
+        switch state {
+        case .noVerificationCodes, .noPasskeys, .noDatabaseEntries, .noGroupEntries: 45
+        case .noTagEntries, .recycleBinEmpty: 25
+        case .searchPrompt, .noResults: 8
+        case .noGroupSelected, nil: 0
+        }
+    }
+
+    static func titleFont(for state: MacEntryListSnapshot.EmptyState?) -> NSFont {
+        let size: CGFloat = if case .noResults = state { 14 } else { 15 }
+        return .systemFont(ofSize: size, weight: .bold)
+    }
 
     init() {
+        actionsStack = NSStackView(views: [newEntryButton, importButton])
+        contentStack = NSStackView(views: [imageView, titleField, messageField, actionsStack])
         super.init(frame: .zero)
-        imageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 40, weight: .regular)
+        imageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 36, weight: .regular)
         imageView.contentTintColor = .secondaryLabelColor
         imageView.setAccessibilityElement(false)
-        titleField.font = .systemFont(ofSize: NSFont.systemFontSize + 4, weight: .bold)
+        titleField.font = Self.titleFont(for: nil)
         titleField.alignment = .center
+        messageField.font = .systemFont(ofSize: 12)
         messageField.textColor = .secondaryLabelColor
         messageField.alignment = .center
-        // The column is never narrower than 260 pt; a fixed wrap width keeps layout to one pass.
-        messageField.preferredMaxLayoutWidth = 220
+        messageField.preferredMaxLayoutWidth = Self.messageWrapWidth
         newEntryButton.bezelStyle = .push
-        newEntryButton.controlSize = .small
         newEntryButton.attributedTitle = Self.newEntryTitle
         newEntryButton.setAccessibilityLabel(String(localized: "New Entry"))
         newEntryButton.setAccessibilityIdentifier("entry-list.empty.new-entry")
@@ -1233,27 +1255,37 @@ final class MacEntryListEmptyView: NSView {
         importButton.target = self
         importButton.action = #selector(importFromEmptyGroup(_:))
         importButton.bezelStyle = .push
-        importButton.controlSize = .small
         importButton.isHidden = true
         importButton.setAccessibilityIdentifier("entry-list.empty.import")
-        let actions = NSStackView(views: [newEntryButton, importButton])
-        let stack = NSStackView(views: [imageView, titleField, messageField, actions])
-        stack.orientation = .vertical
-        stack.alignment = .centerX
-        stack.spacing = 8
-        stack.detachesHiddenViews = true
-        stack.setCustomSpacing(12, after: imageView)
-        stack.setCustomSpacing(14, after: messageField)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
+        actionsStack.orientation = .vertical
+        actionsStack.alignment = .centerX
+        actionsStack.spacing = 8
+        actionsStack.detachesHiddenViews = true
+        contentStack.orientation = .vertical
+        contentStack.alignment = .centerX
+        contentStack.spacing = 6
+        contentStack.detachesHiddenViews = true
+        contentStack.setCustomSpacing(10, after: imageView)
+        contentStack.setCustomSpacing(16, after: messageField)
+        contentStack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(contentStack)
+        let centerY = contentStack.centerYAnchor.constraint(equalTo: centerYAnchor)
+        centerYConstraint = centerY
         NSLayoutConstraint.activate([
-            stack.centerXAnchor.constraint(equalTo: centerXAnchor),
-            stack.centerYAnchor.constraint(equalTo: centerYAnchor),
-            stack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 20),
-            stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -20),
+            contentStack.centerXAnchor.constraint(equalTo: centerXAnchor),
+            centerY,
+            contentStack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: Self.sideMargin),
+            contentStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -Self.sideMargin),
         ])
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
+    }
+
+    override func layout() {
+        // The board wraps at 260 pt, but a 260 pt column leaves less once the margins are taken.
+        let wrap = min(Self.messageWrapWidth, max(0, bounds.width - 2 * Self.sideMargin))
+        if messageField.preferredMaxLayoutWidth != wrap { messageField.preferredMaxLayoutWidth = wrap }
+        super.layout()
     }
 
     @available(*, unavailable)
@@ -1261,14 +1293,15 @@ final class MacEntryListEmptyView: NSView {
 
     /// "New Entry" with the menu bar's ⌘N after it, dimmed as a hint.
     private static var newEntryTitle: NSAttributedString {
-        let font = NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small))
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         let title = NSMutableAttributedString(string: String(localized: "New Entry"), attributes: [
-            .font: font, .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph,
+            .font: NSFont.systemFont(ofSize: NSFont.systemFontSize), .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: paragraph,
         ])
         title.append(NSAttributedString(string: "  ⌘N", attributes: [
-            .font: font, .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: paragraph,
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize + 1), .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: paragraph,
         ]))
         return title
     }
@@ -1285,7 +1318,9 @@ final class MacEntryListEmptyView: NSView {
         guard state != self.state else { return }
         self.state = state
         imageView.image = state.flatMap { NSImage(systemSymbolName: $0.systemImage, accessibilityDescription: nil) }
+        titleField.font = Self.titleFont(for: state)
         titleField.stringValue = state?.title ?? ""
+        centerYConstraint?.constant = -Self.lift(for: state)
         messageField.stringValue = state?.message ?? ""
         setAccessibilityLabel(state?.title)
         setAccessibilityIdentifier(state?.accessibilityIdentifier)
@@ -1383,6 +1418,7 @@ final class MacEntryListHeaderView: NSView {
             self.header = header
             titleField.attributedStringValue = Self.title(for: header)
             titleField.setAccessibilityLabel(header?.title)
+            titleField.toolTip = header?.title.isEmpty == false ? header?.title : nil
             subtitleField.stringValue = header?.subtitle ?? ""
         }
         sortButton.isEnabled = canSort

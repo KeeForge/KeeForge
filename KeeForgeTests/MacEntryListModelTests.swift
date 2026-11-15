@@ -203,9 +203,9 @@ final class MacEntryListModelTests: XCTestCase {
         let expected: [(MacEntryListSnapshot.EmptyState, String, String, String, String?)] = [
             (.searchPrompt, "Search Entries", "Type to search by title, username, URL, notes, or tags.",
              "magnifyingglass", nil),
-            (.noResults(query: "x"), "No Results", "No entries matched \"x\".", "doc.text.magnifyingglass",
+            (.noResults(query: "x"), "No Results", "No entries matched \"x\".", "magnifyingglass",
              "search.no-results"),
-            (.noTagEntries, "No Entries", "No entries carry this tag anymore.", "tag.slash", nil),
+            (.noTagEntries, "No Entries", "No entries carry this tag anymore.", "tray", nil),
             (.noVerificationCodes, "No Verification Codes", "Entries with a verification code appear here.",
              DatabaseCollection.verificationCodes.systemImage, nil),
             (.noPasskeys, "No Passkeys", "Passkeys saved through AutoFill appear here.", "person.badge.key", nil),
