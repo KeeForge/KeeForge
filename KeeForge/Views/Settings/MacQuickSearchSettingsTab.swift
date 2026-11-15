@@ -8,29 +8,23 @@ struct MacQuickSearchSettingsTab: View {
     @Bindable var controller: MacQuickAccessController
 
     var body: some View {
-        Form {
-            LabeledContent("Menu bar:") {
+        MacSettingsForm {
+            MacSettingsRow("Menu bar:") {
                 Toggle("Show KeeForge in the Menu Bar", isOn: $controller.isMenuBarItemEnabled)
                     .accessibilityIdentifier("settings.menu-bar.toggle")
             }
-            Divider()
-            LabeledContent("Quick Search shortcut:") {
-                VStack(alignment: .leading, spacing: 8) {
-                    MacShortcutRecorder(shortcut: $controller.shortcut, isRecording: $controller.isRecordingShortcut)
-                        .disabled(!controller.isMenuBarItemEnabled)
-                    Text("Click to record a new shortcut. It needs ⌘, ⌥ or ⌃; Escape cancels.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    if controller.isShortcutUnavailable {
-                        Text("Another app is already using this shortcut. Choose a different one.")
-                            .foregroundStyle(.red)
-                    }
-                    Text("Search the open database from the menu bar, or press the shortcut in any app. Entries appear only while the database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the main window.")
-                        .font(.caption).foregroundStyle(.secondary)
+            MacSettingsRow("Quick Search shortcut:") {
+                MacShortcutRecorder(shortcut: $controller.shortcut, isRecording: $controller.isRecordingShortcut)
+                    .disabled(!controller.isMenuBarItemEnabled)
+                if controller.isShortcutUnavailable {
+                    Text("Another app is already using this shortcut. Choose a different one.")
+                        .font(.caption).foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                settingsCaption("Click to record a new shortcut. It needs ⌘, ⌥ or ⌃; Escape cancels.")
+                settingsCaption("Search the open database from the menu bar, or press the shortcut in any app. Entries appear only while the database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the main window.")
             }
         }
-        .formStyle(.columns)
-        .padding(24)
         .onChange(of: controller.isMenuBarItemEnabled) { _, isEnabled in
             if !isEnabled {
                 controller.isRecordingShortcut = false

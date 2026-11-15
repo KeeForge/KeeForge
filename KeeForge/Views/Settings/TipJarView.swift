@@ -16,30 +16,7 @@ struct TipJarView: View {
     }
 
     var body: some View {
-        Section {
-            if store.tips.isEmpty && !loadingDone {
-                ProgressView()
-                    .frame(maxWidth: .infinity, alignment: .center)
-            } else if store.tips.isEmpty {
-                Text("Tip Jar is not available right now.")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
-            } else if store.hasTipped {
-                thankedSupporterContent
-            } else {
-                tipButtons
-            }
-
-            buyMeACoffeeLink
-        } header: {
-            Text("Tip Jar")
-        } footer: {
-            #if os(macOS)
-            Text("KeeForge is free and open source. Tips help support development.")
-            #else
-            Text("KeeForge is free and open source. Tips help support development. ❤️")
-            #endif
-        }
+        content
         .task {
             await store.loadProducts()
             await store.refreshTipHistory()
@@ -76,6 +53,77 @@ struct TipJarView: View {
             )
         }
     }
+
+    @ViewBuilder
+    private var products: some View {
+        if store.tips.isEmpty && !loadingDone {
+            ProgressView()
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else if store.tips.isEmpty {
+            Text("Tip Jar is not available right now.")
+                .foregroundStyle(.secondary)
+                .font(.callout)
+        } else if store.hasTipped {
+            thankedSupporterContent
+        } else {
+            tipButtons
+        }
+    }
+
+    #if os(macOS)
+    /// Sits in the About tab's control column, whose label already names it.
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if store.tips.isEmpty || store.hasTipped {
+                products
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(store.tips.enumerated()), id: \.element.id) { index, product in
+                        if index > 0 { Divider() }
+                        macTipRow(product)
+                    }
+                }
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlBackgroundColor)))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
+                .frame(maxWidth: 400)
+            }
+            buyMeACoffeeLink
+            Text("KeeForge is free and open source. Tips help support development.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func macTipRow(_ product: Product) -> some View {
+        Button {
+            Task { await store.purchase(product) }
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(product.displayName).foregroundStyle(Color.primary)
+                    Text(product.description).font(.caption).foregroundStyle(Color.secondary)
+                }
+                Spacer(minLength: 0)
+                Text(product.displayPrice).monospacedDigit().foregroundStyle(Color.primary)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .macPlainRowButton()
+        .disabled(store.isPurchasing)
+    }
+    #else
+    private var content: some View {
+        Section {
+            products
+            buyMeACoffeeLink
+        } header: {
+            Text("Tip Jar")
+        } footer: {
+            Text("KeeForge is free and open source. Tips help support development. ❤️")
+        }
+    }
+    #endif
 
     private var thankYouTitle: LocalizedStringKey {
         #if os(macOS)
