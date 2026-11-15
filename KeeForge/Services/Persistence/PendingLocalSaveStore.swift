@@ -928,8 +928,8 @@ enum PendingLocalSaveStore {
         }
     }
 
-    static func withIdlePreferenceAuthorization<T>(_ token: PreferenceToken, _ publish: () throws -> T) throws -> T {
-        try withLock(for: token.observation.databaseID) {
+    static func withIdlePreferenceAuthorization<T>(_ token: PreferenceToken, nonBlocking: Bool = false, _ publish: () throws -> T) throws -> T {
+        try withLock(for: token.observation.databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(token.observation.databaseID)
             let state = try loadState(token.observation.databaseID) ?? OwnerState(version: 1, removed: false)
             guard token.witness == nil, state.keyEvidence == nil, state.operation == .idle, state.retirementID == nil,

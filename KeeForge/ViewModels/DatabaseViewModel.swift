@@ -3038,6 +3038,7 @@ final class DatabaseViewModel {
                 storedNewKey = publication.stored
             }
             let associationSaved: Bool
+            var associationUnconfirmed = false
             var ownerResolution = PendingLocalSaveStore.ResolutionOutcome.resolved
             if let localCommit {
                 let ref = databaseReference
@@ -3071,8 +3072,10 @@ final class DatabaseViewModel {
                     && current?.keyFileBookmarkData == newKeyFileBookmarkData && current?.keyFileFilename == newKeyFileFilename
                 if let current { databaseReference = current }
             } else {
-                associationSaved = persistKeyFileAssociation(bookmarkData: newKeyFileBookmarkData,
+                let outcome = persistKeyFileAssociation(bookmarkData: newKeyFileBookmarkData,
                     filename: newKeyFileFilename, changedAt: association.changedAt)
+                associationSaved = outcome == .saved
+                associationUnconfirmed = outcome == .publishedWithoutConfirmedDurability
             }
             if expectedLockCycleID == lockCycleID {
                 rememberCommittedCiphertext(localCommit)
@@ -3085,7 +3088,7 @@ final class DatabaseViewModel {
                 // flush them here under the new key. The task starts after
                 // this function's defer resets `isSaving`.
             }
-            if associationSaved == false { throw SaveAssociationWarning(durabilityUnconfirmed: saveResult.hasUnconfirmedDurability) }
+            if associationSaved == false { throw SaveAssociationWarning(durabilityUnconfirmed: saveResult.hasUnconfirmedDurability || associationUnconfirmed) }
             if saveResult.hasUnconfirmedDurability { if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
                     throw SaveDurabilityWarning(scope: saveResult.warningScope) }
             if ownerResolution != .resolved { throw SaveBookkeepingWarning() }
@@ -3286,18 +3289,17 @@ final class DatabaseViewModel {
     }
 
     @discardableResult
-    private func persistKeyFileAssociation(bookmarkData: Data?, filename: String?, changedAt suppliedDate: Date? = nil) -> Bool {
+    private func persistKeyFileAssociation(bookmarkData: Data?, filename: String?, changedAt suppliedDate: Date? = nil) -> DatabaseListStore.KeyFilePreferenceOutcome {
         let changedAt = suppliedDate ?? nowProvider()
-        let saved = DatabaseListStore.setKeyFileAssociation(
-            for: databaseReference.id, bookmarkData: bookmarkData, filename: filename,
+        let outcome = DatabaseListStore.setKeyFileAssociation(
+            for: databaseReference, bookmarkData: bookmarkData, filename: filename,
             masterKeyChangedAt: changedAt
         )
-        refreshDatabaseReference()
         // The installed file needs these factors even if the list write failed.
         databaseReference.keyFileBookmarkData = bookmarkData
         databaseReference.keyFileFilename = filename
         databaseReference.lastMasterKeyChangeAt = changedAt
-        return saved
+        return outcome
     }
 
     /// Re-encrypts the unlocked database with a different cipher, key

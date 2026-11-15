@@ -885,15 +885,28 @@ enum DatabaseListStore {
 
     @discardableResult
     static func setKeyFileAssociation(
-        for id: UUID, bookmarkData: Data?, filename: String?, masterKeyChangedAt: Date
-    ) -> Bool {
-        withStateLock {
-            var references = loadDatabases()
-            guard let index = references.firstIndex(where: { $0.id == id }) else { return false }
-            references[index].keyFileBookmarkData = bookmarkData
-            references[index].keyFileFilename = filename
-            references[index].lastMasterKeyChangeAt = masterKeyChangedAt
-            return saveDatabases(references)
+        for expected: DatabaseReference, bookmarkData: Data?, filename: String?, masterKeyChangedAt: Date,
+        io: DurableFileWriteIO = .init()
+    ) -> KeyFilePreferenceOutcome {
+        guard let token = try? PendingLocalSaveStore.capturePreference(.init(expected)) else { return .recoveryRequired }
+        let result = mutateRegistry(io: io, authorize: { operation in
+            try PendingLocalSaveStore.withIdlePreferenceAuthorization(token, nonBlocking: true, operation)
+        }) { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == expected.id }) else { return .missing }
+            guard token.observation.matches(rows[index]), rows[index].hardwareKey == expected.hardwareKey,
+                  rows[index].legacyKeychainFilename == expected.legacyKeychainFilename else { return .rejected }
+            if rows[index].keyFileBookmarkData == bookmarkData, rows[index].keyFileFilename == filename,
+               rows[index].lastMasterKeyChangeAt == masterKeyChangedAt { return .noop(()) }
+            rows[index].keyFileBookmarkData = bookmarkData
+            rows[index].keyFileFilename = filename
+            rows[index].lastMasterKeyChangeAt = masterKeyChangedAt
+            return .write(())
+        }
+        switch result {
+        case .durable, .noop: return .saved
+        case .notPublished: return .notPublished
+        case .visibleUnconfirmed: return .publishedWithoutConfirmedDurability
+        case .missing, .rejected: return .rejected
         }
     }
 

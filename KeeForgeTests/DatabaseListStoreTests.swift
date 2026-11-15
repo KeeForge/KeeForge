@@ -85,6 +85,26 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertTrue(stored.hasUnverifiedRelink)
     }
 
+    func testKeyAssociationRejectsStaleObservationAndMissingRow() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "association-old.kdbx"))
+        let replacement = try makeTemporaryFileURL(name: "association-new.kdbx")
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: original.id, to: replacement))
+        XCTAssertEqual(DatabaseListStore.setKeyFileAssociation(for: original, bookmarkData: Data("key".utf8), filename: "key", masterKeyChangedAt: .now), .rejected)
+        XCTAssertEqual(DatabaseListStore.databases.first?.bookmarkData, relinked.bookmarkData)
+        XCTAssertTrue(DatabaseListStore.remove(id: original.id))
+        XCTAssertNotEqual(DatabaseListStore.setKeyFileAssociation(for: original, bookmarkData: nil, filename: nil, masterKeyChangedAt: .now), .saved)
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
+    func testKeyAssociationReportsUnconfirmedPublication() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "association-uncertain.kdbx"))
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        XCTAssertEqual(DatabaseListStore.setKeyFileAssociation(for: reference, bookmarkData: nil, filename: "key", masterKeyChangedAt: date, io: io), .publishedWithoutConfirmedDurability)
+        XCTAssertEqual(DatabaseListStore.databases.first?.lastMasterKeyChangeAt, date)
+    }
+
     func testDocumentsIdentityRejectsStaleObservationAndMissingRow() throws {
         let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "before-identity.kdbx"))
         let replacement = try makeTemporaryFileURL(name: "after-identity.kdbx")

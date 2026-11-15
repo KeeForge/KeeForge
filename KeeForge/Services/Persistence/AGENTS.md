@@ -28,6 +28,7 @@
 - `remove(id:)` owns removal: Keychain item, cached copy, backups, upload markers, AutoFill pointer, and the database's published identities. `setAutoFillEnabled` owns the same for disabling. Do not repeat parts of either elsewhere.
 - A database with AutoFill disabled can never be `activeAutoFillDatabaseID` or `defaultAutoFillDatabase`; the setter refuses it.
 - Legacy keychain-filename cleanup compares the captured preference under registry coordination and a nonblocking pending-local owner lock; an unconfirmed publication does not report success.
+- The fallback key-file association writer compares the captured preference and hardware configuration under an idle owner authorization; it reports unconfirmed registry publication separately from rejection.
 - App-only creation coordinates its cache and registry together, holds the nonblocking pending-local owner across both writes, and retains the cache on a registry failure or uncertainty. An existing cache or row is not authority to retry the operation.
 - A cloud reference's cache path derives from provider, account, and a hash of the file id (`cacheLocation(for:)`). Local references use `databases/<id>.kdbx`. For a KeeForge-only database (no bookmark, not cloud) that file is the database itself, not a copy.
 
