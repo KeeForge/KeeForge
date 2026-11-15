@@ -160,7 +160,9 @@ final class DatabaseViewModelTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let copy = directory.appendingPathComponent("icons.kdbx")
         try FileManager.default.copyItem(at: fixtureURL(), to: copy)
-        return try TestDatabaseSupport.makeReference(for: copy)
+        let reference = try TestDatabaseSupport.makeReference(for: copy)
+        DatabaseListStore.update(reference)
+        return reference
     }
 
     private let fixturePassword = "testpassword123"
