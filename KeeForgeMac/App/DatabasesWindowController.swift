@@ -71,17 +71,20 @@ final class DatabasesWindow: NSWindow {
     }
 
     override func beginSheet(_ sheetWindow: NSWindow, completionHandler handler: ((NSApplication.ModalResponse) -> Void)? = nil) {
-        growToFit(sheetWindow)
         super.beginSheet(sheetWindow, completionHandler: handler)
+        growToFit(sheetWindow)
     }
 
     override func beginCriticalSheet(_ sheetWindow: NSWindow,
                                      completionHandler handler: ((NSApplication.ModalResponse) -> Void)? = nil) {
-        growToFit(sheetWindow)
         super.beginCriticalSheet(sheetWindow, completionHandler: handler)
+        growToFit(sheetWindow)
     }
 
     /// AppKit hangs a sheet taller than the space below the titlebar past the window's bottom edge.
+    /// Runs once the sheet is attached: resizing first relays out the SwiftUI host, which then
+    /// presents its sheet a second time before the first has attached, and a later dismissal
+    /// takes the window down with it.
     private func growToFit(_ sheet: NSWindow) {
         let fitted = frame(fitting: sheet.frame.height)
         guard fitted != frame else { return }
