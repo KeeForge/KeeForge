@@ -42,3 +42,5 @@ Local uncertainty, removal tombstones, admission and source-epoch fences remain 
 - Native layouts, provider/device behavior, power-loss recovery and test runtime remain unvalidated by source-only checks. This is a reviewable draft, not an accepted implementation.
 
 Creation and conflict-copy creation retain the shipped create-only paths and their existing limitations; this journal covers replacement of existing databases only.
+
+Replacement content requests in Dropbox and OneDrive never internally resend after a lost response; OneDrive create-only retries and read/session-setup policies retain their shipped behavior. A single current PUT rejected with HTTP 412 (WebDAV/OneDrive), or an FTP mismatch before target installation, supplies affirmative evidence only for that invocation. FTP install/restore failures and arbitrary mapped conflicts supply no such proof.

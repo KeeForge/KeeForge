@@ -180,7 +180,11 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         expectedRev: String?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata {
-        let context = try resolveContext(accountId: accountId)
+        let context: AccountContext
+        do { context = try resolveContext(accountId: accountId) }
+        catch let error as CloudProviderError {
+            throw CloudUploadFailure(underlying: error, outcome: .notDispatched)
+        }
         let fileURL = Self.url(forFileId: fileId, base: context.baseURL)
 
         // Only send If-Match for strong ETags. Weak (W/"…") and lastmod-derived
@@ -198,7 +202,7 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
 
         if response.statusCode == 412 {
             let freshRev = try? await freshRev(fileURL: fileURL, credential: context.credential)
-            throw CloudProviderError.conflict(remoteRev: freshRev)
+            throw CloudUploadFailure(underlying: .conflict(remoteRev: freshRev), outcome: .rejected)
         }
 
         if let error = CloudProviderError.webDAVStatus(response.statusCode) {

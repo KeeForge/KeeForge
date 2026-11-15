@@ -44,44 +44,51 @@ final class DropboxCloudProviderTests: XCTestCase {
     }
 
     @MainActor
-    func testSDKAcceptedUploadWithLost503RetainsAttemptWithoutSecondRequest() async throws {
-        DatabaseListStore.clearAll()
-        defer { DatabaseListStore.clearAll() }
-        let transport = DropboxHTTPProbe(status: 503)
-        let client = transport.client()
-        defer { client.shutdown(); transport.close() }
-        let provider = DropboxCloudProvider(clientForAccount: { _ in client })
-        let reference = DatabaseListStore.addCloud(provider: provider.id, accountId: "sdk-probe",
-            file: .init(id: "/probe.kdbx", name: "probe.kdbx", path: "/probe.kdbx", isFolder: false, modifiedDate: nil, size: nil))
-        let context = try CloudJournalTestContext(reference: reference)
-        var environment = context.environment()
-        environment.upload = { reference, bytes, rev, progress in
-            try await provider.upload(accountId: "sdk-probe", fileId: reference.cloudSyncMetadata!.fileId,
-                data: bytes, expectedRev: rev, progress: progress)
-        }
-        do {
-            _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
-            XCTFail("An accepted write with a lost acknowledgement cannot settle")
-        } catch {
-            let cause = error as NSError
-            XCTAssertNotNil(error as? DropboxCloudProvider.TransientFailure,
-                "SDK cause domain=\(cause.domain) code=\(cause.code), intercepted=\(transport.requests.count)")
-        }
-        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
-        XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .attempting)
-        for _ in 0..<2 {
-            guard case .retained? = try await CloudDatabaseSaver.deliver(retained, reference: reference, environment: environment) else {
-                return XCTFail("Unknown SDK request must never be sent again")
+    func testSDKUncertainUploadResponsesRetainAttemptWithoutSecondRequest() async throws {
+        for status in [503, 409] {
+            DatabaseListStore.clearAll()
+            defer { DatabaseListStore.clearAll() }
+            let transport = DropboxHTTPProbe(status: status)
+            let client = transport.client()
+            defer { client.shutdown(); transport.close() }
+            let provider = DropboxCloudProvider(clientForAccount: { _ in client })
+            let reference = DatabaseListStore.addCloud(provider: provider.id, accountId: "sdk-probe",
+                file: .init(id: "/probe.kdbx", name: "probe.kdbx", path: "/probe.kdbx", isFolder: false, modifiedDate: nil, size: nil))
+            let context = try CloudJournalTestContext(reference: reference)
+            var environment = context.environment()
+            environment.upload = { reference, bytes, rev, progress in
+                try await provider.upload(accountId: "sdk-probe", fileId: reference.cloudSyncMetadata!.fileId,
+                    data: bytes, expectedRev: rev, progress: progress)
             }
+            do {
+                _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
+                XCTFail("An accepted write with a lost acknowledgement cannot settle")
+            } catch {
+                let cause = error as NSError
+                XCTAssertNil(error as? CloudUploadFailure, "A mapped SDK conflict cannot manufacture phase proof")
+                if status == 503 {
+                    XCTAssertNotNil(error as? DropboxCloudProvider.TransientFailure,
+                        "SDK cause domain=\(cause.domain) code=\(cause.code), intercepted=\(transport.requests.count)")
+                } else {
+                    guard case .conflict? = error as? CloudProviderError else { return XCTFail("Expected mapped SDK conflict") }
+                }
+            }
+            let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .attempting)
+            for _ in 0..<2 {
+                guard case .retained? = try await CloudDatabaseSaver.deliver(retained, reference: reference, environment: environment) else {
+                    return XCTFail("Unknown SDK request must never be sent again")
+                }
+            }
+            XCTAssertGreaterThan(transport.canInitCount, 0)
+            XCTAssertEqual(transport.startLoadingCount, status == 409 ? 2 : 1, "A conflict may read metadata but never resend content")
+            XCTAssertEqual(transport.requests.count, 1)
+            XCTAssertEqual(transport.requests.first?.bytes, context.payload)
+            XCTAssertEqual(transport.requests.first?.path, "/probe.kdbx")
+            XCTAssertEqual(transport.requests.first?.mode, "update")
+            XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
+            XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
         }
-        XCTAssertGreaterThan(transport.canInitCount, 0)
-        XCTAssertEqual(transport.startLoadingCount, 1)
-        XCTAssertEqual(transport.requests.count, 1)
-        XCTAssertEqual(transport.requests.first?.bytes, context.payload)
-        XCTAssertEqual(transport.requests.first?.path, "/probe.kdbx")
-        XCTAssertEqual(transport.requests.first?.mode, "update")
-        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
-        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
     }
 
     // MARK: - Sign-out

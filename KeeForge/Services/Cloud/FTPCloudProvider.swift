@@ -194,7 +194,12 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         expectedRev: String?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata {
-        let (location, credential) = try resolveContext(accountId: accountId)
+        let location: FTPServerLocation
+        let credential: FTPCredential
+        do { (location, credential) = try resolveContext(accountId: accountId) }
+        catch let error as CloudProviderError {
+            throw CloudUploadFailure(underlying: error, outcome: .notDispatched)
+        }
         let path = Self.remotePath(base: location.basePath, fileId: fileId)
         let temporaryPath = scratchPath(beside: path, kind: .upload)
         let backupPath = scratchPath(beside: path, kind: .backup)
@@ -206,11 +211,11 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
                 try await session.store(temporaryPath, data: data)
                 if let expectedRev {
                     guard let current = try await session.stat(path), !current.isFolder else {
-                        throw CloudProviderError.conflict(remoteRev: nil)
+                        throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .notDispatched)
                     }
                     let currentRev = Self.rev(of: try await Self.retrieveExisting(path, in: session))
                     guard currentRev == expectedRev else {
-                        throw CloudProviderError.conflict(remoteRev: currentRev)
+                        throw CloudUploadFailure(underlying: .conflict(remoteRev: currentRev), outcome: .notDispatched)
                     }
                 }
                 try await install(
@@ -489,7 +494,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
 
     private static func mapError(_ error: Error, context: OperationContext) -> Error {
         switch error {
-        case is CancellationError, is CloudProviderError, is FTPURLError:
+        case is CancellationError, is CloudProviderError, is CloudUploadFailure, is FTPURLError:
             return error
         case FTPClientError.unexpectedReply(let reply), FTPClientError.renameRefused(let reply):
             return mapReply(reply, context: context)

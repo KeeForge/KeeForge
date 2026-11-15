@@ -53,7 +53,7 @@
 - Stable commit leases live outside the payload directory. Owner code never waits for a list lock while another path holds it and waits for the lease: reverse acquisition must be immediate try and release on contention.
 - Shipped marker decoding remains supported. Legacy finalized payloads are snapshotted before overwrite; unidentified provisional markers block mutation. There are no migrations for intermediate unshipped journal schemas.
 - Metadata can avoid a byte download only through a content-identifying revision declared by the adapter or a matching recorded content digest. WebDAV weak/Last-Modified validators do not identify bytes; FTP’s hash revision does and avoids a second probe transfer. Write guarantees remain separate from this metadata evidence.
-- Dropbox replacement uploads have no internal retry; shipped create-only behavior is unchanged. Effective write guarantees describe provider limits, including weak WebDAV validators, large OneDrive uploads and FTP preflight-only writes.
+- Dropbox and OneDrive replacement content uploads have no internal retry or uncertain range fallback; shipped create-only behavior is unchanged. OneDrive session setup and reads retain their separate retry policies. A current WebDAV/OneDrive PUT 412 proves rejection only without an earlier uncertain content request; FTP preflight mismatch proves no target install, while post-rename failures remain uncertain. Effective write guarantees describe provider limits, including weak WebDAV validators, large OneDrive uploads and FTP preflight-only writes.
 
 ### Persisted shapes
 

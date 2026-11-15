@@ -283,6 +283,62 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertNotEqual(first.rev, second.rev)
     }
 
+    @MainActor
+    func testJournalFencesOnlyFTPPreflightAndRetainsLostInstallReply() async throws {
+        for preflightMismatch in [true, false] {
+            DatabaseListStore.clearAll()
+            defer { DatabaseListStore.clearAll() }
+            let server = FakeFTPServer()
+            let (provider, accountId) = try makeProvider(server: server)
+            let reference = DatabaseListStore.addCloud(provider: provider.id, accountId: accountId,
+                file: .init(id: "/journal.kdbx", name: "journal.kdbx", path: "/journal.kdbx", isFolder: false, modifiedDate: nil, size: nil))
+            let context = try CloudJournalTestContext(reference: reference)
+            server.setFile("journal.kdbx", data: context.base)
+            if preflightMismatch {
+                server.beforeNext("STOR") { server.setFile("journal.kdbx", data: Data("other remote".utf8)) }
+            } else { server.dropConnection(onNext: "RNTO", afterHandling: true) }
+            var environment = context.environment()
+            environment.getMetadata = { _ in try await provider.getMetadata(accountId: accountId, fileId: "/journal.kdbx") }
+            environment.upload = { _, bytes, rev, progress in
+                try await provider.upload(accountId: accountId, fileId: "/journal.kdbx", data: bytes, expectedRev: rev, progress: progress)
+            }
+            do {
+                _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
+                XCTFail("Expected transport phase fault")
+            } catch {
+                if preflightMismatch {
+                    XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .notDispatched)
+                } else { XCTAssertNil(error as? CloudUploadFailure) }
+            }
+            let owner = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            XCTAssertEqual(CloudJournalDecision.state(of: owner.marker), preflightMismatch ? .ready : .attempting)
+            XCTAssertEqual(owner.marker.attemptIsFenced == true, preflightMismatch)
+            XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(owner), context.payload)
+            XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+            let installs = server.commandLog.filter { $0.hasPrefix("RNTO") }.count
+            XCTAssertEqual(installs, preflightMismatch ? 0 : 1)
+            if preflightMismatch {
+                XCTAssertEqual(server.file("journal.kdbx")?.data, Data("other remote".utf8))
+                server.setFile("journal.kdbx", data: context.base)
+                guard case .saved? = try await CloudDatabaseSaver.deliver(owner, reference: reference, environment: environment) else {
+                    return XCTFail("A new explicit delivery is permitted after affirmative preflight failure")
+                }
+                XCTAssertEqual(server.file("journal.kdbx")?.data, context.payload)
+                XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+            } else {
+                XCTAssertEqual(server.file("journal.kdbx")?.data, context.payload)
+                for _ in 0..<2 {
+                    guard case .retained? = try await CloudDatabaseSaver.deliver(owner, reference: reference, environment: environment) else {
+                        return XCTFail("Lost install reply remains uncertain")
+                    }
+                }
+                XCTAssertEqual(server.commandLog.filter { $0.hasPrefix("RNTO") }.count, installs)
+                XCTAssertFalse(CloudJournalDecision.permitsMutation([owner.marker], changingKey: true))
+                XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
+            }
+        }
+    }
+
     func testUploadConflictsOnASameSecondSameSizeRemoteWrite() async throws {
         let server = FakeFTPServer()
         server.setFile("personal.kdbx", data: Data("first".utf8), modified: "20260918120000")
@@ -1167,7 +1223,7 @@ final class FTPCloudProviderTests: XCTestCase {
             try await operation()
             XCTFail("Expected \(expected)", file: file, line: line)
         } catch {
-            XCTAssertEqual(error as? CloudProviderError, expected, file: file, line: line)
+            XCTAssertEqual((error as? CloudUploadFailure)?.underlying ?? error as? CloudProviderError, expected, file: file, line: line)
         }
     }
 }

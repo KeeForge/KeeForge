@@ -256,6 +256,61 @@ final class WebDAVCloudProviderTests: XCTestCase {
         XCTAssertNil(put.value(forHTTPHeaderField: "If-Match"))
     }
 
+    @MainActor
+    func testJournalFencesCurrent412ButNeverRetriesAnUncertainWebDAVPut() async throws {
+        for status in [412, 503] {
+            DatabaseListStore.clearAll()
+            defer { DatabaseListStore.clearAll() }
+            let accountId = try seedCredential(username: "journal-\(status)")
+            let puts = CloudJournalEffectCounter()
+            let responder = TransportResponder { request in
+                if request.httpMethod == "PUT" {
+                    puts.record()
+                    return StubResponse(status: puts.value == 1 ? status : 201, headers: ["ETag": "\"next\""])
+                }
+                return StubResponse(status: 200, headers: ["ETag": "\"base\""])
+            }
+            let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
+            let reference = DatabaseListStore.addCloud(provider: provider.id, accountId: accountId,
+                file: .init(id: "/journal.kdbx", name: "journal.kdbx", path: "/journal.kdbx", isFolder: false, modifiedDate: nil, size: nil))
+            let context = try CloudJournalTestContext(reference: reference)
+            var environment = context.environment(transport: CloudJournalTransport(revision: "\"base\""))
+            environment.upload = { _, bytes, rev, progress in
+                try await provider.upload(accountId: accountId, fileId: "/journal.kdbx", data: bytes, expectedRev: rev, progress: progress)
+            }
+            do {
+                _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
+                XCTFail("Expected HTTP failure")
+            } catch {
+                if status == 412 {
+                    XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .rejected)
+                } else { XCTAssertNil(error as? CloudUploadFailure) }
+            }
+            let owner = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            XCTAssertEqual(CloudJournalDecision.state(of: owner.marker), status == 412 ? .ready : .attempting)
+            XCTAssertEqual(owner.marker.attemptIsFenced == true, status == 412)
+            XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(owner), context.payload)
+            XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+            XCTAssertEqual(puts.value, 1)
+            if status == 412 {
+                guard case .saved? = try await CloudDatabaseSaver.deliver(owner, reference: reference, environment: environment) else {
+                    return XCTFail("A separate explicit attempt may follow proven rejection")
+                }
+                XCTAssertEqual(puts.value, 2)
+                XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+            } else {
+                for _ in 0..<2 {
+                    guard case .retained? = try await CloudDatabaseSaver.deliver(owner, reference: reference, environment: environment) else {
+                        return XCTFail("Unknown PUT remains owned")
+                    }
+                }
+                XCTAssertEqual(puts.value, 1)
+                XCTAssertFalse(CloudJournalDecision.permitsMutation([owner.marker], changingKey: true))
+                XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
+            }
+        }
+    }
+
     func testUpload412ThrowsConflict() async throws {
         let accountId = try seedCredential(username: "alice")
         let responder = TransportResponder { request in
@@ -276,7 +331,9 @@ final class WebDAVCloudProviderTests: XCTestCase {
                 progress: { _ in }
             )
             XCTFail("Expected conflict")
-        } catch let error as CloudProviderError {
+        } catch let failure as CloudUploadFailure {
+            XCTAssertEqual(failure.outcome, .rejected)
+            let error = failure.underlying
             guard case .conflict(let remoteRev) = error else {
                 return XCTFail("Expected .conflict, got \(error)")
             }
