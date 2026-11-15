@@ -15,6 +15,7 @@
 
 ### Changes
 
+- Scanning a verification-code QR code or pasting a setup link in the entry editor fills an empty title and user name from the code's issuer and account, as adding a code from New already did (#270). A title or user name you already entered is kept.
 - AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
   - An entry for an IP address, such as a router, is suggested only on that exact address. Before, entries for other addresses ending in the same two numbers appeared as possible matches.
   - An entry for a subdomain is no longer suggested or filled on a parent that unrelated sites share, such as `localhost`, `github.io`, or `co.uk`.

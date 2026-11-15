@@ -278,8 +278,6 @@ struct TOTPEnrollmentDestinationView: View {
             knownTags: databaseViewModel.tagsInDisplayOrder,
             inheritedTags: databaseViewModel.inheritedTags(forGroupID: groupID)
         )
-        editor.title = model.prefilledTitle
-        editor.username = model.prefilledUsername
         editor.applyOTPAuthURI(model.uri)
         present(editor: editor)
     }

@@ -596,12 +596,29 @@ final class EntryEditViewModel {
     /// Fills the TOTP form from a parsed enrollment URI. KeeOTP-sourced
     /// entries keep their query-rewrite path, so the URI itself is only
     /// retained for verbatim storage when no legacy source owns the config.
+    /// An empty title or user name is filled from the link's issuer and
+    /// account name; one the user already has is kept.
     func applyOTPAuthURI(_ uri: OTPAuthURI) {
+        let issuer = Self.withoutFieldReference(uri.issuer)
+        let accountName = Self.withoutFieldReference(uri.accountName)
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let suggestedTitle = issuer ?? accountName {
+            title = suggestedTitle
+        }
+        if username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let accountName {
+            username = accountName
+        }
         totpSecret = uri.secret
         totpPeriod = uri.period
         totpDigits = uri.digits
         totpAlgorithm = uri.algorithm
         enrolledOTPAuthURI = keeOTPSource == nil ? uri.rawURI : nil
+    }
+
+    /// The link's sender chooses these, and a fill resolves `{REF:…}`.
+    private static func withoutFieldReference(_ value: String?) -> String? {
+        guard let value, FieldReferenceResolver.containsReference(value) == false else { return nil }
+        return value
     }
 
     /// Parses `text` as an `otpauth://` setup link and fills the form on
