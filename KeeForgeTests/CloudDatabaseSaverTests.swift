@@ -1429,23 +1429,25 @@ final class CloudDatabaseSaverTests: XCTestCase {
     }
 
     func testDeliverySkipsDownloadOnlyForContentIdentifyingRevisionOrDigest() async throws {
-        for kind in ["strong", "weak", "lastmod", "missing", "mismatch", "ftp-digest"] {
+        for kind in ["strong", "bound-hash", "weak", "lastmod", "missing", "mismatch", "ftp-digest"] {
             DatabaseListStore.clearAll()
             let revision: String? = switch kind {
             case "strong": "\"strong-tag\""
+            case "bound-hash": "W/\"weak-tag\""
             case "weak": "W/\"weak-tag\""
             case "lastmod": "lastmod:unchanged-second"
             case "ftp-digest": "sha256:exact-content-digest"
             default: nil
             }
-            let reference = try makeCloudReference(remoteRev: revision)
+            let boundHash = kind == "bound-hash" ? FileDigest.sha512(try Data(contentsOf: fixtureURL())).base64EncodedString() : nil
+            let reference = try makeCloudReference(remoteRev: revision, remoteContentHash: boundHash)
             let cache = DatabaseListStore.cacheLocation(for: reference)
             let context = try makeDirtySaveContext(cacheURL: cache, entryTitle: "Delivery \(kind)")
             let uploads = UploadRecorder()
             let downloads = UploadRecorder()
             let remote = kind == "weak" || kind == "lastmod" || kind == "mismatch" ? Data("different remote bytes".utf8) : context.currentData
             var environment = makeEnvironment(getMetadata: { _ in
-                CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: Int64(remote.count), rev: revision)
+                CloudFileMetadata(modifiedDate: .now, contentHash: boundHash, size: Int64(remote.count), rev: revision)
             }, upload: { _, bytes, rev, _ in
                 await uploads.record(data: bytes, expectedRev: rev)
                 return CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: Int64(bytes.count), rev: "delivered")
@@ -1465,7 +1467,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             let delivered = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment)
             let downloadCount = await downloads.callCount()
             let uploadCount = await uploads.callCount()
-            XCTAssertEqual(downloadCount, kind == "strong" || kind == "ftp-digest" ? 0 : 1, kind)
+            XCTAssertEqual(downloadCount, kind == "strong" || kind == "bound-hash" || kind == "ftp-digest" ? 0 : 1, kind)
             if kind == "weak" || kind == "lastmod" || kind == "mismatch" {
                 guard case .conflict? = delivered else { return XCTFail("Unchanged weak metadata cannot authorize overwriting different bytes") }
                 XCTAssertEqual(uploadCount, 0, kind)

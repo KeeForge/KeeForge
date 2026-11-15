@@ -43,9 +43,13 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         beforeSave: (@MainActor @Sendable (DatabaseReference) async throws -> Void)? = nil,
         failFinalization: Bool = false, diagnostics: TestDatabaseSupport.LocalPublicationTrace = .init(),
         configureSaver: @Sendable (inout CloudDatabaseSaver.Environment) -> Void = { _ in },
-        afterSaver: (@Sendable () async -> Void)? = nil) async throws -> PendingMergeSetup {
+        afterSaver: (@Sendable () async -> Void)? = nil, recordedContentHash: String? = nil) async throws -> PendingMergeSetup {
         let base = try fixtureData()
-        let reference = try makeStoredManualReference(fileID: "/merge-\(UUID().uuidString).kdbx", autoFillEnabled: false)
+        var reference = try makeStoredManualReference(fileID: "/merge-\(UUID().uuidString).kdbx", autoFillEnabled: false)
+        if let recordedContentHash {
+            reference.updateCloudSyncMetadata { $0.remoteContentHash = recordedContentHash }
+            DatabaseListStore.update(reference)
+        }
         try DatabaseListStore.cacheDatabaseCopy(base, for: reference)
         let remote = InMemoryRemoteProvider(bytes: base, rev: "rev-A")
         let encryptions = CloudJournalEffectCounter()
@@ -482,6 +486,63 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertFalse(setup.vm.hasPendingUploadConflict)
         XCTAssertNil(setup.vm.pendingUploadMergeFailure)
         XCTAssertEqual(try PendingUploadQueue.readJournal(for: setup.reference.id).count, 1)
+    }
+
+    func testReconciledBaselineEqualToCacheCannotBorrowHashFromOlderRemoteBytes() async throws {
+        let oldX = try fixtureData()
+        let oldHash = FileDigest.sha512(oldX).base64EncodedString()
+        let cacheA = try mergeVariant(title: "Authenticated A")
+        XCTAssertNotEqual(cacheA, oldX)
+        for restoresX in [true, false] {
+            let setup = try await pendingMergeSetup(payload: cacheA, recordedContentHash: oldHash)
+            defer { setup.vm.lock() }
+            _ = try setup.remote.store(cacheA, expectedRev: nil)
+            try setup.vm.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(setup.vm.visibleRootGroupID),
+                draft: EntryDraftPayload(title: "Explicit Merge M", password: "M")))
+            try await setup.vm.mergePendingUploads()
+            let merged = try mergedJournal(setup, titles: ["Authenticated A", "Explicit Merge M"])
+            XCTAssertEqual(merged.marker.remoteBaseSHA512, FileDigest.sha512(cacheA))
+            XCTAssertEqual(merged.marker.predecessorSHA512, merged.marker.remoteBaseSHA512,
+                "The reconciled remote snapshot equals the actual pending cache, which must not bind an old validator")
+            XCTAssertNil(merged.marker.expectedRev)
+            XCTAssertNil(merged.marker.baseRev)
+            XCTAssertEqual(setup.vm.databaseReference.cloudSyncMetadata?.remoteContentHash, oldHash)
+            let output = try PendingUploadQueue.readImmutablePayload(merged)
+            if restoresX { _ = try setup.remote.store(oldX, expectedRev: nil) }
+            let remoteBytes = setup.remote.currentBytes
+            let remoteMetadata = setup.remote.currentMetadata
+            let downloads = CloudJournalEffectCounter()
+            let uploads = CloudJournalEffectCounter()
+            var delivery = setup.saver
+            delivery.getMetadata = { _ in
+                CloudFileMetadata(modifiedDate: remoteMetadata.modifiedDate,
+                    contentHash: FileDigest.sha512(remoteBytes).base64EncodedString(),
+                    size: Int64(remoteBytes.count), rev: remoteMetadata.rev)
+            }
+            delivery.downloadRemoteData = { _ in downloads.record(); return remoteBytes }
+            delivery.upload = { _, bytes, rev, _ in uploads.record(); return try setup.remote.store(bytes, expectedRev: rev) }
+            let result = try await CloudDatabaseSaver.deliver(merged, reference: setup.vm.databaseReference, environment: delivery)
+            XCTAssertEqual(downloads.value, 1, "Cleared validators require proof against the actual reconciled bytes")
+            XCTAssertEqual(setup.encryptions.value, 1)
+            XCTAssertEqual(setup.replacements.value, 1)
+            XCTAssertEqual(try Data(contentsOf: setup.source.cacheURL), output)
+            if restoresX {
+                guard case .conflict? = result else { return XCTFail("The matching old hash must not authorize overwriting restored X") }
+                XCTAssertEqual(uploads.value, 0)
+                XCTAssertEqual(setup.remote.currentBytes, oldX)
+                let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: setup.reference.id).first)
+                XCTAssertEqual(retained.id, merged.id)
+                XCTAssertNil(retained.marker.uploadAttemptID)
+                XCTAssertNil(retained.marker.confirmedAt)
+                XCTAssertTrue(retained.marker.isConflicted)
+                XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), output)
+            } else {
+                guard case .saved? = result else { return XCTFail("An unchanged authenticated A still permits one delivery") }
+                XCTAssertEqual(uploads.value, 1)
+                XCTAssertEqual(setup.remote.currentBytes, output)
+                XCTAssertTrue(try PendingUploadQueue.readJournal(for: setup.reference.id).isEmpty)
+            }
+        }
     }
 
     func testMergeNotificationDrainerCannotTakeLeaseBeforeOwnedHandoff() async throws {

@@ -105,8 +105,7 @@ enum CloudJournalDecision {
     ) -> Bool {
         guard state(of: marker) == .ready, marker.uploadAttemptID == nil || marker.attemptIsFenced == true,
               marker.remoteBaseSHA512 != nil else { return false }
-        if marker.expectedRev == nil, marker.baseRev == nil,
-           marker.remoteBaseSHA512 != marker.predecessorSHA512 { return false }
+        if marker.expectedRev == nil, marker.baseRev == nil { return false }
         if revisionIsContentIdentity, let expected = marker.expectedRev, let rev = remote.rev { return expected == rev }
         if let hash = recorded.remoteContentHash, let observed = remote.contentHash { return hash == observed }
         return false
