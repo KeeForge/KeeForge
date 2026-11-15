@@ -1243,6 +1243,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Legacy Match Entry")
         let recorder = UploadRecorder()
+        let downloads = UploadRecorder()
         let environment = makeEnvironment(
             getMetadata: { _ in
                 CloudFileMetadata(
@@ -1261,6 +1262,10 @@ final class CloudDatabaseSaverTests: XCTestCase {
                     size: Int64(data.count),
                     rev: nil
                 )
+            },
+            downloadRemoteData: { _ in
+                await downloads.record(data: context.currentData, expectedRev: nil)
+                return context.currentData
             }
         )
 
@@ -1283,6 +1288,8 @@ final class CloudDatabaseSaverTests: XCTestCase {
 
         let uploadCallCount = await recorder.callCount()
         XCTAssertEqual(uploadCallCount, 1)
+        let downloadCount = await downloads.callCount()
+        XCTAssertEqual(downloadCount, 1)
     }
 
     func testSaveWithoutRecordedRevConflictsWhenRemoteReportsUnseenRevision() async throws {
@@ -1329,6 +1336,58 @@ final class CloudDatabaseSaverTests: XCTestCase {
         }
         let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
         XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        XCTAssertNotEqual(intended, context.currentData)
+
+        let uploadCallCount = await recorder.callCount()
+        XCTAssertEqual(uploadCallCount, 0)
+    }
+
+    func testSaveWithoutRecordedRevRejectsDifferentBytesDespiteMatchingHash() async throws {
+        let reference = try makeCloudReference(remoteRev: nil, remoteContentHash: "remote-hash-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Unseen Revision Entry")
+        let recorder = UploadRecorder()
+        let remoteData = Data("remote-with-etag".utf8)
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 175),
+                    contentHash: "remote-hash-A",
+                    size: Int64(remoteData.count),
+                    rev: nil
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: nil,
+                    size: Int64(data.count),
+                    rev: "\"etag-B\""
+                )
+            },
+            downloadRemoteData: { _ in remoteData }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: nil,
+            environment: environment
+        )
+
+        guard case .saved = result else { return XCTFail("Local ciphertext must commit before delivery") }
+        let intended = try Data(contentsOf: cacheURL)
+        guard case .conflict? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Changed remote bytes must prevent delivery")
+        }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), intended)
+        XCTAssertTrue(retained.marker.isConflicted)
         XCTAssertNotEqual(intended, context.currentData)
 
         let uploadCallCount = await recorder.callCount()
