@@ -37,6 +37,12 @@ final class DatabaseSessionStore {
         }
     }
 
+    func refreshPendingUploads(for databaseIDs: Set<UUID>) {
+        for id in databaseIDs {
+            sessionsByID[id]?.refreshPendingUploadState()
+        }
+    }
+
     func handleAppDidEnterBackground() {
         for session in openSessions {
             session.handleSceneDidEnterBackground()

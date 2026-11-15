@@ -22,7 +22,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 - Scene activation, iOS backgrounding, Mac lock/activation callbacks, and foreground user activity forward through `DatabaseSessionStore` to every stored session. The app supplies that store to all Settings entry points through the environment; per-database AutoFill refresh looks up the toggled database's session by ID.
 - iOS observes touches across the main window (including sheets) and text-field/text-view edits through `IOSUserActivityObserver`. Only foreground activity resets the inactivity timer; its passive recognizer must never delay, cancel, or prevent normal controls and scrolling.
 - On the compact shell only a manual lock calls `VaultCloseTransition.coverCurrentFrame()`, immediately before the closing state change. An automatic lock can coincide with backgrounding, and a snapshot added then is what iOS would capture for the app switcher.
-- Pending AutoFill uploads drain on foreground activation (scene phase, and `MacLockMonitor.onDidBecomeActive` on macOS) and on the extension's Darwin notification. Both go through `DatabaseListViewModel.drainPendingUploadsOnAppActive()`.
+- Pending AutoFill uploads drain on foreground activation (scene phase, and `MacLockMonitor.onDidBecomeActive` on macOS) and on the extension's Darwin notification. Both go through `DatabaseListViewModel.drainPendingUploadsOnAppActive(sessionStore:)`, which refreshes affected open sessions after the drain.
 - A change to background/foreground behaviour needs checking in both shells together with AutoFill cache refresh and pending-upload drain timing.
 
 ### Launch and presentation

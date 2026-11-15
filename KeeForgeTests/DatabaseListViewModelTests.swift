@@ -998,7 +998,7 @@ final class DatabaseListViewModelTests: XCTestCase {
             )
         )
 
-        await viewModel.drainPendingUploadsOnAppActive()
+        await viewModel.drainPendingUploadsOnAppActive(sessionStore: DatabaseSessionStore())
 
         XCTAssertNil(viewModel.pendingUploadAlert)
     }

@@ -15,7 +15,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `AppRoutingCoordinator`: launch order, queued database routes, incoming-URL classification, pending TOTP enrollment, Open/Close Database transitions.
 - `EntrySecretAction`: every reveal/copy disclosure that follows device-owner authentication.
 - `DatabaseCommands`: platform-neutral database command enablement, delete-title variant, and actions; presentation and app routing stay in the shell.
-- `DatabaseListViewModel`: the database list and all pending-upload draining (`drainPendingUploadsOnAppActive()`); a session never drains.
+- `DatabaseListViewModel`: the database list and all pending-upload draining (`drainPendingUploadsOnAppActive()`); a session never drains. Drain outcomes refresh local pending and conflict state only for affected open sessions.
 
 ## Invariants
 

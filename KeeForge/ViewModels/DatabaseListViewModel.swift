@@ -273,9 +273,10 @@ final class DatabaseListViewModel {
         return nil
     }
 
-    func drainPendingUploadsOnAppActive() async {
+    func drainPendingUploadsOnAppActive(sessionStore: DatabaseSessionStore) async {
         let outcome = await pendingUploadDrainer.drainAll()
         applyDrainOutcome(outcome, surfaceAlerts: false, preferredDatabaseId: nil)
+        sessionStore.refreshPendingUploads(for: outcome.drainedDatabaseIDs.union(outcome.conflictDatabaseIDs).union(outcome.skippedDatabaseIDs))
     }
 
     func pushPendingChanges(for reference: DatabaseReference) async {

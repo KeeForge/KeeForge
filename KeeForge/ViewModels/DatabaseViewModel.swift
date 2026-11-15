@@ -3910,6 +3910,12 @@ final class DatabaseViewModel {
         return .settledOrDeferred
     }
 
+    func refreshPendingUploadState() {
+        guard case .unlocked = state else { return }
+        hasPendingCloudUploads = pendingUploadMarkerCheck(databaseReference)
+        refreshPendingUploadConflict()
+    }
+
     private func refreshPendingUploadConflict() {
         hasPendingUploadConflict = databaseReference.isCloudBacked
             && isReadOnly == false

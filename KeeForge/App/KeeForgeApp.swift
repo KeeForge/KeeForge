@@ -118,7 +118,7 @@ struct KeeForgeApp: App {
                 sessionStore.handleAppDidBecomeActive()
                 scanDocumentsForSharedDatabases()
                 Task {
-                    await listViewModel.drainPendingUploadsOnAppActive()
+                    await listViewModel.drainPendingUploadsOnAppActive(sessionStore: sessionStore)
                 }
             case .inactive:
                 break
@@ -151,7 +151,7 @@ struct KeeForgeApp: App {
             #endif
             pendingUploadDrainer.startObserving {
                 Task {
-                    await listViewModel.drainPendingUploadsOnAppActive()
+                    await listViewModel.drainPendingUploadsOnAppActive(sessionStore: sessionStore)
                 }
             }
             startMacLockMonitoringIfNeeded()
@@ -215,7 +215,7 @@ struct KeeForgeApp: App {
         macLockMonitor.onDidBecomeActive = {
             sessionStore.handleAppDidBecomeActive()
             Task {
-                await listViewModel.drainPendingUploadsOnAppActive()
+                await listViewModel.drainPendingUploadsOnAppActive(sessionStore: sessionStore)
             }
         }
         macLockMonitor.onUserActivity = {

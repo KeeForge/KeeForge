@@ -1525,12 +1525,13 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 }
                 let list = DatabaseListViewModel(pendingUploadDrainer: PendingUploadDrainer(environment: drainerEnvironment))
                 store.handleAppDidBecomeActive()
-                await list.drainPendingUploadsOnAppActive()
+                await list.drainPendingUploadsOnAppActive(sessionStore: store)
                 let observedJournal = try PendingUploadQueue.readJournal(for: firstReference.id)
                 XCTAssertEqual(observedJournal.count, 1)
                 XCTAssertTrue(try XCTUnwrap(observedJournal.first).marker.isConflicted)
                 XCTAssertEqual(list.rowStatuses[firstReference.id]?.pendingUploadConflictCount, 1)
                 XCTAssertTrue(first.hasPendingCloudUploads)
+                XCTAssertTrue(first.hasPendingUploadConflict)
                 XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker),
                     try Data(contentsOf: DatabaseListStore.cacheLocation(for: firstReference)))
             } else {
