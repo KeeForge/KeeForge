@@ -187,6 +187,10 @@ final class EncryptionSettingsViewModel {
             )
             hasCompleted = true
             return true
+        } catch let warning as CloudSaveRecoveryWarning {
+            hasCompleted = true
+            completedWarning = warning.localizedDescription
+            return false
         } catch let warning as SaveDurabilityWarning {
             hasCompleted = true
             completedWarning = warning.localizedDescription

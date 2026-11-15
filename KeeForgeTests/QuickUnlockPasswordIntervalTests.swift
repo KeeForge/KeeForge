@@ -102,7 +102,7 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
             startPublication.signal()
             XCTAssertEqual(race.firstSnapshot.wait(timeout: .now() + 5), .success)
             return QuickUnlockKeychain.$masterKeyEntryAccessObserver.withValue(observer) {
-                let stored = QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: typed)
+                let stored = QuickUnlockKeychain.persistKeychainItems(keys, for: reference, masterKeyEntered: typed) == .stored
                 persisted.withLock { $0 = stored }
                 return stored
             }

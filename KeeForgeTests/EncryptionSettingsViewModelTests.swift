@@ -9,22 +9,24 @@ final class EncryptionSettingsViewModelTests: XCTestCase {
     }
 
     func testBookkeepingWarningEndsInvocationWithoutOfferingTheSameSettingsAgain() async {
-        var calls = 0
-        let vm = EncryptionSettingsViewModel(current: summary(isCompressed: true), changeOperation: { _, _, _ in
-            calls += 1
-            throw SaveBookkeepingWarning()
-        })
-        vm.isCompressed = false
-        let first = await vm.performChange()
-        XCTAssertFalse(first)
-        XCTAssertTrue(vm.hasCompleted)
-        XCTAssertNotNil(vm.completedWarning)
-        XCTAssertFalse(vm.canSave)
-        vm.isCompressed = true
-        let second = await vm.performChange()
-        XCTAssertFalse(second)
-        XCTAssertNotNil(vm.completedWarning)
-        XCTAssertEqual(calls, 1)
+        for warning in [SaveBookkeepingWarning() as any Error, CloudSaveRecoveryWarning()] {
+            var calls = 0
+            let vm = EncryptionSettingsViewModel(current: summary(isCompressed: true), changeOperation: { _, _, _ in
+                calls += 1
+                throw warning
+            })
+            vm.isCompressed = false
+            let first = await vm.performChange()
+            XCTAssertFalse(first)
+            XCTAssertTrue(vm.hasCompleted)
+            XCTAssertNotNil(vm.completedWarning)
+            XCTAssertFalse(vm.canSave)
+            vm.isCompressed = true
+            let second = await vm.performChange()
+            XCTAssertFalse(second)
+            XCTAssertNotNil(vm.completedWarning)
+            XCTAssertEqual(calls, 1)
+        }
     }
 
     func testOfferedSettingsAreSelectedWithoutACurrentOption() {

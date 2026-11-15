@@ -13,6 +13,34 @@ enum PendingUploadQueue {
         case markerChanged
     }
 
+    struct KeyChange: Codable, Equatable, Sendable {
+        let epoch: UUID
+        let keyFileBookmarkData: Data?
+        let keyFileFilename: String?
+
+        init(epoch: UUID = UUID(), keyFileBookmarkData: Data?, keyFileFilename: String?) {
+            self.epoch = epoch
+            self.keyFileBookmarkData = keyFileBookmarkData
+            self.keyFileFilename = keyFileFilename
+        }
+    }
+
+    struct LocalCommitBaseline: Codable, Equatable, Sendable {
+        let headOperationID: UUID?
+        let keyEpoch: UUID?
+        let lastMasterKeyChangeAt: Date?
+
+        init(reference: DatabaseReference) {
+            headOperationID = reference.cloudSyncMetadata?.localHeadOperationID
+            keyEpoch = reference.cloudSyncMetadata?.keyEpoch
+            lastMasterKeyChangeAt = reference.lastMasterKeyChangeAt
+        }
+
+        func hasCompatibleEpoch(_ reference: DatabaseReference) -> Bool {
+            reference.cloudSyncMetadata?.keyEpoch == keyEpoch && reference.lastMasterKeyChangeAt == lastMasterKeyChangeAt
+        }
+    }
+
     struct Marker: Codable, Equatable, Sendable {
         let databaseId: UUID
         let encryptedBytesCacheURL: String
@@ -38,11 +66,27 @@ enum PendingUploadQueue {
         /// (any marker written before this field existed) is re-checked rather
         /// than pushed blind.
         var isConflicted: Bool = false
-        /// Remote revision the payload was derived from (the reference's rev
-        /// when the saving process opened the database). The drainer only
-        /// auto-rebases a conflicted marker when this equals the remote head.
-        /// Legacy markers decode as `nil`, disabling auto-rebase for them.
+        /// Recorded remote ancestry; legacy markers decode nil and never gain byte identity from it.
         var baseRev: String?
+
+        var journalVersion: Int?
+        var localCommitBaseline: LocalCommitBaseline?
+        var attemptIsFenced: Bool?
+        var discardRequested: Bool?
+        var requiresLocalRecovery: Bool?
+        var absorbedOperationIDs: [UUID]?
+        var predecessorSHA512: Data?
+        var predecessorOperationID: UUID?
+        var remoteBaseSHA512: Data?
+        var intendedPayloadSHA512: Data?
+        var intendedPayloadPath: String?
+        var keyEpoch: UUID?
+        var keyChange: KeyChange?
+        /// A nonnil attempt is uncertain until exact-byte confirmation, even after a restart.
+        var uploadAttemptID: UUID?
+        var confirmedRemoteRev: String?
+        var confirmedRemoteHash: String?
+        var confirmedAt: Date?
 
         init(
             databaseId: UUID,
@@ -87,6 +131,23 @@ enum PendingUploadQueue {
             // drainer update keeps the marker unproven.
             isPayloadFinalized = try container.decodeIfPresent(Bool.self, forKey: .isPayloadFinalized)
             generation = try container.decodeIfPresent(UInt64.self, forKey: .generation) ?? 0
+            journalVersion = try container.decodeIfPresent(Int.self, forKey: .journalVersion)
+            localCommitBaseline = try container.decodeIfPresent(LocalCommitBaseline.self, forKey: .localCommitBaseline)
+            attemptIsFenced = try container.decodeIfPresent(Bool.self, forKey: .attemptIsFenced)
+            discardRequested = try container.decodeIfPresent(Bool.self, forKey: .discardRequested)
+            requiresLocalRecovery = try container.decodeIfPresent(Bool.self, forKey: .requiresLocalRecovery)
+            absorbedOperationIDs = try container.decodeIfPresent([UUID].self, forKey: .absorbedOperationIDs)
+            predecessorSHA512 = try container.decodeIfPresent(Data.self, forKey: .predecessorSHA512)
+            predecessorOperationID = try container.decodeIfPresent(UUID.self, forKey: .predecessorOperationID)
+            remoteBaseSHA512 = try container.decodeIfPresent(Data.self, forKey: .remoteBaseSHA512)
+            intendedPayloadSHA512 = try container.decodeIfPresent(Data.self, forKey: .intendedPayloadSHA512)
+            intendedPayloadPath = try container.decodeIfPresent(String.self, forKey: .intendedPayloadPath)
+            keyEpoch = try container.decodeIfPresent(UUID.self, forKey: .keyEpoch)
+            keyChange = try container.decodeIfPresent(KeyChange.self, forKey: .keyChange)
+            uploadAttemptID = try container.decodeIfPresent(UUID.self, forKey: .uploadAttemptID)
+            confirmedRemoteRev = try container.decodeIfPresent(String.self, forKey: .confirmedRemoteRev)
+            confirmedRemoteHash = try container.decodeIfPresent(String.self, forKey: .confirmedRemoteHash)
+            confirmedAt = try container.decodeIfPresent(Date.self, forKey: .confirmedAt)
         }
     }
 
@@ -106,15 +167,12 @@ enum PendingUploadQueue {
         var decodeMarker: @Sendable (Data) throws -> Marker
         var writeMarkerAtomically: @Sendable (Data, URL) throws -> Void
         var postDarwinNotification: @Sendable () -> Void
+        var observedCommitLockFailure: @Sendable (Int32) -> Void = { _ in }
 
         static let live = Environment(
             appGroupContainerURL: { AppGroupContainer.url },
             createDirectory: { url in
-                try FileManager.default.createDirectory(
-                    at: url,
-                    withIntermediateDirectories: true,
-                    attributes: nil
-                )
+                guard let anchor = AppGroupContainer.resolvedURL else { throw CocoaError(.fileWriteNoPermission) }; try createDurableDirectory(at: url, anchor: anchor)
             },
             listDirectory: { url in
                 try FileManager.default.contentsOfDirectory(
@@ -222,12 +280,42 @@ enum PendingUploadQueue {
             }
     }
 
+    private static func journalDirectories(for databaseID: UUID?, environment: Environment) throws -> [URL] {
+        let root = queueRootURL(environment: environment)
+        let directories: [URL]
+        do { directories = try environment.listDirectory(root) }
+        catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            let parent = try environment.listDirectory(root.deletingLastPathComponent())
+            guard !parent.contains(where: { $0.lastPathComponent == root.lastPathComponent }) else { throw error }
+            return []
+        }
+        for directory in directories {
+            guard UUID(uuidString: directory.lastPathComponent) != nil else { throw CocoaError(.fileReadCorruptFile) }
+        }
+        return directories.filter { databaseID == nil || $0.lastPathComponent == databaseID?.uuidString }
+    }
+
+    static func readJournal(for databaseID: UUID? = nil, environment: Environment = .live) throws -> [StoredMarker] {
+        let directories = try journalDirectories(for: databaseID, environment: environment)
+        var records: [StoredMarker] = []
+        for folder in directories {
+            for file in try environment.listDirectory(folder) where file.pathExtension == "json" {
+                guard let id = UUID(uuidString: file.deletingPathExtension().lastPathComponent) else { throw CocoaError(.fileReadCorruptFile) }
+                let marker = try environment.decodeMarker(environment.readData(file))
+                guard marker.databaseId.uuidString == folder.lastPathComponent,
+                      CloudJournalDecision.state(of: marker) != .invalid else { throw CocoaError(.fileReadCorruptFile) }
+                records.append(StoredMarker(id: id, fileURL: file, marker: marker))
+            }
+        }
+        return records.sorted { $0.marker.createdAt == $1.marker.createdAt ? $0.id.uuidString < $1.id.uuidString : $0.marker.createdAt < $1.marker.createdAt }
+    }
+
     static func drop(_ storedMarker: StoredMarker) throws {
         try drop(storedMarker, environment: .live)
     }
 
     static func drop(_ storedMarker: StoredMarker, environment: Environment) throws {
-        try environment.removeItem(storedMarker.fileURL)
+        _ = try dropIfUnchanged(storedMarker, environment: environment)
     }
 
     /// Removes a marker only while its persisted value still matches the
@@ -242,7 +330,15 @@ enum PendingUploadQueue {
                   current == storedMarker.marker else {
                 return false
             }
+            guard current.uploadAttemptID == nil || current.attemptIsFenced == true || current.confirmedAt != nil else { return false }
             try environment.removeItem(storedMarker.fileURL)
+            try synchronizeDirectory(storedMarker.fileURL.deletingLastPathComponent())
+            let payload = queueDirectoryURL(for: current.databaseId, environment: environment)
+                .appendingPathComponent(storedMarker.id.uuidString + ".kdbx")
+            if current.intendedPayloadPath == (try makeRelativeAppGroupPath(for: payload, environment: environment)),
+               !listMarkers(for: current.databaseId, environment: environment).contains(where: { $0.marker.intendedPayloadPath == current.intendedPayloadPath }) {
+                try? environment.removeItem(payload)
+            }
             return true
         }
     }
@@ -271,16 +367,7 @@ enum PendingUploadQueue {
         }
     }
 
-    /// Phase 3 of the AutoFill two-phase marker: records the saved payload's
-    /// hash on the marker as it is on disk now, not as the extension read it.
-    /// A drainer that ran between the cache write and this call has already
-    /// bumped the generation and flagged the marker conflicted, because the
-    /// cache no longer matched the provisional base hash. A generation-checked
-    /// `update` would then fail and leave that provisional marker behind for
-    /// good, which makes every later recovery lookup `.unavailable`. The
-    /// conflict flag is cleared because the hash it was raised against is
-    /// gone; the drainer re-checks the finalized marker on its next pass.
-    /// The drainer's own changes (`expectedRev`, `baseRev`) are kept.
+    /// Finalization rereads the current generation so an intervening conflict update cannot strand the payload.
     static func finalize(_ storedMarker: StoredMarker) throws -> StoredMarker {
         try finalize(storedMarker, environment: .live)
     }
@@ -291,12 +378,14 @@ enum PendingUploadQueue {
                   var current = try? environment.decodeMarker(data) else {
                 throw UpdateError.markerNoLongerExists
             }
-            guard current.isPayloadFinalized == false else {
+            guard current.isPayloadFinalized == false,
+                  current.intendedPayloadSHA512 == nil || current.intendedPayloadSHA512 == storedMarker.marker.openTimeSHA512 else {
                 throw UpdateError.markerChanged
             }
             current.openTimeSHA512 = storedMarker.marker.openTimeSHA512
             current.isPayloadFinalized = true
             current.isConflicted = false
+            current.requiresLocalRecovery = nil
             current.generation += 1
             let finalized = StoredMarker(id: storedMarker.id, fileURL: storedMarker.fileURL, marker: current)
             try persist(finalized, environment: environment)
@@ -313,6 +402,7 @@ enum PendingUploadQueue {
     /// Drops every marker for `databaseId` whose recorded payload SHA-512
     /// equals `payloadSHA512`, except `excludedMarkerID`.
     ///
+    /// Confirmed journals stay with delivery until local durability is established.
     /// SHA equality proves supersession: that exact content is the base of
     /// what the caller is about to upload or just uploaded, so the marker can
     /// no longer represent unsaved content — including conflicted markers,
@@ -342,7 +432,9 @@ enum PendingUploadQueue {
     ) {
         for storedMarker in listMarkers(for: databaseId, environment: environment)
         where storedMarker.id != excludedMarkerID
+            && (storedMarker.marker.uploadAttemptID == nil || storedMarker.marker.attemptIsFenced == true)
             && storedMarker.marker.isPayloadFinalized == true
+            && storedMarker.marker.confirmedAt == nil
             && storedMarker.marker.openTimeSHA512 == payloadSHA512 {
             _ = try? dropIfUnchanged(storedMarker, environment: environment)
         }
@@ -353,7 +445,9 @@ enum PendingUploadQueue {
     }
 
     static func removeAllMarkers(for databaseId: UUID, environment: Environment) throws {
-        try environment.removeItem(queueDirectoryURL(for: databaseId, environment: environment))
+        for marker in listMarkers(for: databaseId, environment: environment) {
+            _ = try dropIfUnchanged(marker, environment: environment)
+        }
     }
 
     static func clearAll() throws {
@@ -395,6 +489,258 @@ enum PendingUploadQueue {
             return containerURL
         }
         return containerURL.appendingPathComponent(relativePath, isDirectory: false)
+    }
+
+    static func readImmutablePayload(_ stored: StoredMarker, environment: Environment = .live) throws -> Data {
+        let expected = queueDirectoryURL(for: stored.marker.databaseId, environment: environment)
+            .appendingPathComponent(stored.id.uuidString + ".kdbx")
+        guard stored.marker.intendedPayloadPath == (try makeRelativeAppGroupPath(for: expected, environment: environment)),
+              let sha = stored.marker.intendedPayloadSHA512 else { throw SaveError.saveContextUnavailable }
+        let bytes = try environment.readData(expected)
+        guard FileDigest.sha512(bytes) == sha else { throw SaveError.saveContextUnavailable }
+        return bytes
+    }
+
+    /// Caller holds commit and reference authority through the exact source handoff.
+    static func transferMergedSourcesLocked(_ sources: [StoredMarker], toPayloadSHA512 sha: Data,
+        reference current: DatabaseReference, environment: Environment = .live,
+        onStage: (String) -> Void = { _ in }) throws {
+        onStage("transfer-owner-proof")
+        let databaseID = current.id
+        guard var owner = try readJournal(for: databaseID, environment: environment).last(where: {
+            $0.marker.isPayloadFinalized == true && $0.marker.intendedPayloadSHA512 == sha && $0.marker.intendedPayloadPath != nil
+        }) else { throw SaveError.saveContextUnavailable }
+        guard current.cloudSyncMetadata?.localHeadOperationID == owner.id,
+              current.cloudSyncMetadata?.keyEpoch == owner.marker.keyEpoch,
+              owner.marker.localCommitBaseline?.hasCompatibleEpoch(current) == true,
+              FileDigest.sha512(try environment.readData(DatabaseListStore.cacheLocation(for: current))) == sha,
+              let path = owner.marker.intendedPayloadPath,
+              FileDigest.sha512(try environment.readData(resolveAppGroupURL(for: path, environment: environment))) == sha else {
+            throw SaveError.saveContextUnavailable
+        }
+        let journal = try readJournal(for: databaseID, environment: environment)
+        for source in sources where source.id != owner.id {
+            guard source.marker.confirmedAt == nil,
+                  source.marker.uploadAttemptID == nil || source.marker.attemptIsFenced == true,
+                  journal.contains(where: { $0.id == source.id && $0.marker == source.marker }),
+                  FileDigest.sha512(try readImmutablePayload(source, environment: environment)) == source.marker.intendedPayloadSHA512 else {
+                throw SaveError.saveContextUnavailable
+            }
+        }
+        onStage("transfer-update")
+        owner.marker.absorbedOperationIDs = Array(Set((owner.marker.absorbedOperationIDs ?? []) + sources.map(\.id)))
+        owner = try update(owner, environment: environment)
+        for source in sources where source.id != owner.id {
+            onStage("transfer-drop-sync")
+            guard try dropIfUnchanged(source, environment: environment) else { throw SaveError.saveContextUnavailable }
+        }
+    }
+
+    /// Serializes the local journal/cache/head transaction across app and extension processes.
+    static func withCommitLock<T>(for databaseID: UUID, environment: Environment = .live, nonBlocking: Bool = false, _ body: () throws -> T) throws -> T {
+        let directory = environment.appGroupContainerURL().appendingPathComponent("pending-upload-locks", isDirectory: true)
+        try environment.createDirectory(directory)
+        let lockURL = directory.appendingPathComponent(databaseID.uuidString + ".commit.lock")
+        let fd = Darwin.open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else { throw POSIXError(.EIO) }
+        defer { Darwin.close(fd) }
+        guard flock(fd, nonBlocking ? LOCK_EX | LOCK_NB : LOCK_EX) == 0 else {
+            let failureErrno = errno
+            environment.observedCommitLockFailure(failureErrno)
+            throw POSIXError(.EWOULDBLOCK)
+        }
+        defer { flock(fd, LOCK_UN) }
+        return try body()
+    }
+
+    static func hasRekeyJournal(for databaseID: UUID, environment: Environment = .live) -> Bool {
+        (try? readJournal(for: databaseID, environment: environment).contains { $0.marker.keyChange != nil }) ?? true
+    }
+
+    /// The caller holds the commit lock until cache replacement and head publication finish.
+    static func prepare(
+        reference: DatabaseReference, currentData: Data, intendedData: Data,
+        cacheURL: URL, keyChange: KeyChange? = nil,
+        remoteBaseSHA512: Data? = nil, operationID: UUID = UUID(), environment: Environment = .live
+    ) throws -> StoredMarker {
+        guard let current = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
+              current.isCloudBacked,
+              LocalCommitBaseline(reference: reference).hasCompatibleEpoch(current) else {
+            throw SaveError.saveContextUnavailable
+        }
+        try recoverLocalCommits(for: reference.id, environment: environment)
+        guard let reference = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
+              LocalCommitBaseline(reference: current).hasCompatibleEpoch(reference) else {
+            throw SaveError.saveContextUnavailable
+        }
+        try preserveLegacyPayloads(for: reference, environment: environment)
+        let currentSHA = FileDigest.sha512(currentData)
+        let markers = try readJournal(for: reference.id, environment: environment).map { try recoverPrepared($0, environment: environment) }
+        guard CloudJournalDecision.permitsMutation(markers.map(\.marker), changingKey: keyChange != nil) else {
+            throw SaveError.saveContextUnavailable
+        }
+        if let keyChange {
+            guard markers.isEmpty, keyChange.epoch != reference.cloudSyncMetadata?.keyEpoch else {
+                throw SaveError.saveContextUnavailable
+            }
+        }
+        let predecessor = markers.last { $0.marker.isPayloadFinalized == true && $0.marker.openTimeSHA512 == currentSHA }
+        let directory = queueDirectoryURL(for: reference.id, environment: environment)
+        try environment.createDirectory(directory)
+        let payloadURL = directory.appendingPathComponent("\(operationID.uuidString).kdbx")
+        try environment.writeMarkerAtomically(intendedData, payloadURL)
+        var marker = Marker(
+            databaseId: reference.id,
+            encryptedBytesCacheURL: try makeRelativeAppGroupPath(for: cacheURL, environment: environment),
+            openTimeSHA512: currentSHA, expectedRev: predecessor?.marker.expectedRev ?? reference.expectedCloudRevision,
+            createdAt: .now, baseRev: predecessor?.marker.baseRev ?? reference.expectedCloudRevision,
+            isPayloadFinalized: false
+        )
+        marker.journalVersion = 1
+        marker.localCommitBaseline = LocalCommitBaseline(reference: reference)
+        marker.predecessorSHA512 = currentSHA
+        marker.predecessorOperationID = predecessor?.id
+        marker.remoteBaseSHA512 = remoteBaseSHA512 ?? predecessor?.marker.remoteBaseSHA512 ?? (predecessor == nil ? currentSHA : nil)
+        if remoteBaseSHA512 != nil {
+            // A reconciled byte baseline is not evidence binding the prior reference's remote validators.
+            marker.expectedRev = nil
+            marker.baseRev = nil
+        }
+        marker.intendedPayloadSHA512 = FileDigest.sha512(intendedData)
+        marker.intendedPayloadPath = try makeRelativeAppGroupPath(for: payloadURL, environment: environment)
+        marker.keyEpoch = keyChange?.epoch ?? reference.cloudSyncMetadata?.keyEpoch
+        marker.keyChange = keyChange
+        let stored = StoredMarker(id: operationID, fileURL: directory.appendingPathComponent("\(operationID.uuidString).json"), marker: marker)
+        try persist(stored, environment: environment)
+        return stored
+    }
+
+    /// Caller holds the commit lock before replacing cache or rotating ordinary backups.
+    static func preserveLegacyPayloads(for reference: DatabaseReference, environment: Environment = .live) throws {
+        let backups = DatabaseListStore.recentBackups(for: reference)
+        for stored in try readJournal(for: reference.id, environment: environment)
+        where stored.marker.isPayloadFinalized == true && stored.marker.intendedPayloadPath == nil {
+            let candidates = [resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment)] + backups
+            guard let bytes = candidates.lazy.compactMap({ try? environment.readData($0) })
+                .first(where: { FileDigest.sha512($0) == stored.marker.openTimeSHA512 }) else { continue }
+            let payloadURL = stored.fileURL.deletingPathExtension().appendingPathExtension("kdbx")
+            try environment.writeMarkerAtomically(bytes, payloadURL)
+            var promoted = stored
+            promoted.marker.journalVersion = 1
+            promoted.marker.localCommitBaseline = LocalCommitBaseline(reference: reference)
+            promoted.marker.keyEpoch = reference.cloudSyncMetadata?.keyEpoch
+            promoted.marker.remoteBaseSHA512 = nil
+            promoted.marker.intendedPayloadSHA512 = stored.marker.openTimeSHA512
+            promoted.marker.intendedPayloadPath = try makeRelativeAppGroupPath(for: payloadURL, environment: environment)
+            // A stale generation aborts the caller's replacement/prune instead of publishing stale ownership.
+            _ = try update(promoted, environment: environment)
+        }
+    }
+
+    /// Only new journals contain enough evidence to recover an interrupted finalization.
+    static func recoverPrepared(_ stored: StoredMarker, environment: Environment = .live) throws -> StoredMarker {
+        guard stored.marker.isPayloadFinalized == false,
+              stored.marker.keyChange == nil,
+              let intendedSHA = stored.marker.intendedPayloadSHA512,
+              let path = stored.marker.intendedPayloadPath,
+              FileDigest.sha512(try environment.readData(resolveAppGroupURL(for: path, environment: environment))) == intendedSHA else {
+            return stored
+        }
+        if FileDigest.sha512(try environment.readData(resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment))) == intendedSHA {
+            var finalized = stored
+            finalized.marker.openTimeSHA512 = intendedSHA
+            return try finalize(finalized, environment: environment)
+        }
+        guard stored.marker.requiresLocalRecovery != true else { return stored }
+        var recoverable = stored
+        recoverable.marker.requiresLocalRecovery = true
+        recoverable.marker.isConflicted = true
+        return try update(recoverable, environment: environment)
+    }
+
+    /// Caller holds the commit lock. This never restores cache or publishes rekey state.
+    static func recoverLocalCommit(
+        _ snapshot: StoredMarker, environment: Environment = .live
+    ) throws -> DatabaseListStore.CloudMetadataUpdateResult? {
+        guard let stored = try readJournal(for: snapshot.marker.databaseId, environment: environment).first(where: { $0.id == snapshot.id }),
+              stored.marker == snapshot.marker,
+              stored.marker.keyChange == nil,
+              stored.marker.isPayloadFinalized == true,
+              let baseline = stored.marker.localCommitBaseline,
+              stored.marker.keyEpoch == baseline.keyEpoch,
+              let intendedSHA = stored.marker.intendedPayloadSHA512,
+              stored.marker.openTimeSHA512 == intendedSHA,
+              let path = stored.marker.intendedPayloadPath,
+              let payload = try? environment.readData(resolveAppGroupURL(for: path, environment: environment)),
+              FileDigest.sha512(payload) == intendedSHA else { return nil }
+        let cache = try? environment.readData(resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment))
+        if cache.map(FileDigest.sha512) == intendedSHA {
+            if let current = DatabaseListStore.databases.first(where: { $0.id == stored.marker.databaseId }),
+               baseline.hasCompatibleEpoch(current),
+               current.cloudSyncMetadata?.localHeadOperationID != stored.id,
+               current.cloudSyncMetadata?.localHeadOperationID != baseline.headOperationID,
+               let descendant = localDescendantOwner(of: stored, reference: current, environment: environment) {
+                // Replaying an ancestor must prove the existing head durable, never roll it back.
+                return DatabaseListStore.publishCloudLocalCommit(for: current.id, operationID: descendant.id,
+                    baseline: LocalCommitBaseline(reference: current))
+            }
+            return DatabaseListStore.publishCloudLocalCommit(for: stored.marker.databaseId, operationID: stored.id, baseline: baseline)
+        }
+        guard let current = DatabaseListStore.databases.first(where: { $0.id == stored.marker.databaseId }),
+              current.cloudSyncMetadata?.localHeadOperationID == stored.id else { return nil }
+        guard baseline.hasCompatibleEpoch(current) else { return .mismatch(current) }
+        // Reconfirm only this already-visible head; cache restoration still needs confirmed-owner proof.
+        return DatabaseListStore.publishCloudLocalCommit(for: current.id, operationID: stored.id,
+            baseline: LocalCommitBaseline(reference: current))
+    }
+
+    /// Caller holds the commit lock. Every hop must still own its exact immutable ciphertext.
+    static func localDescendantOwner(
+        of ancestor: StoredMarker, reference: DatabaseReference, environment: Environment = .live
+    ) -> StoredMarker? {
+        guard let markers = try? readJournal(for: reference.id, environment: environment) else { return nil }
+        func verified(_ stored: StoredMarker) -> Bool {
+            guard stored.marker.databaseId == reference.id, stored.marker.isPayloadFinalized == true,
+                  stored.marker.keyChange == nil, stored.marker.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
+                  let sha = stored.marker.intendedPayloadSHA512, stored.marker.openTimeSHA512 == sha,
+                  let path = stored.marker.intendedPayloadPath,
+                  let bytes = try? environment.readData(resolveAppGroupURL(for: path, environment: environment)) else { return false }
+            return FileDigest.sha512(bytes) == sha
+        }
+        guard let head = markers.first(where: { $0.id == reference.cloudSyncMetadata?.localHeadOperationID }),
+              verified(head) else { return nil }
+        var remaining = [head]
+        var visited = Set<UUID>()
+        while let child = remaining.popLast() {
+            guard visited.insert(child.id).inserted else { continue }
+            if child.id == ancestor.id { return child.marker == ancestor.marker ? head : nil }
+            for parent in markers {
+                let predecessor = child.marker.predecessorOperationID == parent.id
+                    && child.marker.predecessorSHA512 == parent.marker.intendedPayloadSHA512
+                let absorbed = child.marker.absorbedOperationIDs?.contains(parent.id) == true
+                if (predecessor || absorbed), verified(parent) { remaining.append(parent) }
+            }
+        }
+        return nil
+    }
+
+    /// Caller holds the commit lock; marker and list locks are acquired only inside it.
+    static func recoverLocalCommits(for databaseID: UUID, environment: Environment = .live) throws {
+        for snapshot in try readJournal(for: databaseID, environment: environment) {
+            if snapshot.marker.journalVersion != nil { _ = try readImmutablePayload(snapshot, environment: environment) }
+            let stored = try recoverPrepared(snapshot, environment: environment)
+            switch try recoverLocalCommit(stored, environment: environment) {
+            case .published, nil: break
+            case .mismatch, .removed, .writeFailed: throw SaveError.saveContextUnavailable
+            }
+        }
+    }
+
+    /// A remote divergence affects the whole local lineage, including descendants not attempted yet.
+    static func markDatabaseConflicted(for databaseID: UUID, environment: Environment = .live) throws {
+        for stored in try readJournal(for: databaseID, environment: environment) where !stored.marker.isConflicted {
+            _ = try markConflicted(stored, environment: environment)
+        }
     }
 
     private static func persist(_ storedMarker: StoredMarker, environment: Environment) throws {

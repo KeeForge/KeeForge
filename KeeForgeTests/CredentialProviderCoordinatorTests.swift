@@ -3763,6 +3763,31 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     /// The extension cannot sync a cloud database, so its copy is only as
     /// current as the app's last sync, and the picker is told when that was.
+    func test_cloudRecoveryFailureStillUnlocksAndFillsTheAuthenticatedCacheWithoutPublishingKeys() async throws {
+        let bytes = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        for fault in CloudJournalReadFault.allCases {
+            let database = DatabaseListStore.addCloud(provider: CloudProviderKind.dropbox.rawValue, accountId: "read-recovery",
+                file: .init(id: "/\(fault).kdbx", name: "\(fault).kdbx", path: "/\(fault).kdbx", isFolder: false, modifiedDate: nil, size: nil))
+            let context = try CloudJournalTestContext(reference: database, base: bytes, payload: bytes)
+            try fault.install(in: context)
+            DatabaseListStore.activeAutoFillDatabaseID = database.id
+            let effects = CloudJournalEffectCounter()
+            let (coordinator, presenter) = makeCoordinator()
+            coordinator.persistQuickUnlockKeys = { _, _, _ in effects.record(); return true }
+            let search = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+            let entry = try XCTUnwrap(search.searchEntries.first)
+            let finished = expectation(description: "Authenticated cached credential fills")
+            presenter.onCompleteRequest = { _ in finished.fulfill() }
+            try fillBySelectingFromPicker(coordinator, presenter, entry: entry)
+            let completion = await XCTWaiter.fulfillment(of: [finished], timeout: 15)
+            XCTAssertEqual(completion, .completed)
+            XCTAssertEqual(effects.value, 0)
+            XCTAssertEqual(try Data(contentsOf: context.cacheURL), bytes)
+            XCTAssertFalse(PendingUploadQueue.listMarkers(for: database.id).isEmpty)
+            coordinator.cleanup()
+        }
+    }
+
     func test_unlockCloudDatabase_datesTheSharedCopyByTheLastSync() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let lastSyncedAt = Date(timeIntervalSince1970: 1_790_000_000)

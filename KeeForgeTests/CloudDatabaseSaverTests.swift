@@ -93,6 +93,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
             expectedRev: "rev-A",
             environment: environment
         )
+        guard case .saved? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Expected delivery of the locally committed ciphertext")
+        }
 
         guard case .saved(let newSHA512, _, _) = result else {
             XCTFail("Expected save to succeed.")
@@ -112,7 +115,8 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(newSHA512, FileDigest.sha512(uploadCall.data))
         XCTAssertEqual(updatedReference.cloudSyncMetadata?.remoteRev, "rev-B")
         XCTAssertEqual(updatedReference.cloudSyncMetadata?.remoteContentHash, "remote-hash-B")
-        XCTAssertEqual(updatedReference.cloudSyncMetadata?.remoteModifiedAt, uploadedMetadata.modifiedDate)
+        XCTAssertEqual(updatedReference.cloudSyncMetadata?.remoteModifiedAt, updatedReference.cloudSyncMetadata?.lastSyncedAt)
+        XCTAssertNotNil(updatedReference.cloudSyncMetadata?.remoteModifiedAt)
         XCTAssertNotNil(updatedReference.cloudSyncMetadata?.lastSyncedAt)
         XCTAssertNil(updatedReference.cloudSyncMetadata?.lastSyncIssue)
         XCTAssertEqual(try Data(contentsOf: backupURL), context.currentData)
@@ -168,6 +172,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
+        guard case .saved? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("The real queued Twofish save must deliver before inspecting uploaded bytes")
+        }
         let uploadCall = await recorder.firstCall()
         let uploaded = try XCTUnwrap(uploadCall?.data)
         let reparsed = try KDBXParser.parseWithMetaAndHeader(
@@ -180,12 +187,11 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), uploaded)
     }
 
-    func testSaveRevChangedRemotelyReturnsConflictDoesNotWriteCache() async throws {
+    func testDeliveryConflictRetainsCommittedCacheWithoutInternalRetry() async throws {
         let reference = try makeCloudReference(remoteRev: "rev-A")
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Remote Conflict Entry")
         let recorder = UploadRecorder()
-        let remoteData = Data("remote-cloud-copy".utf8)
         let environment = makeEnvironment(
             getMetadata: { _ in
                 CloudFileMetadata(
@@ -200,7 +206,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
                 progress(1)
                 throw CloudProviderError.conflict(remoteRev: "rev-B")
             },
-            downloadRemoteData: { _ in remoteData }
+            downloadRemoteData: { _ in context.currentData }
         )
 
         let result = try await CloudDatabaseSaver.save(
@@ -212,21 +218,29 @@ final class CloudDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
-        guard case .conflict(let remoteSHA512, let conflictData) = result else {
-            XCTFail("Expected save conflict.")
-            return
+        guard case .saved = result else { return XCTFail("Local save must commit") }
+        let intended = try Data(contentsOf: cacheURL)
+        do {
+            _ = try await deliverQueuedSave(reference: reference, environment: environment)
+            XCTFail("The dispatched conflict must remain uncertain")
+        } catch { XCTAssertEqual(error as? CloudProviderError, .conflict(remoteRev: "rev-B")) }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .attempting)
+        for _ in 0..<2 {
+            guard case .retained? = try await CloudDatabaseSaver.deliver(retained, reference: reference, environment: environment) else {
+                return XCTFail("Recovery must not dispatch the same attempt twice")
+            }
         }
+        let count = await recorder.callCount()
+        XCTAssertEqual(count, 1)
+        let recordedCall = await recorder.firstCall()
+        let call = try XCTUnwrap(recordedCall)
+        XCTAssertEqual(call.expectedRev, "rev-A")
+        XCTAssertEqual(call.data, intended)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), intended)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)), context.currentData)
 
-        let uploadCallCount = await recorder.callCount()
-
-        XCTAssertEqual(uploadCallCount, 1)
-        XCTAssertEqual(remoteSHA512, FileDigest.sha512(remoteData))
-        XCTAssertEqual(conflictData, remoteData)
-        XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
-        // The pre-save backup is written before the upload, so a conflicting
-        // upload still leaves a backup of the pre-save local bytes behind.
-        let backupURL = try XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)
-        XCTAssertEqual(try Data(contentsOf: backupURL), context.currentData)
     }
 
     func testSaveRemoteRevChangedBeforeUploadReturnsConflictWithoutUploadAttempt() async throws {
@@ -266,18 +280,20 @@ final class CloudDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
-        guard case .conflict(let remoteSHA512, let conflictData) = result else {
-            XCTFail("Expected save conflict.")
-            return
+        guard case .saved = result else { return XCTFail("Local ciphertext must commit before delivery") }
+        let intended = try Data(contentsOf: cacheURL)
+        guard case .conflict? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Changed remote bytes must prevent delivery")
         }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        XCTAssertNotEqual(intended, context.currentData)
 
         let uploadCallCount = await recorder.callCount()
 
         XCTAssertEqual(uploadCallCount, 0)
-        XCTAssertEqual(remoteSHA512, FileDigest.sha512(remoteData))
-        XCTAssertEqual(conflictData, remoteData)
-        XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
-        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), intended)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)), context.currentData)
     }
 
     // MARK: - Stale-tag phantom-conflict guard
@@ -322,6 +338,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
             expectedRev: "rev-A",
             environment: environment
         )
+        guard case .saved? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Expected delivery of the locally committed ciphertext")
+        }
 
         guard case .saved = result else {
             XCTFail("A stale rev over byte-identical remote content must not conflict.")
@@ -382,6 +401,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
             kdfPolicy: .mainApp,
             environment: environment
         )
+        guard case .saved? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Expected delivery of the locally committed ciphertext")
+        }
 
         guard case .saved = result else {
             XCTFail("A merge save must replace the remote it reconciled.")
@@ -441,14 +463,17 @@ final class CloudDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
-        guard case .conflict(let remoteSHA512, _) = result else {
-            XCTFail("Expected save conflict.")
-            return
+        guard case .saved = result else { return XCTFail("Local ciphertext must commit before delivery") }
+        let intended = try Data(contentsOf: cacheURL)
+        guard case .conflict? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Changed remote bytes must prevent delivery")
         }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        XCTAssertNotEqual(intended, context.currentData)
         let uploadCallCount = await recorder.callCount()
         XCTAssertEqual(uploadCallCount, 0)
-        XCTAssertEqual(remoteSHA512, FileDigest.sha512(remoteData))
-        XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), intended)
     }
 
     func testSaveWithoutReconciledRemoteHashStillConflictsOnTheSameDivergence() async throws {
@@ -489,12 +514,14 @@ final class CloudDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
-        guard case .conflict(let remoteSHA512, let remoteData) = result else {
-            XCTFail("An unreconciled divergence must still conflict.")
-            return
+        guard case .saved = result else { return XCTFail("Local ciphertext must commit before delivery") }
+        let intended = try Data(contentsOf: cacheURL)
+        guard case .conflict? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Changed remote bytes must prevent delivery")
         }
-        XCTAssertEqual(remoteSHA512, FileDigest.sha512(divergedRemoteData))
-        XCTAssertEqual(remoteData, divergedRemoteData)
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        XCTAssertNotEqual(intended, context.currentData)
         let uploadCallCount = await recorder.callCount()
         XCTAssertEqual(uploadCallCount, 0)
     }
@@ -543,6 +570,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
                 expectedRev: reference.expectedCloudRevision,
                 environment: environment
             )
+            guard case .saved? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+                return XCTFail("Expected delivery of the locally committed ciphertext")
+            }
 
             guard case .saved = result else {
                 XCTFail("Save \(index) must succeed despite stripped upload metadata.")
@@ -559,7 +589,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(lastUploadCall.expectedRev, "rev-server")
     }
 
-    func testSaveUploadConflictWithByteIdenticalRemoteRetriesOnceWithRefreshedRev() async throws {
+    func testDeliveryConflictWithIdenticalRemoteStillDoesNotResend() async throws {
         let reference = try makeCloudReference(remoteRev: "rev-A")
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Stale 412 Entry")
@@ -601,19 +631,32 @@ final class CloudDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
-        guard case .saved = result else {
-            XCTFail("A 412 over byte-identical remote content must retry and succeed.")
-            return
+        guard case .saved = result else { return XCTFail("Local save must commit") }
+        let intended = try Data(contentsOf: cacheURL)
+        do {
+            _ = try await deliverQueuedSave(reference: reference, environment: environment)
+            XCTFail("The dispatched conflict must remain uncertain")
+        } catch { XCTAssertEqual(error as? CloudProviderError, .conflict(remoteRev: "rev-B")) }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .attempting)
+        for _ in 0..<2 {
+            guard case .retained? = try await CloudDatabaseSaver.deliver(retained, reference: reference, environment: environment) else {
+                return XCTFail("Recovery must not dispatch the same attempt twice")
+            }
         }
+        let count = await recorder.callCount()
+        XCTAssertEqual(count, 1)
+        let recordedCall = await recorder.firstCall()
+        let call = try XCTUnwrap(recordedCall)
+        XCTAssertEqual(call.expectedRev, "rev-A")
+        XCTAssertEqual(call.data, intended)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), intended)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)), context.currentData)
 
-        let uploadCallCount = await recorder.callCount()
-        let recordedRetryCall = await recorder.lastCall()
-        let retryCall = try XCTUnwrap(recordedRetryCall)
-        XCTAssertEqual(uploadCallCount, 2)
-        XCTAssertEqual(retryCall.expectedRev, "rev-B", "The retry must carry the refreshed rev.")
     }
 
-    func testSaveUploadConflictRetryAlsoConflictingStopsAfterExactlyOneRetry() async throws {
+    func testRepeatedRecoveryAfterDispatchConflictNeverRetries() async throws {
         let reference = try makeCloudReference(remoteRev: "rev-A")
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Persistent 412 Entry")
@@ -644,15 +687,29 @@ final class CloudDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
-        guard case .conflict(let remoteSHA512, let conflictData) = result else {
-            XCTFail("A conflict that survives one guarded retry must surface as a conflict.")
-            return
+        guard case .saved = result else { return XCTFail("Local save must commit") }
+        let intended = try Data(contentsOf: cacheURL)
+        do {
+            _ = try await deliverQueuedSave(reference: reference, environment: environment)
+            XCTFail("The dispatched conflict must remain uncertain")
+        } catch { XCTAssertEqual(error as? CloudProviderError, .conflict(remoteRev: "rev-B")) }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .attempting)
+        for _ in 0..<2 {
+            guard case .retained? = try await CloudDatabaseSaver.deliver(retained, reference: reference, environment: environment) else {
+                return XCTFail("Recovery must not dispatch the same attempt twice")
+            }
         }
+        let count = await recorder.callCount()
+        XCTAssertEqual(count, 1)
+        let recordedCall = await recorder.firstCall()
+        let call = try XCTUnwrap(recordedCall)
+        XCTAssertEqual(call.expectedRev, "rev-A")
+        XCTAssertEqual(call.data, intended)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), intended)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)), context.currentData)
 
-        let uploadCallCount = await recorder.callCount()
-        XCTAssertEqual(uploadCallCount, 2, "Exactly one retry, never a loop.")
-        XCTAssertEqual(remoteSHA512, FileDigest.sha512(context.currentData))
-        XCTAssertEqual(conflictData, context.currentData)
     }
 
     func testSaveLocalCacheChangedSinceOpenReturnsConflictBeforeUploadAttempted() async throws {
@@ -727,15 +784,18 @@ final class CloudDatabaseSaverTests: XCTestCase {
             }
         )
 
+        let local = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A",
+            environment: environment
+        )
+        guard case .saved = local else { return XCTFail("Local save must commit") }
+        let intended = try Data(contentsOf: cacheURL)
         do {
-            _ = try await CloudDatabaseSaver.save(
-                draft: context.draft,
-                reference: reference,
-                compositeKey: context.compositeKey,
-                openTimeSHA512: context.openTimeSHA512,
-                expectedRev: "rev-A",
-                environment: environment
-            )
+            _ = try await deliverQueuedSave(reference: reference, environment: environment)
             XCTFail("Expected save to throw a write-scope error.")
         } catch let error as CloudProviderError {
             XCTAssertEqual(error, .writeScopeRequired)
@@ -744,7 +804,12 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let uploadCallCount = await recorder.callCount()
 
         XCTAssertEqual(uploadCallCount, 1)
-        XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), intended)
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        guard case .retained? = try await CloudDatabaseSaver.deliver(retained, reference: reference, environment: environment) else { return XCTFail("Uncertain dispatch must not resend") }
+        let countAfterRecovery = await recorder.callCount()
+        XCTAssertEqual(countAfterRecovery, 1)
         // The pre-save backup is written before the upload, so a failed upload
         // still leaves a backup of the pre-save local bytes behind.
         let backupURL = try XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)
@@ -772,15 +837,18 @@ final class CloudDatabaseSaverTests: XCTestCase {
             }
         )
 
+        let local = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A",
+            environment: environment
+        )
+        guard case .saved = local else { return XCTFail("Local save must commit") }
+        let intended = try Data(contentsOf: cacheURL)
         do {
-            _ = try await CloudDatabaseSaver.save(
-                draft: context.draft,
-                reference: reference,
-                compositeKey: context.compositeKey,
-                openTimeSHA512: context.openTimeSHA512,
-                expectedRev: "rev-A",
-                environment: environment
-            )
+            _ = try await deliverQueuedSave(reference: reference, environment: environment)
             XCTFail("Expected save to throw on network failure.")
         } catch let error as CloudProviderError {
             XCTAssertEqual(error, .networkUnavailable)
@@ -789,7 +857,12 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let uploadCallCount = await recorder.callCount()
 
         XCTAssertEqual(uploadCallCount, 1)
-        XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), intended)
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        guard case .retained? = try await CloudDatabaseSaver.deliver(retained, reference: reference, environment: environment) else { return XCTFail("Uncertain dispatch must not resend") }
+        let countAfterRecovery = await recorder.callCount()
+        XCTAssertEqual(countAfterRecovery, 1)
         // The pre-save backup is written before the upload, so a failed upload
         // still leaves a backup of the pre-save local bytes behind.
         let backupURL = try XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)
@@ -843,6 +916,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
                 expectedRev: currentReference.expectedCloudRevision,
                 environment: environment
             )
+            guard case .saved? = try await deliverQueuedSave(reference: currentReference, environment: environment) else {
+                return XCTFail("Expected delivery of the locally committed ciphertext")
+            }
 
             guard case .saved = result else {
                 XCTFail("Expected save \(index) to succeed.")
@@ -933,10 +1009,12 @@ final class CloudDatabaseSaverTests: XCTestCase {
                     size: Int64(data.count),
                     rev: "rev-B"
                 )
-            }
+            },
+            downloadRemoteData: { _ in context.currentData }
         )
 
-        let result = try await CloudDatabaseSaver.save(
+        let result = try await CloudDatabaseSaver.$keyChange.withValue(.init(keyFileBookmarkData: nil, keyFileFilename: nil)) {
+            try await CloudDatabaseSaver.save(
             draft: context.draft,
             reference: reference,
             compositeKey: context.compositeKey,
@@ -946,6 +1024,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             newCompositeKey: newCompositeKey,
             environment: environment
         )
+        }
 
         guard case .saved = result else {
             XCTFail("Expected rekey save to succeed.")
@@ -999,7 +1078,8 @@ final class CloudDatabaseSaverTests: XCTestCase {
             downloadRemoteData: { _ in remoteData }
         )
 
-        let result = try await CloudDatabaseSaver.save(
+        let result = try await CloudDatabaseSaver.$keyChange.withValue(.init(keyFileBookmarkData: nil, keyFileFilename: nil)) {
+            try await CloudDatabaseSaver.save(
             draft: context.draft,
             reference: reference,
             compositeKey: context.compositeKey,
@@ -1009,6 +1089,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             newCompositeKey: try KDBXCrypto.compositeKey(password: "rotated-master-123", keyFileData: nil),
             environment: environment
         )
+        }
 
         guard case .conflict = result else {
             XCTFail("Expected the rekey save to conflict.")
@@ -1064,6 +1145,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
             ),
             environment: environment
         )
+        guard case .saved? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Expected delivery of the locally committed ciphertext")
+        }
 
         guard case .saved = result else {
             XCTFail("Expected the encryption settings save to succeed.")
@@ -1125,17 +1209,19 @@ final class CloudDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
-        guard case .conflict(let remoteSHA512, let conflictData) = result else {
-            XCTFail("Expected a nil-rev save against a moved remote to conflict.")
-            return
+        guard case .saved = result else { return XCTFail("Local ciphertext must commit before delivery") }
+        let intended = try Data(contentsOf: cacheURL)
+        guard case .conflict? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Changed remote bytes must prevent delivery")
         }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        XCTAssertNotEqual(intended, context.currentData)
 
         let uploadCallCount = await recorder.callCount()
 
         XCTAssertEqual(uploadCallCount, 0)
-        XCTAssertEqual(remoteSHA512, FileDigest.sha512(remoteData))
-        XCTAssertEqual(conflictData, remoteData)
-        XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), intended)
     }
 
     func testSaveWithoutRecordedRevUploadsWhenRemoteContentHashStillMatches() async throws {
@@ -1172,6 +1258,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
             expectedRev: nil,
             environment: environment
         )
+        guard case .saved? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Expected delivery of the locally committed ciphertext")
+        }
 
         guard case .saved = result else {
             XCTFail("Expected a nil-rev save against an unchanged remote to succeed.")
@@ -1219,10 +1308,14 @@ final class CloudDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
-        guard case .conflict = result else {
-            XCTFail("Expected a remote reporting an unrecorded revision to be treated as conflict-suspect.")
-            return
+        guard case .saved = result else { return XCTFail("Local ciphertext must commit before delivery") }
+        let intended = try Data(contentsOf: cacheURL)
+        guard case .conflict? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Changed remote bytes must prevent delivery")
         }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), intended)
+        XCTAssertNotEqual(intended, context.currentData)
 
         let uploadCallCount = await recorder.callCount()
         XCTAssertEqual(uploadCallCount, 0)
@@ -1254,7 +1347,8 @@ final class CloudDatabaseSaverTests: XCTestCase {
                     size: Int64(data.count),
                     rev: nil
                 )
-            }
+            },
+            downloadRemoteData: { _ in context.currentData }
         )
 
         let result = try await CloudDatabaseSaver.save(
@@ -1265,6 +1359,9 @@ final class CloudDatabaseSaverTests: XCTestCase {
             expectedRev: nil,
             environment: environment
         )
+        guard case .saved? = try await deliverQueuedSave(reference: reference, environment: environment) else {
+            return XCTFail("Expected delivery of the locally committed ciphertext")
+        }
 
         guard case .saved = result else {
             XCTFail("A provider without revisions or content hashes must still be savable.")
@@ -1277,118 +1374,226 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cacheURL), uploadedBytes)
     }
 
-    func testPushPendingUploadWithoutExpectedRevConflictsWhenRemoteContentHashMoved() async throws {
+    func testJournalDeliveryWithoutExpectedRevConflictsWhenRemoteContentHashMoved() async throws {
         let reference = try makeCloudReference(remoteRev: nil, remoteContentHash: "remote-hash-A")
-        let recorder = UploadRecorder()
-        let environment = makeEnvironment(
-            getMetadata: { _ in
-                CloudFileMetadata(
-                    modifiedDate: Date(timeIntervalSince1970: 175),
-                    contentHash: "remote-hash-B",
-                    size: 256,
-                    rev: nil
-                )
-            },
-            upload: { _, data, expectedRev, progress in
-                await recorder.record(data: data, expectedRev: expectedRev)
-                progress(1)
-                return CloudFileMetadata(
-                    modifiedDate: Date(timeIntervalSince1970: 200),
-                    contentHash: "remote-hash-C",
-                    size: Int64(data.count),
-                    rev: nil
-                )
+        let base = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        let context = try CloudJournalTestContext(reference: reference, base: base, payload: Data("autofill-ciphertext".utf8))
+        let transport = CloudJournalTransport(remote: Data("moved-remote-ciphertext".utf8), revision: nil, contentHash: "remote-hash-B")
+        let result = try await CloudDatabaseSaver.deliver(context.stored, reference: reference,
+            environment: context.environment(transport: transport))
+        guard case .conflict? = result else { return XCTFail("A nil revision must not blind-overwrite a moved remote") }
+        XCTAssertEqual(transport.effects.uploads.count, 0)
+        XCTAssertEqual(transport.effects.downloads, 1)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(context.stored), context.payload)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).map(\.id), [context.stored.id])
+    }
+
+    func testLostUploadAcknowledgementRetainsExactCiphertextAndNeverResends() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cache, entryTitle: "Retained journal entry")
+        let uploads = UploadRecorder()
+        var environment = makeEnvironment(getMetadata: { _ in
+            CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-A")
+        }, upload: { _, data, rev, _ in
+            await uploads.record(data: data, expectedRev: rev)
+            throw CloudProviderError.networkUnavailable
+        })
+        environment.downloadRemoteData = { _ in throw TestError.unexpectedRemoteDownload }
+        let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: reference,
+            compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A", kdfPolicy: .mainApp, environment: environment)
+        guard case .saved(let sha, _, _) = result else { return XCTFail("The durable shared copy completes the local save") }
+        let prepared = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        let ciphertext = try Data(contentsOf: cache)
+        XCTAssertEqual(FileDigest.sha512(ciphertext), sha)
+        XCTAssertEqual(CloudJournalDecision.state(of: prepared.marker), .ready)
+        do { _ = try await CloudDatabaseSaver.deliver(prepared, reference: reference, environment: environment); XCTFail("Lost acknowledgement must remain uncertain") }
+        catch { XCTAssertEqual(error as? CloudProviderError, .networkUnavailable) }
+        let uncertain = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: uncertain.marker), .attempting)
+        for _ in 0..<3 {
+            guard case .retained? = try await CloudDatabaseSaver.deliver(uncertain, reference: reference, environment: environment) else {
+                return XCTFail("An uncertain request cannot be redispatched")
             }
-        )
-
-        let result = try await CloudDatabaseSaver.pushPendingUpload(
-            reference: reference,
-            encryptedBytes: Data("autofill-bytes".utf8),
-            expectedRev: nil,
-            environment: environment
-        )
-
-        guard case .conflict = result else {
-            XCTFail("A legacy marker must not blind-overwrite a moved remote.")
-            return
         }
-
-        let uploadCallCount = await recorder.callCount()
-        XCTAssertEqual(uploadCallCount, 0)
+        XCTAssertFalse(try PendingUploadQueue.dropIfUnchanged(uncertain))
+        let payloadURL = PendingUploadQueue.resolveAppGroupURL(for: try XCTUnwrap(uncertain.marker.intendedPayloadPath))
+        XCTAssertEqual(try Data(contentsOf: payloadURL), ciphertext)
+        let opened = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: reference, providerResolver: { _ in nil })
+        XCTAssertEqual(opened.data, ciphertext)
+        let callCount = await uploads.callCount()
+        XCTAssertEqual(callCount, 1)
+        XCTAssertEqual(PendingUploadQueue.listMarkers(for: reference.id).count, 1)
     }
 
-    func testRemoteHasDivergedComparesRevExactlyWhenOneWasRecorded() {
-        let recorded = makeRecordedMetadata(rev: "rev-A", contentHash: "hash-A")
-
-        XCTAssertFalse(
-            CloudDatabaseSaver.remoteHasDiverged(
-                recorded: recorded,
-                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-Z", size: 1, rev: "rev-A"),
-                expectedRev: "rev-A"
-            ),
-            "A matching rev decides the question on its own; the hash is not consulted."
-        )
-        XCTAssertTrue(
-            CloudDatabaseSaver.remoteHasDiverged(
-                recorded: recorded,
-                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-A", size: 1, rev: "rev-B"),
-                expectedRev: "rev-A"
-            )
-        )
-        XCTAssertTrue(
-            CloudDatabaseSaver.remoteHasDiverged(
-                recorded: recorded,
-                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-A", size: 1, rev: nil),
-                expectedRev: "rev-A"
-            )
-        )
+    func testDeliverySkipsDownloadOnlyForContentIdentifyingRevisionOrDigest() async throws {
+        for kind in ["strong", "weak", "lastmod", "missing", "mismatch", "ftp-digest"] {
+            DatabaseListStore.clearAll()
+            let revision: String? = switch kind {
+            case "strong": "\"strong-tag\""
+            case "weak": "W/\"weak-tag\""
+            case "lastmod": "lastmod:unchanged-second"
+            case "ftp-digest": "sha256:exact-content-digest"
+            default: nil
+            }
+            let reference = try makeCloudReference(remoteRev: revision)
+            let cache = DatabaseListStore.cacheLocation(for: reference)
+            let context = try makeDirtySaveContext(cacheURL: cache, entryTitle: "Delivery \(kind)")
+            let uploads = UploadRecorder()
+            let downloads = UploadRecorder()
+            let remote = kind == "weak" || kind == "lastmod" || kind == "mismatch" ? Data("different remote bytes".utf8) : context.currentData
+            var environment = makeEnvironment(getMetadata: { _ in
+                CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: Int64(remote.count), rev: revision)
+            }, upload: { _, bytes, rev, _ in
+                await uploads.record(data: bytes, expectedRev: rev)
+                return CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: Int64(bytes.count), rev: "delivered")
+            }, downloadRemoteData: { _ in
+                await downloads.record(data: remote, expectedRev: revision)
+                return remote
+            })
+            environment.revisionIdentifiesContent = { _, rev in
+                kind == "ftp-digest" ? FTPCloudProvider.shared.revisionIdentifiesContent(rev)
+                    : WebDAVCloudProvider.shared.revisionIdentifiesContent(rev)
+            }
+            let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: reference,
+                compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+                expectedRev: revision, kdfPolicy: .mainApp, environment: environment)
+            guard case .saved = result else { return XCTFail("Local publication must precede delivery") }
+            let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            let delivered = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment)
+            let downloadCount = await downloads.callCount()
+            let uploadCount = await uploads.callCount()
+            XCTAssertEqual(downloadCount, kind == "strong" || kind == "ftp-digest" ? 0 : 1, kind)
+            if kind == "weak" || kind == "lastmod" || kind == "mismatch" {
+                guard case .conflict? = delivered else { return XCTFail("Unchanged weak metadata cannot authorize overwriting different bytes") }
+                XCTAssertEqual(uploadCount, 0, kind)
+                XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker), try Data(contentsOf: cache))
+            } else {
+                guard case .saved? = delivered else { return XCTFail("Verified byte base permits one delivery") }
+                XCTAssertEqual(uploadCount, 1, kind)
+            }
+        }
     }
 
-    func testRemoteHasDivergedFallsBackToContentHashWhenNoRevWasRecorded() {
-        XCTAssertFalse(
-            CloudDatabaseSaver.remoteHasDiverged(
-                recorded: makeRecordedMetadata(rev: nil, contentHash: "hash-A"),
-                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-A", size: 1, rev: nil),
-                expectedRev: nil
-            )
-        )
-        XCTAssertTrue(
-            CloudDatabaseSaver.remoteHasDiverged(
-                recorded: makeRecordedMetadata(rev: nil, contentHash: "hash-A"),
-                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-B", size: 1, rev: nil),
-                expectedRev: nil
-            )
-        )
-        XCTAssertTrue(
-            CloudDatabaseSaver.remoteHasDiverged(
-                recorded: makeRecordedMetadata(rev: nil, contentHash: nil),
-                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-A", size: 1, rev: nil),
-                expectedRev: nil
-            ),
-            "Remote reports a hash we never recorded, so we have not seen these bytes."
-        )
-        XCTAssertFalse(
-            CloudDatabaseSaver.remoteHasDiverged(
-                recorded: makeRecordedMetadata(rev: nil, contentHash: nil),
-                remote: CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: 1, rev: nil),
-                expectedRev: nil
-            ),
-            "Bare WebDAV residue: nothing to verify against, so the save proceeds."
-        )
+    func testJournalTransitionTableRejectsEveryUnlistedEffect() {
+        let states: [CloudJournalDecision.State] = [.legacy, .prepared, .ready, .attempting, .confirmed, .recoveryRequired, .invalid]
+        let events: [CloudJournalDecision.Event] = [.payloadInstalled, .dispatch, .acknowledged, .rejectedBeforeCommit, .localReconciled, .interruption]
+        for state in states {
+            for event in events {
+                let expected: CloudJournalDecision.Transition?
+                switch (state, event) {
+                case (.prepared, .payloadInstalled): expected = .init(state: .ready, effects: [.persist, .publishReference])
+                case (.ready, .dispatch): expected = .init(state: .attempting, effects: [.persist, .upload])
+                case (.ready, .acknowledged), (.attempting, .acknowledged): expected = .init(state: .confirmed, effects: [.persist, .publishReference])
+                case (.attempting, .rejectedBeforeCommit): expected = .init(state: .ready, effects: [.persist])
+                case (.confirmed, .localReconciled): expected = .init(state: .confirmed, effects: [.retire])
+                case (.attempting, .interruption): expected = .init(state: .attempting, effects: [.retainForRecovery])
+                default: expected = nil
+                }
+                XCTAssertEqual(CloudJournalDecision.transition(from: state, on: event), expected)
+            }
+        }
     }
 
-    private func makeRecordedMetadata(rev: String?, contentHash: String?) -> CloudSyncMetadata {
-        CloudSyncMetadata(
-            provider: CloudProviderKind.dropbox.rawValue,
-            accountId: "acct-1",
-            fileId: "/Vaults/cloud-save.kdbx",
-            displayPath: "/Vaults/cloud-save.kdbx",
-            remoteContentHash: contentHash,
-            remoteModifiedAt: Date(timeIntervalSince1970: 100),
-            remoteRev: rev,
-            lastSyncedAt: nil,
-            lastSyncIssue: nil
-        )
+    func testConfirmedDeliveryFlushFailureRetainsAndReconcilesWithoutResending() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cache, entryTitle: "Confirmed retained")
+        let uploads = UploadRecorder()
+        var environment = makeEnvironment(getMetadata: { _ in
+            CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-A")
+        }, upload: { _, bytes, rev, _ in
+            await uploads.record(data: bytes, expectedRev: rev)
+            return CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: Int64(bytes.count), rev: "rev-B")
+        })
+        _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: reference,
+            compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A", kdfPolicy: .mainApp, environment: environment)
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        let installed = try Data(contentsOf: cache)
+        let flush = environment.synchronizeCacheFile
+        environment.synchronizeCacheFile = { _ in throw CocoaError(.fileWriteNoPermission) }
+        guard case .retained? = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment) else {
+            return XCTFail("Observed confirmation cannot retire before cache durability")
+        }
+        let confirmed = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertNotNil(confirmed.marker.confirmedAt)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(confirmed), installed)
+        environment.synchronizeCacheFile = flush
+        guard case .saved? = try await CloudDatabaseSaver.deliver(confirmed, reference: reference, environment: environment) else {
+            return XCTFail("Explicit reconciliation of a confirmed receipt must complete without another upload")
+        }
+        let calls = await uploads.callCount()
+        XCTAssertEqual(calls, 1)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertEqual(try Data(contentsOf: cache), installed)
+    }
+
+    func testJournalDecisionRejectsUncertaintyAndUnknownVersions() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let bytes = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        let marker = try PendingUploadQueue.withCommitLock(for: reference.id) {
+            try PendingUploadQueue.prepare(reference: reference, currentData: bytes, intendedData: bytes,
+                cacheURL: DatabaseListStore.cacheLocation(for: reference))
+        }
+        XCTAssertEqual(CloudJournalDecision.state(of: marker.marker), .prepared)
+        XCTAssertFalse(CloudJournalDecision.permitsMutation([marker.marker], changingKey: false))
+        var finalized = marker
+        finalized.marker.openTimeSHA512 = FileDigest.sha512(bytes)
+        finalized = try PendingUploadQueue.finalize(finalized)
+        XCTAssertEqual(CloudJournalDecision.transition(from: .ready, on: .dispatch)?.effects, [.persist, .upload])
+        XCTAssertNil(CloudJournalDecision.transition(from: .attempting, on: .dispatch))
+        finalized.marker.journalVersion = 900
+        let changed = try PendingUploadQueue.update(finalized)
+        XCTAssertEqual(CloudJournalDecision.state(of: changed.marker), .invalid)
+        XCTAssertThrowsError(try PendingUploadQueue.readJournal(for: reference.id))
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: reference, providerResolver: { _ in nil })
+        XCTAssertEqual(resolution.data, bytes)
+        var published = false
+        XCTAssertThrowsError(try DatabaseListStore.withCloudKeyPublication(for: reference, sha512: FileDigest.sha512(bytes), permit: .init(actionID: UUID(), lockCycleID: 0)) { published = true })
+        XCTAssertFalse(published)
+    }
+
+    func testCloudRekeyRejectsOldReadEffectsAndKeepsFreshRestoreSemantics() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cache = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cache, entryTitle: "New key entry")
+        let changedKey = try KDBXCrypto.compositeKey(password: "new cloud key", keyFileData: nil)
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: nil)
+        let environment = makeEnvironment(getMetadata: { _ in
+            CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-A")
+        }, upload: { _, bytes, _, _ in
+            CloudFileMetadata(modifiedDate: .now, contentHash: "new-hash", size: Int64(bytes.count), rev: "rev-B")
+        }, downloadRemoteData: { _ in context.currentData })
+        let result = try await CloudDatabaseSaver.$keyChange.withValue(change) {
+            try await CloudDatabaseSaver.save(draft: context.draft, reference: reference,
+                compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+                expectedRev: "rev-A", kdfPolicy: .mainApp, newCompositeKey: changedKey, environment: environment)
+        }
+        guard case .saved(let sha, _, _) = result else { return XCTFail("Expected a confirmed rekey") }
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(current.cloudSyncMetadata?.keyEpoch, change.epoch)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: current.id).isEmpty)
+        let installed = try Data(contentsOf: cache)
+        _ = try KDBXParser.parseWithMetaAndHeader(data: installed, compositeKey: changedKey, sessionKey: SymmetricKey(size: .bits256))
+        var effects = 0
+        XCTAssertThrowsError(try DatabaseListStore.withCloudKeyPublication(for: reference, sha512: context.openTimeSHA512, permit: .init(actionID: UUID(), lockCycleID: 0)) { effects += 1 })
+        XCTAssertThrowsError(try DatabaseListStore.cacheDatabaseCopy(context.currentData, for: reference))
+        XCTAssertEqual(try Data(contentsOf: cache), installed)
+        // A fresh authenticated restore after settlement keeps the original supported behavior.
+        try context.currentData.write(to: cache)
+        _ = try KDBXParser.parseWithMetaAndHeader(data: context.currentData, compositeKey: context.compositeKey, sessionKey: SymmetricKey(size: .bits256))
+        try DatabaseListStore.withCloudKeyPublication(for: current, sha512: context.openTimeSHA512, permit: .init(actionID: UUID(), lockCycleID: 0)) { effects += 1 }
+        XCTAssertThrowsError(try DatabaseListStore.withCloudKeyPublication(for: current, sha512: sha, permit: .init(actionID: UUID(), lockCycleID: 0)) { effects += 1 })
+        XCTAssertEqual(effects, 1)
+    }
+
+    private func deliverQueuedSave(reference: DatabaseReference, environment: CloudDatabaseSaver.Environment) async throws -> CloudDatabaseSaver.PendingUploadPushResult? {
+        let journal = try PendingUploadQueue.readJournal(for: reference.id)
+        let stored = try XCTUnwrap(journal.last)
+        return try await CloudDatabaseSaver.deliver(stored, reference: reference, environment: environment)
     }
 
     private func makeEnvironment(
@@ -1405,6 +1610,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         environment.getMetadata = getMetadata
         environment.upload = upload
         environment.downloadRemoteData = downloadRemoteData
+        environment.revisionIdentifiesContent = { _, revision in revision?.isEmpty == false }
         environment.now = now
         return environment
     }

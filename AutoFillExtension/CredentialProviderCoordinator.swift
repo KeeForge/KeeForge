@@ -355,9 +355,9 @@ final class CredentialProviderCoordinator {
         )
     }
 
-    /// Cloud persistence keeps its existing UI-actor boundary.
-    var persistQuickUnlockKeys: @MainActor (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, masterKeyEntered in
-        QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered)
+    /// Keychain-only effects execute in the bounded publication worker.
+    var persistQuickUnlockKeys: @Sendable (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, masterKeyEntered in
+        return QuickUnlockKeychain.persistKeychainItems(keys, for: reference, masterKeyEntered: masterKeyEntered) == .stored
     }
 
     var persistLocalQuickUnlockKeys: @Sendable (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, entered in
@@ -1438,39 +1438,45 @@ final class CredentialProviderCoordinator {
         _ keys: QuickUnlockKeys, for databaseReference: DatabaseReference, masterKeyEntered: Bool
     ) async {
         let generation = requestGeneration
+        let read = localReadKeyPublication
+        guard databaseReference.isCloudBacked || (read?.lease.reference.matches(databaseReference) == true),
+              isRequestActive(generation) else { return }
+        let sha = openTimeSHA512
+        localReadPublicationPermit?.close()
+        let permit = DatabaseListStore.KeyCommitPublicationPermit(actionID: UUID(), lockCycleID: generation)
+        localReadPublicationPermit = permit
+        let effect = databaseReference.isCloudBacked ? persistQuickUnlockKeys : persistLocalQuickUnlockKeys
+        let io = localReadPublicationIO
         let persisted: Bool
-        if databaseReference.isCloudBacked {
-            persisted = persistQuickUnlockKeys(keys, databaseReference, masterKeyEntered)
-        } else {
-            guard let read = localReadKeyPublication, read.lease.reference.matches(databaseReference),
-                  isRequestActive(generation) else { return }
-            localReadPublicationPermit?.close()
-            let permit = DatabaseListStore.KeyCommitPublicationPermit(actionID: UUID(), lockCycleID: generation)
-            localReadPublicationPermit = permit
-            let effect = persistLocalQuickUnlockKeys
-            let io = localReadPublicationIO
-            do {
-                persisted = try await CoordinatedFileReader.performBlocking(timeout: localReadPublicationTimeout,
-                    onInterruption: { permit.close() }) {
-                    defer { io.didFinish(); permit.finishWorker() }
-                    let stored = try DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: read,
+        do {
+            persisted = try await CoordinatedFileReader.performBlocking(timeout: localReadPublicationTimeout,
+                onInterruption: { permit.close() }) {
+                defer { io.didFinish(); permit.finishWorker() }
+                let stored: Bool
+                if databaseReference.isCloudBacked {
+                    guard let sha else { throw SaveError.saveContextUnavailable }
+                    stored = try DatabaseListStore.withCloudKeyPublication(for: databaseReference, sha512: sha, permit: permit, io: io) {
+                        effect(keys, databaseReference, masterKeyEntered)
+                    }
+                } else {
+                    guard let read else { throw SaveError.saveContextUnavailable }
+                    stored = try DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: read,
                         permit: permit, io: io) { effect(keys, databaseReference, masterKeyEntered) }
-                    if stored { _ = DatabaseListStore.clearLegacyKeychainFilename(for: read.lease.bookmarkRenewal?.after ?? databaseReference) }
-                    return stored
                 }
-                if localReadPublicationPermit === permit { localReadPublicationPermit = nil }
-            } catch {
-                permit.close()
-                if permit.workerCompletion == .finishedWithoutClaim, !Task.isCancelled,
-                   (error as? PendingLocalSaveStore.OwnershipError) != .removed,
-                   isRequestActive(generation), localReadPublicationPermit === permit {
-                    localReadPublicationPermit = nil
-                }
-                return
+                if stored { _ = DatabaseListStore.clearLegacyKeychainFilename(for: read?.lease.bookmarkRenewal?.after ?? databaseReference) }
+                return stored
             }
+            if localReadPublicationPermit === permit { localReadPublicationPermit = nil }
+        } catch {
+            permit.close()
+            if permit.workerCompletion == .finishedWithoutClaim, !Task.isCancelled,
+               (error as? PendingLocalSaveStore.OwnershipError) != .removed,
+               isRequestActive(generation), localReadPublicationPermit === permit {
+                localReadPublicationPermit = nil
+            }
+            return
         }
         guard isRequestActive(generation), persisted, databaseReference.legacyKeychainFilename != nil else { return }
-        if databaseReference.isCloudBacked { DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference) }
         activeDatabaseReference = DatabaseListStore.databases.first { $0.id == databaseReference.id }
         localReadKeyPublication = nil
     }

@@ -690,6 +690,9 @@ private struct CloudAccountsSettingsView: View {
     var body: some View {
         Form {
             Section {
+                NavigationLink("Cloud Recovery") { CloudRecoveryView() }
+            }
+            Section {
                 if settings.cloudAccounts.isEmpty {
                     Text("No cloud accounts connected")
                         .foregroundStyle(.secondary)

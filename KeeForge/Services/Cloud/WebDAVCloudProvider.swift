@@ -166,6 +166,13 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
 
     // MARK: - Upload
 
+    func revisionIdentifiesContent(_ revision: String?) -> Bool { Self.strongIfMatchValue(from: revision).map { $0.hasPrefix("\"") && $0.hasSuffix("\"") } == true }
+
+    func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee {
+        guard let tag = Self.strongIfMatchValue(from: expectedRev), tag.hasPrefix("\""), tag.hasSuffix("\"") else { return .preflightOnly }
+        return .serverConditional
+    }
+
     func upload(
         accountId: String,
         fileId: String,

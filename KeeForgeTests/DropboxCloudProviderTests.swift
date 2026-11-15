@@ -1,4 +1,4 @@
-@preconcurrency import SwiftyDropbox
+@preconcurrency @testable import SwiftyDropbox
 import XCTest
 @testable import KeeForge
 
@@ -30,6 +30,58 @@ final class DropboxCloudProviderTests: XCTestCase {
             return XCTFail("Expected upload arguments")
         }
         XCTAssertEqual(fields["path"], .str("/Vaults%20 100%/new%20db 100%.kdbx"))
+    }
+
+    func testSDKProbeInterceptionIsRestrictedToItsRegisteredHost() throws {
+        let probe = DropboxHTTPProbe(status: 503)
+        defer { probe.close() }
+        let own = URLRequest(url: try XCTUnwrap(URL(string: "https://\(probe.host)/2/files/upload")))
+        let foreign = URLRequest(url: try XCTUnwrap(URL(string: "https://unregistered-dropbox-probe.invalid/2/files/upload")))
+        XCTAssertTrue(DropboxProbeURLProtocol.canInit(with: own))
+        XCTAssertFalse(DropboxProbeURLProtocol.canInit(with: foreign))
+        XCTAssertEqual(probe.startLoadingCount, 0)
+        XCTAssertTrue(probe.requests.isEmpty)
+    }
+
+    @MainActor
+    func testSDKAcceptedUploadWithLost503RetainsAttemptWithoutSecondRequest() async throws {
+        DatabaseListStore.clearAll()
+        defer { DatabaseListStore.clearAll() }
+        let transport = DropboxHTTPProbe(status: 503)
+        let client = transport.client()
+        defer { client.shutdown(); transport.close() }
+        let provider = DropboxCloudProvider(clientForAccount: { _ in client })
+        let reference = DatabaseListStore.addCloud(provider: provider.id, accountId: "sdk-probe",
+            file: .init(id: "/probe.kdbx", name: "probe.kdbx", path: "/probe.kdbx", isFolder: false, modifiedDate: nil, size: nil))
+        let context = try CloudJournalTestContext(reference: reference)
+        var environment = context.environment()
+        environment.upload = { reference, bytes, rev, progress in
+            try await provider.upload(accountId: "sdk-probe", fileId: reference.cloudSyncMetadata!.fileId,
+                data: bytes, expectedRev: rev, progress: progress)
+        }
+        do {
+            _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
+            XCTFail("An accepted write with a lost acknowledgement cannot settle")
+        } catch {
+            let cause = error as NSError
+            XCTAssertNotNil(error as? DropboxCloudProvider.TransientFailure,
+                "SDK cause domain=\(cause.domain) code=\(cause.code), intercepted=\(transport.requests.count)")
+        }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .attempting)
+        for _ in 0..<2 {
+            guard case .retained? = try await CloudDatabaseSaver.deliver(retained, reference: reference, environment: environment) else {
+                return XCTFail("Unknown SDK request must never be sent again")
+            }
+        }
+        XCTAssertGreaterThan(transport.canInitCount, 0)
+        XCTAssertEqual(transport.startLoadingCount, 1)
+        XCTAssertEqual(transport.requests.count, 1)
+        XCTAssertEqual(transport.requests.first?.bytes, context.payload)
+        XCTAssertEqual(transport.requests.first?.path, "/probe.kdbx")
+        XCTAssertEqual(transport.requests.first?.mode, "update")
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
     }
 
     // MARK: - Sign-out
@@ -142,8 +194,7 @@ final class DropboxCloudProviderTests: XCTestCase {
         XCTAssertEqual(failure?.mapped, .rateLimited)
     }
 
-    /// The transient wrapper is unwrapped by the retry loop, but if one ever
-    /// escaped it must still read as the localized rate-limit message.
+    /// Writes surface the transient cause without internally retrying it.
     func testTransientFailureCarriesLocalizedDescription() {
         let failure = DropboxCloudProvider.TransientFailure(kind: .tooManyWriteOperations, mapped: .rateLimited)
 
@@ -250,4 +301,103 @@ final class DropboxCloudProviderTests: XCTestCase {
     private func writeError(_ error: Files.WriteError) -> CloudProviderError? {
         DropboxCloudProvider.mapWriteError(error) as? CloudProviderError
     }
+}
+
+private final class DropboxHTTPProbe: @unchecked Sendable {
+    struct Upload: Sendable {
+        let path: String
+        let mode: String
+        let bytes: Data
+    }
+    private let lock = NSLock()
+    let host = "dropbox-\(UUID().uuidString.lowercased()).invalid"
+    let status: Int
+    private var uploads: [Upload] = []
+    private var paths: [String] = []
+    private var canInitCalls = 0
+    private var starts = 0
+    var canInitCount: Int { lock.withLock { canInitCalls } }
+    var startLoadingCount: Int { lock.withLock { starts } }
+    func observedCanInit() { lock.withLock { canInitCalls += 1 } }
+    func observedStartLoading() { lock.withLock { starts += 1 } }
+    var requests: [Upload] { lock.withLock { uploads } }
+    var otherPaths: [String] { lock.withLock { paths } }
+
+    init(status: Int) {
+        self.status = status
+        DropboxProbeURLProtocol.install(self)
+    }
+
+    func client() -> DropboxClient {
+        var configuration = NetworkSessionConfiguration(kind: .default)
+        configuration.urlSessionConfiguration.protocolClasses = [DropboxProbeURLProtocol.self]
+        configuration.timeoutIntervalForRequest = 5
+        configuration.timeoutIntervalForResource = 5
+        return DropboxClient(transportClient: DropboxTransportClientImpl(accessToken: "unit-transport-only",
+            baseHosts: BaseHosts(apiHost: "https://\(host)", contentHost: "https://\(host)", notifyHost: "https://\(host)"), sessionConfiguration: configuration))
+    }
+
+    func close() { DropboxProbeURLProtocol.remove(host: host) }
+
+    func response(for request: URLRequest) -> (Int, Data) {
+        if request.url?.path.hasSuffix("/upload") == true {
+            let argument = request.value(forHTTPHeaderField: "Dropbox-API-Arg")?.data(using: .utf8) ?? Data()
+            let json = (try? JSONSerialization.jsonObject(with: argument)) as? [String: Any] ?? [:]
+            let rawMode = json["mode"] as? [String: Any]
+            let mode = rawMode?[".tag"] as? String ?? json["mode"] as? String ?? "missing"
+            var bytes = request.httpBody ?? Data()
+            if bytes.isEmpty, let stream = request.httpBodyStream {
+                stream.open()
+                defer { stream.close() }
+                var buffer = [UInt8](repeating: 0, count: 4096)
+                while stream.hasBytesAvailable {
+                    let read = stream.read(&buffer, maxLength: buffer.count)
+                    guard read > 0 else { break }
+                    bytes.append(contentsOf: buffer.prefix(read))
+                }
+            }
+            lock.withLock { uploads.append(.init(path: json["path"] as? String ?? "missing", mode: mode, bytes: bytes)) }
+            let body = status == 409
+                ? #"{"error_summary":"path/conflict/file/","error":{".tag":"path","reason":{".tag":"conflict","conflict":{".tag":"file"}},"upload_session_id":"unit"}}"#
+                : #"{"error":"accepted response was lost"}"#
+            return (status, Data(body.utf8))
+        }
+        lock.withLock { paths.append(request.url?.path ?? "missing") }
+        return (409, Data(#"{"error_summary":"path/not_found/","error":{".tag":"path","path":{".tag":"not_found"}}}"#.utf8))
+    }
+}
+
+private final class DropboxProbeURLProtocol: URLProtocol, @unchecked Sendable {
+    private final class Registry: @unchecked Sendable {
+        let lock = NSLock()
+        var probes: [String: DropboxHTTPProbe] = [:]
+    }
+    private static let registry = Registry()
+    static func install(_ probe: DropboxHTTPProbe) {
+        registry.lock.withLock { registry.probes[probe.host] = probe }
+    }
+    static func remove(host: String) {
+        registry.lock.withLock { _ = registry.probes.removeValue(forKey: host) }
+    }
+    override class func canInit(with request: URLRequest) -> Bool {
+        guard let probe = registry.lock.withLock({ registry.probes[request.url?.host ?? ""] }) else { return false }
+        probe.observedCanInit()
+        return true
+    }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        guard let probe = Self.registry.lock.withLock({ Self.registry.probes[request.url?.host ?? ""] }),
+              let url = request.url, let response = HTTPURLResponse(url: url, statusCode: probe.status,
+                  httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"]) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
+            return
+        }
+        probe.observedStartLoading()
+        let result = probe.response(for: request)
+        let actual = HTTPURLResponse(url: url, statusCode: result.0, httpVersion: "HTTP/1.1", headerFields: response.allHeaderFields as? [String: String])!
+        client?.urlProtocol(self, didReceive: actual, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: result.1)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }

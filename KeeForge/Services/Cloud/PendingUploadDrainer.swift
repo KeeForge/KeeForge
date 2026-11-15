@@ -36,12 +36,9 @@ final class PendingUploadDrainer {
         var beginBackgroundTask: @MainActor @Sendable (String) -> LocalDatabaseSaver.BackgroundTaskHandle
         var endBackgroundTask: @MainActor @Sendable (LocalDatabaseSaver.BackgroundTaskHandle) -> Void
         var listMarkers: @Sendable (UUID?) -> [PendingUploadQueue.StoredMarker]
-        var dropMarker: @Sendable (PendingUploadQueue.StoredMarker) throws -> Void
-        var updateMarker: @Sendable (PendingUploadQueue.StoredMarker) throws -> PendingUploadQueue.StoredMarker
         var resolveReference: @Sendable (UUID) -> DatabaseReference?
-        var readBytes: @Sendable (String) throws -> Data
-        var sha512: @Sendable (Data) -> Data
-        var pushPendingUpload: @Sendable (DatabaseReference, Data, String?) async throws -> CloudDatabaseSaver.PendingUploadPushResult
+
+        var deliverMarker: @Sendable (PendingUploadQueue.StoredMarker, DatabaseReference) async throws -> CloudDatabaseSaver.PendingUploadPushResult?
 
         static let live = Environment(
             beginBackgroundTask: LocalDatabaseSaver.Environment.live.beginBackgroundTask,
@@ -49,27 +46,11 @@ final class PendingUploadDrainer {
             listMarkers: { databaseId in
                 PendingUploadQueue.listMarkers(for: databaseId)
             },
-            dropMarker: { marker in
-                _ = try PendingUploadQueue.dropIfUnchanged(marker)
-            },
-            updateMarker: { marker in
-                try PendingUploadQueue.update(marker)
-            },
             resolveReference: { databaseId in
                 DatabaseListStore.databases.first(where: { $0.id == databaseId })
             },
-            readBytes: { relativePath in
-                try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: relativePath))
-            },
-            sha512: { data in
-                FileDigest.sha512(data)
-            },
-            pushPendingUpload: { reference, data, expectedRev in
-                try await CloudDatabaseSaver.pushPendingUpload(
-                    reference: reference,
-                    encryptedBytes: data,
-                    expectedRev: expectedRev
-                )
+            deliverMarker: { stored, reference in
+                try await CloudDatabaseSaver.deliver(stored, reference: reference)
             }
         )
     }
@@ -177,13 +158,8 @@ final class PendingUploadDrainer {
         environment: Environment
     ) async -> DrainOutcome {
         var outcome = DrainOutcome()
-        // Payload SHAs already pushed to the remote head in this pass, per
-        // database. A later marker recording the same payload is dropped:
-        // re-pushing it could only raise a spurious revision conflict.
-        var uploadedPayloadSHAs: [UUID: Set<Data>] = [:]
-
-        for var storedMarker in environment.listMarkers(databaseId) {
-            guard var reference = environment.resolveReference(storedMarker.marker.databaseId) else {
+        for storedMarker in environment.listMarkers(databaseId) {
+            guard let reference = environment.resolveReference(storedMarker.marker.databaseId) else {
                 outcome.skippedDatabaseIDs.insert(storedMarker.marker.databaseId)
                 continue
             }
@@ -193,135 +169,21 @@ final class PendingUploadDrainer {
                 continue
             }
 
-            // A marker enqueued while a master-key change was uploading holds
-            // ciphertext under the old key; pushing it would revert the rekey
-            // on the remote (rev-less providers) or strand an undecryptable
-            // payload (rev-tracking ones). Surface it as a conflict instead.
-            if let rekeyedAt = reference.lastMasterKeyChangeAt,
-               storedMarker.marker.createdAt < rekeyedAt {
-                storedMarker.marker.isConflicted = true
-                _ = try? environment.updateMarker(storedMarker)
-                outcome.conflictDatabaseIDs.insert(reference.id)
-                continue
-            }
-
-            if storedMarker.marker.isPayloadFinalized != false,
-               uploadedPayloadSHAs[reference.id]?.contains(storedMarker.marker.openTimeSHA512) == true {
-                try? environment.dropMarker(storedMarker)
-                outcome.drainedDatabaseIDs.insert(reference.id)
-                continue
-            }
-
-            let encryptedBytes: Data
+            guard let current = environment.listMarkers(reference.id).first(where: { $0.id == storedMarker.id }) else { continue }
             do {
-                encryptedBytes = try environment.readBytes(storedMarker.marker.encryptedBytesCacheURL)
-            } catch {
-                outcome.userIssue = UserIssue(
-                    databaseId: reference.id,
-                    kind: .message,
-                    message: error.localizedDescription
-                )
-                continue
-            }
-
-            // A mismatch means a sync-down overwrote the shared cache since
-            // enqueue. Pushing those bytes and dropping the marker as "saved"
-            // would upload the wrong content over the user's real change, so
-            // surface it as a conflict instead.
-            let payloadMatchesRecordedContent =
-                environment.sha512(encryptedBytes) == storedMarker.marker.openTimeSHA512
-            guard payloadMatchesRecordedContent else {
-                storedMarker.marker.isConflicted = true
-                _ = try? environment.updateMarker(storedMarker)
-                outcome.conflictDatabaseIDs.insert(reference.id)
-                continue
-            }
-
-            guard storedMarker.marker.isPayloadFinalized != false else { continue }
-
-            var didCompleteMarker = false
-            for attempt in 0..<2 {
-                do {
-                    let pushResult = try await environment.pushPendingUpload(
-                        reference,
-                        encryptedBytes,
-                        storedMarker.marker.expectedRev
-                    )
-
-                    switch pushResult {
-                    case .saved(let updatedReference):
-                        try environment.dropMarker(storedMarker)
-                        outcome.drainedDatabaseIDs.insert(updatedReference.id)
-                        uploadedPayloadSHAs[reference.id, default: []].insert(storedMarker.marker.openTimeSHA512)
-                        didCompleteMarker = true
-                    case .conflict(let remoteRev):
-                        if attempt == 0,
-                           let remoteRev,
-                           shouldRebaseOntoRemoteHead(
-                               markerExpectedRev: storedMarker.marker.expectedRev,
-                               markerBaseRev: storedMarker.marker.baseRev,
-                               remoteRev: remoteRev,
-                               currentReferenceExpectedRev: reference.expectedCloudRevision,
-                               payloadMatchesRecordedContent: payloadMatchesRecordedContent
-                           ) {
-                            storedMarker.marker.expectedRev = remoteRev
-                            storedMarker.marker.isConflicted = false
-                            storedMarker = try environment.updateMarker(storedMarker)
-                            reference = environment.resolveReference(reference.id) ?? reference
-                            continue
-                        }
-
-                        storedMarker.marker.isConflicted = true
-                        _ = try? environment.updateMarker(storedMarker)
-                        outcome.conflictDatabaseIDs.insert(reference.id)
-                        didCompleteMarker = true
+                if let result = try await environment.deliverMarker(current, reference) {
+                    switch result {
+                    case .saved: outcome.drainedDatabaseIDs.insert(reference.id)
+                    case .retained: outcome.skippedDatabaseIDs.insert(reference.id)
+                    case .conflict: outcome.conflictDatabaseIDs.insert(reference.id)
                     }
-                } catch let error as CloudProviderError {
-                    outcome.userIssue = UserIssue(
-                        databaseId: reference.id,
-                        kind: issueKind(for: error),
-                        message: error.localizedDescription
-                    )
-                    didCompleteMarker = true
-                } catch {
-                    outcome.userIssue = UserIssue(
-                        databaseId: reference.id,
-                        kind: .message,
-                        message: error.localizedDescription
-                    )
-                    didCompleteMarker = true
-                }
-
-                if didCompleteMarker {
-                    break
-                }
+                } else { outcome.skippedDatabaseIDs.insert(reference.id) }
+            } catch {
+                outcome.userIssue = UserIssue(databaseId: reference.id, kind: ((error as? CloudUploadFailure)?.underlying ?? (error as? CloudProviderError)).map(issueKind) ?? .message, message: error.localizedDescription)
             }
         }
 
         return outcome
-    }
-
-    /// Whether a `.conflict` may be rebased onto the reported remote head and
-    /// force-pushed. Requires all three, else the marker stays conflicted:
-    /// 1. `payloadMatchesRecordedContent` — the cache still holds our bytes;
-    ///    a synced-down cross-device change appears here as a mismatch.
-    /// 2. `markerBaseRev == remoteRev` — the payload descends from the head.
-    ///    Without it an app save that landed while AutoFill held the database
-    ///    open is silently dropped. Legacy markers decode nil and never rebase;
-    ///    rev drift without content change (OneDrive cTag) also declines.
-    /// 3. `currentReferenceExpectedRev == remoteRev` — this head is already
-    ///    reconciled locally, not an unseen foreign revision.
-    private static func shouldRebaseOntoRemoteHead(
-        markerExpectedRev: String?,
-        markerBaseRev: String?,
-        remoteRev: String,
-        currentReferenceExpectedRev: String?,
-        payloadMatchesRecordedContent: Bool
-    ) -> Bool {
-        guard payloadMatchesRecordedContent else { return false }
-        guard markerExpectedRev != remoteRev else { return false }
-        guard let markerBaseRev, markerBaseRev == remoteRev else { return false }
-        return currentReferenceExpectedRev == remoteRev
     }
 
     private static func issueKind(for error: CloudProviderError) -> UserIssue.Kind {

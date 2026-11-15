@@ -560,13 +560,19 @@ enum PendingLocalSaveStore {
         for databaseID: UUID, token: Token?, expectedMasterKeyChangeAt: Date?, enforcesEpoch: Bool,
         isMasterKeyChange: Bool, association: KeyFileAssociation?, prepared: PreparedSource?,
         intendedSHA512: Data, observeTarget: () throws -> (TargetIdentity, Data),
-        targetIsSharedCopy: Bool,
+        targetIsSharedCopy: Bool, cacheLease: CacheReadLease? = nil,
         io: StorageIO = .init(), _ replace: (CommitReceipt?) throws -> T
     ) throws -> AuthorizedWrite<T> {
         try withLock(for: databaseID) {
             try requireNotRemoved(databaseID)
             var state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
             guard state.retirementID == nil else { throw OwnershipError.recoveryRequired }
+            if let lease = cacheLease {
+                guard lease.databaseID == databaseID, lease.epochID == state.epoch.id,
+                      state.operation == .idle, state.sources.isEmpty, try sourceURLs(databaseID).isEmpty,
+                      state.keyEvidence?.pending == nil else { throw OwnershipError.sourceChanged }
+                if case .known(let date, _) = state.epoch, date != lease.masterKeyChangedAt { throw OwnershipError.sourceChanged }
+            }
             let previousEpoch = state.epoch
             if enforcesEpoch { try checkEpoch(&state, expected: expectedMasterKeyChangeAt) }
             let (target, baseline) = try observeTarget()

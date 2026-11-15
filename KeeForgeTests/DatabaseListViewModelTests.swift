@@ -978,7 +978,7 @@ final class DatabaseListViewModelTests: XCTestCase {
             pendingUploadDrainer: makeDrainer(
                 markers: [makeStoredMarker(databaseId: reference.id)],
                 reference: reference,
-                pushPendingUpload: { _, _, _ in .conflict(remoteRev: "rev-2") }
+                deliverMarker: { _, _ in .conflict(remoteRev: "rev-2") }
             )
         )
 
@@ -994,7 +994,7 @@ final class DatabaseListViewModelTests: XCTestCase {
             pendingUploadDrainer: makeDrainer(
                 markers: [makeStoredMarker(databaseId: reference.id)],
                 reference: reference,
-                pushPendingUpload: { _, _, _ in .conflict(remoteRev: "rev-2") }
+                deliverMarker: { _, _ in .conflict(remoteRev: "rev-2") }
             )
         )
 
@@ -1011,7 +1011,8 @@ final class DatabaseListViewModelTests: XCTestCase {
             pendingUploadDrainer: makeDrainer(
                 markers: [conflictMarker, failingMarker],
                 reference: reference,
-                pushPendingUpload: { _, _, expectedRev in
+                deliverMarker: { stored, _ in
+                    let expectedRev = stored.marker.expectedRev
                     if expectedRev == conflictMarker.marker.expectedRev {
                         return .conflict(remoteRev: "rev-2")
                     }
@@ -1032,7 +1033,7 @@ final class DatabaseListViewModelTests: XCTestCase {
             pendingUploadDrainer: makeDrainer(
                 markers: [makeStoredMarker(databaseId: reference.id)],
                 reference: reference,
-                pushPendingUpload: { _, _, _ in .conflict(remoteRev: "rev-2") }
+                deliverMarker: { _, _ in .conflict(remoteRev: "rev-2") }
             )
         )
         await viewModel.pushPendingChanges(for: reference)
@@ -1094,19 +1095,15 @@ final class DatabaseListViewModelTests: XCTestCase {
     private func makeDrainer(
         markers: [PendingUploadQueue.StoredMarker],
         reference: DatabaseReference,
-        pushPendingUpload: @escaping @Sendable (DatabaseReference, Data, String?) async throws -> CloudDatabaseSaver.PendingUploadPushResult
+        deliverMarker: @escaping @Sendable (PendingUploadQueue.StoredMarker, DatabaseReference) async throws -> CloudDatabaseSaver.PendingUploadPushResult?
     ) -> PendingUploadDrainer {
         PendingUploadDrainer(
             environment: PendingUploadDrainer.Environment(
                 beginBackgroundTask: { _ in .invalid },
                 endBackgroundTask: { _ in },
                 listMarkers: { _ in markers },
-                dropMarker: { _ in },
-                updateMarker: { $0 },
                 resolveReference: { $0 == reference.id ? reference : nil },
-                readBytes: { _ in Data("encrypted-bytes".utf8) },
-                sha512: { _ in Data("open-sha".utf8) },
-                pushPendingUpload: pushPendingUpload,
+                deliverMarker: deliverMarker,
             )
         )
     }

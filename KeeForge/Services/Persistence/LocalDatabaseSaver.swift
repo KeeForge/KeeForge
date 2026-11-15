@@ -200,6 +200,9 @@ enum LocalDatabaseSaver {
         var association: PendingLocalSaveStore.KeyFileAssociation?
         var prepared: PendingLocalSaveStore.PreparedSource?
         var targetIsSharedCopy = false
+        var cacheLease: PendingLocalSaveStore.CacheReadLease?
+        var coordinatedFence: (@Sendable (URL, () throws -> ReplaceOutcome) throws -> ReplaceOutcome)?
+        var beforeReplacement: (@Sendable () throws -> Void)?
         var storageIO = PendingLocalSaveStore.StorageIO()
     }
 
@@ -400,6 +403,11 @@ enum LocalDatabaseSaver {
             expectedMasterKeyChangeAt: authorization.expectedMasterKeyChangeAt, enforcesEpoch: authorization.enforcesEpoch,
             isMasterKeyChange: authorization.isMasterKeyChange, preparesSource: location.awaitsWriteBack)
 
+        if reference.isCloudBacked {
+            let markers = try PendingUploadQueue.readJournal(for: reference.id)
+            guard CloudJournalDecision.permitsMutation(markers.map(\.marker), changingKey: false) else { throw SaveError.saveContextUnavailable }
+        }
+
         let hasSecurityScope = location.usesSecurityScope
             ? location.url.startAccessingSecurityScopedResource()
             : false
@@ -490,7 +498,35 @@ enum LocalDatabaseSaver {
             let replaceOutcome: ReplaceOutcome
             do {
                 replacementMayHaveStarted = true
-                replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512, writeAuthorization)
+                if reference.isCloudBacked {
+                    replaceOutcome = try PendingUploadQueue.withCommitLock(for: reference.id) {
+                        guard let latest = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
+                              PendingUploadQueue.LocalCommitBaseline(reference: reference).hasCompatibleEpoch(latest) else { throw SaveError.saveContextUnavailable }
+                        var intent = try PendingUploadQueue.prepare(reference: latest, currentData: currentData,
+                            intendedData: newData, cacheURL: location.url)
+                        let outcome: ReplaceOutcome
+                        do { outcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512, writeAuthorization) }
+                        catch let failure as LocalSaveBeforeReplacementFailure {
+                            guard (try? PendingUploadQueue.dropIfUnchanged(intent)) == true else { return .indeterminate }
+                            throw failure
+                        }
+                        switch outcome {
+                        case .changed:
+                            _ = try PendingUploadQueue.dropIfUnchanged(intent)
+                        case .indeterminate: break
+                        case .replaced, .replacedWithoutConfirmedDurability, .replacedWithUnconfirmedBookkeeping:
+                            intent.marker.openTimeSHA512 = FileDigest.sha512(newData)
+                            guard let finalized = try? PendingUploadQueue.finalize(intent),
+                                  case .published? = try? PendingUploadQueue.recoverLocalCommit(finalized) else {
+                                return .replacedWithUnconfirmedBookkeeping()
+                            }
+                            PendingUploadQueue.postEnqueuedNotification()
+                        }
+                        return outcome
+                    }
+                } else {
+                    replaceOutcome = try environment.replaceFileAtomically(newData, location.url, currentSHA512, writeAuthorization)
+                }
             } catch let failure as LocalSaveBeforeReplacementFailure {
                 replacementMayHaveStarted = false
                 throw failure
@@ -1108,6 +1144,7 @@ enum LocalDatabaseSaver {
                     let staged = stagingDirectory.appendingPathComponent("keeforge-save-\(UUID().uuidString)")
                     try io.stage(data, staged)
                     let perform: (PendingLocalSaveStore.CommitReceipt?) throws -> ReplaceOutcome = { receipt in
+                        try authorization?.beforeReplacement?()
                         enteredReplacement = true
                         phase = "replacement"
                         var replacementThrew = false
@@ -1135,22 +1172,26 @@ enum LocalDatabaseSaver {
                     }
                     if let authorization {
                         phase = "owner"
-                        let authorized = try PendingLocalSaveStore.withWriteAuthorization(
-                            for: authorization.databaseID, token: authorization.token,
-                            expectedMasterKeyChangeAt: authorization.expectedMasterKeyChangeAt,
-                            enforcesEpoch: authorization.enforcesEpoch, isMasterKeyChange: authorization.isMasterKeyChange,
-                            association: authorization.association, prepared: authorization.prepared,
-                            intendedSHA512: intended, observeTarget: {
-                                let bytes = try Data(contentsOf: readingURL ?? writingURL)
-                                if let expectedSHA512, FileDigest.sha512(bytes) != expectedSHA512 {
-                                    throw CoordinatedConflict(currentData: bytes)
-                                }
-                                return (try PendingLocalSaveStore.targetIdentity(at: writingURL), FileDigest.sha512(bytes))
-                            }, targetIsSharedCopy: authorization.targetIsSharedCopy,
-                            io: authorization.storageIO, perform
-                        )
-                        targetWrite = authorized.targetWrite
-                        return authorized.value
+                        let replaceWithOwner = { () throws -> ReplaceOutcome in
+                            let authorized = try PendingLocalSaveStore.withWriteAuthorization(
+                                for: authorization.databaseID, token: authorization.token,
+                                expectedMasterKeyChangeAt: authorization.expectedMasterKeyChangeAt,
+                                enforcesEpoch: authorization.enforcesEpoch, isMasterKeyChange: authorization.isMasterKeyChange,
+                                association: authorization.association, prepared: authorization.prepared,
+                                intendedSHA512: intended, observeTarget: {
+                                    let bytes = try Data(contentsOf: readingURL ?? writingURL)
+                                    if let expectedSHA512, FileDigest.sha512(bytes) != expectedSHA512 {
+                                        throw CoordinatedConflict(currentData: bytes)
+                                    }
+                                    return (try PendingLocalSaveStore.targetIdentity(at: writingURL), FileDigest.sha512(bytes))
+                                }, targetIsSharedCopy: authorization.targetIsSharedCopy,
+                                cacheLease: authorization.cacheLease, io: authorization.storageIO, perform
+                            )
+                            targetWrite = authorized.targetWrite
+                            return authorized.value
+                        }
+                        if let fence = authorization.coordinatedFence { return try fence(writingURL, replaceWithOwner) }
+                        return try replaceWithOwner()
                     }
                     return try perform(nil)
                 } catch let conflict as CoordinatedConflict { return .changed(currentData: conflict.currentData) }

@@ -744,24 +744,10 @@ final class CredentialProviderRegistrationTests: XCTestCase {
                     )
                 )
             },
-            relativePathForURL: { _ in "unused" },
-            enqueuePendingUpload: { marker in
-                PendingUploadQueue.StoredMarker(
-                    id: UUID(),
-                    fileURL: URL(fileURLWithPath: "/tmp/unused.json"),
-                    marker: marker
-                )
-            },
-            finalizePendingUpload: { _ in },
-            dropPendingUpload: { _ in },
-            dropSupersededPendingUploads: { _, _, _ in },
-            notifyPendingUploadEnqueued: {},
-            resolveReference: { _ in nil },
             populateCredentialStore: { [recorder] _, entries in
                 recorder.events.append("populate")
                 recorder.populatedEntryTitles.append(entries.map(\.title))
-            },
-            now: { .now }
+            }
         )
     }
 }

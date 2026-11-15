@@ -46,13 +46,14 @@ enum PendingUploadRecovery {
         var backupURLs: @Sendable (DatabaseReference) -> [URL]
         var readData: @Sendable (URL) throws -> Data
         var dropMarker: @Sendable (PendingUploadQueue.StoredMarker) throws -> Void
+        var preservePayloads: @Sendable (DatabaseReference) throws -> Void = { _ in }
 
         static let live = Environment(
             listMarkers: { databaseId in
                 PendingUploadQueue.listMarkers(for: databaseId)
             },
             cacheURL: { marker in
-                PendingUploadQueue.resolveAppGroupURL(for: marker.encryptedBytesCacheURL)
+                PendingUploadQueue.resolveAppGroupURL(for: marker.intendedPayloadPath ?? marker.encryptedBytesCacheURL)
             },
             backupURLs: { reference in
                 DatabaseListStore.recentBackups(for: reference)
@@ -62,6 +63,11 @@ enum PendingUploadRecovery {
             },
             dropMarker: { storedMarker in
                 _ = try PendingUploadQueue.dropIfUnchanged(storedMarker)
+            },
+            preservePayloads: { reference in
+                try PendingUploadQueue.withCommitLock(for: reference.id) {
+                    try PendingUploadQueue.preserveLegacyPayloads(for: reference)
+                }
             }
         )
     }
@@ -71,6 +77,9 @@ enum PendingUploadRecovery {
     }
 
     static func lookUpPayloads(for reference: DatabaseReference, environment: Environment = .live) -> Lookup {
+        // Return the promoted generation so a later merge can conditionally relinquish its sources.
+        do { try environment.preservePayloads(reference) }
+        catch { return .unavailable }
         let conflictedMarkers = environment.listMarkers(reference.id).filter(\.marker.isConflicted)
         guard conflictedMarkers.isEmpty == false else { return .noConflicts }
 
@@ -78,15 +87,19 @@ enum PendingUploadRecovery {
         for storedMarker in conflictedMarkers {
             // Same rule as the drainer: bytes saved before a master-key change
             // are ciphertext under the old key.
-            if let rekeyedAt = reference.lastMasterKeyChangeAt,
-               storedMarker.marker.createdAt < rekeyedAt {
-                return .unavailable
-            }
+            guard storedMarker.marker.uploadAttemptID == nil || storedMarker.marker.attemptIsFenced == true else { return .unavailable }
+            let markerEpoch = storedMarker.marker.keyEpoch
+            let epochMismatch = markerEpoch != nil && markerEpoch != reference.cloudSyncMetadata?.keyEpoch
+            let legacyPredatesRekey = markerEpoch == nil && reference.lastMasterKeyChangeAt.map { storedMarker.marker.createdAt < $0 } == true
+            if epochMismatch || legacyPredatesRekey { return .unavailable }
             // A provisional marker hashes the pre-save base, not the AutoFill
             // result. Recovering a matching backup would merge no change and
             // strand the real payload while falsely reporting success. A
             // legacy marker (`nil`) may be exactly that, so it is refused too.
-            guard storedMarker.marker.isPayloadFinalized == true else { return .unidentified }
+            let preparedPayload = storedMarker.marker.requiresLocalRecovery == true
+                && storedMarker.marker.intendedPayloadSHA512 != nil && storedMarker.marker.intendedPayloadPath != nil
+            guard storedMarker.marker.isPayloadFinalized == true || preparedPayload else { return .unidentified }
+            let payloadSHA = preparedPayload ? storedMarker.marker.intendedPayloadSHA512 : storedMarker.marker.openTimeSHA512
             let candidates: [(url: URL, location: Location)] =
                 [(environment.cacheURL(storedMarker.marker), .cache)]
                 + environment.backupURLs(reference).map { ($0, .backup($0)) }
@@ -94,18 +107,20 @@ enum PendingUploadRecovery {
                 .compactMap { candidate in
                     (try? environment.readData(candidate.url)).map { (data: $0, location: candidate.location) }
                 }
-                .first { FileDigest.sha512($0.data) == storedMarker.marker.openTimeSHA512 }
+                .first { FileDigest.sha512($0.data) == payloadSHA }
             guard let match else { return .unavailable }
             payloads.append(Payload(storedMarker: storedMarker, data: match.data, location: match.location))
         }
         return .recovered(payloads)
     }
 
+    /// Confirmed journals remain owned by delivery's cache-durability gate.
     /// Only for markers whose payload is already part of an uploaded save. A
     /// marker that fails to drop stays conflicted, and merging it again is a
     /// no-op, so the failure is not surfaced.
     static func dropMarkers(_ storedMarkers: [PendingUploadQueue.StoredMarker], environment: Environment = .live) {
-        for storedMarker in storedMarkers {
+        for storedMarker in storedMarkers where storedMarker.marker.confirmedAt == nil
+            && (storedMarker.marker.uploadAttemptID == nil || storedMarker.marker.attemptIsFenced == true) {
             try? environment.dropMarker(storedMarker)
         }
     }
