@@ -23,6 +23,8 @@
 
 ### Seams
 
+- Cloud journal fixtures obtain ownership through production preparation, finalization and durable publication. Script provider effects and filesystem faults; never synthesize a settled journal or reference as test authority.
+
 - `KDFPolicyTestSupport.swift` gives parser, writer, and saver calls a `.mainApp` KDF policy when `kdfPolicy:` is omitted. A test about policy selection passes the policy explicitly.
 - Drive reveal/copy authentication through `SecretAccessGateHarness` (pass `harness.gate` as the `secretAccess:` argument of `DatabaseViewModel.init`). Assigning `gracePeriod` announces the change to live gates as Settings does; set `announcesSettingChanges = false` to model a bare write.
 - `YubiKeyEmulator.fixtureSecret` must match `HMAC_SECRET` in `../../TestFixtures/generators/challenge_response.py`.

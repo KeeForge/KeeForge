@@ -4,6 +4,8 @@
 
 ### New Features
 
+- Retain encrypted cloud saves for recovery, queue cached changes durably, and avoid automatically resending uncertain replacement requests.
+
 - On iPhone and iPad, an entry's long-press menu offers Copy Verification Code and Change Icon, with icons and the copy, edit, and delete actions in separate groups. This works in every entry list: groups, All Entries, tags, and search.
 - A tag's entry list on iPhone and iPad has a Lock button and shows how many entries carry the tag.
 - Edit Group on iPhone and iPad shows the icon beside the name and the tags in the same card, and explains what hiding a group from Search & AutoFill does.

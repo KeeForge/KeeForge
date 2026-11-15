@@ -94,6 +94,8 @@
 
 - Successful reference removal and list clear delete quick-unlock master-entry dates only through the security owner’s process-wide leaf lock. Do not mutate its shared-defaults dictionary directly or acquire list/owner from that date lock. Shared UserDefaults still has no cross-process date transaction guarantee.
 
+- Cloud publication uses durable field-specific metadata updates without replacing local admission/rekey/preference logic. Cloud cache writers reject active journals, stale epochs and local tombstones. This slice does not add cross-process registry CAS.
+
 - A healthy idle pending source is not an indeterminate commit: conflict Reload may read the original while sources and their shared ciphertext stay owned. Provisional/quarantined sources, admissions, missing payloads, owner errors and key uncertainty still require recovery. After durable merge retirement, refresh the shared cache from that exact installed receipt; a newly admitted source must still fence publication/invalidation.
 
 - Key-file bookmark renewal remains asynchronous; its returned task observation seam lets callers join that exact renewal without moving provider IO onto the caller. Cache publication/invalidation observers report failures after resource release and never authorize fallback writes or change mutation outcomes.
@@ -114,3 +116,7 @@
 - A source arriving after a durable bookmark renewal does not authorize read-key publication. Bookmark-only merge reconciliation separately revalidates the exact renewal before/after reference, authenticated target bytes/identity and captured owner epoch, and accepts only healthy eligible sources under owner lock. It grants no Keychain/cache effect or source consumption; the merge still obtains its own admission and installed receipt. Each merge entry first checks the captured reference against the registry so a later activation cannot retry an unreconciled bookmark. Provider IO stays outside list lock, with immediate try-list inside coordination.
 
 - A confirmed merge publishes only its installed target’s database bookmark through receipt/reference/owner CAS while the saver’s original grant is still active, then completes exact source retirement and cache refresh before returning. Its nonpersistent receipt carries that completion so the VM cannot re-resolve an inode-stale bookmark or repeat consumption. Bookmark publication uncertainty retains the admission and sources; no canonical receipt path substitutes for a grant.
+
+- Whole-store unit-test cleanup may remove retained cloud caches only in the redirected test App Group, after journal cleanup. Ordinary reference removal continues to refuse unresolved cloud ownership; the live container does not inherit that teardown authority.
+
+- The cloud merge caller may supply a synchronous replacement fence and captured cache lease to the existing writer. Its final coordinated accessor holds exact reference/source authority through local-owner validation and replacement; no callback awaits, performs KDF or acquires a waiting list lock. The local saver retains all ordinary replacement/outcome and revocation semantics.
