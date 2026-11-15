@@ -33,6 +33,45 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(storedReferences.first?.filename, "personal.kdbx")
     }
 
+    func testInitializationCreatesMissingRegistryAndPreservesExistingRegistry() throws {
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected initialization") }
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "initialized.kdbx"))
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let before = try Data(contentsOf: url)
+        guard case .alreadyPresent = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected existing registry") }
+        XCTAssertEqual(try Data(contentsOf: url), before)
+        XCTAssertEqual(DatabaseListStore.databases.first?.id, reference.id)
+    }
+
+    func testInitializationRejectsCorruptRegistryWithoutReplacingIt() throws {
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let corrupt = Data("{broken".utf8)
+        try corrupt.write(to: url)
+        guard case .notPublished = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected rejection") }
+        XCTAssertFalse(DatabaseListStore.setNickname("changed", for: UUID()))
+        XCTAssertEqual(try Data(contentsOf: url), corrupt)
+    }
+
+    func testInitializationMigratesLegacyReference() throws {
+        let original = try makeTemporaryFileURL(name: "legacy-init.kdbx")
+        try SharedVaultStore.saveBookmark(for: original)
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected migration") }
+        let migrated = try XCTUnwrap(DatabaseListStore.databases.first)
+        XCTAssertEqual(migrated.filename, original.lastPathComponent)
+        XCTAssertEqual(migrated.legacyKeychainFilename, original.lastPathComponent)
+        XCTAssertEqual(migrated.bookmarkData, SharedVaultStore.legacyBookmarkData)
+    }
+
+    func testInitializationRejectsUnreadableRegistryWithoutReplacingIt() throws {
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: url) }
+        guard case .notPublished = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected rejection") }
+        var isDirectory: ObjCBool = false
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory))
+        XCTAssertTrue(isDirectory.boolValue)
+    }
+
     func testReadOnlyRejectsReferenceObservedBeforeRelink() throws {
         let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "before.kdbx"))
         let replacement = try makeTemporaryFileURL(name: "after.kdbx")

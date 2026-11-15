@@ -78,7 +78,15 @@ enum DatabaseListStore {
         case durable(T), noop(T), rejected, missing, notPublished(Error), visibleUnconfirmed(T, Error)
     }
 
-    private static func mutateRegistry<T>(_ body: (inout [DatabaseReference]) throws -> RegistryDecision<T>) -> RegistryResult<T> {
+    private static func readRegistry(at url: URL) throws -> [DatabaseReference]? {
+        do {
+            return normalized(try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: url)))
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return nil
+        }
+    }
+
+    private static func mutateRegistry<T>(onMissing: (() -> [DatabaseReference])? = nil, _ body: (inout [DatabaseReference]) throws -> RegistryDecision<T>) -> RegistryResult<T> {
         guard let anchor = AppGroupContainer.resolvedURL else { return .notPublished(CocoaError(.fileWriteNoPermission)) }
         var coordinationError: NSError?
         var result: RegistryResult<T>?
@@ -86,7 +94,10 @@ enum DatabaseListStore {
             guard stateLock.try() else { result = .notPublished(PendingLocalSaveStore.OwnershipError.recoveryRequired); return }
             defer { stateLock.unlock() }
             do {
-                var rows = normalized(try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: url)))
+                var rows: [DatabaseReference]
+                if let existing = try readRegistry(at: url) { rows = existing }
+                else if let onMissing { rows = onMissing() }
+                else { result = .missing; return }
                 switch try body(&rows) {
                 case .noop(let value): result = .noop(value)
                 case .rejected: result = .rejected
@@ -101,12 +112,11 @@ enum DatabaseListStore {
                     case .publishedWithoutConfirmedDurability(let error): result = .visibleUnconfirmed(value, error)
                     }
                 }
-            } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
-                result = .missing
             } catch { result = .notPublished(error) }
         }
         if let error = coordinationError {
             if case .durable(let value) = result { return .visibleUnconfirmed(value, error) }
+            if case .noop = result { return .notPublished(error) }
             if let result { return result }
             return .notPublished(error)
         }
@@ -1654,27 +1664,36 @@ enum DatabaseListStore {
         }
     }
 
-    static func migrateFromSharedVaultStore() {
-        withStateLock {
-            #if DEBUG
-            bootstrapForUITestingIfNeeded()
-            #endif
+    enum RegistryInitializationResult {
+        case initialized, alreadyPresent, notPublished(Error), visibleUnconfirmed(Error)
+    }
 
-            guard !FileManager.default.fileExists(atPath: databaseListURL.path) else {
-                sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
-                return
+    @discardableResult
+    static func initializeRegistry() -> RegistryInitializationResult {
+        #if DEBUG
+        withStateLock { bootstrapForUITestingIfNeeded() }
+        #endif
+        let migrated = migratedLegacyReference()
+        var missing = false
+        let result = mutateRegistry(onMissing: {
+            missing = true
+            return migrated.map { [$0] } ?? []
+        }) { rows -> RegistryDecision<Bool> in
+            if missing { return .write(true) }
+            return .noop(false)
+        }
+        switch result {
+        case .durable:
+            sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
+            if let migrated {
+                if activeAutoFillDatabaseID == nil { activeAutoFillDatabaseID = migrated.id }
+                copyLegacyCachedDatabaseIfNeeded(to: migrated.id)
             }
-
-            guard let migratedReference = migratedLegacyReference() else {
-                sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
-                return
-            }
-
-            saveDatabases([migratedReference])
-            if activeAutoFillDatabaseID == nil {
-                activeAutoFillDatabaseID = migratedReference.id
-            }
-            copyLegacyCachedDatabaseIfNeeded(to: migratedReference.id)
+            return .initialized
+        case .noop: return .alreadyPresent
+        case .visibleUnconfirmed(_, let error): return .visibleUnconfirmed(error)
+        case .notPublished(let error): return .notPublished(error)
+        case .missing, .rejected: return .notPublished(CocoaError(.fileWriteUnknown))
         }
     }
 
@@ -1752,13 +1771,7 @@ enum DatabaseListStore {
     // MARK: - Private
 
     private static func loadDatabases() -> [DatabaseReference] {
-        withStateLock {
-            #if DEBUG
-            bootstrapForUITestingIfNeeded()
-            #endif
-            migrateFromSharedVaultStoreIfNeeded()
-            return decodeStoredDatabases()
-        }
+        decodeStoredDatabases()
     }
 
     /// Decodes `database-list.json` without triggering UI-test bootstrap or
@@ -1766,17 +1779,7 @@ enum DatabaseListStore {
     /// this because it can run mid-migration, where re-entering
     /// `loadDatabases()` could recurse back into the migration path.
     private static func decodeStoredDatabases() -> [DatabaseReference] {
-        withStateLock {
-            guard let data = try? Data(contentsOf: databaseListURL) else {
-                return []
-            }
-
-            guard let decoded = try? JSONDecoder().decode([DatabaseReference].self, from: data) else {
-                return []
-            }
-
-            return normalized(decoded)
-        }
+        (try? readRegistry(at: databaseListURL)) ?? []
     }
 
     /// Returns whether the list actually reached disk. Most callers are
@@ -1841,11 +1844,6 @@ enum DatabaseListStore {
 
             return normalizedReference
         }
-    }
-
-    private static func migrateFromSharedVaultStoreIfNeeded() {
-        guard FileManager.default.fileExists(atPath: databaseListURL.path) == false else { return }
-        migrateFromSharedVaultStore()
     }
 
     private static var applicationSupportURL: URL {

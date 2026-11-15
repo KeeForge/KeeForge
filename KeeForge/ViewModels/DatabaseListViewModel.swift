@@ -87,6 +87,7 @@ final class DatabaseListViewModel {
         self.pendingUploadDrainer = pendingUploadDrainer
         self.keyFileBookmarkOperation = keyFileBookmarkOperation
         self.keyFilePreferenceIO = keyFilePreferenceIO
+        _ = DatabaseListStore.initializeRegistry()
         reload()
     }
 

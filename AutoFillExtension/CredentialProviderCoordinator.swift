@@ -397,6 +397,7 @@ final class CredentialProviderCoordinator {
 
     init(presenter: (any CredentialProviderPresenting)? = nil) {
         self.presenter = presenter
+        _ = DatabaseListStore.initializeRegistry()
     }
 
     // MARK: - Request entry points (forwarded by the shell)
