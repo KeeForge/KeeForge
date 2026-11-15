@@ -71,8 +71,9 @@ use `CloudTokenStore` with AfterFirstUnlockThisDeviceOnly protection.
 Biometric unlock stores composite keys in the Keychain, not raw master passwords.
 [KeychainService](../KeeForge/Services/Security/KeychainService.swift) uses the
 Data Protection Keychain with `WhenUnlockedThisDeviceOnly` and
-`biometryCurrentSet` access control, which on the Mac also admits an authorized
-Apple Watch (see "Lock and unlock lifecycle"). The app and extension share the
+`biometryCurrentSet` access control, or on the Mac
+`[.biometryCurrentSet, .or, .companion]`, which also admits an authorized Apple
+Watch (see "Lock and unlock lifecycle"). The app and extension share the
 team-prefixed `com.keevault.sharedkeychain` group. It must remain the first
 keychain access group: items written without an explicit `kSecAttrAccessGroup`
 land there.
@@ -146,10 +147,11 @@ On quit, including logout and restart, the coordinator first waits out every
 write in flight, locked sessions included, then asks about each window's
 unsaved write in turn, front window first, with the close prompt, collecting every
 answer before writing anything. A session it asks about holds a pending lock, as a
-window-close prompt does, until the quit ends. Cancel, a failed save or key or
-settings change, or an editor still holding
-fields (which only its own prompt can settle; the quit fronts that window instead)
-cancels the quit with every window, session and draft as it was. Only when every
+window-close prompt does, until the quit ends. A window whose editor still holds fields is asked
+first, fronted, through the editor's own lock prompt (Save and Lock, Discard and
+Lock, Keep Editing), and the quit goes on once that window has locked. Keep
+Editing, Cancel, or a failed save or key or settings change cancels the quit with
+every window, session and draft as it was. Only when every
 window has settled does the store keep the pre-quit topology and stop recording,
 so the closes that termination brings never save an empty set. Don't Save leaves
 the unsaved draft as it was answered for to end with the process; work added to
@@ -251,8 +253,8 @@ database window targeted when it arrives; without one, the Databases window asks
 which database to use, and a later focus change never moves it.
 
 [SettingsWindowController](App/SettingsWindowController.swift) retains a separate
-Settings window. It reads no window's session; the SSH Agent tab chooses its
-database explicitly.
+Settings window. It reads no window's session; the SSH Agent tab shows the
+database picked in its menu, or the first unlocked one until the user picks.
 Closing and reopening it preserves the selected tab within the process.
 
 
@@ -304,7 +306,15 @@ and scroll activity resets only the receiving database window's session timer,
 throttled per database. Sheets and child windows resolve to their database parent.
 Settings, panels, unregistered windows, mouse movement, and other apps do not
 extend database deadlines. App activation evaluates existing timed deadlines
-without renewing them (Immediately and Never set none on Mac); AutoFill cache refresh and pending-upload draining remain global.
+without renewing them; AutoFill cache refresh and pending-upload draining remain global.
+
+**The defaults set no inactivity lock.** On Mac, Auto-Lock Timeout's default,
+Immediately, and Never start no inactivity timer, and the default lock policy
+locks only on screen lock, screensaver, sleep or a user switch. A default install
+therefore keeps unlocked databases open while the user stays logged in with the
+screen unlocked, even with KeeForge in the background, until one of those events
+or a window close. Only a 30-second, 1-minute or 5-minute timeout, or the strict
+policy, adds a lock for inactivity or for leaving the app.
 
 **Unsaved work can defer a lock indefinitely.** An open editor or dirty draft
 keeps the session and decrypted tree available while the Save / Discard / Keep
@@ -504,8 +514,13 @@ copied subsequently. With the clear timeout set to Never there is no timer, so
 only a lock or a later copy removes the value.
 
 macOS has no equivalent of the iOS `.localOnly` and `.expirationDate` copy options.
-Copied secrets can follow the user's Universal Clipboard setting, and KeeForge's
-in-process clear timer cannot survive termination. Mac locks do not use the iOS
+Copied secrets can follow the user's Universal Clipboard setting. The clear timer
+lives in the process, so a quit that goes ahead clears a still-owned copy itself,
+with the same `changeCount` guard (`MacWindowCoordinator`); it locks no session.
+Quit, logout, restart and every other `NSApplication.terminate` reach
+`applicationShouldTerminate`, and the app does not opt into sudden termination. A
+force quit, crash or kill skips that clear and leaves the copy on the pasteboard
+until something replaces it. Mac locks do not use the iOS
 backgrounding exemption that keeps a copy available for pasting. A deferred lock
 has not yet performed that clear.
 

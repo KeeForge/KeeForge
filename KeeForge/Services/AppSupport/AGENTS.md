@@ -22,7 +22,7 @@
 
 ### Settings storage
 
-- A setting the extension reads lives in the App Group suite: `clipboardTimeout`, `autoFillCopyTOTP`, `autoUnlockWithFaceID`, `quickAutoFillEnabled`, `passwordGeneratorOptions`. `showWebsiteIcons` is shared too, but no extension code reads it today. Everything else stays in `UserDefaults.standard`. Moving one changes what shipped installs read.
+- A setting the extension reads lives in the App Group suite: `clipboardTimeout`, `autoFillCopyTOTP`, `autoUnlockWithFaceID`, `quickAutoFillEnabled`, `quickUnlockPasswordInterval`, `passwordGeneratorOptions`, and the extension-written `successfulAutoFillCount`. `showWebsiteIcons` is shared too, but no extension code reads it today. Everything else stays in `UserDefaults.standard`. Moving one changes what shipped installs read.
 - `clipboardTimeout` is shared so the app and extension agree on expiry; its getter migrates the older app-local value on first read.
 - `AuthenticationGracePeriod` defaults to Always Ask and is bounded at five minutes; do not add an unbounded option. `../Security/SecretAccessGate` reads it.
 - The SSH agent's settings (`macSSHAgentEnabled(in:)`, `macSSHAgentSelectedEntryIDs(in:)`, and their setters) take the `UserDefaults` to use instead of reading `.standard`. `../SSHAgent/MacSSHAgentController` passes the app's own and its tests a suite of their own, so a Mac test run never changes a developer's agent.
@@ -32,7 +32,7 @@
 - iOS: every copy carries a `UIPasteboard` expiration date and `.localOnly`, so the system expires it and it stays off Universal Clipboard. macOS has neither: a copy is marked `org.nspasteboard.ConcealedType` and cleared by an in-process timer.
 - A clear timeout of Never sets no expiration date on iOS and no timer on macOS; only a lock or a later copy removes the value. On iOS a background lock does not scrub, so such a copy can stay on the pasteboard indefinitely. That is the user's explicit choice; the default stays 30 seconds.
 - Both branches clear only while `changeCount` still matches the app's own write, so a later copy by the user is never clobbered.
-- `clearOwnedContents()` runs on every lock. The single exception is iOS backgrounding (`../../ViewModels/AGENTS.md`), where the expiration date bounds the copy instead. macOS has no such bound, so a missed scrub there leaves the secret on the pasteboard.
+- `clearOwnedContents()` runs on every lock, and on Mac when a quit goes ahead (`MacWindowCoordinator`), since the clear timer dies with the process. The single exception is iOS backgrounding (`../../ViewModels/AGENTS.md`), where the expiration date bounds the copy instead. macOS has no such bound, so a missed scrub there leaves the secret on the pasteboard.
 - The AutoFill extension calls only the iOS branch (verification-code copy). The macOS timer would die with the extension process, so the coordinator gates the feature on `#if os(iOS)`; the Mac extension compiles the AppKit branch without calling it.
 
 ### Favicons
