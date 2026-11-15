@@ -8649,6 +8649,25 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testChangeMasterKeyCloudRekeyAppliedRemotelyStillRefreshesStoredKey() async throws {
+        try await exerciseConfirmedCloudRekeyRecovery(.normal)
+    }
+
+    func testConfirmedCloudRekeyRecoveryDoesNotResurrectLockedOrRetiredSessions() async throws {
+        try await exerciseConfirmedCloudRekeyRecovery(.locked)
+        try await exerciseConfirmedCloudRekeyRecovery(.retired)
+    }
+
+    func testConfirmedCloudRekeyRecoveryDoesNotPublishAfterAnotherAction() async throws {
+        try await exerciseConfirmedCloudRekeyRecovery(.otherAction)
+    }
+
+    func testConfirmedCloudRekeyRecoveryRejectsChangedEpoch() async throws {
+        try await exerciseConfirmedCloudRekeyRecovery(.changedEpoch)
+    }
+
+    private enum RecoveryCase { case normal, locked, retired, otherAction, changedEpoch }
+
+    private func exerciseConfirmedCloudRekeyRecovery(_ scenario: RecoveryCase) async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
         DatabaseListStore.update(reference)
         let original = try Data(contentsOf: fixtureURL())
@@ -8688,10 +8707,54 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(transport.effects.uploads.count, 1)
         XCTAssertEqual(transport.effects.uploads.first?.bytes, payload)
         XCTAssertEqual(try Data(contentsOf: cacheURL), original)
+        CloudDatabaseSaver.RekeyTicket.complete(UUID())
+        await Task.yield()
+        XCTAssertNil(storedKeys.newKey)
+        switch scenario {
+        case .locked:
+            vm.lock()
+        case .retired:
+            let store = DatabaseSessionStore()
+            store.adopt(vm)
+            XCTAssertTrue(store.retire(reference.id, force: true))
+            XCTAssertNil(store.session(for: reference.id))
+        case .otherAction:
+            vm.discardDraft()
+        case .changedEpoch:
+            let observed = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata)
+            DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed) { $0.keyEpoch = UUID() }
+            XCTAssertThrowsError(try CloudDatabaseSaver.recoverConfirmed(marker, reference: reference, environment: recovery))
+            XCTAssertNil(storedKeys.newKey)
+            XCTAssertEqual(vm.compositeKey, oldKey)
+            XCTAssertEqual(try Data(contentsOf: cacheURL), original)
+            XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).count, 1)
+            vm.lock()
+            return
+        case .normal: break
+        }
         guard case .saved? = try CloudDatabaseSaver.recoverConfirmed(marker, reference: reference, environment: recovery) else {
             return XCTFail("Confirmed remote rekey must reconcile without upload")
         }
         let newKey = try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil)
+        if scenario != .normal {
+            await Task.yield()
+            if scenario == .otherAction {
+                XCTAssertEqual(vm.state, .unlocked)
+                XCTAssertEqual(vm.compositeKey, oldKey)
+                vm.lock()
+            } else {
+                XCTAssertEqual(vm.state, .locked)
+                XCTAssertNil(vm.compositeKey)
+            }
+            XCTAssertNil(storedKeys.newKey)
+            XCTAssertEqual(try Data(contentsOf: cacheURL), payload)
+            XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+            return
+        }
+        let deadline = ContinuousClock.now + .seconds(10)
+        while vm.compositeKey != newKey && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
         XCTAssertEqual(transport.effects.uploads.count, 1)
         XCTAssertEqual(try Data(contentsOf: cacheURL), payload)
         _ = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: newKey, sessionKey: SymmetricKey(size: .bits256))
@@ -8704,6 +8767,10 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
         XCTAssertEqual(storedKeys.newKey, newKey, "The recovered owner must publish the current key")
         XCTAssertEqual(vm.compositeKey, newKey, "The still-unlocked session must track the recovered ciphertext")
+        CloudDatabaseSaver.RekeyTicket.complete(marker.id)
+        await Task.yield()
+        XCTAssertEqual(storedKeys.writeCount, 1)
+        vm.lock()
     }
 
     func testChangeMasterKeySavesDraftThatGrewDuringRekey() async throws {
@@ -9775,9 +9842,12 @@ private final class RekeyedKeyCapture: @unchecked Sendable {
     private var storedOldKey: SymmetricKey?
     private var storedNewKey: SymmetricKey?
     private var storedExpectedRev: String?
+    private var writes = 0
+    var writeCount: Int { lock.withLock { writes } }
 
     func record(oldKey: SymmetricKey?, newKey: SymmetricKey?, expectedRev: String? = nil) {
         lock.lock()
+        writes += 1
         storedOldKey = oldKey
         storedNewKey = newKey
         storedExpectedRev = expectedRev

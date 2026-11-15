@@ -12,6 +12,47 @@ struct CloudSaveRecoveryWarning: Error, LocalizedError, Sendable {
 enum CloudDatabaseSaver {
     typealias ProgressHandler = @Sendable (Double) -> Void
     @TaskLocal static var keyChange: PendingUploadQueue.KeyChange?
+    @TaskLocal static var rekeyTicket: RekeyTicket?
+
+    // This registry contains only weak, session-owned completion tickets, never keys.
+    final class RekeyTicket: @unchecked Sendable {
+        private final class Registry: @unchecked Sendable {
+            let lock = NSLock()
+            var tickets: [UUID: WeakTicket] = [:]
+        }
+        private final class WeakTicket {
+            weak var value: RekeyTicket?
+            init(_ value: RekeyTicket) { self.value = value }
+        }
+        private static let registry = Registry()
+        let operationID = UUID()
+        private let lock = NSLock()
+        private var digest: Data?
+        private var completed = false
+        private let notify: @Sendable () -> Void
+
+        init(notify: @escaping @Sendable () -> Void) {
+            self.notify = notify
+            Self.registry.lock.withLock { Self.registry.tickets[operationID] = WeakTicket(self) }
+        }
+        deinit { Self.registry.lock.withLock { Self.registry.tickets.removeValue(forKey: operationID) } }
+        func prepare(_ sha: Data) { lock.withLock { digest = sha } }
+        var payloadSHA: Data? { lock.withLock { digest } }
+        var isCompleted: Bool { lock.withLock { completed } }
+        static func signal(_ id: UUID) {
+            registry.lock.withLock { registry.tickets[id]?.value }?.notify()
+        }
+        static func complete(_ id: UUID) {
+            let ticket = registry.lock.withLock { registry.tickets[id]?.value }
+            guard let ticket else { return }
+            let shouldNotify = ticket.lock.withLock {
+                guard !ticket.completed, ticket.digest != nil else { return false }
+                ticket.completed = true
+                return true
+            }
+            if shouldNotify { ticket.notify() }
+        }
+    }
 
     /// One authenticated merge invocation; never serialized and never a Keychain grant.
     final class MergeContext: @unchecked Sendable {
@@ -396,12 +437,13 @@ enum CloudDatabaseSaver {
         }
 
         let mergeContext = Self.mergeContext
+        let rekeyTicket = Self.rekeyTicket
         if let mergeContext {
             guard newCompositeKey == nil, encryptionSettings == nil else { throw SaveError.saveContextUnavailable }
             try mergeContext.begin(reference: reference, remoteSHA512: reconciledRemoteSHA512)
         }
         do { return try await Task.detached(priority: .utility) {
-            try await Self.$mergeContext.withValue(mergeContext) { try await saveOffMain(
+            try await Self.$mergeContext.withValue(mergeContext) { try await Self.$rekeyTicket.withValue(rekeyTicket) { try await saveOffMain(
                 draft: draft,
                 reference: reference,
                 compositeKey: compositeKey,
@@ -415,7 +457,7 @@ enum CloudDatabaseSaver {
                 encryptionSettings: encryptionSettings,
                 keyChange: keyChange,
                 environment: environment
-            ) }
+            ) } }
         }.value } catch {
             let requiresRecovery: Bool
             do {
@@ -504,6 +546,8 @@ enum CloudDatabaseSaver {
         )
         try environment.writeBackup(currentData, backupURL)
 
+        let ticket = keyChange == nil ? nil : Self.rekeyTicket
+        ticket?.prepare(FileDigest.sha512(newData))
         var intent: PendingUploadQueue.StoredMarker?
         let replacement = try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue) {
             try mergeContext?.validateBeforePreparation()
@@ -517,7 +561,7 @@ enum CloudDatabaseSaver {
             var prepared = try PendingUploadQueue.prepare(
                 reference: latestReference, currentData: currentData, intendedData: newData,
                 cacheURL: cacheURL, keyChange: keyChange,
-                remoteBaseSHA512: baseline.reconciledRemoteSHA512, operationID: mergeContext?.operationID ?? UUID(), environment: environment.queue
+                remoteBaseSHA512: baseline.reconciledRemoteSHA512, operationID: mergeContext?.operationID ?? ticket?.operationID ?? UUID(), environment: environment.queue
             )
             intent = prepared
             if keyChange != nil { return .replaced() }
@@ -722,9 +766,17 @@ enum CloudDatabaseSaver {
         }
         do {
             let bytes = try journalPayload(stored, environment: environment)
-            return try finishDelivery(stored, reference: reference, bytes: bytes, environment: environment)
+            let result = try finishDelivery(stored, reference: reference, bytes: bytes, environment: environment)
+            if stored.marker.keyChange != nil {
+                if case .saved = result { RekeyTicket.complete(stored.id) }
+                else { RekeyTicket.signal(stored.id) }
+            }
+            return result
         } catch {
-            if stored.marker.keyChange != nil { throw SaveError.rekeyAppliedRemotely }
+            if stored.marker.keyChange != nil {
+                RekeyTicket.signal(stored.id)
+                throw SaveError.rekeyAppliedRemotely
+            }
             throw error
         }
     }

@@ -120,3 +120,5 @@
 - Whole-store unit-test cleanup may remove retained cloud caches only in the redirected test App Group, after journal cleanup. Ordinary reference removal continues to refuse unresolved cloud ownership; the live container does not inherit that teardown authority.
 
 - The cloud merge caller may supply a synchronous replacement fence and captured cache lease to the existing writer. Its final coordinated accessor holds exact reference/source authority through local-owner validation and replacement; no callback awaits, performs KDF or acquires a waiting list lock. The local saver retains all ordinary replacement/outcome and revocation semantics.
+
+- Cloud key publication validates the captured local head operation together with the epoch and cache digest while holding the publication fence.

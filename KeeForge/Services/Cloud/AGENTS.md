@@ -99,3 +99,5 @@
 - A merge defers only its own enqueue notification until its source handoff has exited coordination/list/commit/owner locks; final action cleanup emits an unconsumed notification if handoff was skipped. The RAM context consumes that callback once. Ordinary saves retain their existing notification timing. Independent preclaim lease contention remains recovery, without waiting in reverse lock order, retries or re-encryption; postclaim failures retain ownership. Stage/errno observers are memory-only diagnostics and never reenter owners or authorize effects.
 
 - Clearing a reconciled marker's expected/base revision also removes permission to use the reference's old content hash as a shortcut. Equality between the reconciled baseline and predecessor/cache SHA does not bind that hash to those bytes; delivery downloads and checks the reconciled SHA. Existing content-identifying revision or bound-hash shortcuts remain available when marker validators have not been cleared.
+
+- A confirmed rekey reconciliation signals only its weak, operation-scoped live ticket after journal retirement. The ticket carries no secret and does not authorize key publication.

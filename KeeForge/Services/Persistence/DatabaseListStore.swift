@@ -1137,6 +1137,7 @@ enum DatabaseListStore {
                     let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
                     guard let current = references.first(where: { $0.id == expected.id }),
                           current.cloudSyncMetadata?.keyEpoch == expected.cloudSyncMetadata?.keyEpoch,
+                          current.cloudSyncMetadata?.localHeadOperationID == expected.cloudSyncMetadata?.localHeadOperationID,
                           current.lastMasterKeyChangeAt == expected.lastMasterKeyChangeAt,
                           current.keyFileBookmarkData == expected.keyFileBookmarkData,
                           current.keyFileFilename == expected.keyFileFilename,
