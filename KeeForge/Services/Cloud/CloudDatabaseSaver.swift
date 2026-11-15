@@ -72,6 +72,7 @@ enum CloudDatabaseSaver {
         let sources: [PendingUploadQueue.StoredMarker]
         let remoteSHA512: Data
         private let reference: DatabaseReference
+        var ownerReference: DatabaseReference { reference }
         private let cacheSHA512: Data
         var localBaseline: SaveBaseline { .init(openTimeSHA512: cacheSHA512, reconciledRemoteSHA512: nil) }
         private let target: PendingLocalSaveStore.TargetIdentity
@@ -578,7 +579,7 @@ enum CloudDatabaseSaver {
             guard latestReference.cloudSyncMetadata?.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
                   latestReference.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else { throw SaveError.saveContextUnavailable }
             var prepared = try PendingUploadQueue.prepare(
-                reference: reference, currentData: currentData, intendedData: newData,
+                reference: mergeContext?.ownerReference ?? reference, currentData: currentData, intendedData: newData,
                 cacheURL: cacheURL, keyChange: keyChange,
                 remoteBaseSHA512: baseline.reconciledRemoteSHA512, authenticatedMergeSources: mergeContext?.sources, operationID: mergeContext?.operationID ?? ticket?.operationID ?? saveTicket?.operationID ?? UUID(), environment: environment.queue
             )

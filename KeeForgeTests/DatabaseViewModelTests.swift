@@ -8718,9 +8718,7 @@ final class DatabaseViewModelTests: XCTestCase {
             try await vm.changeMasterKey(newPassword: "cloud-rotated", newKeyFileData: nil,
                 newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
             XCTFail("Expected local reconciliation failure")
-        } catch let error as SaveError {
-            XCTAssertEqual(error, .rekeyAppliedRemotely)
-        }
+        } catch is CloudSaveRecoveryWarning { }
         let oldSHA = vm.openTimeSHA512
         let oldReference = vm.databaseReference
         let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
