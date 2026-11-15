@@ -151,14 +151,16 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 320, isSidebarCollapsed: false), 252)
         XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 260, isSidebarCollapsed: false), 192,
                        "Search and New Entry fit the list's minimum width")
-        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 330, isSidebarCollapsed: true), 140,
-                       "Beside the window controls and the sidebar toggle, as SidebarHidden draws it")
+        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 400, isSidebarCollapsed: true), 192,
+                       "Beside the window controls and the sidebar toggle, the same field as beside a shown sidebar")
         XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 260, isSidebarCollapsed: true), 90,
                        "Too narrow for a field: the system collapses it to an icon")
-        XCTAssertGreaterThanOrEqual(
+        XCTAssertEqual(
             MacWorkspaceToolbar.searchFieldWidth(listWidth: MacWorkspaceSplitViewController.collapsedListMinimumThickness,
-                                                 isSidebarCollapsed: true), 120,
-            "The list a hidden sidebar widens holds a full field")
+                                                 isSidebarCollapsed: true),
+            MacWorkspaceToolbar.searchFieldWidth(listWidth: MacWorkspaceSplitViewController.listMinimumThickness,
+                                                 isSidebarCollapsed: false),
+            "The list a hidden sidebar widens holds the field a shown sidebar leaves")
         let splitView = try XCTUnwrap(window.contentView as? NSSplitView)
         splitView.setPosition(200, ofDividerAt: 0)
         splitView.setPosition(500, ofDividerAt: 1)

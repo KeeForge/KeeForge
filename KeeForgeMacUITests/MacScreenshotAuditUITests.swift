@@ -79,17 +79,22 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         // system appearance cannot change the captures. The app renders with
         // `preferredColorScheme`, so an OS-level `-AppleInterfaceStyle` override
         // would not reach it.
-        let appearance = ProcessInfo.processInfo.environment["SCREENSHOT_AUDIT_DARK"] == "1" ? "dark" : "light"
-        insertLaunchArguments(["-KeeForge.appearanceMode", appearance], into: app)
+        // The phase-nine pass sets the theme in Settings instead, so the app-wide seam applies it live.
+        if name.contains("PhaseNine") == false {
+            insertLaunchArguments(["-KeeForge.appearanceMode", Self.auditAppearance], into: app)
+        }
 
         insertLaunchArguments([Self.windowSizeArgument, Self.sizeValue(Self.databaseWindowSize)], into: app)
         insertLaunchArguments(["-KeeForge.macMenuBarQuickAccess", "YES"], into: app)
         // Argument-domain only: SSH Agent's database picker shows only while the agent is on.
         insertLaunchArguments(["-KeeForge.macSSHAgentEnabled", "YES"], into: app)
-        if name.contains("ServerDatabases") {
+        if name.contains("ServerDatabases") || name.contains("PhaseNine") {
             app.launchEnvironment["UI_TEST_CLOUD_ACCOUNTS_JSON"] = Self.serverAccountsJSON
             app.launchEnvironment["UI_TEST_CLOUD_DATABASES_JSON"] = Self.serverDatabasesJSON
             app.launchEnvironment["UI_TEST_WEBDAV_PAYLOAD_JSON"] = try webDAVPayloadJSON()
+        }
+        if name.contains("AutoFillPicker") {
+            app.launchArguments += ["-autofill-picker-harness"]
         }
 
         // The `results:N` overlay is a UI-test hook, not app UI.
@@ -102,6 +107,10 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         } else {
             app.launchArguments += arguments
         }
+    }
+
+    private static var auditAppearance: String {
+        ProcessInfo.processInfo.environment["SCREENSHOT_AUDIT_DARK"] == "1" ? "dark" : "light"
     }
 
     private static let appBundleIdentifier = "com.keevault.app"
@@ -125,7 +134,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
 
     /// Family.kdbx is the test fixture behind a mock WebDAV server whose uploads
     /// need write access, so the first save asks to reconnect.
-    private func webDAVPayloadJSON() throws -> String {
+    private func webDAVPayloadJSON(uploadError: String = "writeScopeRequired") throws -> String {
         let data = try fixtureData(resourceName: "test", resourceExtension: "kdbx")
         let payload: [String: Any] = [
             "accounts": [["id": "webdav-acct-1", "displayName": "alex@cloud.example.com", "provider": "webdav"]],
@@ -140,7 +149,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             "fileContentsByID": ["/Vaults/Family.kdbx": data.base64EncodedString()],
             "contentHashByFileID": [String: String](),
             "revByFileID": ["/Vaults/Family.kdbx": "\"etag-family\""],
-            "uploadError": "writeScopeRequired",
+            "uploadError": uploadError,
         ]
         return String(decoding: try JSONSerialization.data(withJSONObject: payload), as: UTF8.self)
     }
@@ -1187,6 +1196,241 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         return true
     }
 
+    /// Phase 9 states: the theme set live through Settings (the app-wide seam) reaching the
+    /// window, an alert, a sheet and Settings; the quick-search panel with results and locked;
+    /// the minimum width with the sidebar hidden; the WebDAV upload problem states and the
+    /// Discard Pending Upload alert.
+    func testCapturePhaseNineStates() async {
+        settle(2)
+        let window = openDatabase(named: "Personal")
+        unlockSuccessfully(in: window)
+        openGroup(named: "Social")
+        openEntry(named: "Twitter")
+
+        let theme = Self.auditAppearance == "dark" ? "Dark" : "Light"
+        if setTheme(theme) {
+            await snapWindow(settingsWindow, "07i-settings-theme-set-live")
+            _ = closeSettingsWindow()
+            settle()
+            await snap("07j-window-theme-set-live")
+            await captureDeleteAlertAndSheetInTheme()
+        } else {
+            noteSkip("07i-settings-theme-set-live", reason: "the Theme picker did not take '\(theme)'")
+        }
+
+        await captureQuickSearchStates(in: window)
+
+        // 10f. The minimum size with the sidebar hidden: search must stay a field.
+        relaunch(readOnly: false, contentSize: Self.minimumContentSize)
+        settle()
+        clickToolbarButton(identifier: "sidebar.left", overflowLabel: "Hide Sidebar")
+        settle()
+        await snap("10f-minimum-width-sidebar-hidden")
+        attachHierarchy(named: "10f-minimum-width-sidebar-hidden-hierarchy")
+        clickToolbarButton(identifier: "sidebar.left", overflowLabel: "Show Sidebar")
+        settle()
+
+        // 13a-13c. WebDAV uploads that fail after the local save.
+        await captureUploadProblem(uploadError: "conflict", name: "13a-upload-conflict", discardAlert: "13b-discard-pending-upload-alert")
+        await captureUploadProblem(uploadError: "networkUnavailable", name: "13c-upload-offline", discardAlert: nil)
+
+        // Leave the stored theme as a fresh install has it, for the suites that follow.
+        relaunch(readOnly: false, contentSize: Self.databaseWindowSize)
+        _ = setTheme("System Default")
+        _ = closeSettingsWindow()
+        noteSkip("13d-reconnect-cached", reason: "the mock provider cannot turn a downloaded copy disconnected within one launch")
+        noteSkip("10g-read-only-pill-240", reason: "XCUITest drags do not move split dividers on macOS 27")
+        noteSkip("03f-empty-tag-bin-new-database", reason: "no fixture has an empty tag or an empty bin section; a new database needs a save panel")
+        attachCaptureReport()
+    }
+
+    /// Picks a Theme in Settings ▸ Appearance; the seam applies it to every window at once.
+    private func setTheme(_ title: String) -> Bool {
+        guard typeAppShortcut(",") else { return false }
+        settle(1.5)
+        guard selectSettingsTab(named: "Appearance") else { return false }
+        // The picker's radio group is only its accessibility representation; a click on it reaches
+        // no button, so click the thumbnail itself (84 pt wide, 12 pt apart, 54 pt tall).
+        let picker = settingsWindow.descendants(matching: .any)["settings.display.theme-picker"].firstMatch
+        guard let index = ["System Default", "Light", "Dark"].firstIndex(of: title),
+              picker.waitForExistence(timeout: 5) else {
+            attachHierarchy(named: "07i-theme-picker-hierarchy")
+            return false
+        }
+        picker.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 42 + 96 * index, dy: 27)).click()
+        settle()
+        return true
+    }
+
+    private func captureDeleteAlertAndSheetInTheme() async {
+        let alertName = "07k-alert-theme-set-live"
+        if let row = rowQuery(identifier: "group.navlink").matching(NSPredicate(format: "value == 'Empty'"))
+            .allElementsBoundByIndex.first(where: { $0.isHittable && $0.frame.height > 1 }) {
+            row.rightClick()
+            let delete = app.menuItems.matching(identifier: "group-row.delete-context").firstMatch
+            if delete.waitForExistence(timeout: 3) {
+                delete.click()
+                let cancel = personalWindow.sheets.buttons["workspace.delete.cancel"].firstMatch
+                if cancel.waitForExistence(timeout: 5) {
+                    settle(0.6)
+                    await snap(alertName)
+                    cancel.click()
+                    _ = cancel.waitForNonExistence(timeout: 5)
+                } else {
+                    noteSkip(alertName, reason: "the delete confirmation never appeared")
+                }
+            } else {
+                app.typeKey(.escape, modifierFlags: [])
+                noteSkip(alertName, reason: "the group context menu never opened")
+            }
+        } else {
+            noteSkip(alertName, reason: "the 'Empty' group row was not available")
+        }
+        let sheetName = "07l-sheet-theme-set-live"
+        if let sheet = openDatabaseSettings(in: personalWindow, skipping: sheetName) {
+            settle(0.6)
+            await snapWindow(sheet, sheetName)
+            sheet.buttons["database-settings.done"].firstMatch.click()
+            _ = sheet.waitForNonExistence(timeout: 5)
+        }
+    }
+
+    private func captureQuickSearchStates(in window: XCUIElement) async {
+        let statusItem = app.statusItems["menu-bar.quick-search.status-item"].firstMatch
+        let panel = app.dialogs["quick-search.panel"].firstMatch
+        func open(_ name: String) -> Bool {
+            guard statusItem.waitForExistence(timeout: 5) else {
+                noteSkip(name, reason: "the menu bar item did not appear")
+                return false
+            }
+            statusItem.click()
+            guard panel.waitForExistence(timeout: 5) else {
+                noteSkip(name, reason: "the panel did not open")
+                return false
+            }
+            return true
+        }
+        let results = "12a-quick-search-results"
+        if open(results) {
+            let field = panel.textFields["quick-search.field"].firstMatch
+            if field.waitForExistence(timeout: 5) {
+                field.typeText("o")
+                _ = panel.staticTexts["quick-search.result-count"].waitForExistence(timeout: 5)
+                // The selected row shows its copy pills.
+                app.typeKey(.downArrow, modifierFlags: [])
+                settle(0.6)
+                await snapWindow(panel, results)
+            } else {
+                noteSkip(results, reason: "the unlocked panel offered no search field")
+            }
+            app.typeKey(.escape, modifierFlags: [])
+            _ = panel.waitForNonExistence(timeout: 5)
+        }
+        let locked = "12b-quick-search-locked"
+        guard typeAppShortcut("l"), waitForLockedState(in: window) else {
+            noteSkip(locked, reason: "⌘L did not lock Personal")
+            return
+        }
+        if open(locked) {
+            settle(0.6)
+            await snapWindow(panel, locked)
+            app.typeKey(.escape, modifierFlags: [])
+            _ = panel.waitForNonExistence(timeout: 5)
+        }
+        unlockSuccessfully(in: window)
+    }
+
+    /// Relaunches with the mock WebDAV server failing uploads with `uploadError`, deletes a
+    /// group in Family so the local save succeeds and the upload does not, and snaps the
+    /// status card and notice; optionally the window's Discard Pending Upload alert.
+    private func captureUploadProblem(uploadError: String, name: String, discardAlert: String?) async {
+        app.terminate()
+        app.launchEnvironment["UI_TEST_DATABASE_READ_ONLY"] = nil
+        app.launchEnvironment["UI_TEST_WEBDAV_PAYLOAD_JSON"] = try? webDAVPayloadJSON(uploadError: uploadError)
+        if let index = app.launchArguments.firstIndex(of: Self.windowSizeArgument) {
+            app.launchArguments[index + 1] = Self.sizeValue(Self.databaseWindowSize)
+        }
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+        let window = openDatabase(named: "Family")
+        unlockSuccessfully(in: window)
+        openGroup(named: "Social")
+        guard deleteGroup(named: "Empty", skipping: name) else { return }
+        // The failed save first raises its alert (Save Conflict or Couldn't Save Database).
+        let alertButton = window.sheets.buttons.matching(
+            NSPredicate(format: "identifier == 'save-conflict.cancel' OR title == 'OK'")
+        ).firstMatch
+        if alertButton.waitForExistence(timeout: 15) {
+            settle(0.6)
+            await snapWindow(window, "\(name)-alert")
+            alertButton.click()
+            _ = alertButton.waitForNonExistence(timeout: 5)
+        } else {
+            noteSkip("\(name)-alert", reason: "the failed upload raised no alert")
+        }
+        settle(1.5)
+        await snapWindow(window, name)
+        if let discardAlert {
+            let databaseMenu = app.menuBars.menuBarItems["Database"].firstMatch
+            databaseMenu.click()
+            let discard = databaseMenu.menuItems["Discard Pending Upload…"].firstMatch
+            if discard.waitForExistence(timeout: 5), discard.isEnabled {
+                discard.click()
+                let cancel = window.sheets.buttons["Cancel"].firstMatch
+                if cancel.waitForExistence(timeout: 5) {
+                    settle(0.6)
+                    await snapWindow(window, discardAlert)
+                    cancel.click()
+                    _ = cancel.waitForNonExistence(timeout: 5)
+                } else {
+                    noteSkip(discardAlert, reason: "Discard Pending Upload… showed no alert")
+                }
+            } else {
+                app.typeKey(.escape, modifierFlags: [])
+                noteSkip(discardAlert, reason: "Discard Pending Upload… was dimmed after a failed upload")
+            }
+        }
+        // Closing with unsaved work asks first, which would stall the next relaunch.
+        if typeAppShortcut("w") {
+            let dontSave = window.sheets.buttons["Don’t Save"].firstMatch
+            if dontSave.waitForExistence(timeout: 5) { dontSave.click() }
+            _ = window.waitForNonExistence(timeout: 10)
+        }
+    }
+
+    /// The Mac AutoFill picker in its DEBUG harness: possible matches for the request,
+    /// search results with the field focused, an empty search, then exact matches.
+    func testCaptureAutoFillPicker() async {
+        let field = app.textFields["autofill.search-field"].firstMatch
+        guard field.waitForExistence(timeout: 15) else {
+            noteSkip("14-autofill-picker", reason: "the harness showed no picker")
+            attachCaptureReport()
+            return
+        }
+        settle()
+        await snapSurface(hosting: "autofill.search-field", "14b-autofill-possible-matches")
+        field.click()
+        field.typeText("Ba")
+        settle(0.6)
+        await snapSurface(hosting: "autofill.search-field", "14d-autofill-search-focused")
+        field.typeText("zzz")
+        settle(0.6)
+        await snapSurface(hosting: "autofill.search-field", "14c-autofill-empty")
+
+        app.terminate()
+        app.launchArguments += ["-autofill-picker-store"]
+        app.launchEnvironment["UI_TEST_AUTOFILL_HARNESS_SEARCH"] = nil
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+        if field.waitForExistence(timeout: 15) {
+            settle()
+            await snapSurface(hosting: "autofill.search-field", "14a-autofill-matches")
+        } else {
+            noteSkip("14a-autofill-matches", reason: "the store harness showed no picker")
+        }
+        attachCaptureReport()
+    }
+
     func testCaptureTOTPSetupLink() async {
         unlockSuccessfully(in: openDatabase(named: "Personal"))
         guard typeAppShortcut("n"),
@@ -1386,7 +1630,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             add(hierarchy)
         }
 
-        clickToolbarButton(identifier: "sidebar.left", overflowLabel: "Show Sidebar")
+        clickToolbarButton(identifier: "sidebar.left", overflowLabel: "Hide Sidebar")
         settle()
         await snap("08f-sidebar-hidden")
         clickToolbarButton(identifier: "sidebar.left", overflowLabel: "Show Sidebar")

@@ -49,7 +49,8 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
     }
 
     /// The status card's Sync Now reaches the cloud sync and its line reports
-    /// the outcome; the wording and gates are unit-tested in `MacDatabaseStatusTests`.
+    /// the outcome, and the window's Discard Pending Upload… stays dimmed; the
+    /// wording and gates are unit-tested in `MacDatabaseStatusTests`.
     func testSyncNowFromTheStatusCardReportsTheDatabaseSynced() {
         unlockSuccessfully()
         let window = databaseWindow
@@ -63,6 +64,15 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
             XCTAssertTrue(waitForStatusLine(containing: "Synced just now"), "Sync Now did not report the database as synced")
             XCTAssertFalse(window.buttons["cloud-sync-failure.ok"].exists, "Sync Now reported a failure")
         }
+
+        // With nothing waiting to upload, Database ▸ Discard Pending Upload… is dimmed.
+        let databaseMenu = app.menuBars.menuBarItems["Database"].firstMatch
+        XCTAssertTrue(databaseMenu.waitForExistence(timeout: 5), "No Database menu")
+        databaseMenu.click()
+        let discard = databaseMenu.menuItems["Discard Pending Upload…"].firstMatch
+        XCTAssertTrue(discard.waitForExistence(timeout: 5), "The Database menu has no Discard Pending Upload…")
+        XCTAssertFalse(discard.isEnabled, "Discard Pending Upload… is enabled with no pending upload")
+        app.typeKey(.escape, modifierFlags: [])
 
         // Database Settings has a Sync tab for a WebDAV database, and it reports the sync healthy.
         typeCommandShortcut("i")

@@ -25,7 +25,18 @@ final class MacQuickSearchUITests: MacUITestCase {
             searchField.waitForExistence(timeout: 10),
             "The panel did not offer search for the unlocked database"
         )
+        XCTAssertEqual(
+            displayText(of: panel.staticTexts["quick-search.database-name"].firstMatch),
+            "test",
+            "The panel's header did not name the active database"
+        )
         XCTAssertFalse(handOffButton.exists, "The panel sent an unlocked database back to the main window")
+        searchField.typeText("GitHub")
+        XCTAssertTrue(
+            waitForResultCount(),
+            "The header did not count the results as \"N results\""
+        )
+        XCTAssertTrue(panel.descendants(matching: .any)["quick-search.row"].firstMatch.exists, "No result row appeared")
         closePanel()
 
         typeCommandShortcut("l")
@@ -38,10 +49,23 @@ final class MacQuickSearchUITests: MacUITestCase {
         XCTAssertTrue(handOffButton.waitForExistence(timeout: 10), "The locked panel did not offer the main window")
         XCTAssertEqual(displayText(of: handOffButton), "Unlock…")
         XCTAssertTrue(
-            panel.staticTexts.matching(NSPredicate(format: "label == 'test' OR value == 'test'")).firstMatch.exists,
-            "The locked panel did not name the database"
+            panel.staticTexts.matching(
+                NSPredicate(format: "label == %@ OR value == %@", "Unlock test to search it", "Unlock test to search it")
+            ).firstMatch.exists,
+            "The locked panel did not say which database to unlock"
         )
         XCTAssertFalse(searchField.exists, "The panel still offered search after the database locked")
+    }
+
+    private func waitForResultCount(timeout: TimeInterval = 10) -> Bool {
+        let count = panel.staticTexts["quick-search.result-count"].firstMatch
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let text = displayText(of: count)
+            if text.range(of: #"^[1-9][0-9]* results?$"#, options: .regularExpression) != nil { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+        return false
     }
 
     private var panel: XCUIElement {

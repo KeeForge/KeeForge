@@ -309,6 +309,17 @@ final class MacSmokeUITests: MacUITestCase {
             XCTAssertEqual(window.frame.width, originalWindowSize.width, accuracy: 2)
             XCTAssertEqual(window.frame.height, originalWindowSize.height, accuracy: 2)
         }
+
+        // With the sidebar hidden, search stays a usable field rather than collapsing to its icon.
+        clickToolbarButton(identifier: "sidebar.left", overflowLabel: "Hide Sidebar")
+        XCTAssertTrue(window.outlines[Self.sidebarOutlineIdentifier].waitForNonExistence(timeout: 10),
+                      "Hide Sidebar left the sidebar up")
+        let search = window.toolbars.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5), "With the sidebar hidden, search is not a field")
+        XCTAssertGreaterThanOrEqual(search.frame.width, 120, "With the sidebar hidden, the search field is too narrow")
+        clickToolbarButton(identifier: "sidebar.left", overflowLabel: "Show Sidebar")
+        XCTAssertTrue(window.outlines[Self.sidebarOutlineIdentifier].waitForExistence(timeout: 10),
+                      "Show Sidebar did not bring the sidebar back")
     }
 
     private func sidebarDivider() -> XCUIElement? {
@@ -906,7 +917,10 @@ final class MacDatabaseListUITests: MacUITestCase {
         ]
     }
 
-    /// A single click only selects; Return opens. Removing a database whose
+    /// A cancelled New Database sheet frees the window for Connect to Server.
+    /// A single click only selects; Return opens. A removal confirmed after the
+    /// database's window gained unsaved work shows the refusal queued behind the
+    /// detaching confirmation; once the work is gone, removing a database whose
     /// window is open closes that window and leaves the other row. A database
     /// whose file is gone fails to the recovery page, whose Remove from List
     /// asks in that window and removes it.
@@ -915,6 +929,18 @@ final class MacDatabaseListUITests: MacUITestCase {
         let demoRow = databaseRow(containing: "demo")
         XCTAssertTrue(testRow.waitForExistence(timeout: 15), "Seeded test.kdbx row missing")
         XCTAssertTrue(demoRow.waitForExistence(timeout: 15), "Seeded demo.kdbx row missing")
+
+        databasesWindow.buttons["databases.create-new"].firstMatch.click()
+        let createCancel = databasesWindow.sheets.buttons["database-create.cancel-button"].firstMatch
+        XCTAssertTrue(createCancel.waitForExistence(timeout: 10), "New Database… did not open its sheet")
+        createCancel.click()
+        XCTAssertTrue(createCancel.waitForNonExistence(timeout: 10), "Cancel did not close the New Database sheet")
+        databasesWindow.buttons["databases.connect-server"].firstMatch.click()
+        let connectCancel = databasesWindow.sheets.buttons["webdav.connect.cancel"].firstMatch
+        XCTAssertTrue(connectCancel.waitForExistence(timeout: 10),
+                      "Connect to Server… did not open its sheet after a cancelled New Database")
+        connectCancel.click()
+        XCTAssertTrue(connectCancel.waitForNonExistence(timeout: 10), "Cancel did not close the Connect to Server sheet")
 
         selectDatabaseRow(containing: "demo")
         RunLoop.current.run(until: Date().addingTimeInterval(2))
@@ -927,17 +953,51 @@ final class MacDatabaseListUITests: MacUITestCase {
             "Return did not open the selected database in its own window"
         )
 
-        showDatabasesWindow()
-        selectDatabaseRow(containing: "demo")?.rightClick()
-
-        let removeMenuItem = app.menuItems.matching(identifier: "database-row.remove").firstMatch
-        XCTAssertTrue(removeMenuItem.waitForExistence(timeout: 10), "Remove context-menu item missing")
-        removeMenuItem.click()
+        unlock(password: "demo", in: demoWindow)
+        waitForVaultToUnlock(in: demoWindow)
 
         // Scope to the window so the query cannot match Touch Bar elements
         // (which XCUITest refuses to click).
         let confirmRemove = databasesWindow.buttons["databases.remove.confirm"].firstMatch
-        XCTAssertTrue(confirmRemove.waitForExistence(timeout: 10), "Remove confirmation did not appear")
+        func askToRemoveDemo() {
+            showDatabasesWindow()
+            selectDatabaseRow(containing: "demo")?.rightClick()
+            let removeMenuItem = app.menuItems.matching(identifier: "database-row.remove").firstMatch
+            XCTAssertTrue(removeMenuItem.waitForExistence(timeout: 10), "Remove context-menu item missing")
+            removeMenuItem.click()
+            XCTAssertTrue(confirmRemove.waitForExistence(timeout: 10), "Remove confirmation did not appear")
+        }
+
+        askToRemoveDemo()
+        frontWindow(named: "demo")
+        typeCommandShortcut("n")
+        let titleField = demoWindow.textFields["entry-edit.title-field"].firstMatch
+        XCTAssertTrue(titleField.waitForExistence(timeout: 10), "⌘N did not open the editor")
+        titleField.click()
+        app.typeText("Unsaved Draft")
+        showDatabasesWindow()
+        confirmRemove.click()
+        let refusalOK = databasesWindow.sheets.buttons["OK"].firstMatch
+        XCTAssertTrue(refusalOK.waitForExistence(timeout: 10),
+                      "Confirming with unsaved work did not show the refusal behind the confirmation")
+        XCTAssertTrue(
+            databasesWindow.sheets.staticTexts.matching(
+                NSPredicate(format: "label == %@ OR value == %@", "Can’t Remove Database", "Can’t Remove Database")
+            ).firstMatch.exists,
+            "The queued alert is not the refusal"
+        )
+        refusalOK.click()
+        XCTAssertTrue(refusalOK.waitForNonExistence(timeout: 10), "OK did not close the refusal")
+        XCTAssertTrue(demoRow.exists, "A refused removal removed the database")
+
+        frontWindow(named: "demo")
+        demoWindow.buttons["entry-edit.cancel"].firstMatch.click()
+        let discard = demoWindow.buttons["Discard Changes"].firstMatch
+        XCTAssertTrue(discard.waitForExistence(timeout: 10), "Cancel did not ask before discarding the draft")
+        discard.click()
+        XCTAssertTrue(titleField.waitForNonExistence(timeout: 10), "The editor did not close")
+
+        askToRemoveDemo()
         confirmRemove.click()
 
         let deadline = Date().addingTimeInterval(15)
@@ -959,6 +1019,16 @@ final class MacDatabaseListUITests: MacUITestCase {
         XCTAssertTrue(missingWindow.waitForNonExistence(timeout: 15), "Removing the missing database left its window open")
         XCTAssertTrue(databaseRow(containing: "Missing").waitForNonExistence(timeout: 15), "The missing database's row stayed")
         XCTAssertTrue(testRow.exists, "test.kdbx row must survive the removal")
+    }
+
+    private func frontWindow(named name: String) {
+        app.menuBars.menuBarItems["Window"].firstMatch.click()
+        let item = app.menuBars.menuBarItems["Window"].menuItems.matching(
+            NSPredicate(format: "title == %@ OR title BEGINSWITH %@", name, "\(name) (")
+        ).firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "No Window-menu item for '\(name)'")
+        item.click()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
     }
 }
 

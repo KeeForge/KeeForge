@@ -168,7 +168,7 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     /// with the sidebar hidden, the window controls and the sidebar toggle), so
     /// focusing it never pushes the list separator and it stays a field.
     static func searchFieldWidth(listWidth: CGFloat, isSidebarCollapsed: Bool) -> CGFloat {
-        let neighbours: CGFloat = isSidebarCollapsed ? 36 + 36 + 86 : 36
+        let neighbours: CGFloat = isSidebarCollapsed ? 140 + 36 : 36
         return min(max(listWidth - neighbours - 32, 90), 260)
     }
 

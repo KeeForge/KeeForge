@@ -63,11 +63,18 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
     /// The list's width before a hidden sidebar widened it, put back when the sidebar returns.
     private var listWidthBeforeCollapse: CGFloat?
     private var restoresListWidth = false
-    private var listFrameObserver: NSObjectProtocol?
+    private var listFrameObservers: [NSObjectProtocol] = []
+    private var hiddenListObserver: NSObjectProtocol?
+    private var hiddenListWidth: CGFloat?
+    static let defaultSidebarWidth: CGFloat = 240
+    static let defaultListWidth: CGFloat = 320
+    static let defaultDetailRoom: CGFloat = 440
+    private var appliesDefaultWidths = true
     static let listMinimumThickness: CGFloat = 260
     static let listMaximumThickness: CGFloat = 460
-    /// With the sidebar hidden the list also holds the window controls and a full search field (SidebarHidden board).
-    static let collapsedListMinimumThickness: CGFloat = 328
+    /// With the sidebar hidden the list also holds the window controls and the toggle (about 140 pt on macOS 27),
+    /// so it keeps the room search has beside a shown sidebar; any less and the system collapses search to an icon.
+    static let collapsedListMinimumThickness: CGFloat = listMinimumThickness + 140
 
     /// Each database keeps its own widths and collapse state; nil keeps the layout unsaved.
     init(
@@ -121,16 +128,31 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
 
     isolated deinit {
         statusClock?.invalidate()
-        listFrameObserver.map(NotificationCenter.default.removeObserver)
+        listFrameObservers.forEach(NotificationCenter.default.removeObserver)
+        hiddenListObserver.map(NotificationCenter.default.removeObserver)
     }
 
     /// Alerts wait for a window to attach to.
     override func viewDidAppear() {
         super.viewDidAppear()
+        applyDefaultWidthsIfUnsaved()
         statusClock?.invalidate()
         statusClock = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.presentation.advanceStatusClock() }
         }
+    }
+
+    /// The boards' 240 and 320 pt columns, once, for a database with no saved layout: AppKit opens
+    /// a new split at its minimums and ignores `preferredThicknessFraction`. A window too narrow to
+    /// leave the detail its room keeps the minimums, as DarkMin draws the 900 pt window.
+    func applyDefaultWidthsIfUnsaved(defaults: UserDefaults = .standard) {
+        guard appliesDefaultWidths else { return }
+        appliesDefaultWidths = false
+        if let name = splitView.autosaveName, defaults.object(forKey: "NSSplitView Subview Frames \(name)") != nil { return }
+        guard splitViewItems.count == 3, splitViewItems[0].isCollapsed == false,
+              splitView.bounds.width >= Self.defaultSidebarWidth + Self.defaultListWidth + Self.defaultDetailRoom else { return }
+        splitView.setPosition(Self.defaultSidebarWidth, ofDividerAt: 0)
+        splitView.setPosition(Self.defaultSidebarWidth + splitView.dividerThickness + Self.defaultListWidth, ofDividerAt: 1)
     }
 
     override func viewWillDisappear() {
@@ -157,11 +179,17 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
             stopObservingListFrame()
             entries.maximumThickness = Self.listMaximumThickness
             entries.minimumThickness = Self.collapsedListMinimumThickness
+            observeHiddenListWidth(entries.viewController.view)
         } else {
             guard entries.minimumThickness == Self.collapsedListMinimumThickness else { return }
             entries.minimumThickness = Self.listMinimumThickness
-            // A list dragged wider while the sidebar was hidden keeps that width.
-            if let saved = listWidthBeforeCollapse, abs(width - Self.collapsedListMinimumThickness) < 1 {
+            hiddenListObserver.map(NotificationCenter.default.removeObserver)
+            hiddenListObserver = nil
+            // A list dragged wider while the sidebar was hidden keeps that width. The show may already have
+            // laid out, so the width the list had while hidden decides, not the current one.
+            let hiddenWidth = hiddenListWidth ?? width
+            hiddenListWidth = nil
+            if let saved = listWidthBeforeCollapse, hiddenWidth <= Self.collapsedListMinimumThickness + 1 {
                 entries.maximumThickness = saved
                 restoresListWidth = true
                 releaseListCapOnceNarrowed()
@@ -170,36 +198,57 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         }
     }
 
+    private func observeHiddenListWidth(_ list: NSView) {
+        list.postsFrameChangedNotifications = true
+        hiddenListObserver.map(NotificationCenter.default.removeObserver)
+        hiddenListWidth = nil
+        hiddenListObserver = NotificationCenter.default.addObserver(
+            forName: NSView.frameDidChangeNotification, object: list, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.splitViewItems.first?.isCollapsed == true else { return }
+                self.hiddenListWidth = list.frame.width
+            }
+        }
+    }
+
     /// The cap holds until the list has narrowed to it, then the user may drag it wider again.
     private func releaseListCapOnceNarrowed() {
         guard splitViewItems.count > 1 else { return }
-        let entries = splitViewItems[1]
-        let list = entries.viewController.view
-        list.postsFrameChangedNotifications = true
         stopObservingListFrame()
-        listFrameObserver = NotificationCenter.default.addObserver(
-            forName: NSView.frameDidChangeNotification, object: list, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.releaseListCapIfNarrowed() }
+        // The list narrowing and the sidebar widening may land in different passes; either may release the cap.
+        listFrameObservers = [splitViewItems[0].viewController.view, splitViewItems[1].viewController.view].map { view in
+            view.postsFrameChangedNotifications = true
+            return NotificationCenter.default.addObserver(
+                forName: NSView.frameDidChangeNotification, object: view, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.releaseListCapIfNarrowed() }
+            }
         }
     }
 
     private func releaseListCapIfNarrowed() {
         guard restoresListWidth, splitViewItems.count > 1 else { return }
         let entries = splitViewItems[1]
-        guard entries.viewController.view.frame.width <= entries.maximumThickness + 1 else { return }
+        let list = entries.viewController.view
+        // Released only once the sidebar has its width again, or the list takes that room back.
+        guard list.frame.width <= entries.maximumThickness + 1,
+              splitViewItems[0].viewController.view.frame.width >= splitViewItems[0].minimumThickness - 1 else { return }
         restoresListWidth = false
         stopObservingListFrame()
         // Not inside the layout pass that narrowed it.
         Task { @MainActor [weak self, weak entries] in
-            guard self?.restoresListWidth == false else { return }
-            entries?.maximumThickness = Self.listMaximumThickness
+            guard let self, let entries, restoresListWidth == false else { return }
+            let width = entries.maximumThickness
+            entries.maximumThickness = Self.listMaximumThickness
+            // Lifting the cap lets AppKit hand the list back its hidden-sidebar width; keep the restored one.
+            splitView.setPosition(splitViewItems[0].viewController.view.frame.maxX + width, ofDividerAt: 1)
         }
     }
 
     private func stopObservingListFrame() {
-        listFrameObserver.map(NotificationCenter.default.removeObserver)
-        listFrameObserver = nil
+        listFrameObservers.forEach(NotificationCenter.default.removeObserver)
+        listFrameObservers = []
     }
 
     private static func host<Content: View>(

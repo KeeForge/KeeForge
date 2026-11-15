@@ -18,9 +18,15 @@ final class MacAutoFillPickerUITests: MacUITestCase {
         searchField.click()
         searchField.typeText("Bank")
 
-        let addURL = app.buttons["autofill.entry.add-url"].firstMatch
-        XCTAssertTrue(addURL.waitForExistence(timeout: 10), "A search result must offer adding the website")
-        XCTAssertTrue(displayText(of: addURL).contains("login.example.com"), "The action must name the host")
+        let row = entryRow()
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "The search found no row for Bank")
+        row.rightClick()
+        let addURL = addWebsiteMenuItem()
+        XCTAssertTrue(addURL.waitForExistence(timeout: 5), "The row's context menu must offer adding the website")
+        XCTAssertTrue(
+            [addURL.title, addURL.label].contains("Add login.example.com to This Entry"),
+            "The action must name the host"
+        )
         addURL.click()
 
         XCTAssertTrue(waitForText(containing: "Add Website to Entry?"), "The confirmation did not appear")
@@ -44,8 +50,28 @@ final class MacAutoFillPickerUITests: MacUITestCase {
         searchField.click()
         searchField.typeText("Example Login")
 
-        XCTAssertTrue(app.buttons["autofill.entry.exact"].firstMatch.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["autofill.entry.add-url"].exists)
+        let row = entryRow()
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.rightClick()
+        XCTAssertFalse(addWebsiteMenuItem().waitForExistence(timeout: 2), "An entry storing the host offered to add it again")
+        app.typeKey(.escape, modifierFlags: [])
+    }
+
+    /// A match or possible match; the harness decides which section a search lands in.
+    private func entryRow() -> XCUIElement {
+        app.buttons.matching(
+            NSPredicate(format: "identifier IN %@", ["autofill.entry.exact", "autofill.entry.possible.use"])
+        ).firstMatch
+    }
+
+    private func addWebsiteMenuItem() -> XCUIElement {
+        app.menuItems.matching(
+            NSPredicate(
+                format: "(identifier IN %@ OR title ENDSWITH %@) AND isEnabled == true",
+                ["autofill.entry.add-url", "autofill.entry.possible.add-url"],
+                " to This Entry"
+            )
+        ).firstMatch
     }
 
     /// Mac `Text` reports through `value` with an empty `label`, so match both.

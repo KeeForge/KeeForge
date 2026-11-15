@@ -73,8 +73,11 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
                        "Room for the window controls and a full search field")
 
         sidebar.isCollapsed = false
-        settle()
-        await Task { @MainActor in }.value
+        // The cap comes off on a later main-actor turn, after the layout pass that showed the sidebar.
+        for _ in 0..<20 where entries.maximumThickness != MacWorkspaceSplitViewController.listMaximumThickness {
+            await Task { @MainActor in }.value
+            settle()
+        }
         XCTAssertEqual(list.frame.width, 280, accuracy: 1, "Back to the width it had")
         XCTAssertEqual(entries.minimumThickness, MacWorkspaceSplitViewController.listMinimumThickness)
         XCTAssertEqual(entries.maximumThickness, MacWorkspaceSplitViewController.listMaximumThickness,
@@ -82,12 +85,57 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
 
         sidebar.isCollapsed = true
         settle()
-        split.setPosition(split.arrangedSubviews[1].frame.minX + 400, ofDividerAt: 1)
+        split.setPosition(split.arrangedSubviews[1].frame.minX + 440, ofDividerAt: 1)
         settle()
-        XCTAssertEqual(list.frame.width, 400, accuracy: 1)
+        XCTAssertEqual(list.frame.width, 440, accuracy: 1)
         sidebar.isCollapsed = false
         settle()
-        XCTAssertEqual(list.frame.width, 400, accuracy: 1, "A list dragged wider while hidden keeps its width")
+        XCTAssertEqual(list.frame.width, 440, accuracy: 1, "A list dragged wider while hidden keeps its width")
+    }
+
+    func testANewDatabaseOpensWithTheBoardColumnWidthsAndASavedLayoutKeepsItsOwn() throws {
+        let session = try makeSession()
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "MacWorkspaceSplitDefaultWidths.\(UUID().uuidString)"))
+        defaults.set(["0 0 300 700"], forKey: "NSSplitView Subview Frames Saved")
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 700),
+                              styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        func layOut(width: CGFloat = 1080) -> MacWorkspaceSplitViewController {
+            let controller = MacWorkspaceSplitViewController(session: session, presentation: MacWorkspacePresentation(),
+                attachmentPreview: .unshown(session), currentSession: { nil })
+            window.contentViewController = controller
+            window.setContentSize(NSSize(width: width, height: 700))
+            controller.splitView.layoutSubtreeIfNeeded()
+            return controller
+        }
+        func widths(_ controller: MacWorkspaceSplitViewController) -> [CGFloat] {
+            controller.splitView.layoutSubtreeIfNeeded()
+            return controller.splitView.arrangedSubviews.prefix(2).map(\.frame.width)
+        }
+
+        let fresh = layOut()
+        fresh.applyDefaultWidthsIfUnsaved(defaults: defaults)
+        XCTAssertEqual(widths(fresh)[0], 240, accuracy: 1)
+        XCTAssertEqual(widths(fresh)[1], 320, accuracy: 1)
+        fresh.splitView.setPosition(300, ofDividerAt: 0)
+        let dragged = widths(fresh)
+        fresh.applyDefaultWidthsIfUnsaved(defaults: defaults)
+        XCTAssertEqual(widths(fresh), dragged, "Applied once, not on every appearance")
+
+        let narrow = layOut(width: 900)
+        let minimums = widths(narrow)
+        narrow.applyDefaultWidthsIfUnsaved(defaults: defaults)
+        XCTAssertEqual(widths(narrow), minimums, "The minimum window keeps the minimum columns")
+
+        // The autosave name is set only for the check and cleared before anything could write it.
+        let saved = layOut()
+        saved.splitView.setPosition(210, ofDividerAt: 0)
+        let before = widths(saved)
+        saved.splitView.autosaveName = "Saved"
+        saved.applyDefaultWidthsIfUnsaved(defaults: defaults)
+        saved.splitView.autosaveName = nil
+        XCTAssertEqual(widths(saved), before, "A database with a saved layout keeps it")
     }
 
     func testWindowKeepsControllerUntilSessionChangesThenReleasesIt() throws {
