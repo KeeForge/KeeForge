@@ -33,12 +33,18 @@ struct CloudRecoveryView: View {
                             let name = stored.intent.referenceTemplate.filename
                             perform { (try CloudFileCreationCoordinator.export(operationID: id), name) }
                         }
+                        .macPlainRowButton()
+                        .accessibilityIdentifier("cloud.recovery.creation.\(stored.intent.operationID.uuidString).export")
                     }
                     if actions.retry {
                         Button("Retry Cloud Creation") { runCreation(stored.intent.operationID, retry: true) }
+                            .macPlainRowButton()
+                            .accessibilityIdentifier("cloud.recovery.creation.\(stored.intent.operationID.uuidString).retry")
                     }
                     if actions.complete {
                         Button("Finish Cloud Recovery") { runCreation(stored.intent.operationID, retry: false) }
+                            .macPlainRowButton()
+                            .accessibilityIdentifier("cloud.recovery.creation.\(stored.intent.operationID.uuidString).finish")
                     }
                 }
             }
@@ -57,6 +63,7 @@ struct CloudRecoveryView: View {
             }
         }
         .navigationTitle("Cloud Recovery")
+        .navigationBarTitleDisplayMode(.inline)
         .disabled(busy)
         .task { await reload() }
         .onDisappear { creationLifetime?.cancel() }
