@@ -1799,7 +1799,7 @@ final class PendingLocalSaveTests: XCTestCase {
 
     func testBecomingActiveMergesAPendingSaveInsteadOfReplacingTheSharedCopy() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try DatabaseListStore.add(url: databaseURL)
         let original = try Data(contentsOf: databaseURL)
         let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = diagnosticViewModel(reference, trace: trace)
