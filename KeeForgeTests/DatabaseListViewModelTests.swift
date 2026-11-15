@@ -400,7 +400,7 @@ final class DatabaseListViewModelTests: XCTestCase {
     func testLocalRowStatusDefersBookmarkAccessUntilOpen() throws {
         var reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "offline-share.kdbx"))
         reference.bookmarkData = Data("unresolvable-offline-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let viewModel = DatabaseListViewModel()
 
@@ -447,7 +447,7 @@ final class DatabaseListViewModelTests: XCTestCase {
     func testSingleDatabaseAutoOpensWhenQuickLaunchIsOn() throws {
         var reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
         reference.isQuickLaunch = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let viewModel = DatabaseListViewModel()
 
@@ -459,7 +459,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "one.kdbx"))
         var second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "two.kdbx"))
         second.isQuickLaunch = true
-        DatabaseListStore.update(second)
+        DatabaseListStore.testUpsert(second)
 
         let viewModel = DatabaseListViewModel()
 
@@ -479,7 +479,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         var first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "one.kdbx"))
         let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "two.kdbx"))
         first.isQuickLaunch = true
-        DatabaseListStore.update(first)
+        DatabaseListStore.testUpsert(first)
 
         let viewModel = DatabaseListViewModel()
         viewModel.toggleQuickLaunch(for: second)
@@ -630,7 +630,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         reference.updateCloudSyncMetadata { metadata in
             metadata.lastSyncedAt = Date(timeIntervalSinceNow: -90_000)
         }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try DatabaseListStore.cacheDatabaseCopy(Data("cached".utf8), for: reference)
         CloudAccountStore.upsert(
             CloudAccount(id: "acct-1", displayName: "alex@example.com", provider: CloudProviderKind.dropbox.rawValue)
@@ -679,7 +679,7 @@ final class DatabaseListViewModelTests: XCTestCase {
     func testLastOpenedDescriptionReturnsTextWhenUsageStatsAreEnabled() throws {
         var reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
         reference.lastOpenedAt = Date().addingTimeInterval(-3_600)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let viewModel = DatabaseListViewModel()
 
@@ -689,7 +689,7 @@ final class DatabaseListViewModelTests: XCTestCase {
     func testLastOpenedDescriptionHidesWhenUsageStatsAreDisabled() throws {
         var reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "private.kdbx"))
         reference.lastOpenedAt = Date().addingTimeInterval(-3_600)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         SettingsService.showDatabaseUsageStats = false
 
         let viewModel = DatabaseListViewModel()
@@ -1073,7 +1073,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         reference.updateCloudSyncMetadata { metadata in
             metadata.remoteRev = "rev-1"
         }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 

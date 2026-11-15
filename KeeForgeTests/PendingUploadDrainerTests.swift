@@ -172,7 +172,7 @@ final class PendingUploadDrainerTests: XCTestCase {
         let context = try makeContext()
         var reference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == context.reference.id })
         reference.lastMasterKeyChangeAt = context.stored.marker.createdAt.addingTimeInterval(10)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let transport = CloudJournalTransport()
         let outcome = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport))).drainAll()
         XCTAssertNotNil(outcome.userIssue)
@@ -359,7 +359,7 @@ final class PendingUploadDrainerTests: XCTestCase {
         let context = try makeContext()
         var reference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == context.reference.id })
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let transport = CloudJournalTransport()
         let outcome = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport))).drainAll()
         XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
@@ -438,7 +438,7 @@ final class PendingUploadDrainerTests: XCTestCase {
 
     private func registeredReference() -> DatabaseReference {
         let reference = makeCloudReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 

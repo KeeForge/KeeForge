@@ -414,7 +414,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
     private func registerCloud(_ loaded: KDBXCompatibilitySupport.LoadedFixture) throws -> DatabaseReference {
         let reference = makeCloudReference(rev: "rev-9")
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try DatabaseListStore.cacheDatabaseCopy(loaded.sourceData, for: reference)
         return reference
     }
@@ -467,7 +467,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
     func test_activeAutoFillDatabase_retainsLocalReadOnlyFlag() {
         let reference = makeLocalReference(isReadOnly: true)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
 
         let active = DatabaseListStore.activeAutoFillDatabase
@@ -477,7 +477,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
     func test_activeAutoFillDatabase_retainsCloudReadOnlyFlag() {
         let reference = makeCloudReference(rev: "rev-1", isReadOnly: true)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
 
         let active = DatabaseListStore.activeAutoFillDatabase
@@ -667,8 +667,8 @@ final class CredentialProviderSaveTests: XCTestCase {
 
         let enabled = makeLocalReference()
         let disabled = makeLocalReference(autoFillEnabled: false)
-        DatabaseListStore.update(enabled)
-        DatabaseListStore.update(disabled)
+        DatabaseListStore.testUpsert(enabled)
+        DatabaseListStore.testUpsert(disabled)
         DatabaseListStore.markDatabaseOpened(id: enabled.id, at: Date(timeIntervalSince1970: 1_000))
         DatabaseListStore.markDatabaseOpened(id: disabled.id, at: Date(timeIntervalSince1970: 2_000))
         // Clear the pointer `markDatabaseOpened` just set so the resolution
@@ -694,7 +694,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         }
 
         let disabled = makeLocalReference(autoFillEnabled: false)
-        DatabaseListStore.update(disabled)
+        DatabaseListStore.testUpsert(disabled)
         DatabaseListStore.markDatabaseOpened(id: disabled.id, at: Date(timeIntervalSince1970: 1_000))
 
         let presenter = CredentialProviderPresentingSpy()
@@ -717,7 +717,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         }
 
         for reference in [makeLocalReference(isReadOnly: true), makeCloudReference(rev: "rev-1", isReadOnly: true)] {
-            DatabaseListStore.update(reference)
+            DatabaseListStore.testUpsert(reference)
             DatabaseListStore.activeAutoFillDatabaseID = reference.id
             let presenter = CredentialProviderPresentingSpy()
             presenter.isPresentationActive = false
@@ -751,7 +751,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
         for (user, password) in [("alex", "{REF:P@T:Bank}"), ("{ref:U@I:0123456789ABCDEF0123456789ABCDEF}", "secret")] {
             let reference = makeLocalReference()
-            DatabaseListStore.update(reference)
+            DatabaseListStore.testUpsert(reference)
             DatabaseListStore.activeAutoFillDatabaseID = reference.id
             let presenter = CredentialProviderPresentingSpy()
             let coordinator = CredentialProviderCoordinator(presenter: presenter)

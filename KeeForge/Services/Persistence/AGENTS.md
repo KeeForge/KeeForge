@@ -23,7 +23,7 @@
 
 ### Database list
 
-- Mutate the list through `DatabaseListStore`'s methods, which serialize under one lock. A field-specific setter rereads the stored reference first; a new one must too, or it rolls back a concurrent change to another field.
+- Production mutations use `DatabaseListStore` field intents and their authorization; whole-row setup is restricted to `testUpsert` in DEBUG with a redirected test container. A field-specific setter rereads the stored reference inside its coordinated accessor.
 - Code that learns cloud state across an `await` passes the captured reference and metadata to `updateCloudSyncMetadata`, never `update(_:)` (`../Cloud/AGENTS.md`).
 - `remove(observed:)` owns removal: it validates the captured reference under coordinated registry access and revokes the local owner before publishing removal. A failed or unconfirmed registry publication retains keys, cache, sources and identities, even when the protective revocation is already visible; an idle owner can retry the same ID. Only confirmed registry removal permits cleanup. The system identity index is asynchronous and best effort.
 - A database with AutoFill disabled can never be `activeAutoFillDatabaseID` or `defaultAutoFillDatabase`; the setter refuses it.

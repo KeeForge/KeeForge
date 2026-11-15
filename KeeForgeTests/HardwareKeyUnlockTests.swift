@@ -450,7 +450,7 @@ final class HardwareKeyUnlockTests: XCTestCase {
 
     func testChangingOnlyTheSlotKeepsTheStoredQuickLaunchKey() throws {
         let reference = try TestDatabaseSupport.makeReference(for: fixture.url(in: bundle))
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         defer { KeychainService.deleteCompositeKey(for: reference.id) }
         try requireStoredKey(for: reference.id)
 

@@ -48,7 +48,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         var reference = try makeStoredManualReference(fileID: "/merge-\(UUID().uuidString).kdbx", autoFillEnabled: false)
         if let recordedContentHash {
             reference.updateCloudSyncMetadata { $0.remoteContentHash = recordedContentHash }
-            DatabaseListStore.update(reference)
+            DatabaseListStore.testUpsert(reference)
         }
         try DatabaseListStore.cacheDatabaseCopy(base, for: reference)
         let remote = InMemoryRemoteProvider(bytes: base, rev: "rev-A")
@@ -686,11 +686,11 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 case "factors":
                     var changed = current
                     changed.keyFileFilename = "another-keyfile.keyx"
-                    DatabaseListStore.update(changed)
+                    DatabaseListStore.testUpsert(changed)
                 case "epoch":
                     var changed = current
                     changed.updateCloudSyncMetadata { $0.keyEpoch = UUID() }
-                    DatabaseListStore.update(changed)
+                    DatabaseListStore.testUpsert(changed)
                 case "revoked": CloudDatabaseSaver.mergeContext?.revoke()
                 default: XCTFail("Unknown fault")
                 }
@@ -1102,7 +1102,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 honorsManualSyncPolicy: false, providerResolver: { _ in remote })
             var current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == ref.id })
             current.nickname = "Concurrent window nickname"
-            DatabaseListStore.update(current)
+            DatabaseListStore.testUpsert(current)
             return resolution
         }, quickUnlockKeyPersistOperation: { _, _, _ in effects.record(); return false })
         defer { vm.lock() }
@@ -1128,7 +1128,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         let bytes = try fixtureData()
         var reference = try makeStoredManualReference(fileID: "/metadata-write-failure.kdbx", autoFillEnabled: false)
         reference.cloudSyncPolicy = .onOpen
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
         let effects = CloudJournalEffectCounter()
         let writePhases = CloudJournalEffectCounter()
@@ -1176,7 +1176,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
             var reference = try makeStoredManualReference(fileID: "/late-open-\(removeAfterRekey).kdbx", autoFillEnabled: false)
             reference.cloudSyncPolicy = .onOpen
             reference.legacyKeychainFilename = "old-open-\(UUID().uuidString).kdbx"
-            DatabaseListStore.update(reference)
+            DatabaseListStore.testUpsert(reference)
             let capturedReference = reference
             try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
             let entered = XCTestExpectation(description: "Old resolution captured")
@@ -2048,7 +2048,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         )
         var reference = try makeStoredManualReference()
         reference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = DatabaseViewModel(
             databaseReference: reference,
             cloudSyncOperation: { reference, _ in
@@ -2254,7 +2254,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
     func testOpenFromTheCachedCopyWarnsInTheSyncControls() async throws {
         var reference = try makeStoredManualReference()
         reference.cloudSyncPolicy = .onOpen
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let openedData = try fixtureData()
         let vm = DatabaseViewModel(
             databaseReference: reference,
@@ -2274,7 +2274,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
     func testSyncShortcutSurvivesChangingPolicyAfterACheckedOpen() async throws {
         var reference = try makeStoredManualReference()
         reference.cloudSyncPolicy = .onOpen
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let openedData = try fixtureData()
         let vm = DatabaseViewModel(
             databaseReference: reference,
@@ -2585,7 +2585,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
             metadata.remoteRev = "rev-A"
             metadata.lastSyncedAt = Date(timeIntervalSince1970: 1_000)
         }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 

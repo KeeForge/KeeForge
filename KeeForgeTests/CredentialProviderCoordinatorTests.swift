@@ -757,7 +757,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let (coordinator, presenter) = makeCoordinator()
         var reference = try seedResolvableDefaultDatabase()
         reference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         presenter.isPresentationActive = true
 
         coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
@@ -3302,7 +3302,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let (coordinator, presenter) = makeCoordinator()
         var reference = try seedResolvableDefaultDatabase()
         reference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         var keyReads = 0
         coordinator.biometricQuickUnlockKeys = { _, _ in
             keyReads += 1
@@ -3332,7 +3332,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     func testLocalLegacyUnlockUsesRealKeychainOnlyWriterWithoutReenteringOwner() async throws {
         var database = try seedResolvableDefaultDatabase()
         database.legacyKeychainFilename = "legacy-unlock-\(UUID().uuidString).kdbx"
-        DatabaseListStore.update(database)
+        DatabaseListStore.testUpsert(database)
         let original = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         try seedDatabaseBytes(original, for: database)
         let key = KDBXCrypto.compositeKey(password: "testpassword123")
@@ -3498,7 +3498,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             let trace = TestDatabaseSupport.LocalPublicationTrace()
             var database = try seedResolvableDefaultDatabase()
             database.legacyKeychainFilename = "late-legacy-\(UUID().uuidString).kdbx"
-            DatabaseListStore.update(database)
+            DatabaseListStore.testUpsert(database)
             let original = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
             try seedDatabaseBytes(original, for: database)
             let (coordinator, presenter) = makeCoordinator()
@@ -3718,7 +3718,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         )
         try KDBXTestFixture.kitchenSink.data(in: bundle).write(to: trashedURL)
         let database = try TestDatabaseSupport.makeReference(for: trashedURL)
-        DatabaseListStore.update(database)
+        DatabaseListStore.testUpsert(database)
         DatabaseListStore.activeAutoFillDatabaseID = database.id
         try writeAtomicallyAndDurably(KDBXTestFixture.test.data(in: bundle), to: DatabaseListStore.cacheLocation(for: database), directoryAnchor: AppGroupContainer.url)
 
@@ -3833,7 +3833,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
                 )
             )
         )
-        DatabaseListStore.update(database)
+        DatabaseListStore.testUpsert(database)
         DatabaseListStore.activeAutoFillDatabaseID = database.id
         try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
 
@@ -4201,7 +4201,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let reference = try TestDatabaseSupport.makeReference(
             for: makeTemporaryFileURL(name: "default.kdbx")
         )
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
         return reference
     }
@@ -4215,7 +4215,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         try XCTUnwrap(fixture.keyFileData(in: bundle)).write(to: keyFileURL)
         reference.keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: keyFileURL, readOnly: true)
         reference.keyFileFilename = keyFileURL.lastPathComponent
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 
@@ -4302,7 +4302,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             for: makeTemporaryFileURL(name: name),
             autoFillEnabled: autoFillEnabled
         )
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 

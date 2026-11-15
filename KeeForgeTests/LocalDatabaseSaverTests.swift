@@ -472,12 +472,12 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let url = try makeScratchDatabaseCopy()
         var reference = try makeRegisteredReference(for: url)
         reference.legacyKeychainFilename = "original-legacy.kdbx"
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         var newer = reference
         newer.legacyKeychainFilename = "new-legacy.kdbx"
         newer.nickname = "Keep current nickname"
         newer.lastMasterKeyChangeAt = Date(timeIntervalSince1970: 1_900_000_000)
-        DatabaseListStore.update(newer)
+        DatabaseListStore.testUpsert(newer)
         XCTAssertFalse(DatabaseListStore.clearLegacyKeychainFilename(for: reference))
         XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }, newer)
         XCTAssertTrue(DatabaseListStore.clearLegacyKeychainFilename(for: newer))
@@ -572,7 +572,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         DatabaseListStore.documentsDirectoryOverride = setup.directory
         var resident = setup.reference
         resident.isDocumentsResident = true
-        DatabaseListStore.update(resident)
+        DatabaseListStore.testUpsert(resident)
         try setup.oldData.write(to: setup.url, options: .atomic)
         let cache = DatabaseListStore.cacheLocation(for: resident)
         let before = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber)
@@ -583,7 +583,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         DatabaseListStore.cacheInitialCopyIfPossible(from: setup.url, for: resident.id)
         XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
         resident.bookmarkData = Data("invalid Documents bookmark".utf8)
-        DatabaseListStore.update(resident)
+        DatabaseListStore.testUpsert(resident)
         _ = DatabaseListStore.locateDatabaseFile(for: resident)
         XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
         let other = setup.directory.appendingPathComponent("relinked.kdbx")
@@ -666,7 +666,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     private func makeRegisteredReference(for url: URL) throws -> DatabaseReference {
         let reference = try TestDatabaseSupport.makeReference(for: url)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 
@@ -689,7 +689,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         var reference = try DatabaseListStore.add(url: url)
         reference.keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: oldKeyURL, readOnly: true)
         reference.keyFileFilename = oldKeyURL.lastPathComponent
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let desired = PendingLocalSaveStore.KeyFileAssociation(
             bookmarkData: try SecurityScopedBookmarkManager.makeBookmarkData(for: newKeyURL, readOnly: true),
             filename: newKeyURL.lastPathComponent, changedAt: Date(timeIntervalSince1970: 1_800_000_000))
@@ -1079,7 +1079,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     func testSaveCloudReferenceResolvedToCacheWritesCacheExactlyOnce() async throws {
         let reference = makeCloudReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let fixtureURL = try TestDatabaseSupport.fixtureURL(bundle: Bundle(for: Self.self))
         let original = try Data(contentsOf: fixtureURL)
         try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
@@ -1465,9 +1465,9 @@ final class LocalDatabaseSaverTests: XCTestCase {
                 try handle.write(contentsOf: Data(repeating: 0xA1, count: readBytes.count))
                 try handle.close()
                 XCTAssertEqual(try PendingLocalSaveStore.targetIdentity(at: setup.url), target)
-            case "factors": current.keyFileFilename = "different.keyx"; current.keyFileBookmarkData = Data([0x74]); DatabaseListStore.update(current)
-            case "master-key-date": current.lastMasterKeyChangeAt = .now; DatabaseListStore.update(current)
-            case "hardware": current.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two); DatabaseListStore.update(current)
+            case "factors": current.keyFileFilename = "different.keyx"; current.keyFileBookmarkData = Data([0x74]); DatabaseListStore.testUpsert(current)
+            case "master-key-date": current.lastMasterKeyChangeAt = .now; DatabaseListStore.testUpsert(current)
+            case "hardware": current.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two); DatabaseListStore.testUpsert(current)
             case "source":
                 let prepared = try PendingLocalSaveStore.prepareSource(readBytes, for: current.id,
                     masterKeyChangedAt: current.lastMasterKeyChangeAt, baseCacheSHA512: FileDigest.sha512(readBytes))

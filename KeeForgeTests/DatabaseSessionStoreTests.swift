@@ -365,7 +365,7 @@ final class DatabaseSessionStoreTests: XCTestCase {
     func testUnavailableRegistryPreservesDirtySessionUntilValidRemoval() async throws {
         let session = try await makeUnlockedSession()
         defer { session.lock() }
-        DatabaseListStore.update(session.databaseReference)
+        DatabaseListStore.testUpsert(session.databaseReference)
         let list = DatabaseListViewModel()
         let store = DatabaseSessionStore()
         store.adopt(session)

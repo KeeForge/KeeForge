@@ -198,12 +198,12 @@ final class DatabaseListStoreTests: XCTestCase {
         let observed = try XCTUnwrap(original.cloudSyncMetadata)
         var current = original
         current.updateCloudSyncMetadata { $0.remoteRev = "a"; $0.remoteContentHash = "b\u{1F}c" }
-        DatabaseListStore.update(current)
+        DatabaseListStore.testUpsert(current)
         if case .mismatch = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: original.id, ifUnchangedFrom: observed, observedReference: original, mutate: { $0.lastSyncedAt = .now }) {} else { XCTFail("Expected revision mismatch") }
         original = current
         let metadata = try XCTUnwrap(original.cloudSyncMetadata)
         current.keyFileFilename = "new-key"
-        DatabaseListStore.update(current)
+        DatabaseListStore.testUpsert(current)
         if case .mismatch = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: original.id, ifUnchangedFrom: metadata, observedReference: original, mutate: { $0.lastSyncedAt = .now }) {} else { XCTFail("Expected factor mismatch") }
         XCTAssertNil(DatabaseListStore.databases.first?.cloudSyncMetadata?.lastSyncedAt)
     }
@@ -354,7 +354,7 @@ final class DatabaseListStoreTests: XCTestCase {
             relativeTo: nil
         )
         reference.keyFileFilename = keyFileURL.lastPathComponent
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let storedReference = try XCTUnwrap(DatabaseListStore.databases.first)
         XCTAssertEqual(storedReference.displayName, "Shared Family")
@@ -375,7 +375,7 @@ final class DatabaseListStoreTests: XCTestCase {
         let legacyBookmark = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
         reference.keyFileBookmarkData = legacyBookmark
         reference.keyFileFilename = url.lastPathComponent
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try FileManager.default.moveItem(at: url, to: movedURL)
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: movedURL.path)
         XCTAssertTrue(try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: legacyBookmark)).isStale)
@@ -409,11 +409,11 @@ final class DatabaseListStoreTests: XCTestCase {
 
         var updatedFirst = first
         updatedFirst.isQuickLaunch = true
-        DatabaseListStore.update(updatedFirst)
+        DatabaseListStore.testUpsert(updatedFirst)
 
         var updatedSecond = second
         updatedSecond.isQuickLaunch = true
-        DatabaseListStore.update(updatedSecond)
+        DatabaseListStore.testUpsert(updatedSecond)
 
         let storedReferences = DatabaseListStore.databases
         XCTAssertTrue(storedReferences.first(where: { $0.id == first.id })?.isQuickLaunch ?? false)
@@ -470,7 +470,7 @@ final class DatabaseListStoreTests: XCTestCase {
     func testSetCloudSyncPolicyPersistsWithoutTouchingOtherFields() throws {
         var reference = makeStoredCloudReference(remoteRev: "rev-A", remoteContentHash: "hash-A")
         reference.nickname = "Stored Name"
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         // A stale copy (no nickname) must not carry its other fields back.
         var staleCopy = reference
@@ -496,7 +496,7 @@ final class DatabaseListStoreTests: XCTestCase {
         // A rename lands while the refresh is out on the network. The refresh
         // must not carry the pre-rename nickname back over it.
         reference.nickname = "Renamed While Syncing"
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let merged = DatabaseListStore.updateCloudSyncMetadata(
             for: reference.id,
@@ -526,7 +526,7 @@ final class DatabaseListStoreTests: XCTestCase {
             metadata.remoteRev = "rev-B"
             metadata.remoteContentHash = "hash-B"
         }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let merged = DatabaseListStore.updateCloudSyncMetadata(
             for: reference.id,
@@ -561,7 +561,7 @@ final class DatabaseListStoreTests: XCTestCase {
         reference.updateCloudSyncMetadata { metadata in
             metadata.remoteContentHash = "hash-B"
         }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         DatabaseListStore.updateCloudSyncMetadata(
             for: reference.id,
@@ -610,7 +610,7 @@ final class DatabaseListStoreTests: XCTestCase {
             metadata.remoteRev = remoteRev
             metadata.remoteContentHash = remoteContentHash
         }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 
@@ -790,7 +790,7 @@ final class DatabaseListStoreTests: XCTestCase {
             for: makeTemporaryFileURL(name: "disabled.kdbx"),
             autoFillEnabled: false
         )
-        DatabaseListStore.update(disabled)
+        DatabaseListStore.testUpsert(disabled)
         DatabaseListStore.activeAutoFillDatabaseID = enabled.id
 
         DatabaseListStore.activeAutoFillDatabaseID = disabled.id
@@ -818,7 +818,7 @@ final class DatabaseListStoreTests: XCTestCase {
             for: makeTemporaryFileURL(name: "disabled.kdbx"),
             autoFillEnabled: false
         )
-        DatabaseListStore.update(disabled)
+        DatabaseListStore.testUpsert(disabled)
         let openedDate = Date(timeIntervalSince1970: 2_000)
 
         DatabaseListStore.markDatabaseOpened(id: disabled.id, at: openedDate)
@@ -937,7 +937,7 @@ final class DatabaseListStoreTests: XCTestCase {
             legacyKeychainFilename: "legacy.kdbx",
             autoFillEnabled: false
         )
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
 
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabase)
@@ -966,7 +966,7 @@ final class DatabaseListStoreTests: XCTestCase {
 
         var updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
         updatedReference.autoFillEnabled = false
-        DatabaseListStore.update(updatedReference)
+        DatabaseListStore.testUpsert(updatedReference)
 
         try? await Task.sleep(for: .milliseconds(100))
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
@@ -1013,7 +1013,7 @@ final class DatabaseListStoreTests: XCTestCase {
             for: makeTemporaryFileURL(name: "legacy.kdbx"),
             legacyKeychainFilename: "legacy.kdbx"
         )
-        DatabaseListStore.update(legacyReference)
+        DatabaseListStore.testUpsert(legacyReference)
         let opened = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "opened.kdbx"))
         DatabaseListStore.markDatabaseOpened(id: opened.id, at: Date(timeIntervalSince1970: 2_000))
         DatabaseListStore.activeAutoFillDatabaseID = nil
@@ -1148,7 +1148,7 @@ final class DatabaseListStoreTests: XCTestCase {
                 group.addTask {
                     var mutated = reference
                     mutated.nickname = "nick-\(reference.id.uuidString)"
-                    DatabaseListStore.update(mutated)
+                    DatabaseListStore.testUpsert(mutated)
                 }
             }
         }
@@ -1193,7 +1193,7 @@ final class DatabaseListStoreTests: XCTestCase {
                 observedURL = originalURL
                 reference.bookmarkData = Data("broken-bookmark".utf8)
             }
-            DatabaseListStore.databases = DatabaseListStore.databases + [reference]
+            DatabaseListStore.testUpsert(reference)
             let cache = DatabaseListStore.cacheLocation(for: reference)
             try FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
             let oldCache = Data("unchanged encrypted-cache fixture".utf8)
@@ -1261,7 +1261,7 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertTrue(reference.isDocumentsResident)
 
         reference.bookmarkData = Data("stale-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         // Stale the cache so the heal's reseed is observable.
         try writeAtomicallyAndDurably(Data("stale-cache".utf8), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
 
@@ -1297,7 +1297,7 @@ final class DatabaseListStoreTests: XCTestCase {
         var reference = try DatabaseListStore.add(url: fileURL)
 
         reference.bookmarkData = Data("stale-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         // A garbage (or mid-copy) file at the path must never be bound.
         try Data("not a database".utf8).write(to: fileURL)
 
@@ -1328,7 +1328,7 @@ final class DatabaseListStoreTests: XCTestCase {
         let replacement = Self.kdbxMagic + Data("replacement".utf8)
         try replacement.write(to: fileURL)
         reference.bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: trashedURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let resolvedBeforeLocate = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: try XCTUnwrap(reference.bookmarkData)))
         XCTAssertEqualFilePaths(resolvedBeforeLocate.url, trashedURL)
 
@@ -1368,7 +1368,7 @@ final class DatabaseListStoreTests: XCTestCase {
         // follow either the moved inode or the path, so aim the bookmark at
         // the trashed copy explicitly.
         reference.bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: trashedURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         // The magic-less file at the path must not be bound; the trashed
         // classification (and the stored bookmark) stay exactly as they were.
@@ -1410,7 +1410,7 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertFalse(reference.isDocumentsResident)
 
         reference.bookmarkData = Data("stale-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         XCTAssertNil(DatabaseListStore.locateDatabaseFile(for: reference))
     }
@@ -1430,7 +1430,7 @@ final class DatabaseListStoreTests: XCTestCase {
             autoFillEnabled: false
         )
         reference.bookmarkData = Data("unresolvable-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try writeAtomicallyAndDurably(Data("stale cache".utf8), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         XCTAssertNil(DatabaseListStore.locateDatabaseFile(for: reference))
 
@@ -1469,7 +1469,7 @@ final class DatabaseListStoreTests: XCTestCase {
     func testRelinkLocalDatabaseRefusesFileInRecentlyDeleted() throws {
         var reference = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "vault.kdbx"))
         reference.bookmarkData = Data("unresolvable-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let trashedURL = try makeTemporaryFileURL(name: ".Trash/vault.kdbx")
 
         XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(observed: reference, to: trashedURL)) { error in

@@ -445,7 +445,7 @@ final class PendingLocalSaveTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: source.fileURL), Data("A".utf8))
         try PendingLocalSaveStore.discard(PendingLocalSaveStore.recovery(for: reference.id))
         XCTAssertTrue(DatabaseListStore.remove(id: reference.id))
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
         XCTAssertThrowsError(try seedAcceptedSource(Data("stale add".utf8), for: reference.id))
     }
@@ -602,7 +602,7 @@ final class PendingLocalSaveTests: XCTestCase {
     func testMergeCompletionKeepsBookmarkScopeThroughSourceRetirementAndRealCacheRefresh() async throws {
         let setup = try makeAdmittedSave()
         let cache = DatabaseListStore.cacheLocation(for: setup.reference)
-        DatabaseListStore.update(setup.reference)
+        DatabaseListStore.testUpsert(setup.reference)
         try FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
         try setup.original.write(to: cache, options: .atomicProtected)
         let commit = try await replaceAdmittedTarget(reference: setup.reference, token: setup.token,
@@ -686,7 +686,7 @@ final class PendingLocalSaveTests: XCTestCase {
             case "reference-epoch":
                 var changed = reference
                 changed.lastMasterKeyChangeAt = .now
-                DatabaseListStore.update(changed)
+                DatabaseListStore.testUpsert(changed)
             case "removal":
                 XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
                 XCTAssertTrue(PendingLocalSaveStore.isRevoked(reference.id))
@@ -743,7 +743,7 @@ final class PendingLocalSaveTests: XCTestCase {
         source: PendingLocalSaveStore.PendingSave, sources: [PendingLocalSaveStore.PendingSave], token: PendingLocalSaveStore.Token, context: SaveContext) {
         let url = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: url)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let original = try Data(contentsOf: url)
         let sources = try (0..<sourceCount).map { index in
             try seedAcceptedSource(original, for: reference.id, now: Date(timeIntervalSince1970: 1_800_000_000 + Double(index)))
@@ -1202,7 +1202,7 @@ final class PendingLocalSaveTests: XCTestCase {
     func testAutoFillSaveOfABookmarkedDatabaseLandsWhereTheExtensionCanWrite() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let original = try Data(contentsOf: databaseURL)
         try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
         let sessionKey = SymmetricKey(size: .bits256)
@@ -1334,7 +1334,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try writeAtomicallyAndDurably(Data("stale".utf8), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
 
@@ -1448,11 +1448,11 @@ final class PendingLocalSaveTests: XCTestCase {
                 let other = try SecurityScopedBookmarkManager.makeBookmarkData(for: old.deletingLastPathComponent())
                 var changed = renewal.after
                 changed.bookmarkData = other
-                DatabaseListStore.update(changed)
+                DatabaseListStore.testUpsert(changed)
             case "epoch":
                 var changed = renewal.after
                 changed.lastMasterKeyChangeAt = Date(timeIntervalSince1970: 2_000_000_000)
-                DatabaseListStore.update(changed)
+                DatabaseListStore.testUpsert(changed)
             case "removal":
                 XCTAssertFalse(DatabaseListStore.remove(id: ref.id), "Unarchived source prevents deletion, but revokes its owner")
                 XCTAssertTrue(PendingLocalSaveStore.isRevoked(ref.id))
@@ -1629,7 +1629,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = diagnosticViewModel(reference, trace: trace)
         defer { vm.lock() }
@@ -1663,7 +1663,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = diagnosticViewModel(reference, trace: trace)
         defer { vm.lock() }
@@ -1734,7 +1734,7 @@ final class PendingLocalSaveTests: XCTestCase {
         try seedPendingSave(pending, for: reference)
 
         do {
-            DatabaseListStore.update(vm.databaseReference)
+            DatabaseListStore.testUpsert(vm.databaseReference)
             try await vm.changeMasterKey(
                 newPassword: "rotated-master",
                 newKeyFileData: nil,
@@ -1753,7 +1753,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = diagnosticViewModel(reference, trace: trace)
         defer { vm.lock() }
@@ -1848,7 +1848,7 @@ final class PendingLocalSaveTests: XCTestCase {
     /// What the extension leaves behind: the saved bytes in the shared copy
     /// and the same bytes as a pending save.
     private func seedPendingSave(_ data: Data, for reference: DatabaseReference, now: Date = .now) throws {
-        if !DatabaseListStore.databases.contains(where: { $0.id == reference.id }) { DatabaseListStore.update(reference) }
+        if !DatabaseListStore.databases.contains(where: { $0.id == reference.id }) { DatabaseListStore.testUpsert(reference) }
         _ = try seedAcceptedSource(data, for: reference.id, now: now, masterKeyChangedAt: reference.lastMasterKeyChangeAt)
     }
 

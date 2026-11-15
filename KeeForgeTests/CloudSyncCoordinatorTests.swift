@@ -641,7 +641,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
     private func makeDeliveryContext(hash: String? = nil, revision: String = "rev-1") throws -> CloudJournalTestContext {
         var reference = makeCloudReference(remoteContentHash: hash, remoteModifiedAt: nil)
         reference.updateCloudSyncMetadata { $0.remoteRev = revision }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return try CloudJournalTestContext(reference: reference)
     }
 
@@ -673,7 +673,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
 
     func testDiscardCannotRetireAConflictedConfirmedDeliveryBeforeLocalReconciliation() async throws {
         let reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let context = try CloudJournalTestContext(reference: reference)
         let conflicted = try PendingUploadQueue.markConflicted(context.stored)
         let transport = CloudJournalTransport()
@@ -814,12 +814,12 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             remoteModifiedAt: Date(timeIntervalSince1970: 100)
         )
         reference.cloudSyncPolicy = .manual
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         reference.updateCloudSyncMetadata { metadata in
             metadata.lastSyncedAt = lastSyncedAt
             metadata.lastSyncIssue = .networkUnavailable
         }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
 
         let provider = MockCloudProvider()
@@ -850,7 +850,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
     func testManualPolicyStillDownloadsWhenNoCachedCopyExists() async throws {
         var reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
         reference.cloudSyncPolicy = .manual
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         // Cloud caches are keyed by remote path, not reference id, so an
         // earlier test's copy would otherwise stand in.
         try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
@@ -878,7 +878,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             remoteModifiedAt: Date(timeIntervalSince1970: 100)
         )
         reference.cloudSyncPolicy = .manual
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
 
         let provider = MockCloudProvider()
@@ -906,7 +906,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             remoteModifiedAt: Date(timeIntervalSince1970: 100)
         )
         reference.cloudSyncPolicy = .manual
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
 
         let provider = MockCloudProvider()
@@ -1226,7 +1226,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
                 )
             )
         )
-        if register { DatabaseListStore.update(reference) }
+        if register { DatabaseListStore.testUpsert(reference) }
         return reference
     }
 }

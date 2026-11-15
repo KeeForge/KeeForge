@@ -164,7 +164,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
     /// cloud copy and the AutoFill save survives only as a backup.
     func test_live_findsTheAutoFillSaveInTheBackupAfterTheCacheWasReplaced() throws {
         let reference = makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let payload = Data("autofill-payload".utf8)
 
         let liveCacheURL = DatabaseListStore.cacheLocation(for: reference)
@@ -218,7 +218,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
     /// the base backup, and the marker must survive for the user to act on.
     func test_live_interruptedV1_16TwoPhaseSave_isRefusedAndTheMarkerKept() throws {
         let reference = makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let base = Data("pre-autofill-base".utf8)
         let autoFillSave = Data("autofill-payload".utf8)
 

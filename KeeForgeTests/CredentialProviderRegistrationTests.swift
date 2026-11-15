@@ -144,7 +144,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
             for: makeTemporaryFileURL(name: "readonly.kdbx")
         )
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
         presenter.isPresentationActive = false
 
@@ -652,7 +652,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         let reference = try TestDatabaseSupport.makeReference(
             for: makeTemporaryFileURL(name: "default.kdbx")
         )
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
         return reference
     }

@@ -78,7 +78,7 @@ final class DatabaseViewModelTests: XCTestCase {
         try await vm.save()
         XCTAssertThrowsError(try vm.renameCustomIcon(uuid, name: "Bad\u{0}"))
         XCTAssertFalse(vm.isDirty)
-        DatabaseListStore.update(vm.databaseReference)
+        DatabaseListStore.testUpsert(vm.databaseReference)
         vm.setReadOnly(true)
         XCTAssertTrue(vm.isReadOnly)
         XCTAssertThrowsError(try vm.renameCustomIcon(uuid, name: "Blocked")) { error in
@@ -502,7 +502,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testSetNicknamePersistsAndRefreshesCurrentReference() throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
 
         vm.setNickname("Travel Vault")
@@ -565,7 +565,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testUnlockFailsWhenLocalBookmarkCannotBeResolved() async throws {
         var reference = try makeReference()
         reference.bookmarkData = Data("invalid-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         try writeAtomicallyAndDurably(Data(contentsOf: fixtureURL()), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
@@ -767,7 +767,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let fixtureData = try Data(contentsOf: fixtureURL())
         var reference = try TestDatabaseSupport.makeReference(for: fixtureURL(), nickname: "Synced")
         reference.bookmarkData = Data("unresolvable-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try writeAtomicallyAndDurably(fixtureData, to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
 
@@ -807,7 +807,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let fixtureData = try Data(contentsOf: fixtureURL())
         var reference = try TestDatabaseSupport.makeReference(for: fixtureURL())
         reference.bookmarkData = Data("unresolvable-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = DatabaseViewModel(databaseReference: reference)
         await vm.unlock(password: fixturePassword)
         XCTAssertEqual(vm.openFailure?.errorCode, "file.not_found")
@@ -1186,7 +1186,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.draft?.pendingEdits, edits)
         XCTAssertThrowsError(try vm.restore(item, toGroupID: parent.id))
         XCTAssertEqual(vm.contentRevision, revision)
-        DatabaseListStore.update(vm.databaseReference)
+        DatabaseListStore.testUpsert(vm.databaseReference)
         vm.setReadOnly(true)
         XCTAssertFalse(vm.canRestore(item))
         XCTAssertThrowsError(try vm.restore(item, toGroupID: try XCTUnwrap(vm.visibleRootGroupID)))
@@ -1467,7 +1467,7 @@ final class DatabaseViewModelTests: XCTestCase {
         vm.workspace.beginEntrySelection(with: picked[0].id)
         vm.workspace.toggleEntrySelection(picked[1].id)
 
-        DatabaseListStore.update(vm.databaseReference)
+        DatabaseListStore.testUpsert(vm.databaseReference)
         vm.setReadOnly(true)
 
         XCTAssertNil(vm.workspace.entrySelection, "a selection only exists to move entries")
@@ -1776,7 +1776,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testAutoFillDestinationGroupFollowsTheSettingAndFallsBackWithoutRepointingIt() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
         await vm.unlock(password: fixturePassword)
         XCTAssertEqual(vm.autoFillDestinationGroup?.id, vm.visibleRootGroupID)
@@ -2150,7 +2150,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testDownloadingAFaviconIntoAReadOnlyDatabaseFails() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = DatabaseViewModel(databaseReference: reference)
 
         await vm.unlock(password: fixturePassword)
@@ -2391,7 +2391,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testRestoringInAReadOnlyDatabaseNeverReachesDisk() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let localSaverCalls = CallTracker()
         let vm = DatabaseViewModel(
@@ -2641,7 +2641,7 @@ final class DatabaseViewModelTests: XCTestCase {
             KPGroup(name: "Visible", entries: [target]),
         ])
         let vm = try await makeInjectedViewModel(rootGroup: root)
-        DatabaseListStore.update(vm.databaseReference)
+        DatabaseListStore.testUpsert(vm.databaseReference)
 
         vm.setReadOnly(true)
 
@@ -3108,11 +3108,11 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testUnlockDisabledDatabaseDoesNotPopulateOrClaimActivePointer() async throws {
         let otherReference = try makeReference()
-        DatabaseListStore.update(otherReference)
+        DatabaseListStore.testUpsert(otherReference)
         DatabaseListStore.markDatabaseOpened(id: otherReference.id)
 
         let disabledReference = try makeReference(autoFillEnabled: false)
-        DatabaseListStore.update(disabledReference)
+        DatabaseListStore.testUpsert(disabledReference)
 
         CredentialIdentityStoreManager.populateObserver = { _, _ in
             XCTFail("Unlocking an AutoFill-disabled database must not populate the credential store")
@@ -3134,7 +3134,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testUnlockEnabledDatabasePopulatesAndSetsActivePointer() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
 
         let populateExpectation = expectation(description: "Credential store populated after unlocking an enabled database")
@@ -3165,7 +3165,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testSaveOnDisabledDatabaseDoesNotRepopulateStore() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(
             reference: reference,
             localSaveOperation: { _, _, _, _, _, _, _ in
@@ -3189,7 +3189,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testPopulateCredentialStoreIfUnlockedRereadsFlagFromRegistry() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
 
@@ -3227,7 +3227,7 @@ final class DatabaseViewModelTests: XCTestCase {
         }
 
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
 
         let populateExpectation = expectation(description: "Populate observer fired for the unlocked database")
@@ -3270,7 +3270,7 @@ final class DatabaseViewModelTests: XCTestCase {
         CredentialIdentityStoreManager.storeProviderOverride = fake
 
         let referenceA = try makeReference()
-        DatabaseListStore.update(referenceA)
+        DatabaseListStore.testUpsert(referenceA)
         let viewModelA = try makeViewModel(reference: referenceA)
         await unlockAwaitingInitialPopulate(viewModelA)
         try await awaitStoredDatabaseIDs(in: fake, toEqual: [referenceA.id])
@@ -3279,7 +3279,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertState(viewModelA.state, is: .locked)
 
         let referenceB = try makeReference()
-        DatabaseListStore.update(referenceB)
+        DatabaseListStore.testUpsert(referenceB)
         let viewModelB = try makeViewModel(reference: referenceB)
         await unlockAwaitingInitialPopulate(viewModelB)
 
@@ -3298,7 +3298,7 @@ final class DatabaseViewModelTests: XCTestCase {
         CredentialIdentityStoreManager.storeProviderOverride = fake
 
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
         try await awaitStoredDatabaseIDs(in: fake, toEqual: [reference.id])
@@ -3357,7 +3357,7 @@ final class DatabaseViewModelTests: XCTestCase {
         // half (open database disabled in the registry) is pinned by
         // testPopulateCredentialStoreIfUnlockedRereadsFlagFromRegistry.
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
 
@@ -3379,7 +3379,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testToggleOnOfOpenDatabaseRefreshesImmediatelyThroughHandler() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
 
@@ -3414,9 +3414,9 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testToggleOnOfNonOpenDatabaseStaysLazy() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let backgroundReference = try makeReference(autoFillEnabled: false)
-        DatabaseListStore.update(backgroundReference)
+        DatabaseListStore.testUpsert(backgroundReference)
 
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
@@ -3444,9 +3444,9 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testToggleOffOfBackgroundDatabaseTriggersRemovalNotClear() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let backgroundReference = try makeReference()
-        DatabaseListStore.update(backgroundReference)
+        DatabaseListStore.testUpsert(backgroundReference)
 
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
@@ -3519,7 +3519,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let lastSyncedAt = Date(timeIntervalSince1970: 123)
         let invalidData = Data("not-a-kdbx".utf8)
         let observedReference = makeCloudReference()
-        DatabaseListStore.update(observedReference)
+        DatabaseListStore.testUpsert(observedReference)
         let resolvedReference = {
             var reference = observedReference
             reference.updateCloudSyncMetadata { $0.remoteRev = remoteRev }
@@ -3570,7 +3570,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testCloudParseFailureRejectsForeignResolutionMetadata() async throws {
         let observed = makeCloudReference(remoteRev: "observed-revision")
-        DatabaseListStore.update(observed)
+        DatabaseListStore.testUpsert(observed)
         var foreign = makeCloudReference(remoteRev: "foreign-revision-private")
         foreign.updateCloudSyncMetadata { $0.remoteContentHash = "foreign-hash-private" }
         let cacheURL = DatabaseListStore.cacheLocation(for: observed)
@@ -3771,7 +3771,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testFileAccessErrorDoesNotIncrementFailedAttempts() async throws {
         var reference = try makeReference()
         reference.bookmarkData = Data("invalid-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         try writeAtomicallyAndDurably(Data(contentsOf: fixtureURL()), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
@@ -4286,7 +4286,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
         XCTAssertEqual(vm.workspace.searchFocusRequestID, 1)
 
-        DatabaseListStore.update(vm.databaseReference)
+        DatabaseListStore.testUpsert(vm.databaseReference)
         vm.setReadOnly(true)
         XCTAssertTrue(vm.isReadOnly)
         requestCommands()
@@ -5062,7 +5062,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let remoteData = try makeRemoteVariantData { $0.entries.append(KPEntry(title: "Cloud Remote Entry")) }
         let remoteHash = FileDigest.sha512(remoteData)
         let reference = makeCloudReference(remoteRev: "rev-A")
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
         try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference)
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
@@ -5399,7 +5399,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testSaveWhenReadOnlyThrowsDatabaseIsReadOnlyDoesNotEncrypt() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let localSaverCalls = CallTracker()
         let vm = DatabaseViewModel(
@@ -6261,7 +6261,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testSetReadOnlyUpdatesInMemoryReferenceAndStore() throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = DatabaseViewModel(databaseReference: reference)
         XCTAssertFalse(vm.isReadOnly)
 
@@ -6719,7 +6719,7 @@ final class DatabaseViewModelTests: XCTestCase {
         var reference = try DatabaseListStore.add(url: initialURL)
         try FileManager.default.moveItem(at: initialURL, to: url)
         reference.legacyKeychainFilename = "late-app-legacy-\(UUID().uuidString).kdbx"
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let gate = InFlightSaveGate()
         let stored = OSAllocatedUnfairLock(initialState: Optional<SymmetricKey>.none)
         let lateCalls = OSAllocatedUnfairLock(initialState: 0)
@@ -7790,7 +7790,7 @@ final class DatabaseViewModelTests: XCTestCase {
         try oldBytes.write(to: url)
         var reference = try DatabaseListStore.add(url: url)
         reference.isDocumentsResident = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.documentsDirectoryOverride = folder
         defer { DatabaseListStore.documentsDirectoryOverride = nil }
         let encryptions = OSAllocatedUnfairLock(initialState: 0)
@@ -8183,7 +8183,7 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
         let oldCompositeKey = try XCTUnwrap(vm.compositeKey)
 
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
 
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
@@ -8210,7 +8210,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         await vm.unlock(password: fixturePassword)
 
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
 
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
@@ -8234,14 +8234,14 @@ final class DatabaseViewModelTests: XCTestCase {
         var reference = try makeReference()
         reference.keyFileBookmarkData = Data("stale-bookmark".utf8)
         reference.keyFileFilename = "old.key"
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(
             reference: reference
         )
 
         await vm.unlock(password: fixturePassword)
 
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
 
         try await vm.changeMasterKey(
             newPassword: "password-only",
@@ -8259,7 +8259,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testChangeMasterKeyCloudRoutesNewKeyThroughCloudSaveOperation() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
         try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference)
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
@@ -8310,7 +8310,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testCloudRekeyUnknownUploadRetainsPayloadWithoutResending() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let original = try Data(contentsOf: fixtureURL())
         try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
@@ -8359,7 +8359,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyWhenReadOnlyThrowsWithoutSaving() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
             reference: reference,
@@ -8558,7 +8558,7 @@ final class DatabaseViewModelTests: XCTestCase {
         QuickUnlockKeychain.recordMasterKeyEntry(for: secondReference.id, at: enteredAt)
         expressRemovals.withLock { $0.removeAll() }
 
-        if !first.databaseReference.isCloudBacked { DatabaseListStore.update(first.databaseReference) }
+        if !first.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(first.databaseReference) }
 
         try await first.changeMasterKey(
             newPassword: "rotated-master", newKeyFileData: nil,
@@ -8592,7 +8592,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
             newKeyFileData: nil,
@@ -8615,7 +8615,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
             newKeyFileData: nil,
@@ -8637,7 +8637,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
             newKeyFileData: nil,
@@ -8673,7 +8673,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     private func exerciseConfirmedCloudRekeyRecovery(_ scenario: RecoveryCase) async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let original = try Data(contentsOf: fixtureURL())
         try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
@@ -8845,7 +8845,7 @@ final class DatabaseViewModelTests: XCTestCase {
         }
 
         await vm.unlock(password: fixturePassword)
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
             newKeyFileData: nil,
@@ -8953,7 +8953,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testImportEntriesRefusesAReadOnlyDatabaseWithoutTouchingTheDraft() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let saved = SavedDraftCapture()
         let vm = try makeViewModel(
             reference: reference,
@@ -9206,7 +9206,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     private func exerciseCloudSettingsPublication(foreignHead: Bool) async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
         try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference)
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
@@ -9277,7 +9277,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeEncryptionSettingsWhenReadOnlyThrowsWithoutSaving() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
             reference: reference,
@@ -9618,7 +9618,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     private func makeReference(autoFillEnabled: Bool = true) throws -> DatabaseReference {
         let reference = try TestDatabaseSupport.makeReference(for: fixtureURL(), autoFillEnabled: autoFillEnabled)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 

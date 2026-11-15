@@ -564,7 +564,7 @@ final class ExpressUnlockTests: XCTestCase {
                 )
             )
         )
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 
@@ -989,7 +989,7 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         try data.write(to: url)
         var reference = try TestDatabaseSupport.makeReference(for: url)
         reference.hardwareKey = hardwareKey
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         addTeardownBlock { try? FileManager.default.removeItem(at: folder) }
         return DatabaseViewModel(
             databaseReference: reference,

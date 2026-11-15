@@ -426,7 +426,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
     func testSaveAfterManualPolicyOpenConflictsWhenRemoteChangedSinceLastSync() async throws {
         var reference = try makeCloudReference(remoteRev: "rev-A")
         reference.cloudSyncPolicy = .manual
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let opened = try await CloudSyncCoordinator.syncIfNeededForOpen(
             reference: reference,
             providerResolver: { _ in
@@ -1705,7 +1705,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             metadata.remoteModifiedAt = Date(timeIntervalSince1970: 100)
             metadata.remoteRev = remoteRev
         }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: fixtureURL(named: fixtureName)), for: reference)
         return reference
     }

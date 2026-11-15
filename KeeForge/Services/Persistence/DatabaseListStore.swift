@@ -57,6 +57,7 @@ enum DatabaseListStore {
 
     #if DEBUG
     private nonisolated(unsafe) static var didBootstrapUITesting = false
+    private static let uiTestBootstrapLock = NSLock()
     private nonisolated(unsafe) static var remainingUITestLocalSaveConflicts: Int?
     private nonisolated(unsafe) static var consumedUITestLocalSaveConflicts = 0
     #endif
@@ -233,8 +234,7 @@ enum DatabaseListStore {
     #endif
 
     static var databases: [DatabaseReference] {
-        get { loadDatabases() }
-        set { saveDatabases(newValue) }
+        loadDatabases()
     }
 
     static var quickLaunchDatabase: DatabaseReference? {
@@ -572,20 +572,18 @@ enum DatabaseListStore {
     }
     #endif
 
-    static func update(_ reference: DatabaseReference) {
-        withStateLock {
-            guard PendingLocalSaveStore.isRevoked(reference.id) == false else { return }
-            var currentDatabases = loadDatabases()
-
-            if let index = currentDatabases.firstIndex(where: { $0.id == reference.id }) {
-                currentDatabases[index] = reference
-            } else {
-                currentDatabases.append(reference)
-            }
-
-            saveDatabases(currentDatabases)
+    #if DEBUG
+    static func testUpsert(_ reference: DatabaseReference) {
+        guard AppGroupContainer.isRedirectedForTesting, !PendingLocalSaveStore.isRevoked(reference.id) else { return }
+        let result = mutateRegistry(onMissing: { [] }) { rows -> RegistryDecision<[DatabaseReference]> in
+            if let index = rows.firstIndex(where: { $0.id == reference.id }) { rows[index] = reference }
+            else { rows.append(reference) }
+            return .write(rows)
         }
+        if case .durable(let rows) = result, let active = activeAutoFillDatabaseID,
+           !rows.contains(where: { $0.id == active && $0.autoFillEnabled }) { activeAutoFillDatabaseID = nil }
     }
+    #endif
 
     struct DurableKeyFileAssociationReceipt: Sendable {
         let databaseID: UUID
@@ -1881,7 +1879,9 @@ enum DatabaseListStore {
     @discardableResult
     static func initializeRegistry() -> RegistryInitializationResult {
         #if DEBUG
-        withStateLock { bootstrapForUITestingIfNeeded() }
+        uiTestBootstrapLock.lock()
+        bootstrapForUITestingIfNeeded()
+        uiTestBootstrapLock.unlock()
         #endif
         let migrated = migratedLegacyReference()
         var missing = false
@@ -1993,49 +1993,6 @@ enum DatabaseListStore {
         (try? readRegistry(at: databaseListURL)) ?? []
     }
 
-    /// Returns whether the list actually reached disk. Most callers are
-    /// best-effort and ignore it; one recording a cloud revision must not
-    /// report success for a revision that never persisted.
-    @discardableResult
-    private static func saveDatabases(_ references: [DatabaseReference]) -> Bool {
-        withStateLock {
-            let normalizedReferences = normalized(references)
-            let encoded: Data
-
-            do {
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                encoded = try encoder.encode(normalizedReferences)
-            } catch {
-                return false
-            }
-
-            do {
-                let parentDirectory = databaseListURL.deletingLastPathComponent()
-                try FileManager.default.createDirectory(
-                    at: parentDirectory,
-                    withIntermediateDirectories: true,
-                    attributes: nil
-                )
-                try CoordinatedFileReader.writeData(
-                    encoded,
-                    to: databaseListURL,
-                    options: .atomicProtected
-                )
-                sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
-            } catch {
-                return false
-            }
-
-            if let activeAutoFillDatabaseID,
-               normalizedReferences.contains(where: { $0.id == activeAutoFillDatabaseID && $0.autoFillEnabled }) == false {
-                self.activeAutoFillDatabaseID = nil
-            }
-
-            return true
-        }
-    }
-
     private static func normalized(_ references: [DatabaseReference]) -> [DatabaseReference] {
         var quickLaunchAlreadyAssigned = false
 
@@ -2102,7 +2059,10 @@ enum DatabaseListStore {
             SharedVaultStore.cloudAccountDefaults.set(encodedAccounts, forKey: cloudAccountsStorageKey)
         }
 
-        saveDatabases(references)
+        _ = mutateRegistry(onMissing: { [] }) { rows -> RegistryDecision<Void> in
+            rows = references
+            return .write(())
+        }
         activeAutoFillDatabaseID = nil
     }
 
