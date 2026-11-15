@@ -60,6 +60,14 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
     private let presentation: MacWorkspacePresentation
     private var sidebarCollapseObservation: NSKeyValueObservation?
     private var statusClock: Timer?
+    /// The list's width before a hidden sidebar widened it, put back when the sidebar returns.
+    private var listWidthBeforeCollapse: CGFloat?
+    private var restoresListWidth = false
+    private var listFrameObserver: NSObjectProtocol?
+    static let listMinimumThickness: CGFloat = 260
+    static let listMaximumThickness: CGFloat = 460
+    /// With the sidebar hidden the list also holds the window controls and a full search field (SidebarHidden board).
+    static let collapsedListMinimumThickness: CGFloat = 328
 
     /// Each database keeps its own widths and collapse state; nil keeps the layout unsaved.
     init(
@@ -88,8 +96,8 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         }
 
         let entries = NSSplitViewItem(contentListWithViewController: entryList)
-        entries.minimumThickness = 260
-        entries.maximumThickness = 460
+        entries.minimumThickness = Self.listMinimumThickness
+        entries.maximumThickness = Self.listMaximumThickness
         entries.preferredThicknessFraction = 320.0 / 1080.0
         addSplitViewItem(entries)
 
@@ -113,6 +121,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
 
     isolated deinit {
         statusClock?.invalidate()
+        listFrameObserver.map(NotificationCenter.default.removeObserver)
     }
 
     /// Alerts wait for a window to attach to.
@@ -133,6 +142,64 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
     private func noteSidebarCollapse() {
         let isCollapsed = splitViewItems.first?.isCollapsed ?? false
         if presentation.isSidebarCollapsed != isCollapsed { presentation.isSidebarCollapsed = isCollapsed }
+        fitListToSidebar(isCollapsed: isCollapsed)
+    }
+
+    /// Thickness limits, not divider positions, so the per-database autosave keeps whatever the layout settles on.
+    private func fitListToSidebar(isCollapsed: Bool) {
+        guard splitViewItems.count > 1 else { return }
+        let entries = splitViewItems[1]
+        let width = entries.viewController.view.frame.width
+        if isCollapsed {
+            guard entries.minimumThickness != Self.collapsedListMinimumThickness else { return }
+            listWidthBeforeCollapse = width > 0 && width < Self.collapsedListMinimumThickness ? width : nil
+            restoresListWidth = false
+            stopObservingListFrame()
+            entries.maximumThickness = Self.listMaximumThickness
+            entries.minimumThickness = Self.collapsedListMinimumThickness
+        } else {
+            guard entries.minimumThickness == Self.collapsedListMinimumThickness else { return }
+            entries.minimumThickness = Self.listMinimumThickness
+            // A list dragged wider while the sidebar was hidden keeps that width.
+            if let saved = listWidthBeforeCollapse, abs(width - Self.collapsedListMinimumThickness) < 1 {
+                entries.maximumThickness = saved
+                restoresListWidth = true
+                releaseListCapOnceNarrowed()
+            }
+            listWidthBeforeCollapse = nil
+        }
+    }
+
+    /// The cap holds until the list has narrowed to it, then the user may drag it wider again.
+    private func releaseListCapOnceNarrowed() {
+        guard splitViewItems.count > 1 else { return }
+        let entries = splitViewItems[1]
+        let list = entries.viewController.view
+        list.postsFrameChangedNotifications = true
+        stopObservingListFrame()
+        listFrameObserver = NotificationCenter.default.addObserver(
+            forName: NSView.frameDidChangeNotification, object: list, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.releaseListCapIfNarrowed() }
+        }
+    }
+
+    private func releaseListCapIfNarrowed() {
+        guard restoresListWidth, splitViewItems.count > 1 else { return }
+        let entries = splitViewItems[1]
+        guard entries.viewController.view.frame.width <= entries.maximumThickness + 1 else { return }
+        restoresListWidth = false
+        stopObservingListFrame()
+        // Not inside the layout pass that narrowed it.
+        Task { @MainActor [weak self, weak entries] in
+            guard self?.restoresListWidth == false else { return }
+            entries?.maximumThickness = Self.listMaximumThickness
+        }
+    }
+
+    private func stopObservingListFrame() {
+        listFrameObserver.map(NotificationCenter.default.removeObserver)
+        listFrameObserver = nil
     }
 
     private static func host<Content: View>(

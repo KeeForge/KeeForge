@@ -151,7 +151,6 @@ final class MacFormSheetController: NSWindowController {
         guard let window, !isPresented, !hasEnded else { return }
         self.completion = completion
         isPresented = true
-        window.appearance = parent.appearance
         window.sharingType = parent.sharingType
         presentWindow(window, parent) { [weak self] in self?.finish(confirmed: false) }
         window.contentView?.layoutSubtreeIfNeeded()

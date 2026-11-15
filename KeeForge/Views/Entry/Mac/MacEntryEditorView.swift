@@ -4,6 +4,25 @@ import OneTimeCodes
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The editor header's controls: at the window's minimum width (compact metrics) Cancel and Save
+/// drop to regular size and Save loses its ⌘S hint, so the title field keeps its room.
+struct MacEntryEditorHeaderLayout: Equatable {
+    let controlSize: ControlSize
+    let showsShortcutHint: Bool
+
+    init(metrics: MacDetailMetrics) {
+        let isCompact = metrics == .compact
+        controlSize = isCompact ? .regular : .large
+        showsShortcutHint = isCompact == false
+    }
+
+    /// Black at 14% vanishes on the dark column, so dark mode dims harder.
+    static let savingScrimColor = NSColor(name: nil) { appearance in
+        NSColor.black.withAlphaComponent(appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? 0.45 : 0.14)
+    }
+    static let savingScrim = Color(nsColor: savingScrimColor)
+}
+
 /// The inline entry editor (EditEntry, NewEntry, CodeSetup and UnsavedChanges boards): a header
 /// with the title field, Cancel and Save / Create, then cards in the detail's grid. The form, its
 /// coordinator and its reveals live on `MacEntryEditorSession`, so a redraw keeps unsaved work.
@@ -34,6 +53,7 @@ struct MacEntryEditorView: View {
     }
 
     private var metrics: MacDetailMetrics { .forWidth(width) }
+    private var headerLayout: MacEntryEditorHeaderLayout { .init(metrics: metrics) }
     private var isPresentingChild: Bool {
         showGenerator || showTOTPSetup || showCustomFieldOrder || showAttachmentImporter
             || showDiscardConfirmation || showRemoveTOTPConfirmation
@@ -150,12 +170,14 @@ struct MacEntryEditorView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
+            .layoutPriority(1)
             Button("Cancel", action: cancelTapped)
                 .keyboardShortcut(.cancelAction)
                 .buttonStyle(.bordered)
                 .macNeutralTint()
                 .buttonBorderShape(.capsule)
-                .controlSize(.large)
+                .controlSize(headerLayout.controlSize)
+                .fixedSize()
                 .disabled(coordinator.isSavingInProgress)
                 .accessibilityIdentifier("entry-edit.cancel")
             // ⌘S comes from File ▸ Save, which saves this editor; Return stays in the fields.
@@ -163,15 +185,18 @@ struct MacEntryEditorView: View {
                 HStack(spacing: 6) {
                     Text(session.isEditingExistingEntry ? String(localized: "Save") : String(localized: "Create"))
                         .fontWeight(.semibold)
-                    Text(verbatim: "⌘S")
-                        .font(.caption.weight(.medium))
-                        .opacity(0.72)
-                        .accessibilityHidden(true)
+                    if headerLayout.showsShortcutHint {
+                        Text(verbatim: "⌘S")
+                            .font(.caption.weight(.medium))
+                            .opacity(0.72)
+                            .accessibilityHidden(true)
+                    }
                 }
             }
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.capsule)
-            .controlSize(.large)
+            .controlSize(headerLayout.controlSize)
+            .fixedSize()
             .disabled(session.canSave == false)
             .accessibilityIdentifier("entry-edit.save")
         }
@@ -652,7 +677,7 @@ struct MacEntryEditorView: View {
     private var savingOverlay: some View {
         if coordinator.isSubmitting && viewModel.isSaving == false {
             ZStack {
-                Color.black.opacity(0.14)
+                MacEntryEditorHeaderLayout.savingScrim
                 VStack(spacing: 12) {
                     ProgressView()
                         .controlSize(.large)

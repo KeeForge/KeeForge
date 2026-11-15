@@ -110,14 +110,14 @@ final class MacFormSheetControllerTests: XCTestCase {
         XCTAssertTrue(finishedWrite)
     }
 
-    func testSheetCopiesParentAppearanceAndCapturePolicyBeforePresentation() {
+    /// Light/Dark comes from the app-wide `MacAppAppearance`, so the sheet pins none of its own.
+    func testSheetCopiesParentCapturePolicyBeforePresentationAndLeavesItsAppearanceToTheApp() {
         let shell = makeShell()
         let parent = NSWindow()
-        parent.appearance = NSAppearance(named: .darkAqua)
         parent.sharingType = .none
         shell.presentWindow = { window, _, _ in
             XCTAssertEqual(window.sharingType, .none)
-            XCTAssertTrue(window.appearance === parent.appearance)
+            XCTAssertNil(window.appearance)
         }
         shell.begin(on: parent) { _ in }
         shell.end()

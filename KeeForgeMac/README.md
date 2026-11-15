@@ -211,8 +211,10 @@ database list through `MacWorkspacePresentation.pendingUploads`. Database ▸
 Discard Pending Upload… asks in the window through `MacWorkspaceAlerts` (Cancel is
 the default) and is dimmed without a conflicted upload or with an unsaved draft,
 save, open editor or sheet. The
-outline is disabled while saving and takes its appearance from the window, which
-the root host's `preferredColorScheme` sets from the in-app setting. Focus and
+outline is disabled while saving and takes its appearance from the app:
+`MacAppAppearance` (owned by `AppDelegate`) sets `NSApp.appearance` from the
+in-app Light/Dark/System setting, so every window, sheet, panel, alert and
+open or save panel follows it, and no window or hosting root pins its own. Focus and
 keyboard come from the outline as first responder; nothing routes focus to it.
 The outline scrolls the selected row into view only once it has a visible area,
 so a tall sidebar opens at its top. Each row's identifier sits on its title text,
@@ -324,7 +326,7 @@ the toolbar's observation. Edit ▸ Find (`findEntry:`) calls
 `MacWorkspaceToolbar.focusSearch()`, which begins the search item's interaction.
 Title bridging is off; AppKit observation owns
 the database title and group/tag/search subtitle. The SwiftUI detail root applies saving
-disablement and appearance explicitly across hosting boundaries.
+disablement and the accent tint explicitly across hosting boundaries.
 
 ## Status
 

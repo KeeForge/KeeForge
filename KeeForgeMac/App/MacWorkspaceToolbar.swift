@@ -150,9 +150,14 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         titleView.titleField.stringValue = state.databaseName
         titleView.readOnlyButton.isHidden = state.isReadOnly == false
         titleView.needsLayout = true
-        let placeholder = Self.searchPlaceholder(databaseName: state.databaseName)
+        updateSidebarToggle(isSidebarCollapsed: state.isSidebarCollapsed)
+        let placeholder = Self.searchPlaceholder(databaseName: state.databaseName, isSidebarCollapsed: state.isSidebarCollapsed)
         if searchItem.searchField.placeholderString != placeholder {
             searchItem.searchField.placeholderString = placeholder
+        }
+        let searchLabel = Self.searchPlaceholder(databaseName: state.databaseName, isSidebarCollapsed: false)
+        if searchItem.searchField.accessibilityLabel() != searchLabel {
+            searchItem.searchField.setAccessibilityLabel(searchLabel)
         }
         if searchItem.searchField.stringValue != state.searchText {
             searchItem.searchField.stringValue = state.searchText
@@ -172,8 +177,24 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         if searchItem.preferredWidthForSearchField != width { searchItem.preferredWidthForSearchField = width }
     }
 
-    static func searchPlaceholder(databaseName: String) -> String {
-        String(localized: "Search \(databaseName)")
+    /// The narrower field beside the window controls drops the name (SidebarHidden board); its label keeps it.
+    static func searchPlaceholder(databaseName: String, isSidebarCollapsed: Bool) -> String {
+        isSidebarCollapsed ? String(localized: "Search") : String(localized: "Search \(databaseName)")
+    }
+
+    static func sidebarToggleLabel(isSidebarCollapsed: Bool) -> String {
+        isSidebarCollapsed ? String(localized: "Show Sidebar") : String(localized: "Hide Sidebar")
+    }
+
+    private func updateSidebarToggle(isSidebarCollapsed: Bool) {
+        guard let item = items[Item.toggleSidebar] else { return }
+        let label = Self.sidebarToggleLabel(isSidebarCollapsed: isSidebarCollapsed)
+        guard item.label != label else { return }
+        item.label = label
+        item.toolTip = label
+        item.menuFormRepresentation?.title = label
+        item.view?.toolTip = label
+        item.view?.setAccessibilityLabel(label)
     }
 
     private func enable(_ identifier: NSToolbarItem.Identifier, _ isEnabled: Bool) {
@@ -207,7 +228,7 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
             identifier: Item.sidebarSeparator, splitView: splitView, dividerIndex: 0)
         items[Item.listSeparator] = NSTrackingSeparatorToolbarItem(
             identifier: Item.listSeparator, splitView: splitView, dividerIndex: 1)
-        addButton(Item.toggleSidebar, symbol: "sidebar.left", label: String(localized: "Show Sidebar"),
+        addButton(Item.toggleSidebar, symbol: "sidebar.left", label: Self.sidebarToggleLabel(isSidebarCollapsed: false),
                   target: nil, action: #selector(NSSplitViewController.toggleSidebar(_:)))
 
         let statusItem = NSToolbarItem(itemIdentifier: Item.databaseStatus)
@@ -265,7 +286,8 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
                 MainActor.assumeIsolated { self?.updateSearchFieldWidth() }
             }
         }
-        searchItem.searchField.placeholderString = Self.searchPlaceholder(databaseName: session.databaseDisplayName)
+        searchItem.searchField.placeholderString = Self.searchPlaceholder(databaseName: session.databaseDisplayName,
+                                                                          isSidebarCollapsed: false)
         searchItem.searchField.delegate = self
         searchItem.searchField.target = self
         searchItem.searchField.action = #selector(searchFieldDidChange(_:))

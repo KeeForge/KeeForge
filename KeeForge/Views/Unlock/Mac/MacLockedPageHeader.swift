@@ -19,6 +19,11 @@ struct MacLockedPageHeader: View {
 
     static let tileSize: CGFloat = 76
 
+    /// The boards' indigo glow reads as a smudge on the dark window, where a plain black shadow lifts the tile.
+    static func tileShadow(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? Color.black.opacity(0.45) : Color(red: 0.22, green: 0.27, blue: 0.47).opacity(0.22)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             tileView
@@ -56,7 +61,7 @@ struct MacLockedPageHeader: View {
                             .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
                     }
                 }
-                .shadow(color: Color(red: 0.22, green: 0.27, blue: 0.47).opacity(0.22), radius: 9, y: 6)
+                .shadow(color: Self.tileShadow(for: colorScheme), radius: 9, y: 6)
                 .accessibilityHidden(true)
         case .symbol(let name):
             Image(systemName: name)

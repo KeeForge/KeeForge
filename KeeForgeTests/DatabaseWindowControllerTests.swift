@@ -450,13 +450,12 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertEqual(closeRequests.value.count, 1)
     }
 
-    /// The root host's `preferredColorScheme` sets the window's appearance, and
-    /// the AppKit sidebar and toolbar inherit it from the window.
-    func testTheWindowAndItsSidebarFollowTheInAppAppearanceSetting() async throws {
-        let key = SettingsService.appearanceModeDefaultsKey
-        let saved = UserDefaults.standard.object(forKey: key)
-        addTeardownBlock { @MainActor in UserDefaults.standard.set(saved, forKey: key) }
-        UserDefaults.standard.set(SettingsService.AppearanceMode.dark.rawValue, forKey: key)
+    /// `MacAppAppearance` sets the app's appearance; the window pins none, so it and the
+    /// AppKit sidebar follow it.
+    func testTheWindowAndItsSidebarFollowTheAppAppearance() async throws {
+        let saved = NSApp.appearance
+        addTeardownBlock { @MainActor in NSApp.appearance = saved }
+        NSApp.appearance = NSAppearance(named: .darkAqua)
         let session = try makeSession()
         let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
             enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false))
@@ -471,12 +470,16 @@ final class DatabaseWindowControllerTests: XCTestCase {
             as? MacSidebarViewController)
         XCTAssertTrue(sidebar.outlineView.window === window, "The outline is in the database window")
 
-        for (mode, expected) in [(SettingsService.AppearanceMode.dark, NSAppearance.Name.darkAqua), (.light, .aqua),
-                                 (.dark, .darkAqua)] {
-            UserDefaults.standard.set(mode.rawValue, forKey: key)
-            await waitUntil { Self.match(window.effectiveAppearance) == expected }
-            XCTAssertEqual(Self.match(window.effectiveAppearance), expected, mode.rawValue)
-            XCTAssertEqual(Self.match(sidebar.outlineView.effectiveAppearance), expected, mode.rawValue)
+        for expected in [NSAppearance.Name.darkAqua, .aqua, .darkAqua] {
+            NSApp.appearance = NSAppearance(named: expected)
+            // Views pick up an app-level change on a later pass than their window.
+            await waitUntil {
+                Self.match(window.effectiveAppearance) == expected
+                    && Self.match(sidebar.outlineView.effectiveAppearance) == expected
+            }
+            XCTAssertNil(window.appearance)
+            XCTAssertEqual(Self.match(window.effectiveAppearance), expected, expected.rawValue)
+            XCTAssertEqual(Self.match(sidebar.outlineView.effectiveAppearance), expected, expected.rawValue)
         }
     }
 

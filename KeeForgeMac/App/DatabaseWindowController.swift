@@ -383,22 +383,13 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     }
 }
 
+/// The in-app accent for a hosting root; Light/Dark comes from `MacAppAppearance` through the window.
 struct MacHostingAppearance: ViewModifier {
-    @AppStorage(SettingsService.appearanceModeDefaultsKey) private var appearance = SettingsService.AppearanceMode.system.rawValue
     @AppStorage(SettingsService.appAccentColorDefaultsKey) private var accent = ""
 
     func body(content: Content) -> some View {
         content
             .tint(SettingsService.AppAccentColor(rawValue: accent)?.color ?? Color("AccentColor"))
-            .preferredColorScheme(colorScheme)
-    }
-
-    private var colorScheme: ColorScheme? {
-        switch SettingsService.AppearanceMode(rawValue: appearance) ?? .system {
-        case .system: nil
-        case .light: .light
-        case .dark: .dark
-        }
     }
 }
 

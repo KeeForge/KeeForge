@@ -14,6 +14,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     private lazy var macWindowCloseGuard = MacWindowCloseGuard(registry: databaseWindowRegistry)
     private let macQuickAccess = MacQuickAccessController()
     private let macSSHAgent = MacSSHAgentController()
+    private let appAppearance = MacAppAppearance()
     private(set) lazy var windowCoordinator: MacWindowCoordinator = {
         let options = MacWindowLaunchOptions(arguments: ProcessInfo.processInfo.arguments)
         // A unit-test host never reads or writes the app's own window record.
@@ -36,6 +37,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard !didLaunch else { return }
         didLaunch = true
+        appAppearance.start()
         AutoFillDiagnostics.migrateLegacyLogLocation()
         screenProtectionService.update(sceneIsActive: NSApp.isActive)
         AttachmentPreviewFileStore.purgeOrphanedFiles()

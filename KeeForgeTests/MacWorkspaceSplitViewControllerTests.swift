@@ -45,6 +45,51 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         XCTAssertFalse(presentation.isSidebarCollapsed)
     }
 
+    func testHidingTheSidebarWidensTheListAndShowingItRestoresTheWidth() async throws {
+        let session = try makeSession()
+        let controller = MacWorkspaceSplitViewController(session: session, presentation: MacWorkspacePresentation(),
+            attachmentPreview: .unshown(session), currentSession: { nil })
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 700),
+                              styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.contentViewController = controller
+        window.setContentSize(NSSize(width: 1080, height: 700))
+        let split = controller.splitView
+        split.layoutSubtreeIfNeeded()
+        let sidebar = controller.splitViewItems[0]
+        let entries = controller.splitViewItems[1]
+        let list = entries.viewController.view
+        func settle() { for _ in 0..<3 { split.needsLayout = true; split.layoutSubtreeIfNeeded() } }
+
+        split.setPosition(240, ofDividerAt: 0)
+        split.setPosition(240 + split.dividerThickness + 280, ofDividerAt: 1)
+        settle()
+        XCTAssertEqual(list.frame.width, 280, accuracy: 1)
+
+        sidebar.isCollapsed = true
+        settle()
+        XCTAssertEqual(list.frame.width, MacWorkspaceSplitViewController.collapsedListMinimumThickness, accuracy: 1,
+                       "Room for the window controls and a full search field")
+
+        sidebar.isCollapsed = false
+        settle()
+        await Task { @MainActor in }.value
+        XCTAssertEqual(list.frame.width, 280, accuracy: 1, "Back to the width it had")
+        XCTAssertEqual(entries.minimumThickness, MacWorkspaceSplitViewController.listMinimumThickness)
+        XCTAssertEqual(entries.maximumThickness, MacWorkspaceSplitViewController.listMaximumThickness,
+                       "The user can drag it wider again")
+
+        sidebar.isCollapsed = true
+        settle()
+        split.setPosition(split.arrangedSubviews[1].frame.minX + 400, ofDividerAt: 1)
+        settle()
+        XCTAssertEqual(list.frame.width, 400, accuracy: 1)
+        sidebar.isCollapsed = false
+        settle()
+        XCTAssertEqual(list.frame.width, 400, accuracy: 1, "A list dragged wider while hidden keeps its width")
+    }
+
     func testWindowKeepsControllerUntilSessionChangesThenReleasesIt() throws {
         let first = try makeSession()
         let workspace = MacWindowWorkspace(presentation: MacWorkspacePresentation(),

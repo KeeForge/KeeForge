@@ -33,17 +33,16 @@ final class SettingsWindowControllerTests: XCTestCase {
         controller.close()
     }
 
-    func testWindowFollowsTheAppAppearanceSetting() async throws {
+    /// `MacAppAppearance` applies the setting to the whole app; the window pins none of its own.
+    func testWindowLeavesTheAppearanceToTheAppSeam() async throws {
         let original = SettingsService.appearanceMode
         defer { SettingsService.appearanceMode = original }
         SettingsService.appearanceMode = .light
         let controller = try makeController()
-        XCTAssertEqual(controller.window?.appearance?.name, .aqua)
+        XCTAssertNil(controller.window?.appearance)
         controller.tabs.settings.appearanceMode = .dark
-        for _ in 0..<20 where controller.window?.appearance?.name != .darkAqua { await Task.yield() }
-        XCTAssertEqual(controller.window?.appearance?.name, .darkAqua)
-        controller.tabs.settings.appearanceMode = .system
-        for _ in 0..<20 where controller.window?.appearance != nil { await Task.yield() }
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(SettingsService.appearanceMode, .dark, "The setting is written for the seam to read")
         XCTAssertNil(controller.window?.appearance)
         controller.close()
     }

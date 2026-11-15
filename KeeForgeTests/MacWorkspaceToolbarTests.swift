@@ -26,7 +26,7 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         XCTAssertNil(toolbar.items[NSToolbarItem.Identifier("sort.menu")], "Sort moved to the list header")
         XCTAssertNil(toolbar.items[NSToolbarItem.Identifier("entry-detail.edit")], "Edit is in the detail header")
         let labels = [
-            "sidebar.left": "Show Sidebar", "lock.button": "Lock Database",
+            "sidebar.left": "Hide Sidebar", "lock.button": "Lock Database",
             "database.read-only-indicator": "Read-only database", "entry-list.add-entry": "New Entry",
             "database-details.button": "Database Settings", "database.cloud-sync-now": "Sync Now",
         ]
@@ -118,6 +118,33 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         XCTAssertTrue(statusItems.allSatisfy(\.isHidden))
     }
 
+    func testHidingTheSidebarShortensThePlaceholderAndFlipsTheToggle() async throws {
+        let presentation = MacWorkspacePresentation()
+        let (toolbar, window, _) = try await makeToolbarAndSplitView(presentation: presentation)
+        defer { window.close() }
+        let field = toolbar.searchItem.searchField
+        let fullName = String(localized: "Search \(toolbar.session.databaseDisplayName)")
+        let toggle = try XCTUnwrap(toolbar.items[MacWorkspaceToolbar.Item.toggleSidebar])
+        await Task { @MainActor in }.value
+        XCTAssertEqual(field.placeholderString, fullName)
+        XCTAssertEqual(field.accessibilityLabel(), fullName)
+        XCTAssertEqual(toggle.toolTip, String(localized: "Hide Sidebar"))
+
+        presentation.isSidebarCollapsed = true
+        await Task { @MainActor in }.value
+        XCTAssertEqual(field.placeholderString, String(localized: "Search"))
+        XCTAssertEqual(field.accessibilityLabel(), fullName, "The label still names the database")
+        for title in [toggle.label, toggle.toolTip, toggle.view?.toolTip, toggle.view?.accessibilityLabel(),
+                      toggle.menuFormRepresentation?.title] {
+            XCTAssertEqual(title, String(localized: "Show Sidebar"))
+        }
+
+        presentation.isSidebarCollapsed = false
+        await Task { @MainActor in }.value
+        XCTAssertEqual(field.placeholderString, fullName)
+        XCTAssertEqual(toggle.toolTip, String(localized: "Hide Sidebar"))
+    }
+
     func testTheSearchFieldFitsTheListAndTheStatusIsPlainText() async throws {
         let (toolbar, window) = try await makeToolbar()
         defer { window.close() }
@@ -126,7 +153,12 @@ final class MacWorkspaceToolbarTests: XCTestCase {
                        "Search and New Entry fit the list's minimum width")
         XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 330, isSidebarCollapsed: true), 140,
                        "Beside the window controls and the sidebar toggle, as SidebarHidden draws it")
-        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 260, isSidebarCollapsed: true), 90)
+        XCTAssertEqual(MacWorkspaceToolbar.searchFieldWidth(listWidth: 260, isSidebarCollapsed: true), 90,
+                       "Too narrow for a field: the system collapses it to an icon")
+        XCTAssertGreaterThanOrEqual(
+            MacWorkspaceToolbar.searchFieldWidth(listWidth: MacWorkspaceSplitViewController.collapsedListMinimumThickness,
+                                                 isSidebarCollapsed: true), 120,
+            "The list a hidden sidebar widens holds a full field")
         let splitView = try XCTUnwrap(window.contentView as? NSSplitView)
         splitView.setPosition(200, ofDividerAt: 0)
         splitView.setPosition(500, ofDividerAt: 1)
