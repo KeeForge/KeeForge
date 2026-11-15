@@ -8650,52 +8650,60 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testChangeMasterKeyCloudRekeyAppliedRemotelyStillRefreshesStoredKey() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
-        let fixtureData = try Data(contentsOf: fixtureURL())
+        DatabaseListStore.update(reference)
+        let original = try Data(contentsOf: fixtureURL())
+        try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let storedKeys = RekeyedKeyCapture()
-        let vm = try makeViewModel(
-            reference: reference,
-            cloudSyncOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: fixtureData,
-                    status: .current
-                )
-            },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
-                throw SaveError.rekeyAppliedRemotely
-            },
-            pendingUploadMarkerCheck: { _ in false },
-            storedKeyPresenceCheck: { _ in true },
-            storedKeyStoreOperation: { key, _ in storedKeys.record(oldKey: nil, newKey: key) }
-        )
-
+        let transport = CloudJournalTransport(remote: original, revision: "rev-A",
+            response: .init(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-B"))
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in try transport.metadata(byteCount: original.count) }
+        environment.downloadRemoteData = { _ in transport.download(fallback: original) }
+        environment.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        let recovery = environment
+        environment.replaceFile = { _, _, _, _ in throw CocoaError(.fileWriteNoPermission) }
+        let faulty = environment
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: cacheURL, data: original, status: .current)
+        }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+            try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: faulty)
+        }, storedKeyPresenceCheck: { _ in true },
+           storedKeyStoreOperation: { key, _ in storedKeys.record(oldKey: nil, newKey: key) })
         await vm.unlock(password: fixturePassword)
-        let oldCompositeKey = try XCTUnwrap(vm.compositeKey)
-
+        let oldKey = try XCTUnwrap(vm.compositeKey)
         do {
-            if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
-            try await vm.changeMasterKey(
-                newPassword: "cloud-rotated",
-                newKeyFileData: nil,
-                newKeyFileBookmarkData: nil,
-                newKeyFileFilename: nil
-            )
-            XCTFail("Expected rekeyAppliedRemotely to propagate")
-        } catch SaveError.rekeyAppliedRemotely {
-            // Expected: the upload landed but the local apply failed.
+            try await vm.changeMasterKey(newPassword: "cloud-rotated", newKeyFileData: nil,
+                newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+            XCTFail("Expected local reconciliation failure")
+        } catch is CloudSaveRecoveryWarning { }
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertNotNil(marker.marker.confirmedAt)
+        let payload = try PendingUploadQueue.readImmutablePayload(marker)
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(transport.effects.uploads.first?.bytes, payload)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), original)
+        guard case .saved? = try CloudDatabaseSaver.recoverConfirmed(marker, reference: reference, environment: recovery) else {
+            return XCTFail("Confirmed remote rekey must reconcile without upload")
         }
-
-        XCTAssertEqual(
-            storedKeys.newKey,
-            try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil),
-            "Keychain must point at the key the remote now requires"
-        )
-        XCTAssertEqual(
-            vm.compositeKey,
-            oldCompositeKey,
-            "The session keeps the key matching the still-old local cache"
-        )
+        let newKey = try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil)
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), payload)
+        _ = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: newKey, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertThrowsError(try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: oldKey, sessionKey: SymmetricKey(size: .bits256)))
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertNotEqual(current.cloudSyncMetadata?.keyEpoch, reference.cloudSyncMetadata?.keyEpoch)
+        XCTAssertEqual(current.expectedCloudRevision, "rev-B")
+        XCTAssertNil(current.keyFileBookmarkData)
+        XCTAssertNil(current.keyFileFilename)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertEqual(storedKeys.newKey, newKey, "The recovered owner must publish the current key")
+        XCTAssertEqual(vm.compositeKey, newKey, "The still-unlocked session must track the recovered ciphertext")
     }
 
     func testChangeMasterKeySavesDraftThatGrewDuringRekey() async throws {
