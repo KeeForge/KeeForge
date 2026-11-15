@@ -293,3 +293,41 @@ final class MacWorkspaceAlerts {
         }
     }
 }
+
+/// Remove from List on a locked window's recovery page, asked in that window
+/// with the Databases window's wording.
+@MainActor
+enum MacRemoveFromListAlert {
+    enum Kind: Equatable {
+        case confirm
+        /// The window holds unsaved work or a write in flight.
+        case refused
+    }
+
+    /// Asks and reports whether to remove; tests answer without showing anything.
+    typealias Present = @MainActor (Kind, DatabaseReference, NSWindow, @escaping @MainActor (Bool) -> Void) -> Void
+
+    static func present(
+        _ kind: Kind, for reference: DatabaseReference, on window: NSWindow,
+        completion: @escaping @MainActor (Bool) -> Void
+    ) {
+        let alert = NSAlert()
+        switch kind {
+        case .confirm:
+            alert.messageText = String(localized: "Remove Database?")
+            alert.informativeText = String(
+                localized: "“\(reference.displayName)” will be removed from KeeForge, including its cached copy and saved biometric key.")
+            alert.addButton(withTitle: String(localized: "Remove")).hasDestructiveAction = true
+            alert.addButton(withTitle: String(localized: "Cancel"))
+        case .refused:
+            alert.alertStyle = .warning
+            alert.messageText = String(localized: "Can’t Remove Database")
+            alert.informativeText = String(
+                localized: "“\(reference.displayName)” has unsaved changes. Save them or close its window, then remove it.")
+            alert.addButton(withTitle: String(localized: "OK"))
+        }
+        MacWorkspaceAlerts.presentAsSheet(alert, on: window) { response in
+            completion(kind == .confirm && response == .alertFirstButtonReturn)
+        }
+    }
+}

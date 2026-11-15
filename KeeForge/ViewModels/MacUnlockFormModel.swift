@@ -58,6 +58,7 @@ final class MacUnlockFormModel {
     var isPasswordVisible = false
     var selectionAlert: DocumentPickerService.SelectionAlert?
     private(set) var showsFieldError = false
+    private(set) var isReconnecting = false
     /// Bumped when the password field should take focus.
     private(set) var focusRequest = 0
     private var keyFile: KeyFile?
@@ -196,6 +197,28 @@ final class MacUnlockFormModel {
         session.dismissOpenFailure()
     }
 
+    /// A recovery page's Reconnect: signs in to the server again, then returns
+    /// to the form, since no password was kept to retry the open with.
+    func reconnect(authenticate: @MainActor () async throws -> Void) async {
+        guard isReconnecting == false, case .error = session.state else { return }
+        isReconnecting = true
+        let generation = generation
+        defer { if generation == self.generation { isReconnecting = false } }
+        do {
+            try await authenticate()
+            guard generation == self.generation, case .error = session.state else { return }
+            session.dismissOpenFailure()
+        } catch let error as CloudProviderError where error == .authenticationCancelled {
+            return
+        } catch {
+            guard generation == self.generation else { return }
+            selectionAlert = DocumentPickerService.SelectionAlert(
+                title: String(localized: "Reconnect Cloud Account"),
+                message: error.localizedDescription
+            )
+        }
+    }
+
     /// Whether Escape may close the window; never while an open is running.
     func escape() -> Bool {
         isUnlocking == false
@@ -207,6 +230,7 @@ final class MacUnlockFormModel {
         password = ""
         isPasswordVisible = false
         showsFieldError = false
+        isReconnecting = false
         keyFileSelection.cancel()
         wipeKeyFile()
     }

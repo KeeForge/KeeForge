@@ -1,4 +1,5 @@
 import AppKit
+import AuthenticationServices
 import SwiftUI
 
 /// One database's window. It owns that session for its whole life and never
@@ -25,11 +26,14 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         currentSession: { [weak self] in self?.currentSession() }
     )
     private let titleObservation = MacObservation()
+    private let unlockFormObservation = MacObservation()
+    let unlockFilePanel: MacUnlockFilePanel
+    /// The locked pages' form, kept across the locked, opening and error pages.
+    private(set) lazy var unlockForm = MacUnlockFormModel(session: session, filePicker: unlockFilePanel)
     private let windowRegistry: MacDatabaseWindowRegistry
     private let enrollment: TOTPEnrollmentCoordinator
     private let passwordCopyAction: EntrySecretAction
     private let requestClose: @MainActor (NSWindow) -> Void
-    private var setRootToolbarBridging: (@MainActor (Bool) -> Void)?
     private var closeObserver: NSObjectProtocol?
 
     /// Menu validation and dispatch act only while this is the command target; set by the coordinator.
@@ -38,6 +42,8 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     var isCurrent: @MainActor () -> Bool = { true }
     /// The unlock screen's way back: closes this window and shows the Databases window.
     var onReturnToDatabases: (@MainActor () -> Void)?
+    /// A recovery page's Remove from List; the coordinator asks and removes.
+    var onRemoveFromList: (@MainActor () -> Void)?
     var onWillClose: (@MainActor (DatabaseWindowController) -> Void)?
 
     var databaseID: UUID { session.databaseReference.id }
@@ -68,9 +74,11 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         passwordCopyAction: EntrySecretAction = EntrySecretAction(),
         previewPanel: any MacPreviewPanelPresenting = MacSystemPreviewPanel(),
         largeType: MacLargeTypePanelController = .shared,
+        unlockFilePanel: MacUnlockFilePanel = MacUnlockFilePanel(),
         requestClose: @escaping @MainActor (NSWindow) -> Void = { $0.performClose(nil) }
     ) {
         self.session = session
+        self.unlockFilePanel = unlockFilePanel
         self.previewPanel = previewPanel
         self.largeType = largeType
         self.windowRegistry = windowRegistry
@@ -88,9 +96,13 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
 
     override func loadWindow() {
         guard window == nil else { return }
-        let content = MacDatabaseRootView(session: session, enrollment: enrollment, onClose: { [weak self] in
-            self?.onReturnToDatabases?()
-        })
+        let actions = MacLockedWindowActions(
+            close: { [weak self] in self?.onReturnToDatabases?() },
+            reconnect: { [weak self] in self?.reconnectFromRecoveryPage() },
+            removeFromList: { [weak self] in self?.onRemoveFromList?() }
+        )
+        let content = MacDatabaseRootView(session: session, enrollment: enrollment, unlockForm: unlockForm,
+                                          actions: actions)
         let hosting = NSHostingController(rootView: content
             .environment(windowRegistry)
             .environment(workspacePresentation)
@@ -98,10 +110,8 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             .modifier(MacHostingAppearance()))
         // AppKit owns the size limits; hosted toolbar safe areas must not raise them.
         hosting.sizingOptions = []
-        hosting.sceneBridgingOptions = [.toolbars]
-        setRootToolbarBridging = { [weak hosting] bridges in
-            hosting?.sceneBridgingOptions = bridges ? [.toolbars] : []
-        }
+        // The workspace installs its own AppKit toolbar, and a locked window has none.
+        hosting.sceneBridgingOptions = []
         let window = DatabaseWindow(contentViewController: hosting)
         window.styleMask = DatabaseWindow.styleMask
         window.title = session.databaseDisplayName
@@ -114,6 +124,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             height: max(initialContentSize.height, DatabaseWindow.minimumContentSize.height)))
         window.center()
         self.window = window
+        unlockFilePanel.window = window
         attachmentPreview.install(in: window)
         closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: window, queue: nil
@@ -136,32 +147,58 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             self.window?.title = title
             self.window?.subtitle = subtitle
         })
+        unlockFormObservation.start(reading: { [weak self] () -> (Bool, Int) in
+            guard let session = self?.session else { return (false, 0) }
+            return (session.state == .unlocked, session.lockCycleID)
+        }, onChange: { [weak self] isUnlocked, lockCycleID in
+            guard let self else { return }
+            guard isUnlocked || lockCycleID != self.clearedFormLockCycle else { return }
+            self.clearedFormLockCycle = lockCycleID
+            self.unlockForm.clearSecrets()
+            // The page may stay mounted across a lock, so its own load would not run again.
+            guard isUnlocked == false else { return }
+            let form = self.unlockForm
+            Task { await form.loadAssociatedKeyFileIfNeeded() }
+        })
+    }
+
+    private var clearedFormLockCycle = 0
+
+    /// Reconnect on a recovery page: the status card's sign-in, then back to the form.
+    private func reconnectFromRecoveryPage() {
+        guard let providerID = session.databaseReference.cloudSyncMetadata?.provider,
+              let provider = CloudProviderRegistry.provider(for: providerID) else { return }
+        let anchor: ASPresentationAnchor = window ?? NSApp.keyWindow ?? ASPresentationAnchor()
+        let form = unlockForm
+        Task {
+            await form.reconnect { _ = try await provider.authenticate(from: anchor) }
+        }
     }
 
     /// Stops observing once the window has closed for good.
     func invalidate() {
         titleObservation.cancel()
+        unlockFormObservation.cancel()
+        unlockForm.clearSecrets()
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
         closeObserver = nil
         onWillClose = nil
         onReturnToDatabases = nil
+        onRemoveFromList = nil
         workspace.show(nil)
     }
 
-    /// The locked screens keep the root's bridged SwiftUI toolbar; the unlocked
-    /// workspace replaces it with its own, so exactly one source owns the bar.
-    /// The workspace hides the title, which its list header shows instead.
+    /// Only the unlocked workspace has a toolbar; it hides the title, which its
+    /// list header shows instead. A locked window shows just its name.
     private func installToolbar() {
         guard let window else { return }
         if let toolbar = workspace.toolbar?.toolbar {
             guard window.toolbar !== toolbar else { return }
-            setRootToolbarBridging?(false)
             window.toolbar = toolbar
             window.titleVisibility = .hidden
-        } else if window.toolbar?.identifier == MacWorkspaceToolbar.identifier {
+        } else if window.toolbar != nil {
             window.toolbar = nil
             window.titleVisibility = .visible
-            setRootToolbarBridging?(true)
         }
     }
 

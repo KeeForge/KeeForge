@@ -165,6 +165,59 @@ final class MacWorkspaceToolbarTests: XCTestCase {
         XCTAssertFalse(view.clipsToBounds)
     }
 
+    func testReadOnlyFollowsTheNameAndExplainsWhenClicked() async throws {
+        for readOnly in [false, true] {
+            let (toolbar, window) = try await makeToolbar(readOnly: readOnly)
+            defer { window.close() }
+            await Task { @MainActor in }.value
+            let button = toolbar.titleView.readOnlyButton
+            XCTAssertEqual(button.isHidden, !readOnly)
+            XCTAssertEqual(button.accessibilityIdentifier(), "toolbar.title.read-only")
+            XCTAssertEqual(button.title, localized("Read-only"))
+            XCTAssertTrue(button.target === toolbar)
+            XCTAssertEqual(button.action, NSSelectorFromString("explainReadOnly:"),
+                           "The glasses item's explanation, no new path")
+            XCTAssertEqual(toolbar.items[MacWorkspaceToolbar.Item.readOnly]?.view.flatMap { ($0 as? NSButton)?.action },
+                           button.action)
+        }
+    }
+
+    func testReadOnlyKeepsThePairCentredAndTruncatesTheNameFirst() async throws {
+        let (toolbar, window) = try await makeToolbar(readOnly: true)
+        defer { window.close() }
+        await Task { @MainActor in }.value
+        let splitView = try XCTUnwrap(window.contentView as? NSSplitView)
+        let detail = splitView.arrangedSubviews[2]
+        let view = toolbar.titleView
+        let host = NSView(frame: NSRect(x: 0, y: 0, width: 1080, height: 700))
+        host.addSubview(view)
+        view.translatesAutoresizingMaskIntoConstraints = true
+        view.frame = NSRect(x: 520, y: 650, width: 480, height: 28)
+        host.addSubview(detail)
+        window.contentView = host
+
+        detail.frame = NSRect(x: 500, y: 0, width: 580, height: 650)
+        view.layout()
+        let column = detail.convert(detail.bounds, to: nil)
+        var title = view.convert(view.titleField.frame, to: nil)
+        var pill = view.convert(view.readOnlyButton.frame, to: nil)
+        XCTAssertGreaterThan(pill.minX, title.minX)
+        XCTAssertEqual((title.minX + 8 + pill.maxX) / 2, column.midX, accuracy: 1, "The name and Read-Only centre together")
+        XCTAssertGreaterThan(view.titleField.frame.width, ceil(view.titleField.intrinsicContentSize.width))
+
+        view.titleField.stringValue = String(repeating: "Household Finances ", count: 6)
+        detail.frame = NSRect(x: 600, y: 0, width: 300, height: 650)
+        view.layout()
+        let narrow = detail.convert(detail.bounds, to: nil)
+        title = view.convert(view.titleField.frame, to: nil)
+        pill = view.convert(view.readOnlyButton.frame, to: nil)
+        XCTAssertLessThan(view.titleField.frame.width, view.titleField.intrinsicContentSize.width, "The name truncates")
+        XCTAssertEqual(view.readOnlyButton.frame.width, ceil(view.readOnlyButton.intrinsicContentSize.width),
+                       "Read-Only never truncates")
+        XCTAssertGreaterThanOrEqual(title.minX, narrow.minX)
+        XCTAssertLessThanOrEqual(pill.maxX, narrow.maxX)
+    }
+
     func testNewEntryIsOneButtonThatCreatesAnEntry() async throws {
         let (toolbar, window) = try await makeToolbar()
         defer { window.close() }

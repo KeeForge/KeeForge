@@ -279,11 +279,16 @@ final class MacDatabasesLauncherViewModel {
     /// until the window has saved or closed: nothing unsaved is discarded unasked.
     /// False shows the refusal instead of the confirmation.
     func requestRemoval(_ reference: DatabaseReference) -> Bool {
-        guard !hasUnsavedWork(reference.id) else {
+        guard canRemove(reference) else {
             refusedRemoval = reference
             return false
         }
         return true
+    }
+
+    /// False while that database's window has unsaved work or a write in flight.
+    func canRemove(_ reference: DatabaseReference) -> Bool {
+        hasUnsavedWork(reference.id) == false
     }
 
     /// The confirmation, or the refusal while that database has unsaved work.

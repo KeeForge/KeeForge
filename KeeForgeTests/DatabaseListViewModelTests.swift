@@ -445,9 +445,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         reference.lastOpenedAt = Date().addingTimeInterval(-3_600)
         DatabaseListStore.update(reference)
 
-        let viewModel = DatabaseListViewModel()
-
-        XCTAssertNotNil(viewModel.lastOpenedDescription(for: reference))
+        XCTAssertNotNil(DatabaseListViewModel.lastOpenedDescription(for: reference))
     }
 
     func testLastOpenedDescriptionHidesWhenUsageStatsAreDisabled() throws {
@@ -456,9 +454,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         DatabaseListStore.update(reference)
         SettingsService.showDatabaseUsageStats = false
 
-        let viewModel = DatabaseListViewModel()
-
-        XCTAssertNil(viewModel.lastOpenedDescription(for: reference))
+        XCTAssertNil(DatabaseListViewModel.lastOpenedDescription(for: reference))
     }
 
     // MARK: - AutoFill enablement tip

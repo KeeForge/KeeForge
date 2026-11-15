@@ -89,13 +89,17 @@ final class DatabaseWindowControllerTests: XCTestCase {
         let windowB = try XCTUnwrap(b.window)
         let rootA = windowA.contentViewController
         let rootB = windowB.contentViewController
+        XCTAssertFalse(a.unlockForm === b.unlockForm, "Each locked window has its own form")
+        b.unlockForm.password = "typed in B"
 
         await first.unlock(password: "testpassword123")
         await settle()
+        XCTAssertEqual(b.unlockForm.password, "typed in B", "Unlocking A leaves B's form alone")
+        b.unlockForm.password = ""
         XCTAssertTrue(a.workspaceSplitViewController?.session === first)
         XCTAssertTrue(windowA.toolbar === a.workspaceToolbar?.toolbar)
         XCTAssertNil(b.workspaceSplitViewController)
-        XCTAssertNotEqual(windowB.toolbar?.identifier, MacWorkspaceToolbar.identifier)
+        XCTAssertNil(windowB.toolbar)
         XCTAssertEqual(windowA.titleVisibility, .hidden, "The list header carries the title")
         XCTAssertEqual(windowB.titleVisibility, .visible, "The unlock screen keeps its title")
         XCTAssertTrue(a.validateMenuItem(item("newEntry:")))
@@ -147,7 +151,7 @@ final class DatabaseWindowControllerTests: XCTestCase {
         second.lockRequest(force: true)
     }
 
-    func testTheUnlockScreenKeepsTheSafeAreaAndTheBridgedToolbarAcrossAnUnlock() async throws {
+    func testALockedWindowHasNoToolbarAndKeepsItsLayoutAcrossAnUnlock() async throws {
         let session = try makeSession()
         let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
             enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false))
@@ -157,7 +161,8 @@ final class DatabaseWindowControllerTests: XCTestCase {
         let lockedInsets = root.view.safeAreaInsets
         let lockedFrame = root.view.frame
         XCTAssertGreaterThan(lockedInsets.top, 0, "The unlock screen lays out below the titlebar")
-        XCTAssertNotEqual(window.toolbar?.identifier, MacWorkspaceToolbar.identifier)
+        XCTAssertNil(window.toolbar, "Traffic lights and the database name only")
+        XCTAssertEqual(window.titleVisibility, .visible)
 
         await session.unlock(password: "testpassword123")
         await settle()
@@ -168,7 +173,58 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertTrue(window.contentViewController === root)
         XCTAssertEqual(root.view.safeAreaInsets.top, lockedInsets.top, "Locking restores the unlock screen's layout")
         XCTAssertEqual(root.view.frame, lockedFrame)
-        XCTAssertNotEqual(window.toolbar?.identifier, MacWorkspaceToolbar.identifier, "The root's bridged toolbar returns")
+        XCTAssertNil(window.toolbar, "No toolbar returns on lock")
+        XCTAssertEqual(window.titleVisibility, .visible)
+    }
+
+    func testTheFormSurvivesAWrongAttemptAndIsClearedOnUnlockLockAndClose() async throws {
+        let session = try makeSession()
+        let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false))
+        let form = controller.unlockForm
+        XCTAssertTrue(form === controller.unlockForm, "One form for the window's life")
+        let keyFile = FileManager.default.temporaryDirectory.appendingPathComponent("window-\(UUID().uuidString).keyx")
+        try Data(repeating: 7, count: 64).write(to: keyFile)
+        addTeardownBlock { try? FileManager.default.removeItem(at: keyFile) }
+
+        await form.useKeyFile(at: keyFile)
+        form.password = "wrong password"
+        await form.submit()
+        await settle()
+        if case .error = session.state {} else { XCTFail("Expected an unlock error, got \(session.state)") }
+        XCTAssertEqual(form.keyLine, .picked(keyFile.lastPathComponent), "The picked key file survives a wrong attempt")
+        XCTAssertTrue(form.showsFieldError)
+        XCTAssertEqual(form.password, "")
+
+        form.password = "typed"
+        await session.unlock(password: "testpassword123")
+        await settle()
+        XCTAssertEqual(session.state, .unlocked)
+        XCTAssertEqual(form.password, "", "Unlocking clears the form")
+        XCTAssertEqual(form.keyLine, .none)
+        XCTAssertFalse(form.showsFieldError)
+
+        session.lockRequest(force: true)
+        await settle()
+        await form.useKeyFile(at: keyFile)
+        form.password = "typed"
+        session.lock(manuallyTriggered: true)
+        await settle()
+        XCTAssertEqual(form.password, "", "Every lock clears the form")
+        XCTAssertEqual(form.keyLine, .none)
+
+        await form.useKeyFile(at: keyFile)
+        form.password = "typed"
+        controller.invalidate()
+        XCTAssertEqual(form.password, "", "Closing the window clears the form")
+        XCTAssertEqual(form.keyLine, .none)
+    }
+
+    func testTheOpenPanelsAreSheetsOnThisWindow() throws {
+        let panel = MacUnlockFilePanel { _, _ in nil }
+        let controller = try load(DatabaseWindowController(session: try makeSession(), windowRegistry: registry(),
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false, unlockFilePanel: panel))
+        XCTAssertTrue(panel.window === controller.window)
     }
 
     func testCommandsActOnlyWhileTheControllerIsTheCommandTarget() async throws {

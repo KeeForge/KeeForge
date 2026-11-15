@@ -24,7 +24,6 @@ final class ViewRenderTests: XCTestCase {
     // MARK: Database list rows
 
     func testDatabaseListRows() throws {
-        let listViewModel = DatabaseListViewModel()
         let states: [(String, DatabaseReference, DatabaseRowStatus)] = [
             ("Local, opened 3 days ago", reference("Personal", lastOpenedAt: .now.addingTimeInterval(-3 * 86_400)), status()),
             ("Local, never opened", reference("Archive"), status()),
@@ -48,7 +47,7 @@ final class ViewRenderTests: XCTestCase {
                 DatabaseListRow(
                     reference: reference,
                     status: status,
-                    lastOpenedDescription: listViewModel.lastOpenedDescription(for: reference, showsUsageStats: showsUsageStats),
+                    lastOpenedDescription: DatabaseListViewModel.lastOpenedDescription(for: reference, showsUsageStats: showsUsageStats),
                     showsUsageStats: showsUsageStats
                 )
             }

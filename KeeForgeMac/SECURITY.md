@@ -17,6 +17,15 @@ fields and decrypted when needed for signing. Lock clears only the owning
 session's key, composite key, parsed tree, draft, attachment pool, and retained
 key-file data from the [database session](../KeeForge/ViewModels/DatabaseViewModel.swift).
 
+While a database window shows its unlock form, the
+[form](../KeeForge/ViewModels/MacUnlockFormModel.swift) clears the typed master
+password before each attempt runs, but keeps a chosen key file's bytes across
+failed attempts so the user need not pick it again. Unlocking, Clear, a new pick,
+every lock of that session (including Cancel while opening) and closing the
+window wipe them with `SecureWipe`. The shown password field never copies, cuts,
+drags or serves its text to Services, and neither field offers completion or a
+content type that Passwords would fill.
+
 Biometric unlock stores composite keys in the Keychain, not raw master passwords.
 [KeychainService](../KeeForge/Services/Security/KeychainService.swift) uses the
 Data Protection Keychain with `WhenUnlockedThisDeviceOnly` and
@@ -105,9 +114,11 @@ the unsaved draft as it was answered for to end with the process; work added to
 that window while a later prompt is up stops the quit. Removing a database from
 the list also removes its split geometry and its entry in the record.
 
-The Databases window refuses to remove a database whose session has unsaved work
-(a dirty draft, an editor holding fields, or a write in flight) and says to save
-or close its window first, because removal retires the session unconditionally.
+The Databases window, or that database's own locked window on its recovery
+page, refuses to remove a database whose session has unsaved work (a dirty
+draft, an editor holding fields, or a write in flight) and says to save or close
+its window first, because removal retires the session unconditionally. Both ask
+before removing and run the same cleanup.
 A reference that vanishes outside the app still force-retires its session.
 
 [DatabaseListStore](../KeeForge/Services/Persistence/DatabaseListStore.swift)
@@ -203,7 +214,9 @@ including a master-key or encryption-settings change on a clean database, then a
 again; if a key or settings change failed, the window stays with its error. A
 committed close locks exactly that session, regardless of other open
 windows; an opening or unlock still in flight is superseded, so its late result
-cannot open the database. The committed close then retires that session from the
+cannot open the database. Cancel on the opening page supersedes the attempt the
+same way, as a manual lock: the key check finishes in the background and its
+result is dropped, and no automatic prompt follows until the next activation. The committed close then retires that session from the
 store and releases the window's controller. The app stays running with zero
 windows; the Databases window reopens a database in a new, locked window.
 
@@ -243,8 +256,9 @@ stays the active app. Those events, rather than scene phase or a new lock cycle,
 drive this flow. It needs Touch ID itself; an Apple Watch alone never prompts on
 its own, matching the setting, which appears only with Touch ID.
 Automatic attempts share one prompt gate across windows. The queued attempt
-rechecks the registered key window's session, visibility, attached sheets,
-restoration suppression, eligibility, and lock cycle;
+rechecks the registered key window's session, visibility, attached sheets (the
+locked window's open panels, Remove from List alert and Send Feedback are
+sheets), restoration suppression, eligibility, and lock cycle;
 a screen-lock, sleep, or other lock arriving first invalidates it. A manual lock
 stays locked until a later activation or an explicit unlock. Each lock cycle has
 at most one presented automatic prompt, so cancellation or password fallback does

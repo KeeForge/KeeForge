@@ -148,6 +148,7 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         items[Item.readOnly]?.isHidden = state.isReadOnly == false
         items[Item.add]?.isHidden = state.isReadOnly
         titleView.titleField.stringValue = state.databaseName
+        titleView.readOnlyButton.isHidden = state.isReadOnly == false
         titleView.needsLayout = true
         let placeholder = Self.searchPlaceholder(databaseName: state.databaseName)
         if searchItem.searchField.placeholderString != placeholder {
@@ -235,6 +236,8 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         searchItem.label = String(localized: "Search")
         let detailPane = splitView.arrangedSubviews.count > 2 ? splitView.arrangedSubviews[2] : nil
         titleView.centerReference = detailPane
+        titleView.readOnlyButton.target = self
+        titleView.readOnlyButton.action = #selector(explainReadOnly(_:))
         detailPane?.postsFrameChangedNotifications = true
         if let detailPane {
             detailFrameObserver = NotificationCenter.default.addObserver(
@@ -297,22 +300,46 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
     }
 }
 
-/// The database's name in the toolbar, between flexible spaces. The status
-/// items pull that centre off the detail column's, so the name is drawn
-/// at the column's centre instead (Main and SidebarHidden boards), past the
-/// small view's bounds, which do not clip.
+/// The database's name in the toolbar, between flexible spaces, followed by
+/// Read-Only in a read-only database (ReadOnly board). The status items pull
+/// that centre off the detail column's, so the pair is drawn at the column's
+/// centre instead (Main and SidebarHidden boards), past the small view's
+/// bounds, which do not clip. A narrow column truncates the name first.
 final class MacToolbarTitleView: NSView {
+    static let readOnlyIdentifier = "toolbar.title.read-only"
+    private static let gap: CGFloat = 8
+    private static let margin: CGFloat = 12
+
     let titleField = NSTextField(labelWithString: "")
+    let readOnlyButton: NSButton
     weak var centerReference: NSView?
 
     init() {
+        let label = String(localized: "Read-only")
+        readOnlyButton = NSButton(title: label, image: NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)
+            ?? NSImage(), target: nil, action: nil)
         super.init(frame: NSRect(x: 0, y: 0, width: 40, height: 28))
         clipsToBounds = false
         titleField.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
         titleField.textColor = .secondaryLabelColor
         titleField.alignment = .center
+        titleField.lineBreakMode = .byTruncatingTail
+        titleField.cell?.truncatesLastVisibleLine = true
         titleField.setAccessibilityIdentifier(MacWorkspaceToolbar.Item.title.rawValue)
         addSubview(titleField)
+        readOnlyButton.isBordered = false
+        readOnlyButton.imagePosition = .imageLeading
+        readOnlyButton.imageHugsTitle = true
+        readOnlyButton.font = .systemFont(ofSize: 12, weight: .semibold)
+        readOnlyButton.contentTintColor = NSColor(Theme.State.warning)
+        readOnlyButton.attributedTitle = NSAttributedString(string: label, attributes: [
+            .foregroundColor: NSColor(Theme.State.warning),
+            .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+        ])
+        readOnlyButton.toolTip = String(localized: "Read-only database")
+        readOnlyButton.setAccessibilityIdentifier(Self.readOnlyIdentifier)
+        readOnlyButton.isHidden = true
+        addSubview(readOnlyButton)
         NSLayoutConstraint.activate([
             widthAnchor.constraint(equalToConstant: 40),
             heightAnchor.constraint(equalToConstant: 28),
@@ -336,13 +363,19 @@ final class MacToolbarTitleView: NSView {
     override func layout() {
         super.layout()
         let size = titleField.intrinsicContentSize
-        // In the toolbar the measured width clipped the last glyph; centred slack keeps it.
-        let width = ceil(size.width) + 16
+        let pill = readOnlyButton.isHidden ? .zero : readOnlyButton.intrinsicContentSize
+        let pillWidth = readOnlyButton.isHidden ? 0 : ceil(pill.width) + Self.gap
         var midX = bounds.midX
+        var available = CGFloat.greatestFiniteMagnitude
         if let reference = centerReference, reference.window != nil, reference.window === window {
             midX = convert(NSPoint(x: reference.bounds.midX, y: 0), from: reference).x
+            available = reference.bounds.width - 2 * Self.margin
         }
-        titleField.frame = NSRect(x: midX - width / 2, y: (bounds.height - size.height) / 2,
-                                  width: width, height: size.height)
+        // In the toolbar the measured width clipped the last glyph; centred slack keeps it.
+        let titleWidth = max(min(ceil(size.width) + 16, available - pillWidth), 0)
+        let start = midX - (titleWidth + pillWidth) / 2
+        titleField.frame = NSRect(x: start, y: (bounds.height - size.height) / 2, width: titleWidth, height: size.height)
+        readOnlyButton.frame = NSRect(x: start + titleWidth + Self.gap - 8, y: (bounds.height - pill.height) / 2,
+                                      width: ceil(pill.width), height: pill.height)
     }
 }

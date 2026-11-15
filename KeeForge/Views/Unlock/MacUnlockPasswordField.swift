@@ -16,27 +16,37 @@ import SwiftUI
 /// Owning the `NSTextField` lets the unlock screen submit on Return and back
 /// out to the database list on Escape from within the focused field.
 ///
-/// Initial focus and the field-editor routing are covered by
-/// `MacUnlockPasswordFieldTests`.
+/// The field draws no bezel: the unlock page's capsule around it draws the
+/// border, the focus ring and the wrong-attempt ring. It offers no completion,
+/// and the shown variant never puts the password on a pasteboard.
+///
+/// Initial focus, the field-editor routing and the pasteboard rules are
+/// covered by `MacUnlockPasswordFieldTests`.
 struct MacUnlockPasswordField: NSViewRepresentable {
     @Binding var text: String
     var isSecure: Bool
     var placeholder: String
     var accessibilityIdentifier: String
     var focusOnAppear: Bool
+    /// Each increase asks for focus once; mounting with any value asks nothing.
+    var focusRequest = 0
+    var onFocusChange: (Bool) -> Void = { _ in }
     var onSubmit: () -> Void
     var onEscape: () -> Void
 
     func makeNSView(context: Context) -> NSTextField {
-        let initialFocus = context.coordinator.initialFocus
+        let coordinator = context.coordinator
+        let initialFocus = coordinator.initialFocus
         let field: NSTextField
         if isSecure {
             let secureField = MacUnlockSecureTextField()
             secureField.onMoveToWindow = { initialFocus.fieldDidMoveToWindow($0) }
+            secureField.onFocusChange = { [weak coordinator] in coordinator?.parent.onFocusChange($0) }
             field = secureField
         } else {
             let plainField = MacUnlockPlainTextField()
             plainField.onMoveToWindow = { initialFocus.fieldDidMoveToWindow($0) }
+            plainField.onFocusChange = { [weak coordinator] in coordinator?.parent.onFocusChange($0) }
             field = plainField
         }
         configure(field, context: context)
@@ -44,9 +54,20 @@ struct MacUnlockPasswordField: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSTextField, context: Context) {
-        context.coordinator.parent = self
+        let coordinator = context.coordinator
+        coordinator.parent = self
         if nsView.stringValue != text {
             nsView.stringValue = text
+        }
+        if focusRequest != coordinator.focusRequest {
+            coordinator.focusRequest = focusRequest
+            // After this update, so the request never moves focus mid-update.
+            DispatchQueue.main.async { [weak nsView] in
+                MainActor.assumeIsolated {
+                    guard let nsView, let window = nsView.window, MacInitialFocus.hasFocus(nsView) == false else { return }
+                    window.makeFirstResponder(nsView)
+                }
+            }
         }
     }
 
@@ -54,19 +75,18 @@ struct MacUnlockPasswordField: NSViewRepresentable {
         field.delegate = context.coordinator
         field.placeholderString = placeholder
         field.stringValue = text
-        // A bordered field with a focus ring is what reads as editable on
-        // macOS; borderless inside a capsule reads as a disabled control.
-        field.isBordered = true
-        field.bezelStyle = .roundedBezel
-        field.drawsBackground = true
-        field.focusRingType = .default
-        field.controlSize = .large
-        field.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        field.isBordered = false
+        field.isBezeled = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.font = .systemFont(ofSize: 13)
         field.usesSingleLineMode = true
         field.lineBreakMode = .byClipping
+        field.isAutomaticTextCompletionEnabled = false
         field.cell?.usesSingleLineMode = true
         field.cell?.isScrollable = true
         field.cell?.wraps = false
+        field.setAccessibilityLabel(placeholder)
         field.setAccessibilityIdentifier(accessibilityIdentifier)
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -81,8 +101,11 @@ struct MacUnlockPasswordField: NSViewRepresentable {
         var parent: MacUnlockPasswordField
         let initialFocus: MacInitialFocus
 
+        var focusRequest: Int
+
         init(_ parent: MacUnlockPasswordField) {
             self.parent = parent
+            focusRequest = parent.focusRequest
             initialFocus = MacInitialFocus(isEnabled: parent.focusOnAppear)
         }
 
@@ -169,19 +192,89 @@ final class MacInitialFocus {
 
 final class MacUnlockSecureTextField: NSSecureTextField {
     var onMoveToWindow: ((NSTextField) -> Void)?
+    var onFocusChange: ((Bool) -> Void)?
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         onMoveToWindow?(self)
     }
+
+    override func becomeFirstResponder() -> Bool {
+        let didBecome = super.becomeFirstResponder()
+        if didBecome { onFocusChange?(true) }
+        return didBecome
+    }
+
+    override func textDidEndEditing(_ notification: Notification) {
+        super.textDidEndEditing(notification)
+        onFocusChange?(false)
+    }
 }
 
+/// The shown master password: its field editor never copies, cuts, drags or
+/// serves the text, so it cannot reach a pasteboard outside the clipboard rules.
 final class MacUnlockPlainTextField: NSTextField {
     var onMoveToWindow: ((NSTextField) -> Void)?
+    var onFocusChange: ((Bool) -> Void)?
+
+    override class var cellClass: AnyClass? {
+        get { MacUnlockPlainTextFieldCell.self }
+        set {}
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         onMoveToWindow?(self)
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let didBecome = super.becomeFirstResponder()
+        if didBecome { onFocusChange?(true) }
+        return didBecome
+    }
+
+    override func textDidEndEditing(_ notification: Notification) {
+        super.textDidEndEditing(notification)
+        onFocusChange?(false)
+    }
+}
+
+final class MacUnlockPlainTextFieldCell: NSTextFieldCell {
+    private lazy var editor: MacUnlockPasswordFieldEditor = {
+        let editor = MacUnlockPasswordFieldEditor()
+        editor.isFieldEditor = true
+        return editor
+    }()
+
+    override func fieldEditor(for controlView: NSView) -> NSTextView? {
+        editor
+    }
+}
+
+final class MacUnlockPasswordFieldEditor: NSTextView {
+    private static let refusedActions: Set<Selector> = [#selector(copy(_:)), #selector(cut(_:))]
+
+    override func copy(_ sender: Any?) {}
+    override func cut(_ sender: Any?) {}
+
+    override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
+        if let action = item.action, Self.refusedActions.contains(action) { return false }
+        return super.validateUserInterfaceItem(item)
+    }
+
+    override func writeSelection(to pboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> Bool {
+        false
+    }
+
+    override func dragSelection(with event: NSEvent, offset mouseOffset: NSSize, slideBack: Bool) -> Bool {
+        false
+    }
+
+    override func validRequestor(
+        forSendType sendType: NSPasteboard.PasteboardType?,
+        returnType: NSPasteboard.PasteboardType?
+    ) -> Any? {
+        sendType == nil ? super.validRequestor(forSendType: sendType, returnType: returnType) : nil
     }
 }
 #endif

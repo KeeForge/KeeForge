@@ -41,6 +41,21 @@ final class MacWindowCoordinatorTests: XCTestCase {
         }
     }
 
+    /// Answers Remove from List alerts in order; no answer cancels.
+    @MainActor
+    private final class RemovalScript {
+        var answers: [Bool] = []
+        var asked: [(kind: MacRemoveFromListAlert.Kind, databaseID: UUID, window: NSWindow)] = []
+        /// Runs while the alert is up, before it answers.
+        var whileAsking: (() -> Void)?
+        func present(_ kind: MacRemoveFromListAlert.Kind, _ reference: DatabaseReference, _ window: NSWindow,
+                     _ completion: @MainActor (Bool) -> Void) {
+            asked.append((kind, reference.id, window))
+            whileAsking?()
+            completion(answers.isEmpty ? false : answers.removeFirst())
+        }
+    }
+
     private static let screen = CGRect(x: 0, y: 0, width: 2560, height: 1440)
 
     private var presenter: Presenter!
@@ -58,6 +73,7 @@ final class MacWindowCoordinatorTests: XCTestCase {
     private var restorationDefaults: UserDefaults!
     private var restoration: MacWindowRestorationStore!
     private var prompts: PromptScript!
+    private var removals: RemovalScript!
 
     override func setUp() async throws {
         try await super.setUp()
@@ -78,11 +94,14 @@ final class MacWindowCoordinatorTests: XCTestCase {
         registry = MacDatabaseWindowRegistry(sessionStore: store)
         quickAccess = MacQuickAccessController(presenter: QuickSearchPresenterStub(), hotKey: HotKeyStub())
         let focus = self.focus!
+        removals = RemovalScript()
+        let removals = self.removals!
         coordinator = MacWindowCoordinator(listViewModel: list, sessionStore: store, registry: registry,
             quickAccess: quickAccess, presenter: presenter,
             keyWindow: { focus.key }, mainWindow: { focus.main },
             prepareWindow: { [weak self] in self?.prepared.append($0) },
-            persistsLayout: false, notificationCenter: center, deferredPresentationDelay: .zero)
+            persistsLayout: false, removalPrompt: { removals.present($0, $1, $2, $3) },
+            notificationCenter: center, deferredPresentationDelay: .zero)
         restorationSuite = "MacWindowCoordinatorTests.\(UUID())"
         restorationDefaults = try XCTUnwrap(UserDefaults(suiteName: restorationSuite))
         restoration = MacWindowRestorationStore(defaults: restorationDefaults)
@@ -265,6 +284,57 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.launcher.refusedRemoval)
         XCTAssertNil(coordinator.databaseWindows[references[1].id], "A clean database is removed with its window")
         XCTAssertFalse(list.databases.contains { $0.id == references[1].id })
+    }
+
+    /// A locked window's recovery page removes through the Databases window's rule and cleanup.
+    func testRemoveFromListOnALockedWindowAsksInThatWindowThenRemovesItAndClosesTheWindow() async throws {
+        start()
+        coordinator.open(references[0])
+        coordinator.open(references[1])
+        let locked = try XCTUnwrap(coordinator.databaseWindows[references[0].id])
+        let other = try XCTUnwrap(coordinator.databaseWindows[references[1].id])
+        let window = try XCTUnwrap(locked.window)
+        let removeFromList = try XCTUnwrap(locked.onRemoveFromList)
+
+        removeFromList()
+        XCTAssertEqual(removals.asked.map(\.kind), [.confirm])
+        XCTAssertTrue(removals.asked.first?.window === window, "Asked in the locked window, not the Databases window")
+        XCTAssertTrue(coordinator.databaseWindows[references[0].id] === locked, "Cancel keeps it")
+        XCTAssertTrue(list.databases.contains { $0.id == references[0].id })
+
+        removals.answers = [true]
+        removeFromList()
+        await Task { @MainActor in }.value
+        await Task { @MainActor in }.value
+        XCTAssertFalse(list.databases.contains { $0.id == references[0].id })
+        XCTAssertNil(store.session(for: references[0].id), "Removal retires the session")
+        XCTAssertNil(coordinator.databaseWindows[references[0].id], "and closes its window")
+        XCTAssertTrue(coordinator.databaseWindows[references[1].id] === other)
+        XCTAssertTrue(presenter.shown.last === coordinator.databasesWindow, "The Databases window comes forward")
+        XCTAssertNil(coordinator.launcher.refusedRemoval)
+    }
+
+    func testRemoveFromListIsRefusedInTheWindowWhileItHoldsUnsavedWork() async throws {
+        start()
+        coordinator.open(references[0])
+        let controller = try XCTUnwrap(coordinator.databaseWindows[references[0].id])
+        let window = try XCTUnwrap(controller.window)
+        await controller.session.unlock(password: "testpassword123")
+
+        removals.answers = [true]
+        removals.whileAsking = { [weak self] in try? self?.makeDirty(controller.session, title: "Gained meanwhile") }
+        coordinator.removeFromList(databaseID: references[0].id)
+        XCTAssertEqual(removals.asked.map(\.kind), [.confirm, .refused], "Checked again once confirmed")
+
+        removals.whileAsking = nil
+        coordinator.removeFromList(databaseID: references[0].id)
+        XCTAssertEqual(removals.asked.map(\.kind), [.confirm, .refused, .refused], "Refused before asking")
+        XCTAssertTrue(removals.asked.allSatisfy { $0.window === window })
+        XCTAssertNil(coordinator.launcher.refusedRemoval, "The Databases window shows nothing")
+        XCTAssertTrue(coordinator.databaseWindows[references[0].id] === controller)
+        XCTAssertTrue(store.session(for: references[0].id) === controller.session)
+        XCTAssertTrue(controller.session.isDirty)
+        XCTAssertTrue(list.databases.contains { $0.id == references[0].id })
     }
 
     /// Lock All goes through each window's own lock: unsaved work defers to that window's prompt.

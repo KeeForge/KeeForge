@@ -1,13 +1,22 @@
 import SwiftUI
 
+/// What the locked pages ask their window for.
+struct MacLockedWindowActions {
+    /// Escape on the unlock form: closes the window and shows the Databases window.
+    var close: @MainActor () -> Void = {}
+    var reconnect: @MainActor () -> Void = {}
+    var removeFromList: @MainActor () -> Void = {}
+}
+
 /// The stable root of one database window: that session's unlock, opening,
-/// error and unlocked content, its automatic unlock, and enrollment sheets
+/// recovery and unlocked content, its automatic unlock, and enrollment sheets
 /// bound to this database. Mounted for the controller's whole life, so a
 /// lock or unlock never drops a sheet.
 struct MacDatabaseRootView: View {
     @Bindable var session: DatabaseViewModel
     let enrollment: TOTPEnrollmentCoordinator
-    let onClose: () -> Void
+    let unlockForm: MacUnlockFormModel
+    let actions: MacLockedWindowActions
     @Environment(MacWorkspacePresentation.self) private var presentation
 
     var body: some View {
@@ -20,16 +29,29 @@ struct MacDatabaseRootView: View {
     }
 
     @ViewBuilder private var content: some View {
-        switch session.state {
-        case .locked, .error:
-            UnlockView(viewModel: session, onBackToDatabaseList: onClose, showsChooseDifferentFileAction: false)
+        if let page = MacDatabaseOpenPage.make(for: session) {
+            lockedPage(page)
                 .transition(.opacity)
-        case .unlocking:
-            DatabaseOpeningView(viewModel: session, onCancel: hardwareKeyCancelAction(for: session))
-                .transition(.opacity)
-        case .unlocked:
+        } else {
             MacDatabaseWorkspaceView(viewModel: session, presentation: presentation)
                 .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder private func lockedPage(_ page: MacDatabaseOpenPage) -> some View {
+        let summary = MacLockedDatabaseSummary(reference: session.databaseReference,
+            lastOpened: DatabaseListViewModel.lastOpenedDescription(for: session.databaseReference))
+        switch page {
+        case .form(let card, let footer):
+            MacUnlockView(session: session, form: unlockForm, summary: summary, card: card, footer: footer,
+                          onClose: actions.close)
+        case .opening(let opening):
+            MacDatabaseOpeningView(summary: summary, opening: opening, onCancel: { _ = session.cancelUnlockAttempt() })
+        case .recovery(let recovery):
+            MacDatabaseRecoveryView(session: session, form: unlockForm, page: recovery,
+                                    onReconnect: actions.reconnect, onRemoveFromList: actions.removeFromList)
+        case .unavailable:
+            MacDatabaseUnavailableView(summary: summary)
         }
     }
 }

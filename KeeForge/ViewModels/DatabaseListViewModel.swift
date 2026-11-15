@@ -196,7 +196,7 @@ final class DatabaseListViewModel {
         status(for: reference).pendingUploadConflictCount > 0
     }
 
-    func lastOpenedDescription(
+    static func lastOpenedDescription(
         for reference: DatabaseReference,
         showsUsageStats: Bool = SettingsService.showDatabaseUsageStats
     ) -> String? {

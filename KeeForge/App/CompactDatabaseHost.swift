@@ -160,7 +160,6 @@ struct RegularDatabaseScene: View {
     }
 }
 
-#endif
 
 /// Offered by the opening screen only while a YubiKey challenge is outstanding.
 @MainActor
@@ -169,7 +168,6 @@ func hardwareKeyCancelAction(for viewModel: DatabaseViewModel) -> (() -> Void)? 
     return { viewModel.cancelHardwareKeyRequest() }
 }
 
-#if os(iOS)
 /// Runs the opt-in biometric auto-unlock at most once per lock cycle, and only
 /// while the scene is foreground-active. Platform exclusions live in
 /// `BiometricAutoUnlockPolicy`, folded into the view model's eligibility.

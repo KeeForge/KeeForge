@@ -1,4 +1,5 @@
 #if os(macOS)
+import AppKit
 import XCTest
 @testable import KeeForge
 
@@ -197,6 +198,33 @@ final class MacBiometricAutoUnlockTests: XCTestCase {
         await pending.value
         await second.requestAttempt().value
         XCTAssertEqual(attempts, 1)
+    }
+
+    /// An open panel, the Remove from List alert or Send Feedback is an attached sheet.
+    func testAnAttachedSheetOrAnyOtherBackgroundStateRefusesThePrompt() {
+        let foreground = MacBiometricAutoUnlockForeground(isAdmitted: true, isAppActive: true, isKeyWindow: true,
+            isVisible: true, isMiniaturized: false, hasAttachedSheet: false, isFrontmostProcess: true)
+        XCTAssertTrue(foreground.allowsPrompt)
+        let refusals: [WritableKeyPath<MacBiometricAutoUnlockForeground, Bool>: Bool] = [
+            \.hasAttachedSheet: true, \.isAdmitted: false, \.isAppActive: false, \.isKeyWindow: false,
+            \.isVisible: false, \.isMiniaturized: true, \.isFrontmostProcess: false,
+        ]
+        for (keyPath, value) in refusals {
+            var state = foreground
+            state[keyPath: keyPath] = value
+            XCTAssertFalse(state.allowsPrompt, "\(keyPath)")
+        }
+    }
+
+    func testTheWindowStateIsReadFromTheWindow() {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 200), styleMask: [.titled],
+                              backing: .buffered, defer: true)
+        window.isReleasedWhenClosed = false
+        let state = MacBiometricAutoUnlockForeground(window: window, isAdmitted: true, isAppActive: true,
+                                                      isFrontmostProcess: true)
+        XCTAssertFalse(state.isVisible)
+        XCTAssertFalse(state.hasAttachedSheet)
+        XCTAssertFalse(state.allowsPrompt, "A window never shown cannot prompt")
     }
 
     private func makeCenters() -> MacBiometricAutoUnlockController.NotificationCenters {

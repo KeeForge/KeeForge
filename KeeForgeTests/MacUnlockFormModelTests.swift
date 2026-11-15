@@ -9,6 +9,9 @@ final class MacUnlockFormModelTests: XCTestCase {
         canChooseDifferentFile: false)
     private let missingFile = DatabaseOpenFailure(title: "Database File Unavailable", summary: "Gone", technicalDetails: "",
         errorCode: "file.not_found", category: .fileAccess, countsTowardFailedAttempts: false, canChooseDifferentFile: true)
+    private let signInNeeded = DatabaseOpenFailure(title: "Reconnect Cloud Account", summary: "Sign in", technicalDetails: "",
+        errorCode: "cloud.not_authenticated", category: .cloud, countsTowardFailedAttempts: false,
+        canChooseDifferentFile: false)
 
     // MARK: - Layout and submit gate
 
@@ -360,6 +363,65 @@ final class MacUnlockFormModelTests: XCTestCase {
         model.tryAgain()
 
         XCTAssertEqual(session.dismissCount, 1)
+    }
+
+    // MARK: - Reconnect
+
+    func testReconnectSignsInThenReturnsToTheForm() async {
+        let (session, _, model) = makeModel()
+        session.state = .error(signInNeeded)
+        var signIns = 0
+
+        await model.reconnect { signIns += 1 }
+
+        XCTAssertEqual(signIns, 1)
+        XCTAssertEqual(session.dismissCount, 1)
+        XCTAssertFalse(model.isReconnecting)
+        XCTAssertNil(model.selectionAlert)
+    }
+
+    func testCancelledReconnectStaysOnTheRecoveryPage() async {
+        let (session, _, model) = makeModel()
+        session.state = .error(signInNeeded)
+
+        await model.reconnect { throw CloudProviderError.authenticationCancelled }
+
+        XCTAssertEqual(session.dismissCount, 0)
+        XCTAssertNil(model.selectionAlert)
+        XCTAssertFalse(model.isReconnecting)
+    }
+
+    func testFailedReconnectSaysWhyAndStays() async {
+        let (session, _, model) = makeModel()
+        session.state = .error(signInNeeded)
+
+        await model.reconnect { throw CloudProviderError.notAuthenticated }
+
+        XCTAssertEqual(session.dismissCount, 0)
+        XCTAssertEqual(model.selectionAlert?.title, String(localized: "Reconnect Cloud Account"))
+        XCTAssertEqual(model.selectionAlert?.message, CloudProviderError.notAuthenticated.localizedDescription)
+    }
+
+    func testReconnectOvertakenByClearingOrRunningTwiceChangesNothing() async {
+        let (session, _, model) = makeModel()
+        session.state = .error(signInNeeded)
+        let gate = Gate()
+        let first = Task { await model.reconnect { await gate.wait() } }
+        await gate.waitUntilWaiting()
+        XCTAssertTrue(model.isReconnecting)
+        var second = 0
+        await model.reconnect { second += 1 }
+        XCTAssertEqual(second, 0, "One sign-in at a time")
+
+        model.clearSecrets()
+        gate.open()
+        await first.value
+        XCTAssertEqual(session.dismissCount, 0, "A window closed or locked meanwhile is left alone")
+        XCTAssertFalse(model.isReconnecting)
+
+        session.state = .locked
+        await model.reconnect { second += 1 }
+        XCTAssertEqual(second, 0, "Only from a failure")
     }
 
     // MARK: - Helpers

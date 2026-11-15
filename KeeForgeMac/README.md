@@ -61,9 +61,26 @@ verification-code link belongs to when no database window was targeted.
 Each `DatabaseWindowController` owns its session for its whole life and never
 looks one up through `activeSession`. Its window (identifier
 `database.<UUID>`, no frame autosave, not restorable) hosts the
-always-mounted `MacDatabaseRootView`: that session's unlock, opening, error and
-unlocked content, its `MacBiometricAutoUnlockObserver`, and enrollment sheets
-bound to this database. The window title is the database name in every state.
+always-mounted `MacDatabaseRootView`: that session's locked page or unlocked
+content, its `MacBiometricAutoUnlockObserver`, and enrollment sheets bound to
+this database. The window title is the database name in every state.
+
+## Locked window
+
+A locked window has no toolbar, only its name in the titlebar.
+`MacDatabaseOpenPage` picks the page: the unlock form (with a card for a failure
+another attempt can fix, and why it locked after an inactivity lock), the
+opening steps with Cancel, a recovery page for a failure another password
+cannot fix, or an unavailable note for a reference with nothing to open. The
+form keeps its state in the window's `MacUnlockFormModel`, so a picked key file
+survives a wrong attempt; the controller clears it on unlock, on every lock and
+when the window closes. Key-file and Locate panels are `NSOpenPanel` sheets on
+the window (`MacUnlockFilePanel`). A recovery page's Remove from List goes
+through `MacWindowCoordinator.removeFromList(databaseID:)`: the Databases
+window's unsaved-work refusal and confirmation, as alerts in that window, then
+the same removal, which retires the session and closes the window. Reconnect
+on a server sign-in failure runs the status card's sign-in, then returns to the
+form.
 
 ## Workspace presentation
 
@@ -185,7 +202,7 @@ host's top safe area, so it runs under the titlebar, and each item keeps
 was first responder never shows again. The sidebar runs full height; the entries
 and detail columns take their top inset from their own safe area (the table's
 scroll view adjusts its content insets, the detail host passes it to SwiftUI).
-The unlock, opening and error screens keep the root's safe area.
+The locked pages keep the root's safe area.
 
 ## Commands and closing
 
@@ -233,10 +250,9 @@ that follow cannot shrink it.
 
 `MacWindowWorkspace` creates one `MacWorkspaceToolbar` per unlocked session,
 beside the split controller, and drops it on lock or replacement. When it
-exists, `DatabaseWindowController` turns the root host's `.toolbars` scene bridging
-off and installs it as the window toolbar; on lock it removes it and turns
-bridging back on for the unlock screen. One source owns the bar in each state.
-Column hosts never bridge.
+exists, `DatabaseWindowController` installs it as the window toolbar, and on
+lock it removes it. Neither the root host nor the column hosts bridge SwiftUI
+toolbars.
 
 Each item's identifier is also its view's accessibility identifier. Tracking
 separators on the split's two dividers put the search field and New Entry (the
@@ -244,7 +260,9 @@ read-only glasses instead in a read-only database) over the entry list; Edit is
 in the detail's header, not the toolbar. The window title is hidden while this toolbar is installed, as
 the list header shows it. The database's name is a plain (`isBordered` off) item
 between flexible spaces that draws the name at the detail column's centre
-(`MacToolbarTitleView`), whatever the status items take. The status card's line (plain text, `isBordered` off), Database Settings, Sync Now
+(`MacToolbarTitleView`), whatever the status items take. In a read-only database
+Read-Only follows the name (`toolbar.title.read-only`) and explains why, like the
+glasses; the pair stays centred and a narrow column truncates the name first. The status card's line (plain text, `isBordered` off), Database Settings, Sync Now
 and Lock join the trailing end of the detail only while the sidebar is collapsed. Each item has a
 menu form for the overflow menu. Enablement comes from `DatabaseCommands` and
 `MacDatabaseStatus`, and the whole bar is disabled while saving.

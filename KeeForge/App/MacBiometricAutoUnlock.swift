@@ -129,6 +129,32 @@ final class MacBiometricAutoUnlockController {
     }
 }
 
+/// Whether an automatic prompt may start over a database window now. Any
+/// attached sheet refuses: an open panel, an alert, or Send Feedback.
+struct MacBiometricAutoUnlockForeground: Equatable {
+    var isAdmitted: Bool
+    var isAppActive: Bool
+    var isKeyWindow: Bool
+    var isVisible: Bool
+    var isMiniaturized: Bool
+    var hasAttachedSheet: Bool
+    var isFrontmostProcess: Bool
+
+    var allowsPrompt: Bool {
+        isAdmitted && isAppActive && isKeyWindow && isVisible && !isMiniaturized && !hasAttachedSheet
+            && isFrontmostProcess
+    }
+}
+
+extension MacBiometricAutoUnlockForeground {
+    @MainActor
+    init(window: NSWindow, isAdmitted: Bool, isAppActive: Bool, isFrontmostProcess: Bool) {
+        self.init(isAdmitted: isAdmitted, isAppActive: isAppActive, isKeyWindow: window.isKeyWindow,
+                  isVisible: window.isVisible, isMiniaturized: window.isMiniaturized,
+                  hasAttachedSheet: window.attachedSheet != nil, isFrontmostProcess: isFrontmostProcess)
+    }
+}
+
 struct MacBiometricAutoUnlockObserver: NSViewRepresentable {
     let viewModel: DatabaseViewModel
     @Environment(MacDatabaseWindowRegistry.self) private var registry: MacDatabaseWindowRegistry?
@@ -150,12 +176,14 @@ struct MacBiometricAutoUnlockObserver: NSViewRepresentable {
             isEligible: { [weak self] in self?.viewModel.isEligibleForBiometricAutoUnlock == true },
             lockCycleID: { [weak self] in self?.viewModel.lockCycleID ?? -1 },
             isForeground: { [weak self] in
-                guard let self, let window = self.window,
-                      self.registry?.admitsAutomaticUnlock(for: self.viewModel, in: window) == true else { return false }
-                return NSApp.isActive && window.isKeyWindow && window.isVisible
-                    && !window.isMiniaturized && window.attachedSheet == nil
-                    && NSWorkspace.shared.frontmostApplication?.processIdentifier
+                guard let self, let window = self.window else { return false }
+                return MacBiometricAutoUnlockForeground(
+                    window: window,
+                    isAdmitted: self.registry?.admitsAutomaticUnlock(for: self.viewModel, in: window) == true,
+                    isAppActive: NSApp.isActive,
+                    isFrontmostProcess: NSWorkspace.shared.frontmostApplication?.processIdentifier
                         == ProcessInfo.processInfo.processIdentifier
+                ).allowsPrompt
             },
             unlock: { [weak self] in
                 guard let self else { return .failed }

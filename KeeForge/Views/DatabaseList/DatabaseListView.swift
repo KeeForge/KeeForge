@@ -343,7 +343,7 @@ struct DatabaseListView: View {
             DatabaseListRow(
                 reference: reference,
                 status: viewModel.status(for: reference),
-                lastOpenedDescription: viewModel.lastOpenedDescription(for: reference, showsUsageStats: showDatabaseUsageStats),
+                lastOpenedDescription: DatabaseListViewModel.lastOpenedDescription(for: reference, showsUsageStats: showDatabaseUsageStats),
                 showsUsageStats: showDatabaseUsageStats
             )
         }

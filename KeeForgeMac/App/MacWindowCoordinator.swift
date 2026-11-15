@@ -72,6 +72,7 @@ final class MacWindowCoordinator {
     @ObservationIgnored private let restoresWindows: Bool
     @ObservationIgnored private let screenFrames: @MainActor () -> [CGRect]
     @ObservationIgnored private let terminationPrompt: MacWindowCloseGuard.UnsavedWorkPrompt
+    @ObservationIgnored private let removalPrompt: MacRemoveFromListAlert.Present
     @ObservationIgnored private let databaseWindowContentSize: NSSize
     @ObservationIgnored private var restorationPlan: MacWindowRestorationStore.Plan?
     /// Off until the recorded windows are back, so launch never overwrites them.
@@ -102,6 +103,7 @@ final class MacWindowCoordinator {
         restoresWindows: Bool = true,
         screenFrames: @escaping @MainActor () -> [CGRect] = { NSScreen.screens.map(\.visibleFrame) },
         terminationPrompt: @escaping MacWindowCloseGuard.UnsavedWorkPrompt = MacWindowCloseGuard.presentUnsavedWorkAlert,
+        removalPrompt: @escaping MacRemoveFromListAlert.Present = MacRemoveFromListAlert.present,
         databaseWindowContentSize: NSSize = DatabaseWindow.defaultContentSize,
         notificationCenter: NotificationCenter = .default,
         deferredPresentationDelay: Duration = .milliseconds(450)
@@ -119,13 +121,14 @@ final class MacWindowCoordinator {
         self.restoresWindows = restoresWindows && restorationStore != nil
         self.screenFrames = screenFrames
         self.terminationPrompt = terminationPrompt
+        self.removalPrompt = removalPrompt
         self.databaseWindowContentSize = databaseWindowContentSize
         self.notificationCenter = notificationCenter
         self.deferredPresentationDelay = deferredPresentationDelay
         launcher = MacDatabasesLauncherViewModel(references: { listViewModel.databases })
         launcher.list = listViewModel
         launcher.status = { listViewModel.status(for: $0) }
-        launcher.lastOpenedDescription = { listViewModel.lastOpenedDescription(for: $0) }
+        launcher.lastOpenedDescription = { DatabaseListViewModel.lastOpenedDescription(for: $0) }
         launcher.hasWindow = { [weak self] in self?.databaseWindows[$0] != nil }
         launcher.isUnlocked = { [weak self] in self?.isUnlocked($0) ?? false }
         launcher.openDatabase = { [weak self] in self?.open($0) }
@@ -340,6 +343,7 @@ final class MacWindowCoordinator {
             self.showDatabasesWindow()
             controller.requestGuardedClose()
         }
+        controller.onRemoveFromList = { [weak self] in self?.removeFromList(databaseID: databaseID) }
         controller.onWillClose = { [weak self] in self?.windowWillClose($0) }
         let listViewModel = listViewModel
         controller.workspacePresentation.pendingUploads = MacPendingUploads(
@@ -368,6 +372,27 @@ final class MacWindowCoordinator {
         registry.register(window, databaseID: databaseID, isRestoring: restoredFrame != nil)
         startObservingSessions()
         present(controller)
+    }
+
+    /// Remove from List on a locked window's recovery page: the Databases
+    /// window's rule and cleanup, asked in that window. The removal retires the
+    /// session, which closes the window.
+    func removeFromList(databaseID: UUID) {
+        guard let controller = databaseWindows[databaseID], let window = controller.window,
+              let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return }
+        guard launcher.canRemove(reference) else {
+            removalPrompt(.refused, reference, window) { _ in }
+            return
+        }
+        removalPrompt(.confirm, reference, window) { [weak self, weak controller] confirmed in
+            guard confirmed, let self, let controller, self.databaseWindows[databaseID] === controller else { return }
+            guard self.launcher.canRemove(reference) else {
+                self.removalPrompt(.refused, reference, window) { _ in }
+                return
+            }
+            self.launcher.remove(reference)
+            self.showDatabasesWindow()
+        }
     }
 
     // MARK: - Closing
