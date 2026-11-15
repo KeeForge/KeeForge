@@ -15,6 +15,9 @@ final class CloudCreationLifetime: @unchecked Sendable {
 // Only a response to this invocation can confirm its fenced attempt.
 enum CloudFileCreationCoordinator {
     enum RecoveryError: Error { case unavailable, uncertain, registrationRejected, registrationUnconfirmed }
+    struct NotDispatched: Error {
+        let underlying: CloudProviderError
+    }
     struct UncertainCreation: LocalizedError {
         let underlying: any Error
         var errorDescription: String? { String(localized: "Cloud creation may have succeeded. Open Cloud Recovery to keep or recover the encrypted copy.") }
@@ -38,7 +41,7 @@ enum CloudFileCreationCoordinator {
         var queue: PendingUploadQueue.Environment = .live
         var createFile: @Sendable (String, String, String, Data) async throws -> CloudCreatedFile = { providerID, accountID, path, bytes in
             guard let provider = CloudProviderRegistry.provider(for: providerID), provider.isAuthenticated(accountId: accountID) else {
-                throw CloudProviderError.notAuthenticated
+                throw NotDispatched(underlying: .notAuthenticated)
             }
             return try await provider.createFile(accountId: accountID, path: path, data: bytes, progress: { _ in })
         }
@@ -69,6 +72,11 @@ enum CloudFileCreationCoordinator {
         try lifetime.claim()
         let response: CloudCreatedFile
         do { response = try await environment.createFile(provider, accountID, target, bytes) }
+        catch let proof as NotDispatched {
+            do { _ = try PendingUploadQueue.restoreUndispatchedCreation(attempting, environment: environment.queue) }
+            catch { throw UncertainCreation(underlying: error) }
+            throw proof.underlying
+        }
         catch { throw UncertainCreation(underlying: error) }
         guard !response.file.id.isEmpty else { throw UncertainCreation(underlying: RecoveryError.uncertain) }
         var receipt = referenceTemplate

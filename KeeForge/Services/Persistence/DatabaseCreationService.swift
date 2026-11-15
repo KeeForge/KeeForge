@@ -224,7 +224,7 @@ enum DatabaseCreationService {
             },
             createCloudFile: { providerID, accountId, path, data, progress in
                 guard let provider = CloudProviderRegistry.provider(for: providerID) else {
-                    throw CloudProviderError.notAuthenticated
+                    throw CloudFileCreationCoordinator.NotDispatched(underlying: .notAuthenticated)
                 }
                 return try await provider.createFile(
                     accountId: accountId,

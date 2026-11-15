@@ -5676,10 +5676,12 @@ final class DatabaseViewModelTests: XCTestCase {
             }, cloudConflictCopyOperation: { _, path, bytes in
                 await recorder.record(filename: path, bytes: bytes)
             })
+            defer { vm.lock(); Task { await gate.resume() } }
             await vm.unlock(password: fixturePassword)
             vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Conflict")
             try await vm.save()
             let work = Task { try await vm.saveAsConflictCopy() }
+            await fulfillment(of: [started], timeout: 1)
             await gate.waitUntilPaused()
             var changed = vm.databaseReference
             if changeTarget {

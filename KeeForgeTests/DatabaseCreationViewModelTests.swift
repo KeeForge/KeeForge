@@ -277,7 +277,9 @@ final class DatabaseCreationViewModelTests: XCTestCase {
     // MARK: - createInCloud error surfacing / cloudCreationMessage(for:) formatting
 
     func testCreateInCloudSurfacesGenericErrorMessageWhenProviderIsUnavailable() async throws {
-        let viewModel = DatabaseCreationViewModel()
+        var environment = DatabaseCreationService.Environment.live
+        environment.creationQueue = isolatedCreationQueue()
+        let viewModel = DatabaseCreationViewModel(environment: environment)
         viewModel.databaseName = "Cloud Vault"
         viewModel.password = "cloud password"
         viewModel.confirmPassword = "cloud password"
@@ -292,6 +294,11 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertNil(created)
         XCTAssertFalse(viewModel.isCreating)
         XCTAssertEqual(viewModel.creationError, CloudProviderError.notAuthenticated.localizedDescription)
+        let records = try PendingUploadQueue.listCreations(environment: environment.creationQueue)
+        XCTAssertEqual(records.count, 1)
+        XCTAssertEqual(records.first?.intent.phase, .prepared)
+        let record = try XCTUnwrap(records.first)
+        XCTAssertEqual(FileDigest.sha512(try PendingUploadQueue.readCreationPayload(record, environment: environment.creationQueue)), record.intent.payloadSHA512)
     }
 
     func testCreateInCloudReportsAmbiguousConflictForRecovery() async throws {

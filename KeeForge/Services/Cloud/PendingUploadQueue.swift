@@ -1067,7 +1067,22 @@ extension PendingUploadQueue {
         }
     }
 
-    // Only these edges are permitted: prepared -> attempting -> confirmed -> completed.
+    // Only the invocation with affirmative pre-dispatch proof may unwind its exact attempt.
+    static func restoreUndispatchedCreation(_ stored: StoredCreation, environment: Environment = .live) throws -> StoredCreation {
+        try withCreationLocks(stored.intent, environment: environment) {
+            guard stored.intent.phase == .attempting,
+                  try environment.readData(creationURL(stored.intent.operationID, environment)) == stored.serialized,
+                  try decodeCreation(stored.serialized, id: stored.intent.operationID) == stored.intent else { throw CreationError.changed }
+            var next = stored.intent
+            next.phase = .prepared
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+            let data = try encoder.encode(next)
+            try environment.writeMarkerAtomically(data, creationURL(next.operationID, environment))
+            return StoredCreation(intent: next, serialized: data)
+        }
+    }
+
+    // Normal edges are prepared -> attempting -> confirmed -> completed.
     // A failed write grants no authority, even if its rename became visible.
     static func transitionCreation(_ stored: StoredCreation, to phase: CreationIntent.Phase,
                                    receipt: DatabaseReference? = nil, environment: Environment = .live) throws -> StoredCreation {

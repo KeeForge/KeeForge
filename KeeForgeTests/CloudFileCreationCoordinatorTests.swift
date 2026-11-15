@@ -302,6 +302,50 @@ final class CloudFileCreationCoordinatorTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
+    func testProvenNotDispatchedRestoresPreparedAndCanRetry() async throws {
+        let (root, queue, reference) = try fixture()
+        defer { _ = DatabaseListStore.remove(id: reference.id); try? FileManager.default.removeItem(at: root) }
+        let transport = Transport()
+        var environment = CloudFileCreationCoordinator.Environment()
+        environment.queue = queue
+        environment.createFile = { _, _, _, _ in
+            throw CloudFileCreationCoordinator.NotDispatched(underlying: .notAuthenticated)
+        }
+        let operation = UUID()
+        do {
+            _ = try await CloudFileCreationCoordinator.create(operationID: operation, provider: "webdav", accountID: "account-" + reference.id.uuidString,
+                target: "/vault", bytes: Data([1, 2, 3]), referenceTemplate: reference, environment: environment)
+            XCTFail("Expected pre-dispatch failure")
+        } catch let error as CloudProviderError { XCTAssertEqual(error, .notAuthenticated) }
+        let before = await transport.count()
+        XCTAssertEqual(before, 0)
+        XCTAssertEqual(try PendingUploadQueue.listCreations(environment: queue).first?.intent.phase, .prepared)
+        XCTAssertEqual(try CloudFileCreationCoordinator.export(operationID: operation, environment: environment), Data([1, 2, 3]))
+        environment.createFile = { _, _, _, _ in try await transport.create() }
+        let receipt = try await CloudFileCreationCoordinator.retryPrepared(operationID: operation, environment: environment)
+        XCTAssertEqual(receipt.id, reference.id)
+        let after = await transport.count()
+        XCTAssertEqual(after, 1)
+        XCTAssertEqual(try PendingUploadQueue.listCreations(environment: queue).first?.intent.phase, .completed)
+    }
+
+    func testProviderNotAuthenticatedAfterDispatchRemainsUncertain() async throws {
+        let (root, queue, reference) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var environment = CloudFileCreationCoordinator.Environment()
+        environment.queue = queue
+        environment.createFile = { _, _, _, _ in throw CloudProviderError.notAuthenticated }
+        let operation = UUID()
+        do {
+            _ = try await CloudFileCreationCoordinator.create(operationID: operation, provider: "webdav", accountID: "account",
+                target: "/vault", bytes: Data([1]), referenceTemplate: reference, environment: environment)
+            XCTFail("Expected uncertain attempt")
+        } catch let error as CloudFileCreationCoordinator.UncertainCreation {
+            XCTAssertEqual(error.underlying as? CloudProviderError, .notAuthenticated)
+        }
+        XCTAssertEqual(try PendingUploadQueue.listCreations(environment: queue).first?.intent.phase, .attempting)
+    }
+
     func testLostResponseCannotResendAndRetainsBytes() async throws {
         let (root, queue, reference) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
