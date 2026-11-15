@@ -411,7 +411,7 @@ final class ExpressUnlockTests: XCTestCase {
         var environment = makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
         let remote = Data("different remote bytes".utf8)
         environment.getMetadata = { _ in
-            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 100), contentHash: nil, size: Int64(remote.count), rev: "rev-1")
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 100), contentHash: nil, size: Int64(remote.count), rev: "rev-other")
         }
         environment.downloadRemoteData = { _ in remote }
         let result = try await CloudDatabaseSaver.save(
