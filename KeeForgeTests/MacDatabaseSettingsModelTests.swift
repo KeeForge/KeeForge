@@ -18,6 +18,30 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testRenderLocalSaveRecovery() async throws {
+        guard let output = ProcessInfo.processInfo.environment["LOCAL_RECOVERY_RENDER_DIR"] else {
+            throw XCTSkip("Set LOCAL_RECOVERY_RENDER_DIR to capture native recovery.")
+        }
+        let reference = try reference()
+        let bytes = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        _ = try PendingLocalSaveStore.prepareSource(bytes, for: reference.id, baseCacheSHA512: FileDigest.sha512(bytes))
+        defer { PendingLocalSaveStore.clearAll() }
+        let model = MacDatabaseSettingsModel(reference: reference)
+        await model.localRecovery.refresh(reference: reference)
+        let sheet = MacDatabaseSettingsSheet(model: model)
+        defer { sheet.shell.end() }
+        let view = try XCTUnwrap(sheet.shell.window?.contentView)
+        for _ in 0..<10 { await Task { @MainActor in }.value }
+        view.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        let directory = URL(fileURLWithPath: output)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let language = Bundle.main.preferredLocalizations.first ?? "en"
+        try data.write(to: directory.appendingPathComponent("mac-local-recovery-\(language).png"))
+    }
+
     func testLocalAndRemoteTabsAndLauncherRestrictions() throws {
         let local = try reference()
         let model = MacDatabaseSettingsModel(reference: local)
