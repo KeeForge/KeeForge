@@ -71,12 +71,16 @@ enum SettingsService {
         case tenSeconds = "10 Seconds"
         case thirtySeconds = "30 Seconds"
         case oneMinute = "1 Minute"
+        case never = "Never"
 
-        var seconds: TimeInterval {
+        /// Nil for `.never`: the copy stays until a lock clears it or
+        /// something else is copied.
+        var seconds: TimeInterval? {
             switch self {
             case .tenSeconds: 10
             case .thirtySeconds: 30
             case .oneMinute: 60
+            case .never: nil
             }
         }
 
@@ -85,6 +89,7 @@ enum SettingsService {
             case .tenSeconds: String(localized: "10 Seconds")
             case .thirtySeconds: String(localized: "30 Seconds")
             case .oneMinute: String(localized: "1 Minute")
+            case .never: String(localized: "Never")
             }
         }
     }

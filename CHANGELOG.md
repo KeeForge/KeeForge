@@ -15,6 +15,7 @@
 
 ### Changes
 
+- Clipboard Clear Timeout in Settings has a Never option, on iPhone, iPad, and Mac (#210). A copied value then stays until you copy something else or the database locks; on iPhone and iPad, locking when KeeForge goes to the background still keeps it so you can paste. The default stays 30 seconds.
 - Sorting by title puts entries with the same title in order of their user name, such as several verification codes for one service (#271).
 - Scanning a verification-code QR code or pasting a setup link in the entry editor fills an empty title and user name from the code's issuer and account, as adding a code from New already did (#270). A title or user name you already entered is kept.
 - AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:

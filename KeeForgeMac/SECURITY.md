@@ -227,7 +227,8 @@ copies with `org.nspasteboard.ConcealedType`, a convention for cooperating clipb
 managers rather than an access restriction. Clipboard ownership is app-global:
 a timer and a completed lock of any database clear the copy only when the
 pasteboard's `changeCount` still matches KeeForge's write, preserving anything
-copied subsequently.
+copied subsequently. With the clear timeout set to Never there is no timer, so
+only a lock or a later copy removes the value.
 
 macOS has no equivalent of the iOS `.localOnly` and `.expirationDate` copy options.
 Copied secrets can follow the user's Universal Clipboard setting, and KeeForge's

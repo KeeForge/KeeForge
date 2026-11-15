@@ -4,7 +4,8 @@ import UIKit
 /// iOS pasteboard behavior.
 ///
 /// Every copy expires automatically via `UIPasteboard`'s `.expirationDate`
-/// option and stays off Universal Clipboard via `.localOnly`. On database
+/// option, unless the clear timeout is Never, and stays off Universal
+/// Clipboard via `.localOnly`. On database
 /// lock, `clearOwnedContents()` additionally scrubs a still-pending copy
 /// early — otherwise a password copied just before locking would linger on
 /// the pasteboard for the rest of its expiration window. The clear is
@@ -21,13 +22,11 @@ enum ClipboardService {
 
     static func copy(_ string: String) {
         let pasteboard = UIPasteboard.general
-        pasteboard.setItems(
-            [[UIPasteboard.typeAutomatic: string]],
-            options: [
-                .expirationDate: Date().addingTimeInterval(SettingsService.clipboardTimeout.seconds),
-                .localOnly: true,
-            ]
-        )
+        var options: [UIPasteboard.OptionsKey: Any] = [.localOnly: true]
+        if let seconds = SettingsService.clipboardTimeout.seconds {
+            options[.expirationDate] = Date().addingTimeInterval(seconds)
+        }
+        pasteboard.setItems([[UIPasteboard.typeAutomatic: string]], options: options)
         ownedChangeCount = pasteboard.changeCount
     }
 
@@ -54,8 +53,9 @@ import AppKit
 /// guarantees are approximated as closely as the platform allows:
 /// - every copy is marked with `org.nspasteboard.ConcealedType` so clipboard
 ///   managers (Alfred, Maccy, Paste, ...) skip recording it;
-/// - a timer clears the pasteboard after `SettingsService.clipboardTimeout`,
-///   guarded by `changeCount` so a later user copy is never clobbered;
+/// - a timer clears the pasteboard after `SettingsService.clipboardTimeout`
+///   (none for Never), guarded by `changeCount` so a later user copy is
+///   never clobbered;
 /// - `clearOwnedContents()` is invoked on database lock, with the same
 ///   `changeCount` guard. Every Mac lock trigger (screen lock, screensaver,
 ///   sleep, user switching, explicit lock) scrubs; the iOS
@@ -99,8 +99,10 @@ enum ClipboardService {
         }
     }
 
-    private static func scheduleClear(after seconds: TimeInterval) {
+    private static func scheduleClear(after seconds: TimeInterval?) {
         pendingClear?.cancel()
+        pendingClear = nil
+        guard let seconds else { return }
         pendingClear = Task { @MainActor in
             try? await Task.sleep(for: .seconds(seconds))
             guard Task.isCancelled == false else { return }

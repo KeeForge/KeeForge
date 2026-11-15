@@ -217,6 +217,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(SettingsService.ClipboardTimeout.tenSeconds.seconds, 10)
         XCTAssertEqual(SettingsService.ClipboardTimeout.thirtySeconds.seconds, 30)
         XCTAssertEqual(SettingsService.ClipboardTimeout.oneMinute.seconds, 60)
+        XCTAssertNil(SettingsService.ClipboardTimeout.never.seconds)
     }
 
     // MARK: - Invalid raw value fallback
