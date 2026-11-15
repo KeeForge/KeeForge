@@ -1054,6 +1054,12 @@ final class CloudDatabaseSaverTests: XCTestCase {
         let cache = DatabaseListStore.cacheLocation(for: reference)
         let original = try Data(contentsOf: cache)
         let output = Data("new encrypted payload".utf8)
+        _ = try PendingLocalSaveStore.prepareSource(original, for: reference.id,
+            masterKeyChangedAt: reference.lastMasterKeyChangeAt, baseCacheSHA512: FileDigest.sha512(original))
+        let pending = try PendingLocalSaveStore.recovery(for: reference.id)
+        XCTAssertEqual(try PendingLocalSaveStore.discard(pending), .resolved)
+        let oldEpoch = try PendingLocalSaveStore.captureCacheReadLease(for: reference).epochID
+        XCTAssertNotNil(oldEpoch)
         let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: "new-key")
         var marker = try PendingUploadQueue.prepare(reference: reference, currentData: original, intendedData: output, cacheURL: cache, keyChange: change)
         marker.marker.confirmedAt = Date(timeIntervalSince1970: 1234)
@@ -1077,6 +1083,8 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(installed.cloudSyncMetadata?.remoteRev, "rev-B")
         XCTAssertEqual(installed.cloudSyncMetadata?.remoteContentHash, "hash-B")
         XCTAssertEqual(installed.cloudSyncMetadata?.lastSyncedAt, marker.marker.confirmedAt)
+        XCTAssertEqual(try PendingLocalSaveStore.captureCacheReadLease(for: installed).epochID, marker.id)
+        XCTAssertThrowsError(try PendingLocalSaveStore.captureCacheReadLease(for: reference))
         XCTAssertEqual(deleted, 1)
         XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
     }

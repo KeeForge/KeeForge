@@ -39,7 +39,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         let diagnostics: TestDatabaseSupport.LocalPublicationTrace
     }
 
-    private func pendingMergeSetup(payload: Data? = nil, conflicted: Bool = true, sourceAfterUnlock: Bool = false,
+    private func pendingMergeSetup(payload: Data? = nil, conflicted: Bool = true, sourceAfterUnlock: Bool = false, legacy: Bool = false,
         beforeSave: (@MainActor @Sendable (DatabaseReference) async throws -> Void)? = nil,
         failFinalization: Bool = false, diagnostics: TestDatabaseSupport.LocalPublicationTrace = .init(),
         configureSaver: @Sendable (inout CloudDatabaseSaver.Environment) -> Void = { _ in },
@@ -138,8 +138,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         do {
         if sourceAfterUnlock { await vm.unlock(password: fixturePassword) }
         let source = try CloudJournalTestContext(reference: reference, base: base,
-            payload: payload ?? mergeVariant(title: "AutoFill Entry"))
-        if conflicted { _ = try PendingUploadQueue.markConflicted(source.stored) }
+            payload: payload ?? mergeVariant(title: "AutoFill Entry"), legacy: legacy)
+        if conflicted && !legacy { _ = try PendingUploadQueue.markConflicted(source.stored) }
         if !sourceAfterUnlock { await vm.unlock(password: fixturePassword) }
         XCTAssertEqual(vm.state, .unlocked)
         let cache = try Data(contentsOf: source.cacheURL)
@@ -220,6 +220,32 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
             XCTFail(diagnostic)
             throw error
         }
+    }
+
+    func testPublishedLegacyPendingMergeCreatesNewBoundOwner() async throws {
+        let setup = try await pendingMergeSetup(legacy: true)
+        defer { setup.vm.lock() }
+        let before = try XCTUnwrap(PendingUploadQueue.readJournal(for: setup.reference.id).first)
+        XCTAssertNil(before.marker.journalVersion)
+        XCTAssertNil(before.marker.binding)
+        XCTAssertTrue(setup.vm.hasPendingUploadConflict)
+        guard case .recovered(let payloads) = PendingUploadRecovery.lookUpPayloads(for: setup.reference) else {
+            return XCTFail("The finalized legacy payload must be recoverable")
+        }
+        XCTAssertEqual(payloads.first?.data, setup.source.payload)
+        let promoted = try XCTUnwrap(PendingUploadQueue.readJournal(for: setup.reference.id).first)
+        XCTAssertNil(promoted.marker.binding)
+        XCTAssertNil(promoted.marker.localCommitBaseline)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(promoted), setup.source.payload)
+        _ = try setup.remote.store(mergeVariant(title: "Remote B"), expectedRev: nil)
+        try await setup.vm.mergePendingUploads()
+        let merged = try mergedJournal(setup, titles: ["AutoFill Entry", "Remote B"])
+        XCTAssertNotNil(merged.marker.binding)
+        XCTAssertNotEqual(merged.id, before.id)
+        guard case .saved? = try await CloudDatabaseSaver.deliver(merged, reference: setup.vm.databaseReference, environment: setup.saver) else {
+            return XCTFail("The authenticated merge must deliver its new bound operation")
+        }
+        XCTAssertTrue(try Self.entryTitles(in: setup.remote.currentBytes, password: fixturePassword).isSuperset(of: ["AutoFill Entry", "Remote B"]))
     }
 
     func testMergePendingUploadsKeepsUnsavedEditsInTheUpload() async throws {

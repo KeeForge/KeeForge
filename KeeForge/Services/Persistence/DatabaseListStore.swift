@@ -1138,8 +1138,9 @@ enum DatabaseListStore {
                                                               keyChange: rekey, committedAt: committedAt)
                     guard (initial || installed), lease.reference.matches(current) else { return .rejected(SaveError.saveContextUnavailable) }
                     if installed { effectStarted = true }
-                    return try PendingLocalSaveStore.withCachePublicationAuthorization(for: current.id, sha512: intendedSHA,
-                        lease: lease, nonBlocking: true, rekeyRecovery: rekeyRecovery) {
+                    return try PendingLocalSaveStore.withCloudRekeyPublicationAuthorization(for: current.id, sha512: intendedSHA,
+                        lease: lease, rekeyRecovery: rekeyRecovery, binding: binding, operationID: snapshot.id,
+                        change: rekey, committedAt: committedAt) { handoff in
                         let oldBytes: Data?
                         do { oldBytes = try Data(contentsOf: target) }
                         catch let error as CocoaError where error.code == .fileReadNoSuchFile { oldBytes = nil }
@@ -1204,6 +1205,7 @@ enum DatabaseListStore {
                                       $0.id == snapshot.id && $0.marker == snapshot.marker
                                   }) else { return .retirementUnconfirmed(published) }
                             do {
+                                try handoff(durableRow)
                                 guard try PendingUploadQueue.dropIfUnchanged(snapshot, environment: queue) else {
                                     return .retirementUnconfirmed(published)
                                 }

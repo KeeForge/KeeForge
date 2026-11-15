@@ -10,13 +10,25 @@ struct CloudJournalTestContext: Sendable {
     let stored: PendingUploadQueue.StoredMarker
 
     init(reference: DatabaseReference, base: Data = Data("base-ciphertext".utf8),
-         payload: Data = Data("intended-ciphertext".utf8), install: Bool = true) throws {
+         payload: Data = Data("intended-ciphertext".utf8), install: Bool = true, legacy: Bool = false) throws {
         self.reference = reference
         self.base = base
         self.payload = payload
         let existing = try? Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
         if existing != base { try DatabaseListStore.cacheDatabaseCopy(base, for: reference) }
         stored = try PendingUploadQueue.withCommitLock(for: reference.id) {
+            if legacy {
+                let cache = DatabaseListStore.cacheLocation(for: reference)
+                let replacement = try LocalDatabaseSaver.replaceFileAtomically(payload, at: cache,
+                    expectedSHA512: FileDigest.sha512(base),
+                    authorization: .init(databaseID: reference.id, enforcesEpoch: false, targetIsSharedCopy: true))
+                guard case .replaced = replacement else { throw SaveError.saveContextUnavailable }
+                let marker = PendingUploadQueue.Marker(databaseId: reference.id,
+                    encryptedBytesCacheURL: try PendingUploadQueue.makeRelativeAppGroupPath(for: cache),
+                    openTimeSHA512: FileDigest.sha512(payload), expectedRev: "rev-A", createdAt: .now,
+                    isConflicted: true, baseRev: "rev-A", isPayloadFinalized: true)
+                return try PendingUploadQueue.enqueue(marker)
+            }
             let prepared = try PendingUploadQueue.prepare(reference: reference, currentData: base,
                 intendedData: payload, cacheURL: DatabaseListStore.cacheLocation(for: reference))
             guard install else { return prepared }

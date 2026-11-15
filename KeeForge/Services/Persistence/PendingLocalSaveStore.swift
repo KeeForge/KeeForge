@@ -869,9 +869,34 @@ enum PendingLocalSaveStore {
         for databaseID: UUID, sha512: Data, lease: CacheReadLease? = nil, nonBlocking: Bool = false,
         rekeyRecovery: CloudRekeyRecoveryEpoch? = nil, _ publish: () throws -> T
     ) throws -> T {
+        try withCachePublicationOwner(for: databaseID, sha512: sha512, lease: lease, nonBlocking: nonBlocking,
+                                      rekeyRecovery: rekeyRecovery) { _ in try publish() }
+    }
+
+    static func withCloudRekeyPublicationAuthorization<T>(
+        for databaseID: UUID, sha512: Data, lease: CacheReadLease, rekeyRecovery: CloudRekeyRecoveryEpoch?,
+        binding: PendingUploadQueue.JournalBinding, operationID: UUID, change: PendingUploadQueue.KeyChange, committedAt: Date,
+        _ publish: (_ handoff: (DatabaseReference) throws -> Void) throws -> T
+    ) throws -> T {
+        try withCachePublicationOwner(for: databaseID, sha512: sha512, lease: lease, nonBlocking: true,
+                                      rekeyRecovery: rekeyRecovery) { handoff in
+            try publish { reference in
+                guard binding.matchesInstalled(reference: reference, operationID: operationID, keyChange: change, committedAt: committedAt) else {
+                    throw OwnershipError.sourceChanged
+                }
+                try handoff(binding.baseline?.lastMasterKeyChangeAt, committedAt, operationID)
+            }
+        }
+    }
+
+    private static func withCachePublicationOwner<T>(
+        for databaseID: UUID, sha512: Data, lease: CacheReadLease?, nonBlocking: Bool,
+        rekeyRecovery: CloudRekeyRecoveryEpoch?,
+        _ publish: (_ handoff: (Date?, Date, UUID) throws -> Void) throws -> T
+    ) throws -> T {
         try withLock(for: databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(databaseID)
-            let state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
+            var state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
             if let lease {
                 guard lease.databaseID == databaseID, lease.epochID == state.epoch.id else { throw OwnershipError.sourceChanged }
                 if let renewal = lease.bookmarkRenewal {
@@ -902,7 +927,20 @@ enum PendingLocalSaveStore {
                     guard evidence.sha512 == sha512 || evidence.pending?.sha512 == sha512 else { throw OwnershipError.targetChanged }
                 }
             }
-            return try publish()
+            return try publish { previousDate, committedAt, operationID in
+                guard state.operation == .idle, state.retirementID == nil, state.sources.isEmpty,
+                      try sourceURLs(databaseID).isEmpty, state.keyEvidence == nil else { throw OwnershipError.recoveryRequired }
+                if case .known(let date, let epochID) = state.epoch {
+                    if date == committedAt && epochID == operationID {
+                        try persist(state, databaseID: databaseID, io: .init())
+                        return
+                    }
+                    guard date == previousDate else { throw OwnershipError.sourceChanged }
+                }
+                state.epoch = .known(committedAt, operationID)
+                state.associationVersion = operationID
+                try persist(state, databaseID: databaseID, io: .init())
+            }
         }
     }
 

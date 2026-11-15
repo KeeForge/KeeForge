@@ -129,4 +129,4 @@
 
 - Cloud key publication validates the captured local head operation together with the epoch and cache digest while holding the publication fence.
 
-- Confirmed cloud rekey installation coordinates the cache and registry together and rechecks the exact bound journal while holding immediate list, commit and local-owner locks. Existing and missing cache installation use the already-coordinated replacement seam; key deletion and durable registry publication occur only inside that authorization.
+- Confirmed cloud rekey installation coordinates the cache and registry together and rechecks the exact bound journal while holding immediate list, commit and local-owner locks. Existing and missing cache installation use the already-coordinated replacement seam; key deletion and durable registry publication occur only inside that authorization. Before journal retirement, the pending-local owner durably advances its idle epoch only under the exact installed rekey proof; unresolved sources or key evidence retain recovery.

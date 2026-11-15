@@ -18,6 +18,24 @@ final class PendingUploadQueueTests: XCTestCase {
         try super.tearDownWithError()
     }
 
+    func test_publishedLegacyFinalizationPhasesNeverAuthorizeDelivery() throws {
+        let id = UUID()
+        let bytes = Data("legacy encrypted payload".utf8)
+        for phase in [Optional<Bool>.none, false, true] {
+            var json: [String: Any] = ["databaseId": id.uuidString, "encryptedBytesCacheURL": "databases/vault.kdbx",
+                "openTimeSHA512": FileDigest.sha512(bytes).base64EncodedString(), "generation": 0,
+                "createdAt": 100.0, "expectedRev": "rev-A", "baseRev": "rev-A", "isConflicted": true]
+            if let phase { json["isPayloadFinalized"] = phase }
+            let marker = try JSONDecoder().decode(PendingUploadQueue.Marker.self, from: JSONSerialization.data(withJSONObject: json))
+            XCTAssertEqual(marker.isPayloadFinalized, phase)
+            XCTAssertNil(marker.binding)
+            XCTAssertNil(marker.localCommitBaseline)
+            let decision = CloudJournalDecision.delivery(.init(marker: marker, siblings: [], siblingIDs: [],
+                epoch: nil, lastMasterKeyChangeAt: nil, payloadMatches: true))
+            XCTAssertEqual(decision, phase == true ? .conflict : .retain)
+        }
+    }
+
     func test_bindingRejectsCollidingAccountsAndChangedFactors() throws {
         let metadata = CloudSyncMetadata(provider: "webdav", accountId: "a/b", fileId: "vault", displayPath: "vault",
             remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)
