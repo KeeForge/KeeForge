@@ -92,6 +92,7 @@ struct MacSSHAgentSettingsTab: View {
                         .tag(Optional(session.databaseReference.id))
                 }
             }
+            .labelsHidden()
             .accessibilityIdentifier("settings.ssh-agent.database-picker")
         }
     }

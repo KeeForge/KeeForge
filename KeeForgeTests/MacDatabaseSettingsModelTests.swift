@@ -196,6 +196,8 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         let sheet = MacDatabaseSettingsSheet(model: MacDatabaseSettingsModel(reference: try reference()))
         XCTAssertEqual(sheet.shell.defaultButton.title, String(localized: "Done"))
         XCTAssertTrue(sheet.shell.cancelButton.isHidden)
+        XCTAssertEqual(sheet.shell.window?.accessibilityIdentifier(), "database-settings.sheet")
+        XCTAssertEqual(sheet.shell.defaultButton.accessibilityIdentifier(), "database-settings.done")
         XCTAssertEqual(sheet.shell.window?.frame.width, 720)
         XCTAssertEqual(sheet.shell.window?.isVisible, false)
     }

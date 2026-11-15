@@ -52,7 +52,6 @@ final class MacMasterKeySheet {
         host.sizingOptions = []
         shell = MacFormSheetController(title: String(localized: "\(name) — Master Key"), content: host,
                                        size: NSSize(width: 610, height: 520), accessory: footer)
-        shell.window?.setContentSize(NSSize(width: 610, height: 520))
         shell.window?.setAccessibilityIdentifier("master-key.sheet")
         shell.cancelButton.setAccessibilityIdentifier("master-key.cancel")
         shell.defaultButton.setAccessibilityIdentifier("master-key.save")
@@ -149,7 +148,7 @@ private struct MacMasterKeyForm: View {
                         PasswordInputRow(title: String(localized: "Master password"), text: $model.newPassword, isVisible: $passwordVisible,
                                          fieldAccessibilityIdentifier: "master-key.new-password-field",
                                          visibilityAccessibilityIdentifier: "master-key.new-password-visibility-button",
-                                         usesPasswordAutoFill: false)
+                                         usesPasswordAutoFill: false).labelsHidden()
                         if !model.newPassword.isEmpty {
                             PasswordStrengthIndicator(password: model.newPassword, caption: .passwordStrength)
                         }
@@ -163,7 +162,7 @@ private struct MacMasterKeyForm: View {
                         PasswordInputRow(title: String(localized: "Confirm password"), text: $model.confirmPassword, isVisible: $confirmationVisible,
                                          fieldAccessibilityIdentifier: "master-key.confirm-password-field",
                                          visibilityAccessibilityIdentifier: "master-key.confirm-password-visibility-button",
-                                         usesPasswordAutoFill: false)
+                                         usesPasswordAutoFill: false).labelsHidden()
                         caption(String(localized: "The new master key protects this database file from now on. Backups and copies made before the change still open with the previous master key."))
                     }
                 }

@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController: NSWindowController {
     let tabs: MacSettingsTabController
+    private let appearanceObservation = MacObservation()
 
     init(
         listViewModel: DatabaseListViewModel,
@@ -25,6 +26,10 @@ final class SettingsWindowController: NSWindowController {
         tabs.select(.security)
         prepareWindow(window)
         window.center()
+        // The tabs are separate hosting roots under an AppKit controller, so no SwiftUI color scheme reaches the window.
+        appearanceObservation.start(reading: { [weak self] in self?.tabs.settings.appearanceMode ?? .system }) { [weak window] mode in
+            window?.appearance = mode.windowAppearance
+        }
     }
 
     override func showWindow(_ sender: Any?) {
@@ -34,6 +39,16 @@ final class SettingsWindowController: NSWindowController {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+}
+
+extension SettingsService.AppearanceMode {
+    var windowAppearance: NSAppearance? {
+        switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
 }
 
 enum MacSettingsTab: String, CaseIterable {
@@ -116,12 +131,15 @@ final class MacSettingsTabController: NSTabViewController {
                 content = AnyView(MacAboutSettingsTab(acknowledgments: { [weak self] in self?.showAcknowledgments() }))
             }
             let hosting = NSHostingController(rootView: ScrollView {
-                content.frame(maxWidth: .infinity, alignment: .leading)
+                // The board's centred label and control columns; unbounded, long captions run past the window.
+                content.frame(maxWidth: 660, alignment: .leading).frame(maxWidth: .infinity)
             }
                 .accessibilityIdentifier(tab.identifier)
                 .modifier(MacHostingAppearance()))
             hosting.sizingOptions = []
             hosting.preferredContentSize = tab.contentSize
+            // The tab controller passes the shown tab's title to the window, so an untitled tab blanks it.
+            hosting.title = tab.title
             let item = NSTabViewItem(viewController: hosting)
             item.identifier = tab.identifier
             item.label = tab.title

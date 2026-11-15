@@ -43,7 +43,8 @@ final class MacFormSheetController: NSWindowController {
         bodyController = content
         cancelButton = NSButton(title: cancelTitle, target: nil, action: nil)
         defaultButton = NSButton(title: defaultTitle, target: nil, action: nil)
-        let window = FormSheetWindow(contentRect: NSRect(origin: .zero, size: NSSize(width: size.width, height: min(size.height, MacSheetMetrics.maxHeight))),
+        let contentSize = NSSize(width: size.width, height: min(size.height, MacSheetMetrics.maxHeight))
+        let window = FormSheetWindow(contentRect: NSRect(origin: .zero, size: contentSize),
                                      styleMask: [.titled], backing: .buffered, defer: true)
         window.isReleasedWhenClosed = false
         window.title = title
@@ -54,6 +55,8 @@ final class MacFormSheetController: NSWindowController {
         container.view = root
         container.addChild(content)
         window.contentViewController = container
+        // Installing a content controller resizes the window to the empty root view's zero size.
+        window.setContentSize(contentSize)
         heading.stringValue = title
         heading.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
         let stack = NSStackView()

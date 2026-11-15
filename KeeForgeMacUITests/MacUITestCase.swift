@@ -550,12 +550,11 @@ class MacUITestCase: XCTestCase {
 
     /// Selects a tab in the Settings window by its visible name.
     ///
-    /// The retained AppKit Settings window keeps its tab while closed. A test
-    /// that needs a specific tab's controls selects it explicitly rather than
-    /// assuming the first one. The `settings.tab.*` identifiers sit on the tab
-    /// *content*, not on the control that switches tabs, so the visible name is
-    /// the only handle — matched across element types and both text attributes,
-    /// like the vault rows.
+    /// The retained AppKit Settings window keeps its tab while closed within the
+    /// process. A test that needs a specific tab's controls selects it explicitly
+    /// rather than assuming one. The tabs are the window's toolbar items; the
+    /// `settings.tab.*` identifiers sit on the tab *content*, not on the toolbar
+    /// item, so the visible name is the only handle.
     @discardableResult
     func selectSettingsTab(
         named name: String,
@@ -563,7 +562,7 @@ class MacUITestCase: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> Bool {
-        let query = app.descendants(matching: .any).matching(
+        let query = settingsWindow.toolbars.descendants(matching: .any).matching(
             NSPredicate(format: "label == %@ OR value == %@", name, name)
         )
 

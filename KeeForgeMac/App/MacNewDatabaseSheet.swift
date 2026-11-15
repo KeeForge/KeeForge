@@ -28,10 +28,10 @@ struct MacNewDatabaseSheet: View {
                 Divider()
                 LabeledContent("Master password") { PasswordInputRow(title: String(localized: "Master password"), text: $model.password, isVisible: $passwordVisible,
                                  fieldAccessibilityIdentifier: "database-create.password-field",
-                                 visibilityAccessibilityIdentifier: "database-create.password-visibility-button", usesPasswordAutoFill: false) }
+                                 visibilityAccessibilityIdentifier: "database-create.password-visibility-button", usesPasswordAutoFill: false).labelsHidden() }
                 LabeledContent("Confirm password") { PasswordInputRow(title: String(localized: "Confirm password"), text: $model.confirmPassword, isVisible: $confirmationVisible,
                                  fieldAccessibilityIdentifier: "database-create.confirm-password-field",
-                                 visibilityAccessibilityIdentifier: "database-create.confirm-password-visibility-button", usesPasswordAutoFill: false) }
+                                 visibilityAccessibilityIdentifier: "database-create.confirm-password-visibility-button", usesPasswordAutoFill: false).labelsHidden() }
                 if !model.password.isEmpty {
                     LabeledContent("") { PasswordStrengthIndicator(password: model.password, caption: .passwordStrength) }
                 }

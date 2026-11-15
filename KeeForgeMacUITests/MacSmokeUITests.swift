@@ -105,7 +105,7 @@ final class MacSmokeUITests: MacUITestCase {
         openGroup(named: "Social")
         titledRow(identifier: "entry.navlink", named: "Discord").rightClick()
         clickRestoreTestMenu("entry-row.delete-context")
-        let delete = databaseWindow.buttons["Delete"].firstMatch
+        let delete = databaseWindow.sheets.buttons["workspace.delete.confirm"].firstMatch
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
         delete.click()
         openGroup(named: "Deleted Entries")
@@ -119,7 +119,7 @@ final class MacSmokeUITests: MacUITestCase {
         unlockSuccessfully()
         titledRow(identifier: "group.navlink", named: "Work").rightClick()
         clickRestoreTestMenu("group-row.delete-context")
-        let delete = databaseWindow.buttons["Delete"].firstMatch
+        let delete = databaseWindow.sheets.buttons["workspace.delete.confirm"].firstMatch
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
         delete.click()
         // A deleted group is a row of its own in the sidebar's Recycle Bin section,
@@ -211,6 +211,32 @@ final class MacSmokeUITests: MacUITestCase {
         XCTAssertTrue(waitForRowToDisappear("Discord"), "Dropping 'Discord' on 'Work' left it in 'Social'")
         openGroup(named: "Work")
         XCTAssertTrue(waitForDisplayText("Discord", identifier: "entry.navlink"), "'Discord' did not reach 'Work'")
+
+        // Edit ▸ Move to Group… back: the current group cannot be chosen, a double-click moves at once.
+        waitUntilEnabled(databaseWindow.searchFields.firstMatch, timeout: 30)
+        openEntry(named: "Discord")
+        chooseMenuItem("Move to Group…", inMenu: "Edit")
+        let picker = databaseWindow.sheets.firstMatch
+        let move = picker.buttons["move-picker.move"].firstMatch
+        XCTAssertTrue(move.waitForExistence(timeout: 10), "Move to Group… opened no picker")
+        let current = pickerRow(named: "Work", in: picker)
+        XCTAssertTrue(current.waitForExistence(timeout: 5), "The picker does not list the current group")
+        current.click()
+        XCTAssertFalse(move.isEnabled, "The picker let the current group be chosen")
+        let social = pickerRow(named: "Social", in: picker)
+        // Selecting first also keeps the double-click clear of the previous click's interval.
+        social.click()
+        waitUntilEnabled(move)
+        XCTAssertTrue(move.isEnabled, "Selecting another group did not enable Move")
+        social.doubleClick()
+        XCTAssertTrue(picker.waitForNonExistence(timeout: 10), "Double-clicking a group did not move and close the picker")
+        XCTAssertTrue(waitForRowToDisappear("Discord"), "Moving 'Discord' to 'Social' left it in 'Work'")
+        openGroup(named: "Social")
+        XCTAssertTrue(waitForDisplayText("Discord", identifier: "entry.navlink"), "'Discord' did not reach 'Social'")
+    }
+
+    private func pickerRow(named name: String, in picker: XCUIElement) -> XCUIElement {
+        picker.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'move-picker.group.' AND value == %@", name)).firstMatch
     }
 
     private func waitForRowToDisappear(_ title: String, timeout: TimeInterval = 15) -> Bool {
@@ -623,14 +649,41 @@ final class MacSmokeUITests: MacUITestCase {
         let settingsWindow = self.settingsWindow
         XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15), "⌘, did not open the Settings window")
 
-        // The window reopens on whichever tab was used last, which persists in
-        // the app's preferences across launches; pick Security explicitly.
-        selectSettingsTab(named: "Security")
+        // The toolbar tabs, in order; the window title names the selected tab.
+        let tabNames = ["General", "Security", "AutoFill", "Quick Search", "SSH Agent", "Appearance", "Servers", "About"]
+        let toolbar = settingsWindow.toolbars.firstMatch
+        XCTAssertTrue(toolbar.waitForExistence(timeout: 10), "The Settings window has no toolbar")
+        let tabs = tabNames.map { name in
+            toolbar.descendants(matching: .any).matching(NSPredicate(format: "label == %@", name)).firstMatch
+        }
+        for (name, tab) in zip(tabNames, tabs) {
+            XCTAssertTrue(tab.waitForExistence(timeout: 5), "The Settings toolbar has no '\(name)' tab")
+        }
+        XCTAssertEqual(tabs.map(\.frame.minX), tabs.map(\.frame.minX).sorted(), "The Settings tabs are out of order")
 
-        let lockPolicyPicker = app.descendants(matching: .any)
+        // A fresh window opens on Security.
+        XCTAssertTrue(waitForSettingsTitle("Security"), "A fresh Settings window did not open on Security")
+        let lockPolicyPicker = settingsWindow.descendants(matching: .any)
             .matching(identifier: "settings.lock-policy.picker")
             .firstMatch
         XCTAssertTrue(lockPolicyPicker.waitForExistence(timeout: 15), "Settings window did not show the lock-policy picker")
+
+        XCTAssertTrue(selectSettingsTab(named: "Appearance"))
+        XCTAssertTrue(waitForSettingsTitle("Appearance"), "The window title did not follow the Appearance tab")
+        XCTAssertTrue(settingsWindow.descendants(matching: .any).matching(identifier: "settings.tab.appearance")
+            .firstMatch.waitForExistence(timeout: 5), "Appearance did not show its content")
+
+        // Within this process the retained window reopens on the tab used last (not across launches).
+        typeCommandShortcut("w")
+        XCTAssertTrue(settingsWindow.waitForNonExistence(timeout: 10), "⌘W did not close the Settings window")
+        typeCommandShortcut(",")
+        XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15), "⌘, did not reopen the Settings window")
+        XCTAssertTrue(waitForSettingsTitle("Appearance"), "The reopened Settings window lost its tab")
+    }
+
+    private func waitForSettingsTitle(_ title: String, timeout: TimeInterval = 10) -> Bool {
+        let titled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "title == %@", title), object: settingsWindow)
+        return XCTWaiter.wait(for: [titled], timeout: timeout) == .completed
     }
 
     /// Real settings-window keystrokes prove that disabling the SwiftUI
@@ -639,7 +692,7 @@ final class MacSmokeUITests: MacUITestCase {
         typeCommandShortcut(",")
         let settingsWindow = self.settingsWindow
         XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15))
-        XCTAssertTrue(selectSettingsTab(named: "Menu Bar"))
+        XCTAssertTrue(selectSettingsTab(named: "Quick Search"))
 
         let toggleQuery = settingsWindow.descendants(matching: .any)
             .matching(identifier: "settings.menu-bar.toggle")
@@ -668,7 +721,7 @@ final class MacSmokeUITests: MacUITestCase {
         if wasEnabled {
             typeCommandShortcut(",")
             XCTAssertTrue(settingsWindow.waitForExistence(timeout: 10))
-            XCTAssertTrue(selectSettingsTab(named: "Menu Bar"))
+            XCTAssertTrue(selectSettingsTab(named: "Quick Search"))
             XCTAssertTrue(toggle.waitForExistence(timeout: 5))
             toggle.click()
         }

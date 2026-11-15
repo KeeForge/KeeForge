@@ -4,7 +4,7 @@
 
 ## Ownership
 
-- `GroupListView` is iOS/iPadOS only. macOS browses through the native split controller and SwiftUI columns, with sheets and confirmations on the stable workspace presentation host. A feature added here needs its Mac counterpart there.
+- `GroupListView` is iOS/iPadOS only. macOS browses through the native split controller, with sheets and native alerts presented by the window controller (`MacWorkspaceSheets`, `MacWorkspaceAlerts`). A feature added here needs its Mac counterpart there.
 - New Entry, Duplicate, and Edit Group open through `viewModel.workspace.present(_:)`; the shell presents the editor (`../../App/AGENTS.md`, Layout changes). On iPhone a created entry replaces its editor on the stack in one path change (`finishCompactEntryEditor`).
 - `GroupEditView` only collects fields; `DatabaseEditorCoordinator` applies fields and a pending parent change in one draft before one save and owns dirty state, Save and Lock, and completion (`../../ViewModels/AGENTS.md`). The Mac sidebar raises the group to the workspace so the sheet is hosted on the split view, not on a row that comes and goes.
 - Recycled group rows expose the shared Restore action on iOS/iPadOS and in the Mac sidebar. The Recycle Bin itself is excluded.
@@ -33,7 +33,7 @@
 ## Tests
 
 - New-entry detail after save: `EntryCreateFocusUITests` on iPhone and iPad; the Mac selection and inline-editor case is `MacSmokeUITests.testNewEntryIsSelectedAfterSaving`.
-- `GroupEditViewModelTests` and `DatabaseEditorCoordinatorTests` cover parent dirty state, atomic fields/move, cancellation and lock. `MacWorkspaceSheetsTests` covers stacked pickers and teardown; `MacIconPickerModelTests` covers icon selection and cancellable favicon state.
+- `GroupEditViewModelTests` and `DatabaseEditorCoordinatorTests` cover parent dirty state, atomic fields/move, cancellation and lock. `MacWorkspaceSheetsTests` covers stacked pickers and teardown, and `MacSmokeUITests.testDraggingAnEntryOntoASidebarGroupMovesIt` the picker's disabled current group and double-click on screen; `MacIconPickerModelTests` covers icon selection and cancellable favicon state.
 - `VaultHomeUITests`, `VaultLargeTextUITests`, `TagBrowserUITests` for the root and its collections; `GroupEditUITests`, `GroupIconPickerUITests` for the editor and picker.
 - `KeeForgeUITestCase.selectDatabaseView` is the supported way to open a collection, or return to the root, in a test.
 - The iPad cloud title, the iPhone sync warning and its Sync Now, pull to refresh, and the status popover: `CloudUnlockSmokeUITests`.

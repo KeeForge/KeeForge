@@ -67,7 +67,7 @@ final class MacSearchResultsDeleteUITests: MacUITestCase {
 
         clickContextMenuItem(titled: "Delete")
 
-        let confirmDelete = databaseWindow.buttons["Delete"].firstMatch
+        let confirmDelete = databaseWindow.sheets.buttons["workspace.delete.confirm"].firstMatch
         XCTAssertTrue(
             confirmDelete.waitForExistence(timeout: 10),
             "Delete confirmation did not present from the search results"

@@ -25,7 +25,6 @@ final class MacEncryptionSettingsSheet {
         host.sizingOptions = []
         shell = MacFormSheetController(title: String(localized: "\(name) — Encryption Settings"), content: host,
                                        size: NSSize(width: 610, height: 420))
-        shell.window?.setContentSize(NSSize(width: 610, height: 420))
         shell.window?.setAccessibilityIdentifier("encryption-settings.sheet")
         shell.cancelButton.setAccessibilityIdentifier("encryption-settings.cancel")
         shell.defaultButton.setAccessibilityIdentifier("encryption-settings.save")

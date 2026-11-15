@@ -129,7 +129,11 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         let data = try fixtureData(resourceName: "test", resourceExtension: "kdbx")
         let payload: [String: Any] = [
             "accounts": [["id": "webdav-acct-1", "displayName": "alex@cloud.example.com", "provider": "webdav"]],
-            "directories": [["path": "/Vaults", "files": [[
+            "directories": [["path": "/", "files": [
+                ["id": "/Vaults", "name": "Vaults", "path": "/Vaults", "isFolder": true],
+                ["id": "/notes.txt", "name": "notes.txt", "path": "/notes.txt", "isFolder": false,
+                 "modifiedDate": "2023-11-14T22:13:20Z", "size": 512],
+            ]], ["path": "/Vaults", "files": [[
                 "id": "/Vaults/Family.kdbx", "name": "Family.kdbx", "path": "/Vaults/Family.kdbx",
                 "isFolder": false, "modifiedDate": "2023-11-14T22:13:20Z", "size": data.count,
             ]]]],
@@ -410,6 +414,14 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         let name = "13-notice-reconnect"
         let window = openDatabase(named: "Family")
         unlockSuccessfully(in: window)
+        // 8a2. Database Settings ▸ Sync for the WebDAV database.
+        let syncName = "08a2-database-settings-sync"
+        if let sheet = openDatabaseSettings(in: window, skipping: syncName) {
+            if selectDatabaseSettingsTab("Sync", in: sheet) { await snapWindow(sheet, syncName) }
+            else { noteSkip(syncName, reason: "a WebDAV database showed no Sync tab") }
+            sheet.buttons["database-settings.done"].firstMatch.click()
+            _ = sheet.waitForNonExistence(timeout: 5)
+        }
         openGroup(named: "Social")
         if deleteGroup(named: "Empty", skipping: name) {
             if window.buttons["cloud-reauth-banner.reconnect"].firstMatch.waitForExistence(timeout: 15) {
@@ -440,6 +452,8 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip("02d-file-unavailable", reason: "the missing file never reached the recovery page")
             attachHierarchy(named: "02d-file-unavailable-hierarchy")
         }
+        await captureRemoteBrowser()
+        noteSkip("01e-ftp-connect", reason: "the FTP form is not captured against a server")
         attachCaptureReport()
     }
 
@@ -473,19 +487,13 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             self.app.buttons["database-create.cancel-button"].firstMatch.click()
         }
 
-        // 1c. Connect to Server > WebDAV sheet on the Databases window.
+        // 1c. The Connect to Server sheet on the Databases window, WebDAV selected.
         await captureLauncherSheet(
-            opening: {
-                self.databasesWindow.buttons["databases.connect-server"].firstMatch.click()
-                // Two server types: a chooser asks first.
-                let webDAV = self.app.buttons["database.add.webdav"].firstMatch
-                if webDAV.waitForExistence(timeout: 3) { webDAV.click() }
-                _ = webDAV.waitForNonExistence(timeout: 3)
-            },
-            hosting: nil,
+            opening: { self.databasesWindow.buttons["databases.connect-server"].firstMatch.click() },
+            hosting: "connect-server.type",
             "01c-databases-connect-webdav"
         ) {
-            self.app.typeKey(.escape, modifierFlags: [])
+            self.app.buttons["webdav.connect.cancel"].firstMatch.click()
         }
 
         // 2. Unlock screen
@@ -630,44 +638,13 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         //    the discard prompt, and the Password Generator panel.
         await captureEditor()
 
-        // 8a. Database details sheet — the tallest form the app sheets, and the
-        //     one where a sheet taller than the window shows first.
-        let detailsButton = app.buttons["database-details.button"].firstMatch
-        if detailsButton.waitForExistence(timeout: 5), detailsButton.isHittable {
-            detailsButton.click()
-            if app.buttons["database-details.close"].waitForExistence(timeout: 8) {
-                settle(0.6)
-                await snapSurface(hosting: "database-details.close", "08a-database-details")
-                let backupsLink = app.descendants(matching: .any)["database-details.backups.link"].firstMatch
-                if backupsLink.waitForExistence(timeout: 3), backupsLink.isHittable {
-                    backupsLink.click()
-                    if app.descendants(matching: .any)["database-details.export-copy"].waitForExistence(timeout: 5) {
-                        settle(0.6)
-                        await snapSurface(hosting: "database-details.export-copy", "08a-database-details-backups-export")
-                    } else {
-                        noteSkip("08a-database-details-backups-export", reason: "the Backups & Export page never opened")
-                    }
-                } else {
-                    noteSkip("08a-database-details-backups-export", reason: "the Backups & Export row was not hittable")
-                }
-                // Only the hub has Close; Escape pops the pushed page first.
-                let closeButton = app.buttons["database-details.close"].firstMatch
-                if !closeButton.waitForExistence(timeout: 1) {
-                    app.typeKey(.escape, modifierFlags: [])
-                    settle(0.6)
-                }
-                if closeButton.waitForExistence(timeout: 3) {
-                    closeButton.click()
-                } else {
-                    app.typeKey(.escape, modifierFlags: [])
-                }
-                settle()
-            } else {
-                noteSkip("08a-database-details", reason: "the details sheet never opened")
-            }
-        } else {
-            noteSkip("08a-database-details", reason: "the details toolbar button was not hittable")
-        }
+        // 8a, 8m, 8n. Database Settings and its tabs, Change Master Key with its
+        //     confirmation, and Encryption Settings.
+        await captureDatabaseSettings()
+
+        // 8o-8s. Import Passwords before a file is chosen, the group editor, New Group,
+        //     Move to Group and the entry icon picker.
+        await captureWorkspaceSheets()
 
         // 8d-8f. A group's context menu, the Recycle Bin its delete creates,
         //        and the window with the sidebar hidden.
@@ -951,6 +928,240 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         attachCaptureReport()
     }
 
+    /// The Database Settings sheet (⌘I) on `window`, or nil after noting `name` skipped.
+    private func openDatabaseSettings(in window: XCUIElement, skipping name: String) -> XCUIElement? {
+        let sheet = window.sheets.matching(identifier: "database-settings.sheet").firstMatch
+        guard typeAppShortcut("i"), sheet.waitForExistence(timeout: 8) else {
+            noteSkip(name, reason: "⌘I opened no Database Settings sheet")
+            return nil
+        }
+        return sheet
+    }
+
+    /// Clicks the Database Settings segment titled `title`.
+    private func selectDatabaseSettingsTab(_ title: String, in sheet: XCUIElement) -> Bool {
+        let segment = sheet.descendants(matching: .any)["database-settings.tabs"].firstMatch.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@ OR title == %@", title, title)).firstMatch
+        guard segment.waitForExistence(timeout: 3), segment.isHittable else { return false }
+        segment.click()
+        settle(0.6)
+        return true
+    }
+
+    private func captureDatabaseSettings() async {
+        let general = "08a-database-settings-general"
+        let security = "08a1-database-settings-security"
+        let autoFill = "08a3-database-settings-autofill"
+        let backups = "08a-database-settings-backups"
+        let masterKey = "08m-master-key"
+        let confirm = "08m1-master-key-confirm"
+        let encryption = "08n-encryption-settings"
+        guard let sheet = openDatabaseSettings(in: personalWindow, skipping: general) else {
+            for name in [security, autoFill, backups, masterKey, confirm, encryption] {
+                noteSkip(name, reason: "Database Settings never opened")
+            }
+            return
+        }
+        // The file facts load asynchronously; the Security tab's buttons wait for them.
+        _ = sheet.descendants(matching: .any)["database-details.file-format"].waitForExistence(timeout: 8)
+        settle(0.6)
+        await snapWindow(sheet, general)
+
+        if selectDatabaseSettingsTab("Security", in: sheet) {
+            await snapWindow(sheet, security)
+            let change = sheet.buttons["database-details.change-master-key"].firstMatch
+            waitUntilEnabled(change, timeout: 8)
+            if change.isEnabled {
+                change.click()
+                let child = app.sheets.matching(identifier: "master-key.sheet").firstMatch
+                if child.waitForExistence(timeout: 8) {
+                    settle(0.6)
+                    await snapWindow(child, masterKey)
+                    await captureMasterKeyConfirmation(in: child, confirm)
+                    child.buttons["master-key.cancel"].firstMatch.click()
+                    _ = child.waitForNonExistence(timeout: 5)
+                } else {
+                    noteSkip(masterKey, reason: "Change Master Key… opened no sheet")
+                    noteSkip(confirm, reason: "the master-key sheet never opened")
+                }
+            } else {
+                noteSkip(masterKey, reason: "Change Master Key… stayed dimmed")
+                noteSkip(confirm, reason: "the master-key sheet never opened")
+            }
+            let reencrypt = sheet.buttons["database-details.change-encryption-settings"].firstMatch
+            waitUntilEnabled(reencrypt, timeout: 8)
+            if reencrypt.isEnabled {
+                reencrypt.click()
+                let child = app.sheets.matching(identifier: "encryption-settings.sheet").firstMatch
+                if child.waitForExistence(timeout: 8) {
+                    settle(0.6)
+                    await snapWindow(child, encryption)
+                    child.buttons["encryption-settings.cancel"].firstMatch.click()
+                    _ = child.waitForNonExistence(timeout: 5)
+                } else {
+                    noteSkip(encryption, reason: "Change Encryption Settings… opened no sheet")
+                }
+            } else {
+                noteSkip(encryption, reason: "Change Encryption Settings… stayed dimmed")
+            }
+        } else {
+            for name in [security, masterKey, confirm, encryption] { noteSkip(name, reason: "no Security tab") }
+        }
+        if selectDatabaseSettingsTab("AutoFill", in: sheet) { await snapWindow(sheet, autoFill) }
+        else { noteSkip(autoFill, reason: "no AutoFill tab") }
+        if selectDatabaseSettingsTab("Backups", in: sheet) { await snapWindow(sheet, backups) }
+        else { noteSkip(backups, reason: "no Backups tab") }
+        noteSkip("08a-export-save-panel", reason: "the system Save panel for Export Copy… is not captured")
+        sheet.buttons["database-settings.done"].firstMatch.click()
+        _ = sheet.waitForNonExistence(timeout: 5)
+        settle(0.4)
+    }
+
+    /// Fills a valid new password, Saves, snaps the native confirmation and declines it.
+    private func captureMasterKeyConfirmation(in sheet: XCUIElement, _ name: String) async {
+        let fields = ["master-key.new-password-field", "master-key.confirm-password-field"].map {
+            sheet.descendants(matching: .any).matching(identifier: $0).firstMatch
+        }
+        guard fields.allSatisfy({ $0.waitForExistence(timeout: 3) && $0.isHittable }) else {
+            noteSkip(name, reason: "the new-password fields were not available")
+            return
+        }
+        for field in fields {
+            field.click()
+            field.typeText("correct horse battery staple")
+        }
+        sheet.buttons["master-key.save"].firstMatch.click()
+        let decline = app.buttons["master-key.cancel-change"].firstMatch
+        guard decline.waitForExistence(timeout: 5) else {
+            noteSkip(name, reason: "Save asked no confirmation")
+            return
+        }
+        settle(0.6)
+        await snapWindow(sheet, name)
+        decline.click()
+        _ = decline.waitForNonExistence(timeout: 5)
+        noteSkip("08m-key-file-save-panel", reason: "the system Save panel for Create Key File… is not captured")
+    }
+
+    private func captureWorkspaceSheets() async {
+        // 8o. File ▸ Import Passwords… before a file is chosen.
+        let importName = "08o-import-no-file"
+        if waitForStableForeground() {
+            chooseMenuItem("Import Passwords…", inMenu: "File")
+            let sheet = app.sheets.matching(identifier: "password-import.sheet").firstMatch
+            if sheet.waitForExistence(timeout: 8) {
+                settle(0.6)
+                await snapWindow(sheet, importName)
+                sheet.buttons["password-import.cancel"].firstMatch.click()
+                _ = sheet.waitForNonExistence(timeout: 5)
+            } else {
+                noteSkip(importName, reason: "Import Passwords… opened no sheet")
+            }
+        } else {
+            noteSkip(importName, reason: "app never held the foreground")
+        }
+        noteSkip("08o1-import-preview", reason: "the preview needs a CSV chosen in the system Open panel")
+
+        // 8p. Edit Group… from Social's row menu.
+        let editName = "08p-edit-group"
+        if let social = rowQuery(identifier: "group.navlink").matching(NSPredicate(format: "value == 'Social'"))
+            .allElementsBoundByIndex.first(where: { $0.isHittable && $0.frame.height > 1 }), waitForStableForeground() {
+            social.rightClick()
+            let edit = app.menuItems.matching(identifier: "group-row.edit-context").allElementsBoundByIndex
+                .first { $0.isEnabled && $0.isHittable }
+            if let edit {
+                edit.click()
+                await snapSheet(hosting: "group-edit.cancel", editName)
+                app.buttons["group-edit.cancel"].firstMatch.click()
+                settle(0.6)
+            } else {
+                app.typeKey(.escape, modifierFlags: [])
+                noteSkip(editName, reason: "the group row menu had no Edit Group…")
+            }
+        } else {
+            noteSkip(editName, reason: "the 'Social' group row was not available")
+        }
+
+        // 8q. File ▸ New Group.
+        let newName = "08q-new-group"
+        if waitForStableForeground() {
+            chooseMenuItem("New Group", inMenu: "File")
+            await snapSheet(hosting: "group-create.cancel", newName)
+            app.buttons["group-create.cancel"].firstMatch.click()
+            settle(0.6)
+        } else {
+            noteSkip(newName, reason: "app never held the foreground")
+        }
+
+        // 8r, 8s. Edit ▸ Move to Group… and the icon picker for Social/Twitter.
+        openGroup(named: "Social")
+        openEntry(named: "Twitter")
+        let moveName = "08r-move-to-group"
+        if waitForStableForeground() {
+            chooseMenuItem("Move to Group…", inMenu: "Edit")
+            await snapSheet(hosting: "move-picker.cancel", moveName)
+            app.buttons["move-picker.cancel"].firstMatch.click()
+            settle(0.6)
+        } else {
+            noteSkip(moveName, reason: "app never held the foreground")
+        }
+        let iconName = "08s-entry-icon-picker"
+        let iconButton = personalWindow.buttons["entry-detail.icon-button"].firstMatch
+        if iconButton.waitForExistence(timeout: 5), iconButton.isHittable {
+            iconButton.click()
+            await snapSheet(hosting: "icon-picker.use", iconName)
+            app.buttons["entry-icon-picker.cancel"].firstMatch.click()
+            settle(0.6)
+        } else {
+            noteSkip(iconName, reason: "the entry's icon button was not hittable")
+        }
+    }
+
+    /// Waits for the sheet holding `identifier` and snaps it.
+    private func snapSheet(hosting identifier: String, _ name: String) async {
+        guard app.sheets.descendants(matching: .any)[identifier].firstMatch.waitForExistence(timeout: 8) else {
+            noteSkip(name, reason: "no sheet hosting '\(identifier)'")
+            attachHierarchy(named: "\(name)-hierarchy")
+            return
+        }
+        settle(0.6)
+        await snapSurface(hosting: identifier, name)
+    }
+
+    /// 1d. Connect to Server against the mock WebDAV server, then its file browser.
+    private func captureRemoteBrowser() async {
+        let name = "01d-remote-browser"
+        showDatabasesWindow()
+        guard waitForStableForeground() else { return noteSkip(name, reason: "app never held the foreground") }
+        databasesWindow.buttons["databases.connect-server"].firstMatch.click()
+        let sheet = databasesWindow.sheets.firstMatch
+        let fields = [("webdav.connect.server-field", "https://cloud.example.com/dav"),
+                      ("webdav.connect.username-field", "alex"), ("webdav.connect.password-field", "password")]
+        for (identifier, text) in fields {
+            let field = sheet.descendants(matching: .any).matching(identifier: identifier).firstMatch
+            guard field.waitForExistence(timeout: 8) else {
+                app.typeKey(.escape, modifierFlags: [])
+                return noteSkip(name, reason: "the Connect sheet has no '\(identifier)'")
+            }
+            field.click()
+            app.typeKey("a", modifierFlags: .command)
+            app.typeText(text)
+        }
+        sheet.buttons["webdav.connect.submit"].firstMatch.click()
+        let table = databasesWindow.descendants(matching: .any)["remote-browser.table"].firstMatch
+        guard table.waitForExistence(timeout: 10),
+              databasesWindow.descendants(matching: .any)["cloud.browser.file.row"].firstMatch.waitForExistence(timeout: 10) else {
+            noteSkip(name, reason: "the mock server's files never listed")
+            attachHierarchy(named: "\(name)-hierarchy")
+            app.typeKey(.escape, modifierFlags: [])
+            return
+        }
+        settle(0.6)
+        await snapWindow(databasesWindow.sheets.firstMatch, name)
+        app.typeKey(.escape, modifierFlags: [])
+        settle(0.6)
+    }
+
     /// Deletes a sidebar group through its row menu and the confirmation.
     private func deleteGroup(named group: String, skipping name: String) -> Bool {
         guard waitForStableForeground(),
@@ -967,7 +1178,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             return false
         }
         delete.click()
-        let confirm = app.windows.buttons["Delete"].firstMatch
+        let confirm = app.windows.sheets.buttons["workspace.delete.confirm"].firstMatch
         guard confirm.waitForExistence(timeout: 5) else {
             noteSkip(name, reason: "the delete confirmation never appeared")
             return false
@@ -1109,7 +1320,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
                 settle(0.4)
                 await snapWindow(app.menus.containing(.menuItem, identifier: "entry-row.delete-context").firstMatch, rowMenuName)
                 delete.click()
-                let confirm = personalWindow.buttons["Delete"].firstMatch
+                let confirm = personalWindow.sheets.buttons["workspace.delete.confirm"].firstMatch
                 if confirm.waitForExistence(timeout: 5) { confirm.click() }
                 waitUntilEnabled(personalWindow.searchFields.firstMatch, timeout: 15)
             } else {
@@ -1133,8 +1344,10 @@ final class MacScreenshotAuditUITests: MacUITestCase {
                 settle(0.4)
                 await snapWindow(app.menus.containing(.menuItem, identifier: "group-row.delete-context").firstMatch, menuName)
                 delete.click()
-                let confirm = personalWindow.buttons["Delete"].firstMatch
+                let confirm = personalWindow.sheets.buttons["workspace.delete.confirm"].firstMatch
                 if confirm.waitForExistence(timeout: 5) {
+                    settle(0.6)
+                    await snap("08t-delete-group-alert")
                     confirm.click()
                     // The bin's own row is Deleted Entries, under the Recycle Bin header.
                     openGroup(named: "Deleted Entries")
@@ -1256,12 +1469,13 @@ final class MacScreenshotAuditUITests: MacUITestCase {
 
     private func captureSettingsTabs() async {
         let tabs = [
+            ("General", "settings.tab.general", "07c-settings-general"),
             ("Security", "settings.tab.security", "07a-settings-security"),
             ("AutoFill", "settings.tab.autofill", "07b-settings-autofill"),
-            ("Menu Bar", "settings.tab.menu-bar", "07f-settings-menu-bar"),
+            ("Quick Search", "settings.tab.quick-search", "07f-settings-quick-search"),
             ("SSH Agent", "settings.tab.ssh-agent", "07g-settings-ssh-agent"),
-            ("Display", "settings.tab.display", "07c-settings-display"),
-            ("Cloud", "settings.tab.cloud", "07d-settings-cloud"),
+            ("Appearance", "settings.tab.appearance", "07h-settings-appearance"),
+            ("Servers", "settings.tab.servers", "07d-settings-servers"),
             ("About", "settings.tab.about", "07e-settings-about"),
         ]
 
@@ -1272,6 +1486,8 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             }
             return
         }
+        // A fresh Settings window, as it first opens.
+        await snapWindow(settingsWindow, "07-settings")
 
         for (title, contentIdentifier, name) in tabs {
             guard selectSettingsTab(named: title) else { continue }

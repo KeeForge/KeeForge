@@ -26,10 +26,10 @@ final class MacDatabaseSettingsSheet {
         shell = MacFormSheetController(title: String(localized: "\(model.current.displayName) — Database Settings"),
             content: host, size: NSSize(width: 720, height: 540), defaultTitle: String(localized: "Done"),
             tabs: tabs, cancellationScope: scope)
-        shell.window?.setContentSize(NSSize(width: 720, height: 540))
         owner.window = shell.window
         shell.cancelButton.isHidden = true
-        shell.defaultButton.setAccessibilityIdentifier("database-details.close")
+        shell.window?.setAccessibilityIdentifier("database-settings.sheet")
+        shell.defaultButton.setAccessibilityIdentifier("database-settings.done")
         tabs.target = self
         tabs.action = #selector(changeTab)
         owner.sheet = self
@@ -126,7 +126,8 @@ private struct MacDatabaseGeneralTab: View {
     var body: some View {
         LabeledContent("Custom name:") {
             VStack(alignment: .leading) {
-                TextField("Use filename", text: $model.nickname).focused($editingName)
+                TextField("Custom Name", text: $model.nickname, prompt: Text("Use filename")).labelsHidden().frame(maxWidth: 280)
+                    .focused($editingName)
                     .onSubmit { model.commitNickname() }
                     .accessibilityIdentifier("database-details.nickname-field")
                 Text("Filename: \(model.current.filename)").font(.caption).foregroundStyle(.secondary)

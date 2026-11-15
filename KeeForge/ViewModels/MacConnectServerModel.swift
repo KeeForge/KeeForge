@@ -11,13 +11,21 @@ final class MacConnectServerModel {
     private var ended = false
 
     init(serverType: CloudProviderKind = .webDAV,
-         webDAV: WebDAVConnectViewModel = WebDAVConnectViewModel(connector: WebDAVCloudProvider.shared),
-         ftp: FTPConnectViewModel = FTPConnectViewModel(connector: FTPCloudProvider.shared),
+         webDAV: WebDAVConnectViewModel = WebDAVConnectViewModel(connector: MacConnectServerModel.webDAVConnector),
+         ftp: FTPConnectViewModel = FTPConnectViewModel(connector: MacConnectServerModel.ftpConnector),
          prefill: Bool = true) {
         self.serverType = Self.serverTypes.contains(serverType) ? serverType : .webDAV
         self.webDAV = webDAV
         self.ftp = ftp
         if prefill { prefillAccounts() }
+    }
+
+    /// The registry's providers, so a UI-test run connects through its mock server as iOS does.
+    static var webDAVConnector: any WebDAVConnecting {
+        CloudProviderRegistry.provider(for: CloudProviderKind.webDAV.rawValue) as? any WebDAVConnecting ?? WebDAVCloudProvider.shared
+    }
+    static var ftpConnector: any FTPConnecting {
+        CloudProviderRegistry.provider(for: CloudProviderKind.ftp.rawValue) as? any FTPConnecting ?? FTPCloudProvider.shared
     }
 
     convenience init(form: MacServerCredentialForm) {

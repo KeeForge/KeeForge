@@ -129,13 +129,13 @@ final class MacAppStoreScreenshots: MacUITestCase {
             noteSkip("05-entry-edit", reason: "the editor never opened")
         }
 
-        // 03: database details hub (format and Encryption rows).
+        // 03: Database Settings (General tab).
         clickToolbarButton(identifier: "database-details.button", overflowLabel: "Database Settings")
-        if app.buttons["database-details.close"].waitForExistence(timeout: 8) {
+        if app.buttons["database-settings.done"].waitForExistence(timeout: 8) {
             // The header's format summary loads asynchronously.
             settle(2)
-            await snapSurface(hosting: "database-details.close", "03-database-details")
-            app.buttons["database-details.close"].firstMatch.click()
+            await snapSurface(hosting: "database-settings.done", "03-database-details")
+            app.buttons["database-settings.done"].firstMatch.click()
             settle()
         } else {
             noteSkip("03-database-details", reason: "the details sheet never opened")

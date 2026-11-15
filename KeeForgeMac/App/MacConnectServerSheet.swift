@@ -14,6 +14,7 @@ struct MacConnectServerSheet: View {
                         ForEach(MacConnectServerModel.serverTypes) { Text($0.displayName).tag($0) }
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                     .frame(width: 220)
                     .accessibilityIdentifier("connect-server.type")
                 }
@@ -40,7 +41,7 @@ struct MacConnectServerSheet: View {
                 .accessibilityIdentifier("webdav.connect.username-field")
             LabeledContent("Password") { PasswordInputRow(title: String(localized: "Password"), text: $form.password, isVisible: $passwordVisible,
                              fieldAccessibilityIdentifier: "webdav.connect.password-field",
-                             visibilityAccessibilityIdentifier: "webdav.connect.password-visibility-button", usesPasswordAutoFill: false) }
+                             visibilityAccessibilityIdentifier: "webdav.connect.password-visibility-button", usesPasswordAutoFill: false).labelsHidden() }
             Divider()
             LabeledContent("Advanced") {
                 Toggle("Allow Unencrypted HTTP", isOn: $form.allowsUnencryptedHTTP)
@@ -65,7 +66,7 @@ struct MacConnectServerSheet: View {
                 .accessibilityIdentifier("ftp.connect.username-field")
             LabeledContent("Password") { PasswordInputRow(title: String(localized: "Password"), text: $form.password, isVisible: $passwordVisible,
                              fieldAccessibilityIdentifier: "ftp.connect.password-field",
-                             visibilityAccessibilityIdentifier: "ftp.connect.password-visibility-button", usesPasswordAutoFill: false) }
+                             visibilityAccessibilityIdentifier: "ftp.connect.password-visibility-button", usesPasswordAutoFill: false).labelsHidden() }
             Divider()
             LabeledContent("Security") {
                 Toggle("Allow Unencrypted FTP", isOn: $form.allowsUnencryptedFTP)

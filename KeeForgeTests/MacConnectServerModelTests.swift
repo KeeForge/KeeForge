@@ -22,6 +22,13 @@ final class MacConnectServerModelTests: XCTestCase {
         XCTAssertEqual(model.ftp.password, "")
     }
 
+    func testDefaultFormsConnectThroughTheRegistryProviders() {
+        XCTAssertTrue((MacConnectServerModel.webDAVConnector as AnyObject)
+            === (CloudProviderRegistry.provider(for: CloudProviderKind.webDAV.rawValue) as AnyObject))
+        XCTAssertTrue((MacConnectServerModel.ftpConnector as AnyObject)
+            === (CloudProviderRegistry.provider(for: CloudProviderKind.ftp.rawValue) as AnyObject))
+    }
+
     func testConnectionYieldsAccountAndEndDropsLateSuccessAndFailure() async {
         for end in [false, true] {
             for fails in [false, true] {

@@ -25,9 +25,9 @@ struct MacGroupEditorView: View {
                     }
                     LabeledContent("Location:") {
                         HStack {
-                            Text(form.parentPath(in: database)).accessibilityIdentifier("group-edit.location")
-                            Spacer()
+                            Label(form.parentPath(in: database), systemImage: "folder").accessibilityIdentifier("group-edit.location")
                             Button("Move to Group…", action: chooseParent).accessibilityIdentifier("group-edit.move")
+                            Spacer()
                         }
                     }
                     LabeledContent("Tags:") {
@@ -42,7 +42,7 @@ struct MacGroupEditorView: View {
                             }
                             .accessibilityElement(children: .contain)
                             .accessibilityIdentifier("group-edit.tags")
-                            TextField("Add a tag", text: $form.pendingTagText).onSubmit { form.commitPendingTag() }
+                            TextField("Tags", text: $form.pendingTagText, prompt: Text("Add a tag")).labelsHidden().onSubmit { form.commitPendingTag() }
                                 .accessibilityIdentifier("group-edit.tags-field")
                             FlowLayout(spacing: 6) {
                                 ForEach(Array(form.tagSuggestions.enumerated()), id: \.offset) { index, tag in
@@ -105,7 +105,7 @@ struct MacNewGroupView: View {
             Form {
                 LabeledContent("Name:") {
                     VStack(alignment: .leading, spacing: 6) {
-                        TextField("Group Name", text: $name).accessibilityIdentifier("group-create.name-field")
+                        TextField("Name", text: $name, prompt: Text("Group Name")).labelsHidden().accessibilityIdentifier("group-create.name-field")
                         Text("Created in \(parentName).").font(.caption).foregroundStyle(.secondary)
                     }
                 }

@@ -20,6 +20,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(tabs.tabStyle, .toolbar)
         XCTAssertEqual(tabs.tabViewItems.compactMap { $0.identifier as? String }, MacSettingsTab.allCases.map(\.identifier))
         XCTAssertEqual(tabs.tabViewItems.map(\.label), MacSettingsTab.allCases.map(\.title))
+        XCTAssertEqual(tabs.tabViewItems.map { $0.viewController?.title }, MacSettingsTab.allCases.map(\.title))
         XCTAssertFalse(try XCTUnwrap(controller.window).canBecomeMain)
         XCTAssertEqual(controller.window?.identifier?.rawValue, "settings")
         XCTAssertEqual(tabs.selectedTabViewItemIndex, 1)
@@ -29,6 +30,21 @@ final class SettingsWindowControllerTests: XCTestCase {
             tabs.tabView.selectTabViewItem(item)
             XCTAssertEqual(controller.window?.title, tab.title)
         }
+        controller.close()
+    }
+
+    func testWindowFollowsTheAppAppearanceSetting() async throws {
+        let original = SettingsService.appearanceMode
+        defer { SettingsService.appearanceMode = original }
+        SettingsService.appearanceMode = .light
+        let controller = try makeController()
+        XCTAssertEqual(controller.window?.appearance?.name, .aqua)
+        controller.tabs.settings.appearanceMode = .dark
+        for _ in 0..<20 where controller.window?.appearance?.name != .darkAqua { await Task.yield() }
+        XCTAssertEqual(controller.window?.appearance?.name, .darkAqua)
+        controller.tabs.settings.appearanceMode = .system
+        for _ in 0..<20 where controller.window?.appearance != nil { await Task.yield() }
+        XCTAssertNil(controller.window?.appearance)
         controller.close()
     }
 

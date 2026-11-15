@@ -1,6 +1,7 @@
 #if os(macOS)
 import AppKit
 import XCTest
+import SwiftUI
 @testable import KeeForge
 
 @MainActor
@@ -136,6 +137,15 @@ final class MacFormSheetControllerTests: XCTestCase {
         shell.performCancel()
         XCTAssertFalse(shell.isPresented)
         XCTAssertNil(shell.onConfirm)
+    }
+
+    func testSheetKeepsItsRequestedContentSizeUnderTheHeightCeiling() {
+        let content = NSViewController()
+        content.view = NSView()
+        let appKit = MacFormSheetController(title: "Test", content: content, size: NSSize(width: 400, height: 800))
+        XCTAssertEqual(appKit.window?.contentView?.frame.size, NSSize(width: 400, height: MacSheetMetrics.maxHeight))
+        let hosted = MacFormSheetController(title: "Test", content: Text("Form"), size: NSSize(width: 740, height: 540))
+        XCTAssertEqual(hosted.window?.contentView?.frame.size, NSSize(width: 740, height: min(540, MacSheetMetrics.maxHeight)))
     }
 
     private func makeShell() -> MacFormSheetController {

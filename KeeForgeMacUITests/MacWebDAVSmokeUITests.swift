@@ -63,6 +63,20 @@ final class MacWebDAVSmokeUITests: MacUITestCase {
             XCTAssertTrue(waitForStatusLine(containing: "Synced just now"), "Sync Now did not report the database as synced")
             XCTAssertFalse(window.buttons["cloud-sync-failure.ok"].exists, "Sync Now reported a failure")
         }
+
+        // Database Settings has a Sync tab for a WebDAV database, and it reports the sync healthy.
+        typeCommandShortcut("i")
+        let settings = window.sheets.matching(identifier: "database-settings.sheet").firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), "⌘I did not open Database Settings")
+        let tabs = settings.descendants(matching: .any)["database-settings.tabs"].firstMatch
+        XCTAssertTrue(tabs.waitForExistence(timeout: 5), "Database Settings has no tabs")
+        let syncTab = tabs.descendants(matching: .any).matching(NSPredicate(format: "label == 'Sync' OR title == 'Sync'")).firstMatch
+        XCTAssertTrue(syncTab.waitForExistence(timeout: 5), "A WebDAV database has no Sync tab")
+        syncTab.click()
+        let healthy = settings.staticTexts.matching(NSPredicate(format: "value == 'Healthy' OR label == 'Healthy'")).firstMatch
+        XCTAssertTrue(healthy.waitForExistence(timeout: 10), "The Sync tab does not report the database healthy")
+        settings.buttons["database-settings.done"].firstMatch.click()
+        XCTAssertTrue(settings.waitForNonExistence(timeout: 10), "Done did not close Database Settings")
     }
 
     /// Re-queries the line every pass: a sync outcome rebuilds the card.
