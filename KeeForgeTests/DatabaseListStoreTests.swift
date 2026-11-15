@@ -49,6 +49,7 @@ final class DatabaseListStoreTests: XCTestCase {
         try corrupt.write(to: url)
         guard case .notPublished = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected rejection") }
         XCTAssertFalse(DatabaseListStore.setNickname("changed", for: UUID()))
+        XCTAssertThrowsError(try DatabaseListStore.add(url: makeTemporaryFileURL(name: "corrupt-add.kdbx")))
         XCTAssertEqual(try Data(contentsOf: url), corrupt)
     }
 

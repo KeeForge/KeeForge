@@ -290,19 +290,8 @@ enum DatabaseListStore {
 
     @discardableResult
     static func add(url: URL) throws -> DatabaseReference {
-        let reference = try withStateLock { () throws -> DatabaseReference in
-            var currentDatabases = loadDatabases()
-            if let duplicate = existingLocalReference(matching: url, in: currentDatabases) {
-                throw AddDatabaseError.duplicateFile(
-                    existingReferenceID: duplicate.id,
-                    filename: duplicate.displayName
-                )
-            }
-            let reference = try makeReference(from: url)
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
-            return reference
-        }
+        let reference = try makeReference(from: url)
+        try registerLocalReference(reference, target: url)
         cacheInitialCopyIfPossible(from: url, for: reference.id)
         return reference
     }
@@ -354,11 +343,36 @@ enum DatabaseListStore {
     }
 
     static func addCreatedLocal(_ reference: DatabaseReference) throws {
-        try withStateLock {
-            var currentDatabases = loadDatabases()
-            try validateCreatedLocal(reference, in: currentDatabases)
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
+        let target = reference.bookmarkData.flatMap { SecurityScopedBookmarkManager.resolveURL(from: $0)?.url }
+        try registerLocalReference(reference, target: target)
+    }
+
+    private static func registerLocalReference(_ reference: DatabaseReference, target: URL?) throws {
+        let accessed = target?.startAccessingSecurityScopedResource() ?? false
+        defer { if accessed { target?.stopAccessingSecurityScopedResource() } }
+        try requireRegistryInitialization()
+        guard let observed = try readRegistry(at: databaseListURL) else { throw RegistryWriteError.unavailable }
+        let duplicate = target.flatMap { existingLocalReference(matching: $0, in: observed) }
+        let targetIdentity = try target.map { try PendingLocalSaveStore.targetIdentity(at: $0) }
+        let result = mutateRegistry { rows -> RegistryDecision<Void> in
+            guard rows.count == observed.count, zip(rows, observed).allSatisfy({ current, previous in
+                current.id == previous.id && current.bookmarkData == previous.bookmarkData && current.isCloudBacked == previous.isCloudBacked
+            }) else { return .rejected }
+            if let target, let targetIdentity,
+               (try? PendingLocalSaveStore.targetIdentity(at: target)) != targetIdentity { return .rejected }
+            guard !rows.contains(where: { $0.id == reference.id }) else { return .rejected }
+            if let duplicate {
+                throw AddDatabaseError.duplicateFile(existingReferenceID: duplicate.id, filename: duplicate.displayName)
+            }
+            if reference.bookmarkData == nil { try validateAppOnlyCreatedLocal(reference, in: rows) }
+            rows.append(reference)
+            return .write(())
+        }
+        switch result {
+        case .durable, .noop: return
+        case .notPublished(let error): throw error
+        case .visibleUnconfirmed(_, let error): throw RegistryWriteError.visibleUnconfirmed(error)
+        case .missing, .rejected: throw RegistryWriteError.unavailable
         }
     }
 
