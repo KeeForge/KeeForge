@@ -146,6 +146,12 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         windowCoordinator.commandTarget()?.session.state == .unlocked
     }
 
+    @objc func showCloudRecovery(_ sender: Any?) {
+        guard !windowCoordinator.launcher.isSheetBusy() else { return }
+        windowCoordinator.showDatabasesWindow()
+        windowCoordinator.launcher.requestCloudRecovery()
+    }
+
     @objc func connectToServer(_ sender: Any?) {
         guard windowCoordinator.launcher.canRequestConnect else { return }
         windowCoordinator.showDatabasesWindow()
@@ -162,6 +168,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
         case #selector(connectToServer): return windowCoordinator.launcher.canRequestConnect
+        case #selector(showCloudRecovery): return !windowCoordinator.launcher.isSheetBusy()
         case #selector(newDatabase): return windowCoordinator.launcher.canCreateDatabase
         case #selector(lockAllDatabases): return windowCoordinator.canLockAllDatabases
         case #selector(showPasswordGenerator): return canShowPasswordGenerator
@@ -206,18 +213,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
         let commit = (bundle.object(forInfoDictionaryKey: "GITCommitHash") as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let credits = NSAttributedString(
-            string: String(localized: "Open-source components and their licenses are listed in Settings › About › Acknowledgments."),
-            attributes: [
-                .font: NSFont.preferredFont(forTextStyle: .callout),
-                .foregroundColor: NSColor.labelColor,
-            ]
-        )
-
-        var options: [NSApplication.AboutPanelOptionKey: Any] = [
-            .applicationVersion: version,
-            .credits: credits,
-        ]
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [.applicationVersion: version]
         if let commit, commit.isEmpty == false {
             options[.version] = commit
         }

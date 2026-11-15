@@ -155,22 +155,16 @@ struct MacEntryEditorView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: metrics.headerGap) {
             headerIcon
-            VStack(alignment: .leading, spacing: 5) {
-                TextField("Title", text: $form.title)
-                    .textFieldStyle(.plain)
-                    .font(.title2.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .frame(height: 38)
-                    .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color(nsColor: .separatorColor)))
-                    .focused($isTitleFocused)
-                    .accessibilityIdentifier("entry-edit.title-field")
-                Text(subline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            .layoutPriority(1)
+            TextField("Title", text: $form.title)
+                .textFieldStyle(.plain)
+                .font(.title2.weight(.semibold))
+                .padding(.horizontal, 10)
+                .frame(height: 38)
+                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color(nsColor: .separatorColor)))
+                .focused($isTitleFocused)
+                .accessibilityIdentifier("entry-edit.title-field")
+                .layoutPriority(1)
             Button("Cancel", action: cancelTapped)
                 .keyboardShortcut(.cancelAction)
                 .buttonStyle(.bordered)
@@ -200,6 +194,8 @@ struct MacEntryEditorView: View {
             .disabled(session.canSave == false)
             .accessibilityIdentifier("entry-edit.save")
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(session.headerAccessibilityLabel)
     }
 
     @ViewBuilder
@@ -226,17 +222,6 @@ struct MacEntryEditorView: View {
         case .edit(let entryID): viewModel.parentGroupID(forEntryID: entryID)
         case .create(let groupID): groupID
         }
-    }
-
-    private var groupPathComponents: [String] {
-        guard let groupID else { return [] }
-        return MacEntryEditorSession.groupPath(of: groupID, in: viewModel.groupDestinationOptions(currentGroupID: groupID))
-    }
-
-    private var subline: String {
-        let state = session.isEditingExistingEntry ? String(localized: "Editing") : String(localized: "New Entry")
-        let path = groupPathComponents.joined(separator: " › ")
-        return path.isEmpty ? state : "\(path) · \(state)"
     }
 
     // MARK: - Main card

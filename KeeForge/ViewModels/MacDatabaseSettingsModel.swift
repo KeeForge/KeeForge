@@ -15,6 +15,16 @@ final class MacDatabaseSettingsModel {
             case .backups: String(localized: "Backups")
             }
         }
+        /// The DatabaseSettingsTabs board's glyphs; General and Security match the Settings window's.
+        var symbol: String {
+            switch self {
+            case .general: "gearshape"
+            case .security: "lock.shield"
+            case .sync: "arrow.triangle.2.circlepath"
+            case .autoFill: "ellipsis.rectangle"
+            case .backups: "archivebox"
+            }
+        }
     }
     let reference: DatabaseReference
     let session: DatabaseViewModel?

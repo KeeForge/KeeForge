@@ -9,6 +9,7 @@ struct FaviconView: View {
     var customIconData: Data? = nil
 
     @State private var loader = FaviconLoadModel()
+    @Environment(\.displayScale) private var displayScale
 
     private var customIcon: PlatformImage? {
         customIconData.flatMap { PlatformImage(data: $0) }
@@ -30,15 +31,9 @@ struct FaviconView: View {
     var body: some View {
         Group {
             if let customIcon {
-                Image(platformImage: customIcon)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                bitmap(customIcon)
             } else if showFavicons, loader.domain == requestedDomain, let image = loader.image {
-                Image(platformImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                bitmap(image)
                     .transition(.opacity)
             } else {
                 fallbackIcon
@@ -47,6 +42,25 @@ struct FaviconView: View {
         .frame(width: size, height: size)
         .task(id: requestedDomain) {
             await loader.load(domain: requestedDomain)
+        }
+    }
+
+    /// Fills the frame, or sits on a neutral tile when it is too small to fill it sharply.
+    @ViewBuilder
+    private func bitmap(_ image: PlatformImage) -> some View {
+        let side = IconBitmapLayout.side(pixelEdge: image.pixelEdge, fullSide: size, scale: displayScale)
+        let picture = Image(platformImage: image)
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .frame(width: side, height: side)
+        if side < size {
+            picture
+                .frame(width: size, height: size)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: size * Theme.EntryIcon.cornerRatio, style: .continuous))
+        } else {
+            picture
         }
     }
 

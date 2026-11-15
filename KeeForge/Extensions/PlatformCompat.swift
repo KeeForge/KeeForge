@@ -17,6 +17,19 @@ typealias PlatformImage = UIImage
 typealias PlatformImage = NSImage
 #endif
 
+extension PlatformImage {
+    /// The longest edge of the largest bitmap behind the image, in pixels.
+    var pixelEdge: CGFloat {
+        #if canImport(UIKit)
+        if let cgImage { return CGFloat(max(cgImage.width, cgImage.height)) }
+        return max(size.width, size.height) * scale
+        #else
+        let bitmapEdge = representations.map { max($0.pixelsWide, $0.pixelsHigh) }.max() ?? 0
+        return bitmapEdge > 0 ? CGFloat(bitmapEdge) : max(size.width, size.height)
+        #endif
+    }
+}
+
 // MARK: - Text content type
 
 // SwiftUI's `textContentType(_:)` takes the platform's own type; naming it lets

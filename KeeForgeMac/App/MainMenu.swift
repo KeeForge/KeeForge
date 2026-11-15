@@ -31,6 +31,8 @@ enum MainMenu {
         add(String(localized: "New Database…"), #selector(AppDelegate.newDatabase), key: "n", modifiers: [.command, .option], to: file)
         add(String(localized: "Open Database File…"), #selector(AppDelegate.openDatabase), key: "o", to: file)
         add(String(localized: "Connect to Server…"), #selector(AppDelegate.connectToServer), to: file)
+        add(String(localized: "Cloud Recovery"), #selector(AppDelegate.showCloudRecovery), to: file)
+            .identifier = NSUserInterfaceItemIdentifier("databases.cloud-recovery")
         file.addItem(.separator())
         add(String(localized: "Close Window"), #selector(NSWindow.performClose(_:)), key: "w", to: file)
         add(String(localized: "Save"), #selector(DatabaseWindowController.saveDatabase), key: "s", to: file)

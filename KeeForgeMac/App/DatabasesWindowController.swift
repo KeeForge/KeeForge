@@ -6,8 +6,9 @@ import SwiftUI
 @MainActor
 final class DatabasesWindowController: NSWindowController {
     static let identifier = NSUserInterfaceItemIdentifier("databases")
-    /// The board's 780 pt width; the height keeps a `MacSheetMetrics.maxHeight` sheet clear of the titlebar.
-    static let contentSize = NSSize(width: 780, height: 620)
+    /// The board's 780 pt width; the height fits the brand panel's column and three database rows.
+    /// A taller sheet grows the window (`DatabasesWindow.frame(fitting:)`).
+    static let contentSize = NSSize(width: 780, height: 440)
     static let styleMask: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
 
     var onWillClose: (@MainActor () -> Void)?
@@ -62,11 +63,40 @@ final class DatabasesWindowController: NSWindowController {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
 
-private final class DatabasesWindow: NSWindow {
-    // Hosting resets this during layout; reused sheets need the full height.
+final class DatabasesWindow: NSWindow {
+    // Hosting resets this during layout.
     override var contentMinSize: NSSize {
         get { super.contentMinSize }
         set { super.contentMinSize = DatabasesWindowController.contentSize }
+    }
+
+    override func beginSheet(_ sheetWindow: NSWindow, completionHandler handler: ((NSApplication.ModalResponse) -> Void)? = nil) {
+        growToFit(sheetWindow)
+        super.beginSheet(sheetWindow, completionHandler: handler)
+    }
+
+    override func beginCriticalSheet(_ sheetWindow: NSWindow,
+                                     completionHandler handler: ((NSApplication.ModalResponse) -> Void)? = nil) {
+        growToFit(sheetWindow)
+        super.beginCriticalSheet(sheetWindow, completionHandler: handler)
+    }
+
+    /// AppKit hangs a sheet taller than the space below the titlebar past the window's bottom edge.
+    private func growToFit(_ sheet: NSWindow) {
+        let fitted = frame(fitting: sheet.frame.height)
+        guard fitted != frame else { return }
+        setFrame(screen.map { constrainFrameRect(fitted, to: $0) } ?? fitted, display: true)
+    }
+
+    /// The frame, taller and with the same top edge, that leaves room for a sheet below the titlebar.
+    func frame(fitting sheetHeight: CGFloat) -> NSRect {
+        let titlebarHeight = frame.height - contentLayoutRect.height
+        let missing = (sheetHeight + titlebarHeight - frame.height).rounded(.up)
+        guard missing > 0 else { return frame }
+        var fitted = frame
+        fitted.size.height += missing
+        fitted.origin.y -= missing
+        return fitted
     }
 }
 

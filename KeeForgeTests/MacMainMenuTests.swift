@@ -42,6 +42,7 @@ final class MacMainMenuTests: XCTestCase {
             ("New Database…", "n", option, "newDatabase:"),
             ("Open Database File…", "o", command, "openDatabase:"),
             ("Connect to Server…", "", [], "connectToServer:"),
+            ("Cloud Recovery", "", [], "showCloudRecovery:"),
             ("Close Window", "w", command, "performClose:"),
             ("Save", "s", command, "saveDatabase:"),
             ("Import Passwords…", "", [], "importPasswords:"),
@@ -87,7 +88,7 @@ final class MacMainMenuTests: XCTestCase {
             ("Bring All to Front", "", [], "arrangeInFront:"),
         ], [("KeeForge Help", "", [], "showHelp:"), ("Report a Bug", "", [], "reportBug:")]]
         let databaseActions: Set<String> = ["importPasswords:", "exportDatabase:", "newEntry:", "newGroup:", "saveDatabase:", "closeDatabase:", "copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "editEntry:", "duplicateSelectedEntry:", "moveSelectedEntries:", "deleteSelection:", "findEntry:", "showAllEntries:", "showVerificationCodes:", "showPasskeys:", "chooseSortOrder:", "chooseSortDirection:", "expandAllGroups:", "collapseAllGroups:", "showInLargeType:", "lockDatabase:", "syncNow:", "discardPendingUpload:", "showDatabaseSettings:", "changeMasterKey:"]
-        let appActions: Set<String> = ["showAboutPanel:", "showSettings:", "newDatabase:", "openDatabase:", "showHelp:", "reportBug:", "checkForUpdates:", "showDatabasesWindow:", "connectToServer:", "lockAllDatabases:", "showPasswordGenerator:"]
+        let appActions: Set<String> = ["showAboutPanel:", "showSettings:", "newDatabase:", "openDatabase:", "showHelp:", "reportBug:", "checkForUpdates:", "showDatabasesWindow:", "connectToServer:", "showCloudRecovery:", "lockAllDatabases:", "showPasswordGenerator:"]
         for (top, contracts) in zip(menu.items, expected) {
             let submenu = try XCTUnwrap(top.submenu)
             let items = submenu.items.filter { $0.action != nil && $0.submenu == nil }
@@ -142,13 +143,19 @@ final class MacMainMenuTests: XCTestCase {
         let window = try XCTUnwrap(delegate.windowCoordinator.databasesWindow)
         XCTAssertEqual(window.identifier, DatabasesWindowController.identifier)
         XCTAssertEqual(window.contentMinSize, DatabasesWindowController.contentSize)
-        XCTAssertGreaterThanOrEqual(DatabasesWindowController.contentSize.height, MacSheetMetrics.maxHeight + 60)
+        let launcherWindow = try XCTUnwrap(window as? DatabasesWindow)
+        let tallSheet = launcherWindow.frame(fitting: MacSheetMetrics.maxHeight)
+        XCTAssertEqual(tallSheet.maxY, launcherWindow.frame.maxY, "Grows downward, keeping its top edge")
+        XCTAssertGreaterThanOrEqual(tallSheet.height - (launcherWindow.frame.height - launcherWindow.contentLayoutRect.height),
+                                    MacSheetMetrics.maxHeight, "A tallest sheet fits below the titlebar")
+        XCTAssertEqual(launcherWindow.frame(fitting: 200), launcherWindow.frame, "A short sheet leaves the frame alone")
         XCTAssertFalse(window.isReleasedWhenClosed)
         XCTAssertFalse(delegate.applicationShouldTerminateAfterLastWindowClosed(NSApp))
         for selector in ["newDatabase:", "openDatabase:"] {
             XCTAssertTrue(delegate.validateMenuItem(item(selector)), selector)
         }
         XCTAssertEqual(delegate.validateMenuItem(item("connectToServer:")), delegate.windowCoordinator.launcher.canConnect)
+        XCTAssertTrue(delegate.validateMenuItem(item("showCloudRecovery:")), "Recovery needs no database session")
         XCTAssertTrue(delegate.windowCoordinator.launcher.canConnect, "WebDAV and FTP are Mac servers")
         XCTAssertEqual(delegate.validateMenuItem(item("lockAllDatabases:")), delegate.windowCoordinator.canLockAllDatabases)
         XCTAssertEqual(delegate.validateMenuItem(item("showPasswordGenerator:")),
@@ -205,7 +212,8 @@ final class MacMainMenuTests: XCTestCase {
         for name in rowSelectors { XCTAssertTrue(list.responds(to: NSSelectorFromString(name)), name) }
         for name in groupSelectors { XCTAssertTrue(sidebar.responds(to: NSSelectorFromString(name)), name) }
         let launcher = MacDatabasesLauncherViewController(launcher: MacDatabasesLauncherViewModel(references: { [] }))
-        let launcherSelectors = ["openClickedDatabase:", "performRowMenuItem:", "showAddMenu:", "removeSelectedDatabase:"]
+        // Its deleteSelection: is Edit > Delete on purpose: the Databases window has no database window controller.
+        let launcherSelectors = ["openClickedDatabase:", "performRowMenuItem:"]
         for name in launcherSelectors { XCTAssertTrue(launcher.responds(to: NSSelectorFromString(name)), name) }
         XCTAssertTrue(mainSelectors.isDisjoint(with: rowSelectors + groupSelectors + launcherSelectors),
                       "\(mainSelectors.intersection(rowSelectors + groupSelectors + launcherSelectors))")

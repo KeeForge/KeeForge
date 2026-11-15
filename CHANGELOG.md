@@ -54,6 +54,7 @@
 - On iPhone, iPad, and Mac, an entry's website opens only when it is an `http` or `https` address, or a bare address such as `example.com`, which opens as `https://example.com`. Any other value, such as a `file:`, `javascript:`, or another app's link, is shown as plain text you can copy, with no open button.
 - Creating a database on an FTP server that answers a missing file with a temporary error (such as `rclone serve ftp`) no longer fails as temporarily unavailable.
 - On Mac, quitting KeeForge (including at logout or restart) now clears a password or other value it copied, instead of leaving it on the clipboard until the clear timeout would have run.
+- Downloaded website icons are sharper. When a site offers its icon in several sizes, KeeForge now uses the largest, both for display and for the icon it saves into the database, and an icon too small to fill a large slot, such as the entry header, is shown at a crisp size on a tile instead of stretched.
 - On iPhone and iPad, an entry in a group inside the Recycle Bin offers Delete Permanently, as entries directly in the Recycle Bin do, instead of Delete.
 - Search finds an entry by any of its URLs, not only the first one (#289).
 - Search results follow the chosen sort order and direction instead of appearing unsorted (#290).
