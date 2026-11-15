@@ -407,6 +407,7 @@ final class MacWorkspaceAlertsTests: XCTestCase {
     ) async throws -> (MacWorkspaceAlerts, DatabaseViewModel, MacWorkspacePresentation) {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
         let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
+        DatabaseListStore.update(reference)
         let session = DatabaseViewModel(
             databaseReference: reference,
             localSaveOperation: save,
@@ -414,7 +415,7 @@ final class MacWorkspaceAlertsTests: XCTestCase {
                 await reloads.increment()
                 throw SaveError.saveContextUnavailable
             },
-            quickUnlockKeyPersistOperation: { _, _, _ in false },
+            localReadKeyPersistOperation: { _, _, _ in false },
             storedKeyPresenceCheck: { _ in false }
         )
         await session.unlock(password: "testpassword123")
