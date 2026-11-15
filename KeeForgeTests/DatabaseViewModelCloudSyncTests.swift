@@ -1801,25 +1801,11 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let gate = SaveGate()
         let refreshRecorder = RefreshRecorder()
-        var environment = CloudDatabaseSaver.Environment.live
-        environment.beginBackgroundTask = { _ in .invalid }
-        environment.endBackgroundTask = { _ in }
-        let saver = environment
-        let vm = makeViewModel(reference: reference, openedData: openedData,
-            cloudRefreshOperation: { reference, _ in
-                refreshRecorder.record(reference)
-                if refreshRecorder.references.count == 1 {
-                    await gate.signalStarted()
-                    await gate.waitUntilOpen()
-                    return Self.resolution(reference, data: openedData, status: .current)
-                }
-                return Self.resolution(reference, data: try Data(contentsOf: cacheURL), status: .current)
-            }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
-                try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
-                    openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
-                    kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
-            }, pendingUploadMarkerCheck: { !PendingUploadQueue.listMarkers(for: $0.id).isEmpty })
+        let remote = InMemoryRemoteProvider(bytes: openedData, rev: "rev-B")
+        let vm = makeViewModelOnTheRealCache(reference: reference, remote: remote,
+            onRefresh: { refreshRecorder.record($0) })
         await vm.unlock(password: fixturePassword)
+        remote.holdNextDownload(on: gate)
         let syncTask = Task { await vm.syncCloudNow() }
         await gate.waitUntilStarted()
         let parent = try XCTUnwrap(vm.visibleRootGroup?.id)
@@ -1833,8 +1819,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         await gate.open()
         await syncTask.value
         XCTAssertEqual(refreshRecorder.references.count, 2)
-        XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
-        XCTAssertTrue(vm.hasPendingCloudUploads)
+        XCTAssertEqual(vm.cloudSyncOutcome, .updateWaitsForSave)
+        XCTAssertNotNil(vm.saveConflict)
         XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
         XCTAssertEqual(try Data(contentsOf: cacheURL), saved)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(saved))
@@ -1923,27 +1909,12 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         let refreshGate = SaveGate()
         let saveGate = SaveGate()
         let refreshRecorder = RefreshRecorder()
-        var environment = CloudDatabaseSaver.Environment.live
-        environment.beginBackgroundTask = { _ in .invalid }
-        environment.endBackgroundTask = { _ in }
-        let saver = environment
-        let vm = makeViewModel(reference: reference, openedData: openedData,
-            cloudRefreshOperation: { reference, _ in
-                refreshRecorder.record(reference)
-                if refreshRecorder.references.count == 1 {
-                    await refreshGate.signalStarted()
-                    await refreshGate.waitUntilOpen()
-                    return Self.resolution(reference, data: openedData, status: .current)
-                }
-                return Self.resolution(reference, data: try Data(contentsOf: cacheURL), status: .current)
-            }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
-                await saveGate.signalStarted()
-                await saveGate.waitUntilOpen()
-                return try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
-                    openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
-                    kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
-            }, pendingUploadMarkerCheck: { !PendingUploadQueue.listMarkers(for: $0.id).isEmpty })
+        let remote = InMemoryRemoteProvider(bytes: openedData, rev: "rev-B")
+        let vm = makeViewModelOnTheRealCache(reference: reference, remote: remote,
+            beforeSave: { await saveGate.signalStarted(); await saveGate.waitUntilOpen() },
+            onRefresh: { refreshRecorder.record($0) })
         await vm.unlock(password: fixturePassword)
+        remote.holdNextDownload(on: refreshGate)
         let syncTask = Task { await vm.syncCloudNow() }
         await refreshGate.waitUntilStarted()
         let parent = try XCTUnwrap(vm.visibleRootGroup?.id)
@@ -1961,8 +1932,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker), saved)
         XCTAssertEqual(marker.marker.expectedRev, reference.expectedCloudRevision)
         XCTAssertEqual(refreshRecorder.references.count, 2)
-        XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
-        XCTAssertTrue(vm.hasPendingCloudUploads)
+        XCTAssertEqual(vm.cloudSyncOutcome, .updateWaitsForSave)
+        XCTAssertNotNil(vm.saveConflict)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(saved))
         XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
         XCTAssertEqual(vm.databaseReference.expectedCloudRevision, reference.expectedCloudRevision)
@@ -2441,7 +2412,9 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
     /// the provider transport replaced by `remote`.
     private func makeViewModelOnTheRealCache(
         reference: DatabaseReference,
-        remote: InMemoryRemoteProvider
+        remote: InMemoryRemoteProvider,
+        beforeSave: @escaping @Sendable () async -> Void = {},
+        onRefresh: @escaping @Sendable (DatabaseReference) -> Void = { _ in }
     ) -> DatabaseViewModel {
         var environment = CloudDatabaseSaver.Environment.live
         environment.beginBackgroundTask = { _ in .invalid }
@@ -2460,7 +2433,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 )
             },
             cloudRefreshOperation: { reference, progress in
-                try await CloudSyncCoordinator.syncIfNeededForOpen(
+                onRefresh(reference)
+                return try await CloudSyncCoordinator.syncIfNeededForOpen(
                     reference: reference,
                     honorsManualSyncPolicy: false,
                     providerResolver: { _ in remote },
@@ -2468,7 +2442,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 )
             },
             cloudSaveOperation: { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings in
-                try await CloudDatabaseSaver.save(
+                await beforeSave()
+                return try await CloudDatabaseSaver.save(
                     draft: draft,
                     reference: reference,
                     compositeKey: compositeKey,
