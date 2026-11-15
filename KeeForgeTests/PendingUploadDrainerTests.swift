@@ -89,6 +89,25 @@ final class PendingUploadDrainerTests: XCTestCase {
         }
     }
 
+    func test_drain_legacyConflictDoesNotMutateProvisionalSibling() async throws {
+        let reference = registeredReference()
+        let bytes = Data("legacy-sibling-ciphertext".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
+        let unknown = try enqueueLegacy(for: reference, bytes: bytes, finalized: nil)
+        let provisional = try enqueueLegacy(for: reference, bytes: bytes, finalized: false)
+        let transport = CloudJournalTransport()
+        let outcome = await PendingUploadDrainer(environment: drainerEnvironment(
+            saver: transportEnvironment(reference: reference, transport: transport))).drainAll()
+        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        let remaining = try PendingUploadQueue.readJournal(for: reference.id)
+        let conflicted = try XCTUnwrap(remaining.first { $0.id == unknown.id })
+        XCTAssertTrue(conflicted.marker.isConflicted)
+        XCTAssertNil(conflicted.marker.isPayloadFinalized)
+        XCTAssertEqual(remaining.first { $0.id == provisional.id }?.marker, provisional.marker)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+    }
+
     func testLegacyFinalizedMatchingStrongRevisionWithoutBaselineExportsOriginalFactorsInsteadOfBlindDelivery() async throws {
         let reference = registeredReference()
         let bytes = try KDBXTestFixture.kitchenSink.data(in: Bundle(for: Self.self))

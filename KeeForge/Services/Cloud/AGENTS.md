@@ -107,4 +107,4 @@
 - A confirmed rekey reconciliation signals only its weak, operation-scoped live ticket after journal retirement. The ticket carries no secret and does not authorize key publication.
 
 - App-owned ordinary cloud saves carry a nonsecret operation ticket through encryption and preparation so later key effects can identify their own installed head.
-- Delivery of an already-bound ordinary journal tolerates enabling read-only while retaining its other identity, factor and epoch checks. Rekey authority remains strict; provisional legacy payloads can surface as conflicts but cannot authorize delivery.
+- Delivery of an already-bound ordinary journal tolerates enabling read-only while retaining its other identity, factor and epoch checks. Rekey authority remains strict; legacy markers with unknown or finalized phase can surface as conflicts, while a false-phase marker stays unchanged, and none authorizes delivery.
