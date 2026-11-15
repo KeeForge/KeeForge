@@ -8256,43 +8256,101 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testChangeMasterKeyCloudRoutesNewKeyThroughCloudSaveOperation() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.update(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
+        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let capturedKeys = RekeyedKeyCapture()
-        let vm = try makeViewModel(
-            reference: reference,
-            cloudSyncOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: fixtureData,
-                    status: .current
-                )
-            },
-            cloudSaveOperation: { _, _, compositeKey, _, _, expectedRev, newCompositeKey, _ in
-                capturedKeys.record(oldKey: compositeKey, newKey: newCompositeKey, expectedRev: expectedRev)
-                return .saved(newSHA512: Data("cloud-rekeyed-hash".utf8))
-            },
-            pendingUploadMarkerCheck: { _ in false }
-        )
-
+        let storedKeys = RekeyedKeyCapture()
+        let transport = CloudJournalTransport(remote: fixtureData, revision: "rev-A",
+            response: .init(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-B"))
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in try transport.metadata(byteCount: fixtureData.count) }
+        environment.downloadRemoteData = { _ in transport.download(fallback: fixtureData) }
+        environment.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        let saver = environment
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: cacheURL, data: fixtureData, status: .current)
+        }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+            capturedKeys.record(oldKey: key, newKey: newKey, expectedRev: rev)
+            return try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+        }, storedKeyPresenceCheck: { _ in true },
+           storedKeyStoreOperation: { key, _ in storedKeys.record(oldKey: nil, newKey: key) })
         await vm.unlock(password: fixturePassword)
-        let oldCompositeKey = try XCTUnwrap(vm.compositeKey)
-
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
-
-        try await vm.changeMasterKey(
-            newPassword: "cloud-rotated",
-            newKeyFileData: nil,
-            newKeyFileBookmarkData: nil,
-            newKeyFileFilename: nil
-        )
-
-        let expectedNewKey = try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil)
-        XCTAssertEqual(capturedKeys.oldKey, oldCompositeKey)
-        XCTAssertEqual(capturedKeys.newKey, expectedNewKey)
+        let oldKey = try XCTUnwrap(vm.compositeKey)
+        try await vm.changeMasterKey(newPassword: "cloud-rotated", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+        let newKey = try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil)
+        let bytes = try Data(contentsOf: cacheURL)
+        XCTAssertEqual(capturedKeys.oldKey, oldKey)
+        XCTAssertEqual(capturedKeys.newKey, newKey)
         XCTAssertEqual(capturedKeys.expectedRev, "rev-A")
-        XCTAssertEqual(vm.compositeKey, expectedNewKey)
-        XCTAssertEqual(vm.openTimeSHA512, Data("cloud-rekeyed-hash".utf8))
+        XCTAssertEqual(storedKeys.newKey, newKey)
+        XCTAssertEqual(vm.compositeKey, newKey)
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(bytes))
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(transport.effects.uploads.first?.bytes, bytes)
+        _ = try KDBXParser.parseWithMetaAndHeader(data: bytes, compositeKey: newKey, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertThrowsError(try KDBXParser.parseWithMetaAndHeader(data: bytes, compositeKey: oldKey, sessionKey: SymmetricKey(size: .bits256)))
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertNotEqual(current.cloudSyncMetadata?.keyEpoch, reference.cloudSyncMetadata?.keyEpoch)
+        XCTAssertNil(current.keyFileBookmarkData)
+        XCTAssertNil(current.keyFileFilename)
+        XCTAssertEqual(current.expectedCloudRevision, "rev-B")
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+    }
+
+    func testCloudRekeyUnknownUploadRetainsPayloadWithoutResending() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.update(reference)
+        let original = try Data(contentsOf: fixtureURL())
+        try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let storedKeys = RekeyedKeyCapture()
+        let transport = CloudJournalTransport(remote: original, revision: "rev-A", uploadError: .networkUnavailable)
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in try transport.metadata(byteCount: original.count) }
+        environment.downloadRemoteData = { _ in transport.download(fallback: original) }
+        environment.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        let saver = environment
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: cacheURL, data: original, status: .current)
+        }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+            try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+        }, storedKeyPresenceCheck: { _ in true },
+           storedKeyStoreOperation: { key, _ in storedKeys.record(oldKey: nil, newKey: key) })
+        await vm.unlock(password: fixturePassword)
+        let oldKey = try XCTUnwrap(vm.compositeKey)
+        do {
+            try await vm.changeMasterKey(newPassword: "cloud-rotated", newKeyFileData: nil,
+                newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+            XCTFail("Lost upload acknowledgement must remain uncertain")
+        } catch { XCTAssertTrue(error is CloudSaveRecoveryWarning || error is CloudProviderError) }
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertNotNil(marker.marker.uploadAttemptID)
+        XCTAssertNil(marker.marker.confirmedAt)
+        let payload = try PendingUploadQueue.readImmutablePayload(marker)
+        let newKey = try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil)
+        _ = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: newKey, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertThrowsError(try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: oldKey, sessionKey: SymmetricKey(size: .bits256)))
+        XCTAssertEqual(try Data(contentsOf: cacheURL), original)
+        XCTAssertEqual(vm.compositeKey, oldKey)
+        XCTAssertNil(storedKeys.newKey)
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        _ = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: saver)
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)), payload)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), original)
     }
 
     func testChangeMasterKeyWhenReadOnlyThrowsWithoutSaving() async throws {
