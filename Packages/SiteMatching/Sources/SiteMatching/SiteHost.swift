@@ -25,6 +25,22 @@ public struct SiteHost: Hashable, Sendable, CustomStringConvertible {
 
     public var description: String { name }
 
+    /// The URL a stored website value opens (rule O1): the `http` or `https`
+    /// URL H1 reads, unless the value starts with another scheme that lacks
+    /// `//`. Nil for `mailto:a@b.com`, `javascript:…` and a bare `https:`,
+    /// which H1 alone would read as `https://<value>`.
+    public static func openableURL(_ value: String) -> URL? {
+        var text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.contains("\\") { text = text.replacingOccurrences(of: "\\", with: "/") }
+        if !hasScheme(text), let colon = text.firstIndex(of: ":"), isScheme(text[..<colon]) {
+            let rest = text[text.index(after: colon)...]
+            let port = rest.prefix(while: \.isASCIIDigit)
+            let isPort = !port.isEmpty && (port.endIndex == rest.endIndex || "/?#".contains(rest[port.endIndex]))
+            guard isPort else { return nil }
+        }
+        return url(text)
+    }
+
     /// Whether the host may stand for a site outside the vault: it has a
     /// registrable domain, so it is not an IP address, `localhost`, a single
     /// label, or a bare public suffix.
@@ -88,7 +104,10 @@ public struct SiteHost: Hashable, Sendable, CustomStringConvertible {
     /// Whether the value starts with an RFC 3986 scheme and `://`.
     static func hasScheme(_ value: String) -> Bool {
         guard let separator = value.range(of: "://") else { return false }
-        let scheme = value[..<separator.lowerBound]
+        return isScheme(value[..<separator.lowerBound])
+    }
+
+    static func isScheme(_ scheme: Substring) -> Bool {
         guard let first = scheme.first, first.isASCII, first.isLetter else { return false }
         return scheme.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "+-.".contains($0)) }
     }

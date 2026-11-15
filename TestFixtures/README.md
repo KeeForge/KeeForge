@@ -33,7 +33,7 @@ Default fixture for most tests and the stable source for common entries. Also ba
 
 ### `demo.kdbx` and `demo-keyfile.kdbx`
 
-- `demo.kdbx` is the richer demo database used by `KeeForgeUITests/AppStoreScreenshots.swift`.
+- `demo.kdbx` is the richer demo database used by `KeeForgeUITests/AppStoreScreenshots.swift` and `KeeForgeMacUITests/MacAppStoreScreenshots.swift`.
 - `demo-keyfile.kdbx` needs password `demo` plus `demo-keyfile.key`. The UI tests, `KeeForgeTests/KDBXWriterTests.swift`, and `KeeForgeTests/KDBXRoundTripTests.swift` hardcode those credentials. It backs the `password-keyfile` compatibility ID; its entry `KeyFile Test Entry` has password `keyfilepass123`.
 
 ### `autofill-union.kdbx`
@@ -112,7 +112,7 @@ Attachment SHA-256 values, also recorded in `KeeForgeTests/Support/KDBXCompatibi
 Consumers:
 
 - Bundled into every test target, both UI suites included. The UI classes that use it are listed in `../KeeForgeUITests/AGENTS.md`; retargeting or removing it breaks UI tests, not only the compatibility gate.
-- Unit tests: `KDBXParserTests.testGroupTagsFixtureParsesGroupTagsThroughFullDecryptPath`, `KDBXRoundTripTests` (`<Times>` order, opaque XML, fixed-point sweeps, `test_unknownNodes_controlledFixture_…`), `SortOrderTests` (recycle-bin pinning), `AttachmentTests`, `DatabaseDraftTests.test_updateEntry_updatesFields_preservesUnknownXML`, `KDBXWriterTests.test_writtenFile_validatesOuterHeaderHMAC`.
+- Unit tests: `KDBXParserTests.testGroupTagsFixtureParsesGroupTagsThroughFullDecryptPath`, `KDBXRoundTripTests` (`<Times>` order, opaque XML, fixed-point sweeps, `test_unknownNodes_controlledFixture_…`), `SortOrderTests` (recycle-bin pinning), `AttachmentTests`, `DatabaseDraftTests.test_updateEntry_updatesFields_preservesUnknownXML`.
 - Compatibility gate scenarios, all run by `KDBXCompatibilityTests.test_kitchenSinkFixture_…`: `fixture-smoke-kitchen-sink`, `attachments-update-entry`, `attachments-soft-delete-entry`, `attachments-add-remove`, `group-tags-update-entry`, `group-tags-update-group`.
 
 When changing it:

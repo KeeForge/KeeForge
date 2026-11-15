@@ -4,7 +4,7 @@
 
 ## Ownership
 
-- `AppSettingsViewModel` owns preference persistence and live effects, account loading and sign-out, and favicon cache clearing. `SettingsView` connects it to the app-owned `DatabaseSessionStore` from the environment on appearance, then calls `reload()`, which does not replay effects. Effects reach every stored session; database-specific content still uses the supplied session.
+- `AppSettingsViewModel` owns preference persistence and live effects, account loading and sign-out, and favicon cache clearing. The iOS `SettingsView` connects it to the app-owned `DatabaseSessionStore` from the environment on appearance; `MacSettingsTabController` connects it to the store it is handed at creation, and the window reloads it on every show. `reload()` does not replay effects. Effects reach every stored session; database-specific content still uses the supplied session.
 - Add a preference effect to the model with a headless test, not to a view `onChange`. `ci_scripts/validate_architecture.py` fails any `SettingsService.<property> =` assignment in `SettingsView.swift`.
 - Every per-database AutoFill toggle goes through the `DatabaseListViewModel` passed in as `listViewModel` (`setAutoFillEnabled`), never `DatabaseListStore`. That instance carries the `autoFillEnabledRefreshHandler` bridge and the system-provider state, so this screen and the list's tip card cannot disagree.
 - `MacSSHAgentSettingsTab` (macOS) renders over `MacSSHAgentController` and is shown only when the app put one in the environment (`../../Services/SSHAgent/AGENTS.md`).
@@ -23,16 +23,19 @@
 
 ### SSH agent tab
 
-- The key list names entries and key fingerprints of the unlocked vault, and the Settings window receives the resign-active privacy cover. Its rows are also hidden while `MacSSHAgentController.concealsKeyList` is true (another app is frontmost); any further vault-derived value on this tab has to honor it too.
+- The key list names entries and key fingerprints of one unlocked vault, and the Settings window receives the resign-active privacy cover. Its rows are also hidden while `MacSSHAgentController.concealsKeyList` is true (another app is frontmost); any further vault-derived value on this tab has to honor it too.
 - While the agent is off the tab shows only the toggle; the Setup and Keys sections appear, and the key list loads, once it is on.
-- The list reloads off the main actor whenever the agent is switched on, or the session, its lock cycle, or its contents change. It clears its rows when a refresh starts and drops a superseded result, and asks the user to unlock while the session is locked.
+- With more than one unlocked database a Database picker chooses the one whose keys the list shows and edits (`MacSSHAgentController.settingsSession`); with one there is no picker. Toggles always write the selection of the database the rows were loaded from.
+- The list reloads off the main actor whenever the agent is switched on, or the listed session, its lock cycle, or its contents change. Rows render only for the session they were loaded from, a superseded result is dropped, and the tab asks the user to unlock while no database is unlocked.
 - Copy SSH Configuration copies without the concealed pasteboard marker: the `IdentityAgent` block holds no secret.
-- Identifiers: `settings.tab.ssh-agent`, `settings.ssh-agent.{toggle,copy-configuration}`, and `settings.ssh-agent.key-toggle.<entry-uuid>`.
+- Identifiers: `settings.tab.ssh-agent`, `settings.ssh-agent.{toggle,copy-configuration,database-picker}`, and `settings.ssh-agent.key-toggle.<entry-uuid>`.
 
 ### Layout
 
-- Every macOS tab is pinned to `MacSettingsPane`'s fixed size, not a minimum. A settings window sizes to its widest tab and `Form` footers each want a full line, so a free-sizing window opens far too wide.
-- The Mac window selects Security explicitly so it does not restore the last tab.
+- Mac Settings uses an AppKit `NSTabViewController` with toolbar tabs: General, Security, AutoFill, Quick Search, SSH Agent, Appearance, Servers, About. Content uses hosted `.columns` forms, a bounded width and per-tab heights with scrolling. The title follows the tab; the window can never become main.
+- A fresh controller selects Security; the retained controller preserves selection across close/reopen within the process. Settings reads no focused window's session; only SSH chooses an explicit database. Content and toolbar ids are `settings.tab.` plus the tab's raw value (`general`, `security`, `autofill`, `quick-search`, `ssh-agent`, `appearance`, `servers`, `about`).
+- Disconnect Server and Clear AutoFill Entries use NSAlert sheets; only an accepted confirmation calls the model. Acknowledgments opens as an attached sheet.
+- The screen-lock checkbox is checked and disabled. The strict background-policy checkbox and delay are separate from inactivity; Immediately preserves existing behavior. Touch ID keeps its automatic-prompt meaning.
 - The support section stays inline on the iOS root; a tip jar behind a row is not seen.
 - A direct-download build must not show the StoreKit tip jar (no receipt to purchase against); it links to GitHub Sponsors.
 - Only a direct-download build has the About tab's Updates section (`settings.updates.{automatic-checks,check-now}`). Its toggle writes Sparkle's own setting, so it always matches what the updater does.
@@ -49,8 +52,9 @@
 
 ## Tests
 
+- `SettingsWindowControllerTests` covers the native tabs, title, within-process selection, non-main window, capture policy, channel-specific updates and accepted/cancelled confirmation effects.
 - `AppSettingsViewModelTests`, `AppSettingsSummaryTests`, `AutoFillStoreInspectorGroupingTests`, `FeedbackSubmissionServiceTests`; `DatabaseListViewModelTests` for the one-database footer condition.
-- `MacSSHAgentControllerTests` (`KeeForgeMacTests` only): the candidate list and its concealment. The tab itself has no UI test.
+- `MacSSHAgentControllerTests` (`KeeForgeMacTests` only): the candidate list, its concealment, and the database the list edits. The tab itself has no UI test.
 - UI: `AutoFillTipUITests`, `MacAppSuggestionUITests`, `WhatsNewUITests`, `AutoFillStoreInspectorSmokeUITests`; `AutoFillStoreUITests` needs a provisioned device.
 
 ## See also

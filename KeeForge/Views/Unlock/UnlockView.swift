@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -17,42 +18,23 @@ struct UnlockView: View {
     @State private var showRemoveMissingConfirmation = false
     @State private var copiedErrorDetails = false
     @State private var isPasswordVisible = false
-    /// Drives the header padlock. Starts shut, so opening a database from the
-    /// list shows a settled lock rather than a gratuitous animation.
-    @State private var isSealed = true
     @FocusState private var passwordFocused: Bool
     @ScaledMetric(relativeTo: .body) private var keyFileNameMinimumWidth: CGFloat = 100
     @ScaledMetric(relativeTo: .body) private var unlockFieldHeight = Theme.Size.unlockField
 
-    /// Plays the shackle closing on the screen the user actually lands on after
-    /// pressing Lock. The lock itself already happened — this rides the arrival
-    /// transition instead of delaying it, so it costs no latency.
-    private func sealShutIfArrivingFromLock() {
-        guard viewModel.didManuallyLock else { return }
-        isSealed = false
-        withAnimation(.snappy(duration: 0.35).delay(0.15)) {
-            isSealed = true
-        }
-    }
-
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                if PlatformDesign.followsIOSDesign == false {
-                    headerCard
-                }
-
                 contentSection
             }
             .padding(.horizontal, 22)
             .padding(.top, 24)
             .padding(.bottom, 20)
-            .frame(maxWidth: unlockContentMaxWidth)
+            .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
         }
         .background(UnlockViewBackground())
         .scrollIndicators(.hidden)
-        #if os(iOS)
         .databaseNavigationTitle(
             viewModel.databaseDisplayName,
             subtitle: SettingsSummaryText.joined([
@@ -60,7 +42,6 @@ struct UnlockView: View {
                 viewModel.databaseReference.cloudProviderKind?.displayName,
             ])
         )
-        #endif
         // One importer for both targets: SwiftUI does not reliably present a
         // second `.fileImporter` attached to the same view.
         .fileImporter(
@@ -97,59 +78,6 @@ struct UnlockView: View {
         .onDisappear(perform: cancelPendingKeyFileSelection)
     }
 
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.14))
-                        .frame(width: 64, height: 64)
-
-                    Image(systemName: isSealed ? "lock.fill" : "lock.open.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.tint)
-                        .contentTransition(.symbolEffect(.replace.downUp))
-                        .accessibilityHidden(true)
-                }
-                .onAppear(perform: sealShutIfArrivingFromLock)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Open Database")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-
-                    Text(viewModel.databaseDisplayName)
-                        .font(.title.bold())
-                        .multilineTextAlignment(.leading)
-
-                    if viewModel.databaseDisplayName != viewModel.databaseFilename {
-                        Text(viewModel.databaseFilename)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Spacer(minLength: 0)
-            }
-
-            if keyFileName != nil || viewModel.canUseBiometrics {
-                VStack(alignment: .leading, spacing: 8) {
-                    if let keyFileName {
-                        Label(keyFileName, systemImage: "key.fill")
-                            .lineLimit(1)
-                    }
-
-                    if viewModel.canUseBiometrics {
-                        Label(viewModel.biometricCaption, systemImage: viewModel.biometricIcon)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     @ViewBuilder
     private var contentSection: some View {
         if let failure = viewModel.openFailure {
@@ -165,83 +93,9 @@ struct UnlockView: View {
         }
     }
 
-    private var passwordSection: some View {
-        VStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Master Password")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 12) {
-                    passwordInput
-                }
-                .modifier(UnlockPasswordRowContainer())
-            }
-
-            keyFileRow
-
-            if viewModel.availableHardwareKeyTransports.isEmpty == false || viewModel.hardwareKey != nil {
-                hardwareKeyRow
-            }
-
-            Button(action: unlockWithPassword) {
-                Label("Unlock Database", systemImage: "lock.open.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
-            }
-            .buttonStyle(.borderedProminent)
-            .macControlSizeLarge()
-            .disabled(hasKeyComponent == false || isUnlocking || keyFileSelection.isLoading)
-            .accessibilityIdentifier("unlock.button")
-
-            if viewModel.canUseBiometrics {
-                Button(action: unlockWithBiometrics) {
-                    Label(viewModel.biometricLabel, systemImage: viewModel.biometricIcon)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                }
-                .buttonStyle(.bordered)
-                .disabled(isUnlocking)
-            }
-
-            if showsChooseDifferentFileAction {
-                Button("Choose Different File") {
-                    onBackToDatabaseList()
-                }
-                .font(.footnote.weight(.medium))
-                .accessibilityIdentifier("unlock.choose-different")
-            }
-        }
-    }
-
-
-    /// The field and its show/hide button; macOS owns the field itself.
+    /// The field and its show/hide button.
     @ViewBuilder
     private var passwordInput: some View {
-        #if os(macOS)
-        // A focused NSSecureTextField enables secure event input,
-        // which routes keystrokes straight to its field editor and
-        // bypasses every app-level key hook (NSEvent local monitors,
-        // .keyboardShortcut, .onExitCommand, .onKeyPress). Owning the
-        // field lets us catch Return/Escape at the field editor's
-        // doCommandBySelector — the only layer that reliably sees
-        // them here. See MacUnlockPasswordField.
-        MacUnlockPasswordField(
-            text: $password,
-            isSecure: !isPasswordVisible,
-            placeholder: String(localized: "Enter password"),
-            accessibilityIdentifier: "unlock.password.field",
-            focusOnAppear: true,
-            onSubmit: unlockWithPassword,
-            onEscape: {
-                guard isUnlocking == false else { return }
-                onBackToDatabaseList()
-            }
-        )
-        .id(isPasswordVisible)
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 21)
-        #else
         Group {
             if isPasswordVisible {
                 TextField("Enter password", text: $password)
@@ -254,7 +108,6 @@ struct UnlockView: View {
         .submitLabel(.go)
         .onSubmit(unlockWithPassword)
         .accessibilityIdentifier("unlock.password.field")
-        #endif
 
         Button {
             isPasswordVisible.toggle()
@@ -273,16 +126,7 @@ struct UnlockView: View {
         )
     }
 
-    @ViewBuilder
     private var credentialsSection: some View {
-        if PlatformDesign.followsIOSDesign {
-            designedCredentialsSection
-        } else {
-            passwordSection
-        }
-    }
-
-    private var designedCredentialsSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.cardGap) {
             designedFieldLabel("Master Password")
 
@@ -410,12 +254,10 @@ struct UnlockView: View {
 
     @ViewBuilder
     private func failureSection(_ failure: DatabaseOpenFailure) -> some View {
-        if PlatformDesign.followsIOSDesign, failure.canRetryUnlock {
+        if failure.canRetryUnlock {
             retryableFailureCard(failure)
-        } else if PlatformDesign.followsIOSDesign {
-            designedFailureSection(failure)
         } else {
-            legacyFailureSection(failure)
+            designedFailureSection(failure)
         }
     }
 
@@ -564,169 +406,6 @@ struct UnlockView: View {
         }
     }
 
-    private func legacyFailureSection(_ failure: DatabaseOpenFailure) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: failure.isAuthenticationFailure ? "lock.slash.fill" : "exclamationmark.triangle.fill")
-                    .font(.title3)
-                    .foregroundStyle(failure.isAuthenticationFailure ? Theme.State.warning : Theme.State.danger)
-                    .padding(.top, 2)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(failure.title)
-                        .font(.headline)
-
-                    Text(failure.summary)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("unlock.error.label")
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Error Code")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Text(failure.errorCode)
-                    .font(.caption.monospaced())
-
-                Text(failure.technicalDetails)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(spacing: 10) {
-                Button(action: retryUnlock) {
-                    Label("Try Again", systemImage: "arrow.clockwise")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("unlock.retry.button")
-
-                if viewModel.canRelinkDatabaseFile {
-                    Button {
-                        selectionAlert = nil
-                        filePickerState.present(.databaseFile)
-                    } label: {
-                        Label("Locate Database File", systemImage: "doc.text.magnifyingglass")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("unlock.relink")
-                }
-
-                if failure.isAuthenticationFailure == false, showsChooseDifferentFileAction {
-                    Button(failure.canChooseDifferentFile ? "Choose Different File" : "Back to Database List") {
-                        onBackToDatabaseList()
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("unlock.choose-different")
-                }
-
-                if viewModel.canRemoveMissingDocumentsFile {
-                    Button("Remove from List", role: .destructive) {
-                        showRemoveMissingConfirmation = true
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("unlock.remove-missing")
-                    // On the button, not the screen: iPad anchors the popover
-                    // to the source view.
-                    .confirmationDialog(
-                        "Remove Database?",
-                        isPresented: $showRemoveMissingConfirmation
-                    ) {
-                        Button("Remove", role: .destructive) {
-                            removeMissingDatabase()
-                        }
-                        Button("Cancel", role: .cancel) {}
-                    } message: {
-                        Text("“\(viewModel.databaseDisplayName)” will be removed from KeeForge, including its cached copy and saved biometric key.")
-                    }
-                }
-
-                HStack(spacing: 10) {
-                    Button("Copy Error Details") {
-                        copyErrorDetails(failure)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("unlock.copy-error")
-
-                    Button("Send Feedback") {
-                        feedbackContext = .databaseOpenFailure(failure)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("unlock.send-feedback")
-                }
-            }
-
-            Label(failure.privacyNote, systemImage: "shield.lefthalf.filled")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if copiedErrorDetails {
-                Text("Error details copied.")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Theme.State.success)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Theme.State.danger.opacity(0.15), lineWidth: 1)
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("unlock.error.card")
-    }
-
-    private var keyFileRow: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Key File")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-
-            // Stacks once the value and its controls cannot share a line, so
-            // large text is never squeezed into breaking inside a word.
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    Label {
-                        keyFileValue
-                            .lineLimit(1)
-                            // A file name truncates, so it only has to fit a legible part.
-                            .frame(idealWidth: keyFileName == nil ? nil : keyFileNameMinimumWidth)
-                    } icon: {
-                        Image(systemName: "key.fill")
-                    }
-
-                    Spacer()
-
-                    keyFileClearButton
-                    keyFileSelectControls
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 12) {
-                        keyFileValue
-
-                        Spacer(minLength: 0)
-
-                        keyFileClearButton
-                    }
-
-                    HStack(spacing: 12) {
-                        keyFileSelectControls
-                    }
-                }
-            }
-            .modifier(UnlockInputContainer())
-        }
-    }
-
     @ViewBuilder
     private var keyFileValue: some View {
         if let keyFileName {
@@ -768,46 +447,6 @@ struct UnlockView: View {
 
         if keyFileSelection.isLoading {
             ProgressView()
-        }
-    }
-
-    private var hardwareKeyRow: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Hardware Key")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-
-            Menu {
-                hardwareKeyMenuItems
-            } label: {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "key.radiowaves.forward")
-                            .foregroundStyle(.primary)
-
-                        hardwareKeyValue
-                            .lineLimit(1)
-
-                        Spacer(minLength: 8)
-
-                        hardwareKeyChevron
-                    }
-
-                    HStack(spacing: 12) {
-                        hardwareKeyValue
-                            .multilineTextAlignment(.leading)
-
-                        Spacer(minLength: 8)
-
-                        hardwareKeyChevron
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("unlock.hardware-key.picker")
-            .modifier(UnlockInputContainer())
         }
     }
 
@@ -898,14 +537,6 @@ struct UnlockView: View {
                     .buttonStyle(.borderedProminent)
             }
         }
-    }
-
-    private var unlockContentMaxWidth: CGFloat {
-        #if os(macOS)
-        460
-        #else
-        520
-        #endif
     }
 
     private var isUnlocking: Bool {
@@ -1041,49 +672,6 @@ struct UnlockView: View {
     }
 }
 
-@MainActor @Observable
-final class UnlockKeyFileSelection {
-    private(set) var isLoading = false
-    private(set) var revision = UUID()
-    private let readData: @Sendable (URL) async throws -> Data
-
-    init(readData: @escaping @Sendable (URL) async throws -> Data = { url in
-        try await CoordinatedFileReader.performBlocking(timeout: .seconds(10)) {
-            let hasSecurityScope = url.startAccessingSecurityScopedResource()
-            defer {
-                if hasSecurityScope {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            }
-            return try CoordinatedFileReader.readData(from: url)
-        }
-    }) {
-        self.readData = readData
-    }
-
-    func read(url: URL) async -> Result<Data, Error>? {
-        guard !Task.isCancelled else { return nil }
-        let requestID = UUID()
-        revision = requestID
-        isLoading = true
-        let result: Result<Data, Error>
-        do {
-            result = .success(try await readData(url))
-        } catch {
-            result = .failure(error)
-        }
-        guard revision == requestID else { return nil }
-        isLoading = false
-        guard !Task.isCancelled else { return nil }
-        return result
-    }
-
-    func cancel() {
-        revision = UUID()
-        isLoading = false
-    }
-}
-
 private enum FilePickerTarget {
     case keyFile
     case databaseFile
@@ -1098,79 +686,6 @@ private enum FilePickerTarget {
     }
 }
 
-/// Password-row container. On macOS the `MacUnlockPasswordField` already draws
-/// its own bezel, so the row only needs layout (adding a second border would
-/// double up); iOS keeps the filled capsule around the plain `SecureField`.
-private struct UnlockPasswordRowContainer: ViewModifier {
-    func body(content: Content) -> some View {
-        #if os(macOS)
-        content
-        #else
-        content
-            .padding(.horizontal, 16)
-            .padding(.vertical, 15)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-            )
-        #endif
-    }
-}
-
-/// Field-row container for the unlock form.
-///
-/// iOS keeps the filled, rounded capsule (the platform's grouped-input look).
-/// On macOS that same `secondarySystemBackground` fill reads as a large,
-/// disabled control, so the container becomes a light bezel: the native
-/// `MacUnlockPasswordField` already draws its own field chrome, and the
-/// key-file row gets a subtle text-field background with a hairline border.
-private struct UnlockInputContainer: ViewModifier {
-    func body(content: Content) -> some View {
-        #if os(macOS)
-        content
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .textBackgroundColor))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
-            )
-        #else
-        content
-            .padding(.horizontal, 16)
-            .padding(.vertical, 15)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-            )
-        #endif
-    }
-}
-
-extension View {
-    /// Uses the large control size on macOS (proper prominent-button height);
-    /// no-op on iOS where the default control size already reads well.
-    @ViewBuilder
-    func macControlSizeLarge() -> some View {
-        #if os(macOS)
-        controlSize(.large)
-        #else
-        self
-        #endif
-    }
-}
-
 struct DatabaseOpeningView: View {
     let databaseName: String
     var filename: String? = nil
@@ -1181,16 +696,8 @@ struct DatabaseOpeningView: View {
     var provider: CloudProviderKind? = nil
     var isCloudBacked = false
 
-    var body: some View {
-        if PlatformDesign.followsIOSDesign {
-            designedBody
-        } else {
-            macBody
-        }
-    }
-
     /// Titled like the unlock page, so neither hand-over moves the name.
-    private var designedBody: some View {
+    var body: some View {
         ScrollView {
             VStack(spacing: 22) {
                 VStack(spacing: 0) {
@@ -1198,7 +705,7 @@ struct DatabaseOpeningView: View {
                         if index > 0 {
                             Divider().padding(.leading, 44)
                         }
-                        OpeningStepRow(title: item.title, state: item.state, detail: item.detail)
+                        OpeningStepRow(step: item)
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.side)
@@ -1230,9 +737,7 @@ struct DatabaseOpeningView: View {
         }
         .scrollIndicators(.hidden)
         .background(UnlockViewBackground())
-        #if os(iOS)
         .databaseNavigationTitle(databaseName, subtitle: sourceLine ?? "")
-        #endif
     }
 
     private var sourceLine: String? {
@@ -1243,64 +748,8 @@ struct DatabaseOpeningView: View {
         return line.isEmpty ? nil : line
     }
 
-    private var steps: [(title: String, state: OpeningStepRow.State, detail: String?)] {
-        var steps: [(title: String, state: OpeningStepRow.State, detail: String?)] = []
-        if isCloudBacked {
-            let providerName = provider?.displayName ?? String(localized: "cloud")
-            steps.append((
-                String(localized: "Sync with \(providerName)"),
-                step == .syncing ? .current : .done,
-                step == .syncing ? progress.map { $0.formatted(.percent.precision(.fractionLength(0))) } : nil
-            ))
-        }
-        steps.append((String(localized: "Decrypt Database"), step == .decrypting ? .current : .upcoming, nil))
-        steps.append((String(localized: "Open Database"), .upcoming, nil))
-        return steps
-    }
-
-    private var macBody: some View {
-        VStack(spacing: 18) {
-            Spacer()
-
-            ZStack {
-                Circle()
-                    .fill(Color.accentColor.opacity(0.12))
-                    .frame(width: 88, height: 88)
-
-                Image(systemName: "lock.open.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(.tint)
-            }
-
-            VStack(spacing: 6) {
-                Text("Opening \(databaseName)")
-                    .font(.title3.weight(.semibold))
-                    .multilineTextAlignment(.center)
-
-                Text(statusMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let progress {
-                ProgressView(value: progress)
-                    .controlSize(.large)
-                    .padding(.horizontal, 40)
-            } else {
-                ProgressView()
-                    .controlSize(.large)
-            }
-
-            if let onCancel {
-                Button("Cancel", action: onCancel)
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("unlock.hardware-key.cancel")
-            }
-
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-        .background(UnlockViewBackground())
+    private var steps: [DatabaseOpeningSteps.Step] {
+        DatabaseOpeningSteps.make(step: step, isCloudBacked: isCloudBacked, provider: provider, progress: progress)
     }
 }
 
@@ -1321,25 +770,17 @@ extension DatabaseOpeningView {
 
 /// One step of the opening screen: done, in progress, or still to come.
 private struct OpeningStepRow: View {
-    enum State {
-        case done
-        case current
-        case upcoming
-    }
-
-    let title: String
-    let state: State
-    let detail: String?
+    let step: DatabaseOpeningSteps.Step
 
     var body: some View {
         HStack(spacing: Theme.Spacing.iconText) {
             indicator
                 .frame(width: 28, height: 28)
-            Text(title)
+            Text(step.title)
                 .font(.body)
-                .foregroundStyle(state == .upcoming ? Theme.labelSecondary : Color.primary)
+                .foregroundStyle(step.state == .upcoming ? Theme.labelSecondary : Color.primary)
             Spacer(minLength: 0)
-            if let detail {
+            if let detail = step.detail {
                 Text(detail)
                     .font(Theme.Font.subhead.monospacedDigit())
                     .foregroundStyle(.tint)
@@ -1351,7 +792,7 @@ private struct OpeningStepRow: View {
 
     @ViewBuilder
     private var indicator: some View {
-        switch state {
+        switch step.state {
         case .done:
             Image(systemName: "checkmark")
                 .font(.footnote.weight(.bold))
@@ -1369,16 +810,14 @@ private struct OpeningStepRow: View {
     }
 }
 
-/// Grouped on iPhone and iPad, where the design's cards sit on it; macOS keeps
-/// its plain window background.
+/// Grouped, so the design's cards sit on it.
 struct UnlockViewBackground: View {
     var body: some View {
-        (PlatformDesign.followsIOSDesign ? Color(.systemGroupedBackground) : Color(.systemBackground))
+        Color(.systemGroupedBackground)
             .ignoresSafeArea()
     }
 }
 
-#if os(iOS)
 extension View {
     /// The unlock and opening pages' title: the database's name over its file
     /// and storage, centred in the navigation bar.
@@ -1403,7 +842,6 @@ extension View {
             }
     }
 }
-#endif
 
 /// A failure the unlock form can fix, such as a wrong password: what went
 /// wrong, above the fields, with Unlock as the retry.
@@ -1463,3 +901,4 @@ struct UnlockFailureCard: View {
         .accessibilityIdentifier("unlock.error.card")
     }
 }
+#endif

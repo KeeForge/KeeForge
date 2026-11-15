@@ -11,12 +11,18 @@ enum DatabaseRoute: Hashable, Sendable {
     case editor
 }
 
-/// The database-wide lists the vault root's tiles open, in tile order.
-enum DatabaseCollection: String, CaseIterable, Hashable, Sendable {
+/// The database-wide lists: the vault root's tiles on iPhone and iPad, and
+/// the Mac sidebar's Library.
+enum DatabaseCollection: String, Hashable, Sendable {
     case allEntries
     case verificationCodes
+    /// Mac Library only; no vault tile opens it.
+    case passkeys
     case tags
     case recycleBin
+
+    /// The vault root's tiles, in order.
+    static let vaultTiles: [DatabaseCollection] = [.allEntries, .verificationCodes, .tags, .recycleBin]
 
     /// The shorter name on the root's tile.
     var tileTitle: String {
@@ -25,7 +31,7 @@ enum DatabaseCollection: String, CaseIterable, Hashable, Sendable {
             String(localized: "All")
         case .verificationCodes:
             String(localized: "Codes")
-        case .tags, .recycleBin:
+        case .passkeys, .tags, .recycleBin:
             title
         }
     }
@@ -36,6 +42,8 @@ enum DatabaseCollection: String, CaseIterable, Hashable, Sendable {
             String(localized: "All Entries")
         case .verificationCodes:
             String(localized: "Verification Codes")
+        case .passkeys:
+            String(localized: "Passkeys")
         case .tags:
             String(localized: "Tags")
         case .recycleBin:
@@ -49,6 +57,8 @@ enum DatabaseCollection: String, CaseIterable, Hashable, Sendable {
             "key"
         case .verificationCodes:
             "timer"
+        case .passkeys:
+            "person.badge.key"
         case .tags:
             "tag"
         case .recycleBin:
@@ -62,6 +72,7 @@ enum DatabaseCollection: String, CaseIterable, Hashable, Sendable {
 struct DatabaseCollectionCounts: Equatable, Sendable {
     var allEntries = 0
     var verificationCodes = 0
+    var passkeys = 0
     var tags = 0
     var recycleBin = 0
 
@@ -69,6 +80,7 @@ struct DatabaseCollectionCounts: Equatable, Sendable {
         switch collection {
         case .allEntries: allEntries
         case .verificationCodes: verificationCodes
+        case .passkeys: passkeys
         case .tags: tags
         case .recycleBin: recycleBin
         }
@@ -79,7 +91,6 @@ struct DatabaseCollectionCounts: Equatable, Sendable {
 final class DatabaseWorkspaceState {
     enum Command {
         case newEntry
-        case searchFocus
         case newGroup
         case editEntry
         case deleteSelection
@@ -116,6 +127,7 @@ final class DatabaseWorkspaceState {
                 selectedEntryID = nil
                 if selectedGroupID != nil {
                     selectedTag = nil
+                    selectedCollection = nil
                 }
             }
             onInteraction?()
@@ -127,6 +139,21 @@ final class DatabaseWorkspaceState {
                 selectedEntryID = nil
                 if selectedTag != nil {
                     selectedGroupID = nil
+                    selectedCollection = nil
+                }
+            }
+            onInteraction?()
+        }
+    }
+    /// A database-wide list selected in the Mac sidebar in place of a group
+    /// or a tag. iOS opens collections as `DatabaseRoute.collection` instead.
+    var selectedCollection: DatabaseCollection? {
+        didSet {
+            if oldValue != selectedCollection {
+                selectedEntryID = nil
+                if selectedCollection != nil {
+                    selectedGroupID = nil
+                    selectedTag = nil
                 }
             }
             onInteraction?()
@@ -136,8 +163,9 @@ final class DatabaseWorkspaceState {
         didSet { onInteraction?() }
     }
     /// The entries picked while the lists are in selection mode, or `nil`
-    /// outside it. One selection per session, so it survives walking from
-    /// group to group and into the search results.
+    /// outside it. One selection per session; on iOS it survives walking from
+    /// group to group and into the search results, while the Mac list drops
+    /// picks it stops showing.
     private(set) var entrySelection: Set<UUID>? {
         didSet { onInteraction?() }
     }
@@ -145,7 +173,6 @@ final class DatabaseWorkspaceState {
         didSet { onInteraction?() }
     }
     private(set) var newEntryRequestID = 0
-    private(set) var searchFocusRequestID = 0
     private(set) var newGroupRequestID = 0
     private(set) var editEntryRequestID = 0
     private(set) var deleteSelectionRequestID = 0
@@ -153,7 +180,6 @@ final class DatabaseWorkspaceState {
     func request(_ command: Command) {
         switch command {
         case .newEntry: newEntryRequestID += 1
-        case .searchFocus: searchFocusRequestID += 1
         case .newGroup: newGroupRequestID += 1
         case .editEntry: editEntryRequestID += 1
         case .deleteSelection: deleteSelectionRequestID += 1
@@ -174,6 +200,12 @@ final class DatabaseWorkspaceState {
     /// Selection mode with nothing picked yet, from the vault's More menu.
     func beginEntrySelection() {
         entrySelection = []
+    }
+
+    /// Replaces the picked entries wholesale, entering selection mode if needed;
+    /// the Mac entry table's extended selection maps onto it.
+    func setEntrySelection(_ entryIDs: Set<UUID>) {
+        entrySelection = entryIDs
     }
 
     func toggleEntrySelection(_ entryID: UUID) {
@@ -201,6 +233,7 @@ final class DatabaseWorkspaceState {
     func clearSelection() {
         selectedGroupID = nil
         selectedTag = nil
+        selectedCollection = nil
         selectedEntryID = nil
         entrySelection = nil
     }
@@ -317,7 +350,7 @@ final class DatabaseWorkspaceState {
         }
         if let selectedGroupID, groupExists(selectedGroupID) == false {
             self.selectedGroupID = visibleRootGroupID
-        } else if selectedGroupID == nil, selectedTag == nil {
+        } else if selectedGroupID == nil, selectedTag == nil, selectedCollection == nil {
             selectedGroupID = visibleRootGroupID
         }
         // The detail host clears a vanished entry after its editor dismisses.

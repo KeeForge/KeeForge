@@ -73,20 +73,6 @@ final class TOTPEnrollmentViewModel {
         uri.issuer != nil ? uri.accountName : nil
     }
 
-    var prefilledTitle: String {
-        Self.withoutFieldReference(uri.issuer) ?? Self.withoutFieldReference(uri.accountName) ?? ""
-    }
-
-    var prefilledUsername: String {
-        Self.withoutFieldReference(uri.accountName) ?? ""
-    }
-
-    /// The link's sender chooses these, and a fill resolves `{REF:…}`.
-    private static func withoutFieldReference(_ value: String?) -> String? {
-        guard let value, FieldReferenceResolver.containsReference(value) == false else { return nil }
-        return value
-    }
-
     /// Whether an empty `filteredEntryCandidates` means "nothing matched"
     /// rather than "this database has no entries".
     var hasActiveSearch: Bool {

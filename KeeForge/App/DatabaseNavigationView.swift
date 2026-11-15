@@ -1,10 +1,8 @@
-import AuthenticationServices
 import SwiftUI
+
 #if os(iOS)
+import AuthenticationServices
 import UIKit
-#else
-import AppKit
-#endif
 
 struct DatabaseNavigationView: View {
     @Bindable var viewModel: DatabaseViewModel
@@ -170,20 +168,15 @@ struct DatabaseNavigationView: View {
 
     @MainActor
     private func presentationAnchor() -> ASPresentationAnchor {
-        #if os(iOS)
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         if let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
             return window
         }
         return ASPresentationAnchor()
-        #else
-        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first {
-            return window
-        }
-        return ASPresentationAnchor()
-        #endif
     }
 }
+
+#endif
 
 struct DatabaseSavingOverlay: View {
     var body: some View {

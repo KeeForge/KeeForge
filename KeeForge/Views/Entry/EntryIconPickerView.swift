@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// Lets the user pick the icon an entry displays: one of the standard KDBX
@@ -249,3 +250,5 @@ struct EntryIconPickerView: View {
         .buttonStyle(.plain)
     }
 }
+
+#endif

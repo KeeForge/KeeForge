@@ -14,8 +14,8 @@ final class MacWhatsNewUITests: MacUITestCase {
     /// What this test uniquely proves is that the sheet renders in the real Mac
     /// app, lists something, and hands the window back on dismissal.
     func testWhatsNewShowsMacFeaturesAndDismisses() {
-        let title = app.staticTexts["whats-new.title"]
-        XCTAssertTrue(title.waitForExistence(timeout: 10), "What's New sheet did not appear on Mac")
+        let title = databasesWindow.staticTexts["whats-new.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10), "What's New sheet did not appear on the Databases window")
 
         let features = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "whats-new.feature.")
@@ -26,7 +26,7 @@ final class MacWhatsNewUITests: MacUITestCase {
             "What's New sheet appeared on Mac with no features listed"
         )
 
-        let doneButton = app.buttons["whats-new.done"]
+        let doneButton = databasesWindow.buttons["whats-new.done"]
         XCTAssertTrue(doneButton.exists, "What's New Done button was missing on Mac")
         doneButton.click()
 
@@ -36,10 +36,10 @@ final class MacWhatsNewUITests: MacUITestCase {
         }
         XCTAssertFalse(title.exists, "What's New sheet did not dismiss on Mac")
 
-        let databaseRow = app.buttons["database.row"].firstMatch
         XCTAssertTrue(
-            databaseRow.waitForExistence(timeout: 10),
+            databaseRow(containing: "test").waitForExistence(timeout: 10),
             "Database list did not resume after dismissing What's New on Mac"
         )
+        XCTAssertEqual(databaseWindows.count, 0, "Dismissing What's New opened a database window")
     }
 }

@@ -2,7 +2,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 import KDBXKit
 
-/// The entry editor's attachment list: remove existing files, add new ones.
+#if os(iOS)
+/// The iOS entry editor's attachment list: remove existing files, add new ones.
 /// The file importer lives on `EntryEditView`, which also has to dismiss it
 /// for a lock prompt, so Add only raises `isImporterPresented`.
 struct EntryEditAttachmentsSection: View {
@@ -76,7 +77,6 @@ private struct EditableAttachmentRow: View {
             .buttonStyle(.borderless)
             .accessibilityLabel(removeLabel)
             .accessibilityIdentifier("entry-edit.attachment.remove.\(index)")
-            .macHelp(String(localized: "Remove Attachment"))
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("entry-edit.attachment.row.\(index)")
@@ -171,6 +171,9 @@ struct EntryAttachmentImporter: ViewModifier {
     }
 }
 
+#endif
+
+/// Reads attachment files picked in either platform's editor.
 enum EntryAttachmentFileLoader {
     struct LoadedFile: Sendable {
         let name: String

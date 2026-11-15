@@ -5,6 +5,7 @@ import Observation
 final class DatabaseSessionStore {
     private var sessionsByID: [UUID: DatabaseViewModel] = [:]
     private var openingOrder: [UUID] = []
+    /// The iOS shell's selection; Mac windows hold their sessions directly and never read it.
     var activeSessionID: UUID?
 
     @ObservationIgnored private let makeSession: @MainActor (DatabaseReference) -> DatabaseViewModel
@@ -15,6 +16,31 @@ final class DatabaseSessionStore {
         }
     ) {
         self.makeSession = makeSession
+    }
+
+    func installListHooks(on list: DatabaseListViewModel) {
+        list.referencesDidChange = { [weak self] references in
+            self?.retireSessionsMissingFromDatabaseList(references.map(\.id))
+            self?.reconcileReferences(references)
+        }
+        list.autoFillEnabledRefreshHandler = { [weak self] id in
+            self?.session(for: id)?.populateCredentialStoreIfUnlocked()
+        }
+        list.pendingUploadsDidChange = { [weak self] ids in self?.refreshPendingUploads(for: ids) }
+        if list.registryReadError == nil {
+            retireSessionsMissingFromDatabaseList(list.databases.map(\.id))
+            reconcileReferences(list.databases)
+        }
+    }
+
+    func reconcileReferences(_ references: [DatabaseReference]) {
+        for reference in references {
+            sessionsByID[reference.id]?.reconcileReference(reference)
+        }
+    }
+
+    func resetInactivityTimer(for databaseID: UUID) {
+        sessionsByID[databaseID]?.resetInactivityTimer()
     }
 
     var activeSession: DatabaseViewModel? {
@@ -32,7 +58,11 @@ final class DatabaseSessionStore {
     func handleAppDidBecomeActive() {
         for session in openSessions {
             session.didManuallyLock = false
+            #if os(macOS)
+            session.handleMacAppDidBecomeActive()
+            #else
             session.handleSceneDidBecomeActive()
+            #endif
             session.refreshSharedDatabaseCacheIfPossible()
         }
     }
@@ -50,7 +80,6 @@ final class DatabaseSessionStore {
     }
 
     func resetInactivityTimers() {
-        // Activity has no window identity yet, so it resets every session's timer.
         for session in openSessions {
             session.resetInactivityTimer()
         }

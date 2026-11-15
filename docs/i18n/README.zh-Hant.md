@@ -11,7 +11,7 @@
 <p align="center">
   適用於 iPhone、iPad 與 Mac 的免費開源 KeePass 管理工具。
   <br />
-  原生 SwiftUI、本機優先儲存、自動填寫、通行金鑰、TOTP、雲端同步、KDBX 編輯與附件檢視。
+  iPhone 與 iPad 上的原生 SwiftUI 與 Mac 上的原生 AppKit、本機優先儲存、自動填寫、通行金鑰、TOTP、雲端同步、KDBX 編輯與附件檢視。
 </p>
 
 <p align="center">
@@ -90,7 +90,7 @@ KeeForge/
 ├── ViewModels/       # 資料庫列表、解鎖、儲存、搜尋、排序、TOTP 狀態
 ├── Views/            # SwiftUI 畫面、編輯器、設定、小費頁面、可重複使用的控制項
 AutoFillExtension/    # 自動填寫憑證提供者、通行金鑰驗證、憑證建立
-KeeForgeMac/          # 原生 macOS App（正在準備首個版本）
+KeeForgeMac/          # 原生 macOS App：AppKit 外殼、設定與 entitlements
 KeeForgeMacUITests/   # macOS App 的 XCUITest 覆蓋
 KeeForgeTests/        # 單元測試
 KeeForgeUITests/      # XCUITest 覆蓋

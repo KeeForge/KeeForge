@@ -10,8 +10,12 @@ final class SSHAgentRequestHandlerTests: XCTestCase {
     private typealias Keys = SSHAgentTestKeys
 
     private let sessionObject = NSObject()
+    private let otherSessionObject = NSObject()
     private var lease: SSHAgentLease {
         SSHAgentLease(session: ObjectIdentifier(sessionObject), lockCycleID: 1)
+    }
+    private var otherLease: SSHAgentLease {
+        SSHAgentLease(session: ObjectIdentifier(otherSessionObject), lockCycleID: 1)
     }
 
     // MARK: - Listing
@@ -308,6 +312,81 @@ final class SSHAgentRequestHandlerTests: XCTestCase {
         XCTAssertTrue(cache.isEmpty)
     }
 
+    // MARK: - Several sessions
+
+    /// Copies of one database share entry UUIDs; each session's key is kept
+    /// on its own and only its own removal drops it.
+    func testTheSameEntryInTwoSessionsIsCachedPerSession() throws {
+        let cache = SSHAgentKeyCache()
+        let entryID = UUID()
+        let first = source("Laptop", ["id_ed25519": Keys.ed25519.fileData], id: entryID)
+        let second = source("Laptop", ["id_ecdsa": Keys.ecdsaP256.fileData], id: entryID, lease: otherLease)
+        let handler = SSHAgentRequestHandler(keySources: { [first, second] }, keyCache: cache)
+
+        let identities = try Self.identities(in: handler.response(to: Self.requestIdentities))
+
+        XCTAssertEqual(identities.map(\.blob), [Keys.ed25519.publicKeyData, Keys.ecdsaP256.publicKeyData])
+        XCTAssertNotNil(cache.key(for: first, privateKeyFile: Keys.ed25519.fileData))
+        XCTAssertNotNil(cache.key(for: second, privateKeyFile: Keys.ecdsaP256.fileData))
+
+        cache.removeAll(forSession: first.lease.session)
+
+        XCTAssertNil(cache.key(for: first, privateKeyFile: Keys.ed25519.fileData))
+        XCTAssertNotNil(cache.key(for: second, privateKeyFile: Keys.ecdsaP256.fileData))
+    }
+
+    /// A key two sessions offer is listed once. Signing takes whichever
+    /// offers it at the moment of the request.
+    func testAKeyTwoSessionsOfferIsListedOnceAndSignsFromTheOneStillOfferingIt() throws {
+        let first = source("Personal", ["id_ed25519": Keys.ed25519.fileData])
+        let second = source("Work", ["id_ed25519": Keys.ed25519WrittenByCryptography.fileData], lease: otherLease)
+        let offered = OSAllocatedUnfairLock(initialState: [first, second])
+        let handler = SSHAgentRequestHandler { offered.withLock { $0 } }
+
+        XCTAssertEqual(try Self.identities(in: handler.response(to: Self.requestIdentities)).map(\.blob), [Keys.ed25519.publicKeyData])
+
+        offered.withLock { $0 = [second] }
+
+        XCTAssertEqual(try Self.identities(in: handler.response(to: Self.requestIdentities)).map(\.blob), [Keys.ed25519.publicKeyData])
+        let signed = handler.response(to: Self.signRequest(for: Keys.ed25519.publicKeyData, flags: 0))
+        XCTAssertEqual(signed.first, SSHAgentRequestHandler.MessageType.signResponse.rawValue)
+    }
+
+    /// The session that signed is the one checked afterwards. Another session
+    /// still offering the same key does not release the signature.
+    func testASessionWithdrawnWhileSigningGetsNoSignatureFromAnotherSessionsCopy() {
+        let first = source("Personal", ["id_ed25519": Keys.ed25519.fileData])
+        let second = source("Work", ["id_ed25519": Keys.ed25519.fileData], lease: otherLease)
+        let reads = OSAllocatedUnfairLock(initialState: 0)
+        let handler = SSHAgentRequestHandler {
+            reads.withLock { count in
+                count += 1
+                return count == 1 ? [first, second] : [second]
+            }
+        }
+
+        XCTAssertEqual(handler.response(to: Self.signRequest(for: Keys.ed25519.publicKeyData, flags: 0)), Self.failure)
+        XCTAssertEqual(reads.withLock { $0 }, 2)
+    }
+
+    /// Dropping one session's keys refuses a key that session's overtaken
+    /// read parsed, and leaves another session's parse alone.
+    func testRemovingOneSessionsKeysRefusesOnlyItsOvertakenParse() throws {
+        let cache = SSHAgentKeyCache()
+        let first = source("Personal", ["id_ed25519": Keys.ed25519.fileData])
+        let second = source("Work", ["id_ecdsa": Keys.ecdsaP256.fileData], lease: otherLease)
+        let handler = SSHAgentRequestHandler(keySources: {
+            cache.removeAll(forSession: first.lease.session)
+            return [first, second]
+        }, keyCache: cache)
+
+        let identities = try Self.identities(in: handler.response(to: Self.requestIdentities))
+
+        XCTAssertEqual(identities.map(\.blob), [Keys.ed25519.publicKeyData, Keys.ecdsaP256.publicKeyData])
+        XCTAssertNil(cache.key(for: first, privateKeyFile: Keys.ed25519.fileData))
+        XCTAssertNotNil(cache.key(for: second, privateKeyFile: Keys.ecdsaP256.fileData))
+    }
+
     // MARK: - Refused requests
 
     func testRequestsBeyondListingAndSigningFail() {
@@ -345,12 +424,17 @@ final class SSHAgentRequestHandlerTests: XCTestCase {
         SSHAgentRequestHandler { sources }
     }
 
-    private func source(_ title: String, _ attachments: KeyValuePairs<String, Data>, id: UUID = UUID()) -> SSHAgentKeySource {
+    private func source(
+        _ title: String,
+        _ attachments: KeyValuePairs<String, Data>,
+        id: UUID = UUID(),
+        lease: SSHAgentLease? = nil
+    ) -> SSHAgentKeySource {
         SSHAgentKeySource(
             entryID: id,
             entryTitle: title,
             attachments: attachments.map { SSHAgentAttachment(name: $0.key, data: $0.value) },
-            lease: lease
+            lease: lease ?? self.lease
         )
     }
 

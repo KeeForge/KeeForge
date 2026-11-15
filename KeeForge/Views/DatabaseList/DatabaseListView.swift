@@ -1,29 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct PickerPresentationState<T> {
-    private(set) var activeTarget: T?
-    private(set) var isPresented = false
-
-    mutating func present(_ target: T) {
-        activeTarget = target
-        isPresented = true
-    }
-
-    mutating func updatePresentation(_ isPresented: Bool) {
-        self.isPresented = isPresented
-    }
-
-    mutating func consumeActiveTarget() -> T? {
-        defer {
-            activeTarget = nil
-            isPresented = false
-        }
-
-        return activeTarget
-    }
-}
-
+#if os(iOS)
 struct DatabaseListView: View {
     private enum PickerTarget {
         case database
@@ -59,11 +37,8 @@ struct DatabaseListView: View {
     @State private var activeCloudProvider: CloudProviderKind?
     @State private var isDatabaseCreationPresented = false
     @State private var exportRequest: DatabaseExportRequest?
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
-    #if os(iOS)
     @State private var editMode: EditMode = .inactive
-    #endif
 
     var body: some View {
         listShell
@@ -75,10 +50,8 @@ struct DatabaseListView: View {
         .task {
             await viewModel.refreshAutoFillStatus()
         }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
-                Task { await viewModel.refreshAutoFillStatus() }
-            }
+        .onAppDidBecomeActive {
+            Task { await viewModel.refreshAutoFillStatus() }
         }
         .onChange(of: showDatabaseUsageStats) { _, _ in
             viewModel.reload()
@@ -200,24 +173,11 @@ struct DatabaseListView: View {
             )
             .macSheetFrame()
         }
-        #if os(macOS)
-        .onChange(of: viewModel.newDatabaseRequestID) { _, _ in
-            isDatabaseCreationPresented = true
-        }
-        #endif
         .databaseExporter(request: $exportRequest)
     }
 
-    /// The list and its chrome, without a navigation container.
-    ///
-    /// macOS hosts this view as the window's sidebar column and gives it the
-    /// split view's own navigation; wrapping it in a `NavigationStack` there
-    /// would paint an opaque background over the sidebar material.
     @ViewBuilder
     private var listShell: some View {
-        #if os(macOS)
-        listContent
-        #else
         NavigationStack {
             listContent
                 .environment(\.editMode, $editMode)
@@ -225,7 +185,6 @@ struct DatabaseListView: View {
                     unlockPage?.content()
                 }
         }
-        #endif
     }
 
     /// The vault list, styled for where it is hosted.
@@ -233,7 +192,7 @@ struct DatabaseListView: View {
     /// A sidebar column has to use `.sidebar`. The grouped style draws its rows
     /// on a card meant for a plain grouped page; over a sidebar's own
     /// background that card comes out *darker* than the column behind it on
-    /// iPadOS, and opaque over the material on macOS. Full screen on iPhone,
+    /// iPadOS. Full screen on iPhone,
     /// grouped is still the right look.
     @ViewBuilder
     private var styledDatabaseList: some View {
@@ -248,7 +207,6 @@ struct DatabaseListView: View {
 
     @ViewBuilder
     private var databaseList: some View {
-        #if os(iOS)
         List {
             Section {
                 databaseRows
@@ -260,15 +218,10 @@ struct DatabaseListView: View {
                 }
             }
         }
-        #else
-        List {
-            databaseRows
-        }
-        #endif
     }
 
-    /// iPhone and iPad list the tips below the databases; with no databases,
-    /// and on macOS, they stay pinned above.
+    /// iPhone and iPad list the tips below the databases; with no databases
+    /// they stay pinned above.
     private var tipsFollowTheList: Bool {
         PlatformDesign.followsIOSDesign && viewModel.databases.isEmpty == false
     }
@@ -296,10 +249,8 @@ struct DatabaseListView: View {
     private var databaseRows: some View {
         ForEach(viewModel.databases) { reference in
             databaseRowButton(for: reference)
-                #if os(iOS)
                 // Outside Edit mode, the long press belongs to the context menu.
                 .moveDisabled(!editMode.isEditing)
-                #endif
                 .modifier(
                     DatabaseRowChrome(isSelected: reference.id == selectedDatabaseID)
                 )
@@ -307,9 +258,13 @@ struct DatabaseListView: View {
         .onMove(perform: viewModel.moveDatabases)
     }
 
+    private var showsEmptyState: Bool {
+        viewModel.databases.isEmpty
+    }
+
     private var listContent: some View {
         Group {
-            if viewModel.databases.isEmpty {
+            if showsEmptyState {
                 emptyState
             } else {
                 styledDatabaseList
@@ -327,38 +282,14 @@ struct DatabaseListView: View {
         }
         .modifier(DatabaseListTitle(count: viewModel.databases.count))
         .toolbar {
-            // `EditButton` does not exist on macOS; list rows reorder via
-            // drag and delete via context menus / swipe actions there.
-            #if os(iOS)
             if !viewModel.databases.isEmpty {
                 ToolbarItem(placement: .topBarLeading) {
                     EditButton()
                         .accessibilityIdentifier("database.edit.button")
                 }
             }
-            #endif
 
             ToolbarItemGroup(placement: .topBarTrailing) {
-                #if os(macOS)
-                // Add first, Settings last, so the gear stays at the trailing
-                // edge in both the locked list and the unlocked workspace
-                // instead of jumping sides between the two states. macOS uses
-                // the standard Settings window (⌘,) rather than a sheet.
-                Menu {
-                    addDatabaseMenuContent
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .menuOrder(.fixed)
-                .accessibilityIdentifier("database.add.button")
-                .macHelp(String(localized: "Add Database"))
-
-                SettingsLink {
-                    Image(systemName: "gearshape")
-                }
-                .accessibilityIdentifier("database.settings.button")
-                .macHelp(String(localized: "Settings"))
-                #else
                 Button {
                     showSettings = true
                 } label: {
@@ -374,7 +305,6 @@ struct DatabaseListView: View {
                 .menuOrder(.fixed)
                 .accessibilityIdentifier("database.add.button")
                 .macHelp(String(localized: "Add Database"))
-                #endif
             }
         }
     }
@@ -415,28 +345,16 @@ struct DatabaseListView: View {
         }
     }
 
-    private func databaseRowButton(for reference: DatabaseReference) -> some View {
+    private func rowContent(for reference: DatabaseReference) -> some View {
         Button {
             onSelectDatabase(reference)
         } label: {
-            #if os(iOS)
             DatabaseListRow(
                 reference: reference,
                 status: viewModel.status(for: reference),
-                lastOpenedDescription: viewModel.lastOpenedDescription(for: reference, showsUsageStats: showDatabaseUsageStats),
+                lastOpenedDescription: DatabaseListViewModel.lastOpenedDescription(for: reference, showsUsageStats: showDatabaseUsageStats),
                 showsUsageStats: showDatabaseUsageStats
             )
-            #else
-            DatabaseRowView(
-                reference: reference,
-                status: viewModel.status(for: reference),
-                lastOpenedDescription: viewModel.lastOpenedDescription(
-                    for: reference,
-                    showsUsageStats: showDatabaseUsageStats
-                ),
-                filenameSubtitle: viewModel.detailSubtitle(for: reference)
-            )
-            #endif
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("database.row")
@@ -446,6 +364,10 @@ struct DatabaseListView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             removeSwipeAction(for: reference)
         }
+    }
+
+    private func databaseRowButton(for reference: DatabaseReference) -> some View {
+        rowContent(for: reference)
         // Both dialogs are attached to the row (not the List) so iOS anchors
         // them to the database they act on instead of an arbitrary popover in
         // the middle of the screen. Each dialog only presents on the row whose
@@ -601,16 +523,8 @@ struct DatabaseListView: View {
         }
     }
 
-    /// The "Files" source opens the OS file browser. An iPhone glyph reads wrong
-    /// on a Mac, so use a folder symbol there; iOS keeps the device glyph that
-    /// matches the Files app.
-    private var filesMenuSymbolName: String {
-        #if os(macOS)
-        "folder"
-        #else
-        "iphone"
-        #endif
-    }
+    /// The "Files" source opens the OS file browser; iOS uses the device glyph that matches the Files app.
+    private var filesMenuSymbolName: String { "iphone" }
 
     @ViewBuilder
     private func contextMenu(for reference: DatabaseReference) -> some View {
@@ -784,13 +698,11 @@ struct DatabaseListView: View {
 
 }
 
-/// iPhone and iPad: "Databases" with the count below it from iOS 26. The
-/// macOS sidebar keeps the app's name.
+/// "Databases" with the count below it from iOS 26.
 private struct DatabaseListTitle: ViewModifier {
     let count: Int
 
     func body(content: Content) -> some View {
-        #if os(iOS)
         if #available(iOS 26.0, *) {
             content
                 .navigationTitle("Databases")
@@ -801,10 +713,6 @@ private struct DatabaseListTitle: ViewModifier {
                 .navigationTitle("Databases")
                 .navigationBarTitleDisplayMode(.large)
         }
-        #else
-        content
-            .navigationTitle("KeeForge")
-        #endif
     }
 }
 
@@ -834,3 +742,4 @@ private struct DatabaseRowChrome: ViewModifier {
         }
     }
 }
+#endif

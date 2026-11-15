@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// Per-database settings and file facts, shared by the two places that show
@@ -79,7 +80,7 @@ struct DatabaseDetailsView: View {
                 areasSection
                 localRecoverySection
                 if currentReference.isCloudBacked {
-                    Section { NavigationLink("Cloud Recovery") { CloudRecoveryView() } }
+                    Section { NavigationLink("Cloud Recovery") { CloudRecoveryView() }.accessibilityIdentifier("database-details.cloud-recovery") }
                 }
                 importSection
                 appSettingsSection
@@ -143,19 +144,7 @@ struct DatabaseDetailsView: View {
             .accessibilityIdentifier("database-details.local-recovery.confirm-discard")
             Button("Cancel", role: .cancel) { pendingLocalDiscard = nil }
         } message: { request in
-            let snapshot = request.snapshot
-            if snapshot.preferenceIntent != nil {
-                Text("Abandoning this key-file preference recovery disables local writes. It does not change the database master key. Keep any snapshots and unsaved edits you need, then remove and add the database again.")
-            } else if snapshot.admission?.purpose == .ordinarySave, snapshot.admission?.knownTarget != nil,
-                      snapshot.entries.isEmpty, snapshot.keyEvidence?.pending == nil, !request.abandonKeyRecord, !snapshot.ownerUnavailable {
-                Text("The file contains this change, but its durability or recovery record is unconfirmed. You can make a new explicit save from this version without discarding recovery. Discarding the record does not undo the file change or discard your open draft.")
-            } else if snapshot.admission?.purpose == .ordinarySave, snapshot.keyEvidence?.pending == nil, !request.abandonKeyRecord, !snapshot.ownerUnavailable {
-                Text("This local save has an unresolved outcome. Export the database and any unsaved changes before discarding this recovery record. Discarding does not undo a replacement and deletes only the snapshots listed here; later snapshots and your open draft are kept.")
-            } else if request.abandonKeyRecord || snapshot.ownerUnavailable || snapshot.admission?.purpose.isMasterKeyChange == true || snapshot.keyEvidence?.pending != nil {
-                Text("Discarding this recovery record disables local writes. It does not undo a saved master-key change. Export any snapshots and unsaved edits you need first, then remove and add the database again using the correct master key. Changes not saved elsewhere will be lost.")
-            } else {
-                Text("This permanently deletes the selected AutoFill snapshots and their recovery record. Changes not saved elsewhere will be lost. New snapshots added after this confirmation was opened are kept.")
-            }
+            Text(PendingLocalRecoveryViewModel.discardMessage(for: request.snapshot, abandonKeyRecord: request.abandonKeyRecord))
         }
         .onAppear {
             installAutoFillBridgeIfNeeded()
@@ -658,22 +647,6 @@ struct DatabaseDetailsView: View {
     }
 
     private var exportSection: some View {
-        #if os(macOS)
-        Section {
-            Button(DatabaseExportLabels.currentCopy) {
-                exportRequest = .currentCopy(currentReference)
-            }
-            .accessibilityIdentifier("database-details.export-copy")
-        } header: {
-            Text("Export")
-        } footer: {
-            if currentReference.isCloudBacked {
-                Text("Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
-            } else {
-                Text("Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
-            }
-        }
-        #else
         Section {
             Button("Export…") {
                 exportRequest = .currentCopy(currentReference)
@@ -686,7 +659,6 @@ struct DatabaseDetailsView: View {
                 Text("Export a copy of the database via iOS Sharing.")
             }
         }
-        #endif
     }
 
     var showsLocalDraftExport: Bool {
@@ -718,75 +690,10 @@ struct DatabaseDetailsView: View {
                 .accessibilityIdentifier("database-details.local-recovery.export-draft")
             }
         }
-        if let localRecovery = localRecoveryViewModel.snapshot, !localRecovery.entries.isEmpty || localRecovery.needsRecovery || localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true || localRecovery.requiresAssociationRecovery(for: currentReference) || localRecoveryViewModel.targetNeedsRecovery {
-            Section("Local Save Recovery") {
-                if localRecovery.admission?.purpose == .ordinarySave, localRecovery.admission?.knownTarget != nil {
-                    Text("The file contains this change, but its durability or recovery record is unconfirmed. You can make a new explicit save from this version without discarding recovery. Discarding the record does not undo the file change or discard your open draft.")
-                } else if localRecovery.admission?.purpose == .ordinarySave {
-                    Text("This local save has an unresolved outcome. Export the database and any unsaved changes before discarding this recovery record. Discarding does not undo a replacement and deletes only the snapshots listed here; later snapshots and your open draft are kept.")
-                }
-                if !localRecovery.entries.isEmpty {
-                    Text("Each source is a full encrypted database snapshot. Open exported files with their original master key. Exporting does not discard the source.")
-                }
-                if localRecovery.isRevoked {
-                    Text("Local writes are disabled. Export any snapshots you want to keep, then separately discard pending changes and remove the database. Add it again with the correct master key if you want to keep using it.")
-                }
-                if localRecoveryViewModel.targetNeedsRecovery {
-                    Text("The current database file does not match the saved key record. Keep the original and new master keys and encrypted backups. Export unsaved changes before closing this session.")
-                }
-                if let admission = localRecovery.admission, admission.purpose.isMasterKeyChange {
-                    Text("This is a verified copy of the intended encrypted output, not proof that the original file was saved. Open it with the key chosen for that operation. Exporting does not resolve recovery.")
-                    Button("Export Encrypted Output…") { exportRequest = .keyPublicationIntent(UUID(), admission, currentReference) }
-                        .accessibilityIdentifier("database-details.local-recovery.export-key-copy")
-                } else if let evidence = localRecovery.keyEvidence {
-                    Text("This encrypted copy requires the master key from the saved key change. Exporting does not change the database or discard recovery records.")
-                    Button("Export Saved Database Copy…") { exportRequest = .keyPublication(UUID(), evidence, currentReference) }
-                        .accessibilityIdentifier("database-details.local-recovery.export-key-copy")
-                }
-                if localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true || localRecovery.admission?.knownTarget?.isConfirmed == false {
-                    Text("The current file's durability is unconfirmed. Keep an encrypted backup before closing this session.")
-                }
-                ForEach(localRecovery.entries) { source in
-                    LabeledContent {
-                        if let receipt = source.receipt {
-                            Button("Export AutoFill Snapshot…") {
-                                exportRequest = .pendingLocal(receipt, currentReference)
-                            }
-                            .accessibilityIdentifier("database-details.local-recovery.export")
-                        } else {
-                            Text("Unavailable")
-                        }
-                    } label: {
-                        let name = URL(fileURLWithPath: source.relativePath).lastPathComponent
-                        Text(DatabaseExportService.backupDate(fromFilename: name)?.formatted() ?? name)
-                    }
-                }
-                if localRecovery.preferenceIntent != nil || localRecovery.admission?.purpose.isMasterKeyChange == true || localRecovery.keyEvidence?.pending != nil || localRecovery.requiresAssociationRecovery(for: currentReference) {
-                    LabeledContent("Key File", value: localRecovery.recoveryKeyFileFilename ?? String(localized: "None"))
-                    Button(localRecovery.preferenceIntent != nil ? String(localized: "Confirm Key File Preference")
-                           : localRecovery.admission?.purpose.isMasterKeyChange == true ? String(localized: "Confirm Installed Key Change")
-                           : String(localized: "Confirm Current File")) {
-                        Task {
-                            await localRecoveryViewModel.confirmInstalledKeyChange(reference: currentReference, snapshot: localRecovery)
-                            await refreshLocalRecovery()
-                        }
-                    }
-                    .accessibilityIdentifier("database-details.local-recovery.confirm-key")
-                }
-                if !localRecovery.entries.isEmpty || localRecovery.admission != nil || localRecovery.ownerUnavailable || localRecovery.retirementID != nil || (localRecovery.keyEvidence != nil && localRecoveryViewModel.targetNeedsRecovery) || localRecovery.preferenceIntent != nil {
-                    Button("Discard Local Recovery…", role: .destructive) {
-                        pendingLocalDiscard = LocalDiscardRequest(snapshot: localRecovery, abandonKeyRecord: localRecovery.keyEvidence != nil && localRecoveryViewModel.targetNeedsRecovery)
-                    }
-                    .accessibilityIdentifier("database-details.local-recovery.discard")
-                }
-            }
-        }
-        if let localRecoveryError = localRecoveryViewModel.errorMessage {
-            Section("Local Save Recovery") {
-                Text(localRecoveryError)
-                Button("Try Again") { Task { await localRecoveryViewModel.retry() } }
-            }
-        }
+        LocalSaveRecoveryContents(recovery: localRecoveryViewModel, reference: currentReference,
+            export: { exportRequest = $0 }, requestDiscard: { snapshot, abandon in
+                pendingLocalDiscard = LocalDiscardRequest(snapshot: snapshot, abandonKeyRecord: abandon)
+            }, refresh: { await refreshLocalRecovery() })
     }
 
     private func refreshLocalRecovery() async {
@@ -933,17 +840,11 @@ struct DatabaseDetailsView: View {
         if sessionViewModel != nil {
             Section {
                 Group {
-                    #if os(macOS)
-                    SettingsLink {
-                        Label("App Settings", systemImage: "gearshape")
-                    }
-                    #else
                     Button {
                         showAppSettings = true
                     } label: {
                         Label("App Settings", systemImage: "gearshape")
                     }
-                    #endif
                 }
                 .accessibilityIdentifier("database-details.app-settings")
             }
@@ -1016,7 +917,7 @@ struct DatabaseDetailsView: View {
 
     // MARK: - Helpers
 
-    /// Mirrors the bridge `AppRootView` installs on the app's shared list view
+    /// Mirrors the bridge `KeeForgeApp` installs on the app's shared list view
     /// model, so enabling AutoFill for the database that is currently unlocked
     /// republishes its identities immediately instead of waiting for the next
     /// unlock.
@@ -1060,3 +961,4 @@ struct DatabaseDetailsView: View {
         date.formatted(date: .abbreviated, time: .shortened)
     }
 }
+#endif

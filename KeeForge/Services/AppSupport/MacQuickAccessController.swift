@@ -31,9 +31,10 @@ extension MacGlobalHotKey: MacHotKeyRegistering {}
 /// combination with nothing visible behind it would be hard to trace back to
 /// KeeForge.
 ///
-/// Nothing here changes a lock rule. The panel reads the one active session,
-/// so every existing lock trigger empties it, and a locked or missing session
-/// sends the user to the main window to choose and unlock a database.
+/// Nothing here changes a lock rule. The panel searches only the database the
+/// app reports as focused and reads its session live, so every existing lock
+/// trigger empties it, and a locked or closed target sends the user to
+/// KeeForge to unlock or choose a database. It never searches another one.
 @MainActor
 @Observable
 final class MacQuickAccessController {
@@ -67,16 +68,20 @@ final class MacQuickAccessController {
     /// macOS refused the shortcut, normally because another app holds it.
     private(set) var isShortcutUnavailable = false
 
-    /// The app's active session, kept current by the main window. Observable
+    /// The database window the user last focused, set by the app. Observable
     /// rather than a `Binding` to the app's state: the panel reads it from its
     /// own view update, where a captured binding returns the value it was
-    /// created with. Only the reference is held, and it is cleared with the
-    /// session.
-    var activeSession: DatabaseViewModel?
+    /// created with. Only the ID is held, never the session.
+    var focusedDatabaseID: UUID?
 
-    /// Opens a new main window; set by the app, which owns `openWindow`.
-    @ObservationIgnored var openMainWindow: (() -> Void)?
-    @ObservationIgnored weak var mainWindow: NSWindow?
+    /// The open session of a database, if any; set by the app.
+    @ObservationIgnored var sessionForDatabase: @MainActor (UUID) -> DatabaseViewModel? = { _ in nil }
+    /// Fronts the window showing this database and reports whether one now
+    /// is in front; set by the app.
+    @ObservationIgnored var showDatabaseWindow: ((UUID) -> Bool)?
+    /// Fronts KeeForge to choose a database, reopening its window if it was
+    /// closed; set by the app.
+    @ObservationIgnored var showDatabaseList: (() -> Void)?
 
     @ObservationIgnored private let presenter: MacQuickSearchPanelPresenting
     @ObservationIgnored private let hotKey: MacHotKeyRegistering
@@ -109,7 +114,8 @@ final class MacQuickAccessController {
         self.activateApp = activateApp
         isMenuBarItemEnabled = SettingsService.macMenuBarQuickAccessEnabled
         shortcut = SettingsService.macQuickSearchShortcut
-        searchModel.sessionProvider = { [weak self] in self?.activeSession }
+        searchModel.focusedDatabaseID = { [weak self] in self?.focusedDatabaseID }
+        searchModel.sessionForDatabase = { [weak self] in self?.sessionForDatabase($0) }
     }
 
     func start() {
@@ -127,9 +133,17 @@ final class MacQuickAccessController {
         searchModel.onDismiss = { [weak self] in
             self?.presenter.hidePanel(restoringPreviousApp: true)
         }
-        searchModel.onShowMainWindow = { [weak self] in
-            self?.presenter.hidePanel(restoringPreviousApp: false)
-            self?.showMainWindow()
+        searchModel.onShowDatabase = { [weak self] databaseID in
+            guard let self else { return false }
+            presenter.hidePanel(restoringPreviousApp: false)
+            activateApp()
+            return showDatabaseWindow?(databaseID) ?? false
+        }
+        searchModel.onShowDatabaseList = { [weak self] in
+            guard let self else { return }
+            presenter.hidePanel(restoringPreviousApp: false)
+            activateApp()
+            showDatabaseList?()
         }
         apply()
     }
@@ -155,54 +169,11 @@ final class MacQuickAccessController {
         guard isMenuBarItemEnabled, isRecordingShortcut == false, let shortcut else {
             hotKey.unregister()
             isShortcutUnavailable = false
+            searchModel.shortcutHint = nil
             return
         }
         isShortcutUnavailable = hotKey.register(shortcut) == false
-    }
-
-    /// Fronts the existing main window, or opens one after ⌘W closed it (which
-    /// also locked the database, so the window lands on the unlock screen).
-    private func showMainWindow() {
-        activateApp()
-        if let mainWindow, mainWindow.isVisible || mainWindow.isMiniaturized {
-            if mainWindow.isMiniaturized {
-                mainWindow.deminiaturize(nil)
-            }
-            mainWindow.makeKeyAndOrderFront(nil)
-        } else {
-            openMainWindow?()
-        }
-    }
-}
-
-/// Reports the window it is placed in, so the controller can front the main
-/// window instead of opening a second one.
-struct MacWindowReader: NSViewRepresentable {
-    let onWindowChange: @MainActor (NSWindow?) -> Void
-
-    func makeNSView(context: Context) -> ReportingView {
-        ReportingView(onWindowChange: onWindowChange)
-    }
-
-    func updateNSView(_ nsView: ReportingView, context: Context) {}
-
-    final class ReportingView: NSView {
-        private let onWindowChange: @MainActor (NSWindow?) -> Void
-
-        init(onWindowChange: @escaping @MainActor (NSWindow?) -> Void) {
-            self.onWindowChange = onWindowChange
-            super.init(frame: .zero)
-        }
-
-        @available(*, unavailable)
-        required init?(coder: NSCoder) {
-            fatalError("init(coder:) is not supported")
-        }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            onWindowChange(window)
-        }
+        searchModel.shortcutHint = isShortcutUnavailable ? nil : shortcut.displayString
     }
 }
 
@@ -216,6 +187,7 @@ struct MacWindowReader: NSViewRepresentable {
 @MainActor
 final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
     static let panelSize = NSSize(width: 380, height: 420)
+    static let cornerRadius: CGFloat = 14
 
     var onToggleRequested: (() -> Void)?
 
@@ -241,9 +213,7 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
         if visible, statusItem == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
             if let button = item.button {
-                let image = NSImage(systemSymbolName: "key.fill", accessibilityDescription: String(localized: "KeeForge Quick Search"))
-                image?.isTemplate = true
-                button.image = image
+                button.image = Self.statusItemImage()
                 button.toolTip = String(localized: "KeeForge Quick Search")
                 button.target = self
                 button.action = #selector(statusItemClicked)
@@ -318,19 +288,7 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
         // identifier of every element inside it.
         panel.setAccessibilityIdentifier("quick-search.panel")
 
-        let background = NSVisualEffectView(frame: NSRect(origin: .zero, size: Self.panelSize))
-        background.material = .popover
-        background.blendingMode = .behindWindow
-        background.state = .active
-        background.wantsLayer = true
-        background.layer?.cornerRadius = 12
-        background.layer?.masksToBounds = true
-
-        let hosting = NSHostingView(rootView: MacQuickSearchView(model: searchModel))
-        hosting.frame = background.bounds
-        hosting.autoresizingMask = [.width, .height]
-        background.addSubview(hosting)
-        panel.contentView = background
+        panel.contentView = Self.makeContentView(searchModel: searchModel)
 
         resignKeyObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification,
@@ -347,6 +305,49 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
             }
         }
         return panel
+    }
+
+    /// The board's key glyph: a ring and a two-toothed shaft, as a template
+    /// so the menu bar tints it.
+    static func statusItemImage() -> NSImage {
+        let side: CGFloat = 18
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: true) { _ in
+            let scale = side / 64
+            let path = NSBezierPath()
+            path.appendOval(in: NSRect(x: 9 * scale, y: 21 * scale, width: 22 * scale, height: 22 * scale))
+            path.move(to: NSPoint(x: 31 * scale, y: 32 * scale))
+            path.line(to: NSPoint(x: 57 * scale, y: 32 * scale))
+            path.move(to: NSPoint(x: 47 * scale, y: 32 * scale))
+            path.line(to: NSPoint(x: 47 * scale, y: 42 * scale))
+            path.move(to: NSPoint(x: 56 * scale, y: 32 * scale))
+            path.line(to: NSPoint(x: 56 * scale, y: 39 * scale))
+            path.lineWidth = 6.5 * scale
+            path.lineCapStyle = .round
+            NSColor.black.setStroke()
+            path.stroke()
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = String(localized: "KeeForge Quick Search")
+        return image
+    }
+
+    /// The panel's card: menu material under a near-opaque window fill, so it
+    /// reads as the board's card over any wallpaper, in the app's appearance.
+    static func makeContentView(searchModel: MacQuickSearchViewModel) -> NSVisualEffectView {
+        let background = NSVisualEffectView(frame: NSRect(origin: .zero, size: panelSize))
+        background.material = .menu
+        background.blendingMode = .behindWindow
+        background.state = .active
+        background.wantsLayer = true
+        background.layer?.cornerRadius = cornerRadius
+        background.layer?.masksToBounds = true
+
+        let hosting = NSHostingView(rootView: MacQuickSearchView(model: searchModel).modifier(MacHostingAppearance()))
+        hosting.frame = background.bounds
+        hosting.autoresizingMask = [.width, .height]
+        background.addSubview(hosting)
+        return background
     }
 
     private func panelOrigin(for size: NSSize) -> NSPoint {

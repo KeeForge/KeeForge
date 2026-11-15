@@ -43,4 +43,29 @@ final class DatabaseOpeningStepTests: XCTestCase {
         let viewModel = DatabaseViewModel(databaseReference: reference("cloud.kdbx", isCloud: true))
         XCTAssertEqual(viewModel.openingStep, .syncing)
     }
+
+    func testLocalStepsStartAtDecrypting() {
+        let steps = DatabaseOpeningSteps.make(step: .decrypting, isCloudBacked: false, provider: nil, progress: nil)
+
+        XCTAssertEqual(steps, [
+            .init(title: String(localized: "Decrypt Database"), state: .current, detail: nil),
+            .init(title: String(localized: "Open Database"), state: .upcoming, detail: nil),
+        ])
+    }
+
+    func testCloudStepsShowTheSyncProgressWhileSyncing() {
+        let steps = DatabaseOpeningSteps.make(step: .syncing, isCloudBacked: true, provider: .dropbox, progress: 0.5)
+
+        XCTAssertEqual(steps.map(\.state), [.current, .upcoming, .upcoming])
+        XCTAssertEqual(steps.first?.title, String(localized: "Sync with \(CloudProviderKind.dropbox.displayName)"))
+        XCTAssertEqual(steps.first?.detail, 0.5.formatted(.percent.precision(.fractionLength(0))))
+    }
+
+    func testCloudStepsMarkTheSyncDoneOnceDecrypting() {
+        let steps = DatabaseOpeningSteps.make(step: .decrypting, isCloudBacked: true, provider: nil, progress: 0.5)
+
+        XCTAssertEqual(steps.map(\.state), [.done, .current, .upcoming])
+        XCTAssertEqual(steps.first?.title, String(localized: "Sync with \(String(localized: "cloud"))"))
+        XCTAssertNil(steps.first?.detail)
+    }
 }

@@ -1,83 +1,26 @@
 import SwiftUI
 
-private enum PasswordVisualStyle {
+enum PasswordVisualStyle {
     static let bulletCount = 12
     static let concealedText = String(repeating: "\u{2022}", count: bulletCount)
     static let segmentCount = 4
 }
 
-struct PasswordDisplayRow<Actions: View>: View {
-    let revealedText: String?
-    private let passwordAccessibilityIdentifier: String?
-    private let maximumEntropyBits: Double
-    /// The generator's suggestion: the design's larger password style on iOS.
-    private let isProminent: Bool
-    private let actions: Actions
-
-    init(
-        revealedText: String?,
-        passwordAccessibilityIdentifier: String? = nil,
-        maximumEntropyBits: Double = .infinity,
-        isProminent: Bool = false,
-        @ViewBuilder actions: () -> Actions
-    ) {
-        self.revealedText = revealedText
-        self.passwordAccessibilityIdentifier = passwordAccessibilityIdentifier
-        self.maximumEntropyBits = maximumEntropyBits
-        self.isProminent = isProminent
-        self.actions = actions()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "lock.fill")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24)
-
-                if let revealedText {
-                    // Deliberately no `.textSelection(.enabled)` here: the system
-                    // copy path would bypass ClipboardService (no expiry, no
-                    // localOnly/ConcealedType, no clear-on-lock). The sanctioned
-                    // CopyButton -> ClipboardService.copy is the only copy path.
-                    Group {
-                        if let passwordAccessibilityIdentifier {
-                            PasswordDisplayText(revealedText, isProminent: isProminent)
-                                .accessibilityIdentifier(passwordAccessibilityIdentifier)
-                        } else {
-                            PasswordDisplayText(revealedText, isProminent: isProminent)
-                        }
-                    }
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    PasswordConcealedText()
-                }
-
-                Spacer(minLength: 12)
-                actions
-            }
-
-            if let revealedText {
-                PasswordStrengthIndicator(password: revealedText, maximumEntropyBits: maximumEntropyBits)
-                    .padding(.leading, 36)
-            }
-        }
-    }
-}
-
 struct PasswordDisplayText: View {
     let password: String
     var isProminent = false
+    /// Replaces the default monospaced body font (the Mac generator's large suggestion).
+    var font: Font?
 
-    init(_ password: String, isProminent: Bool = false) {
+    init(_ password: String, isProminent: Bool = false, font: Font? = nil) {
         self.password = password
         self.isProminent = isProminent
+        self.font = font
     }
 
     var body: some View {
         Text(styledPassword)
-            .font(isProminent && PlatformDesign.followsIOSDesign ? Theme.Font.password : .body.monospaced())
+            .font(font ?? (isProminent && PlatformDesign.followsIOSDesign ? Theme.Font.password : .body.monospaced()))
             .accessibilityLabel(Text(verbatim: password))
     }
 

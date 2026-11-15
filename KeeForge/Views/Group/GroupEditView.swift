@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// The group editor: name, icon, tags, notes and Search & AutoFill visibility in
@@ -180,31 +181,16 @@ struct GroupEditView: View {
         }
     }
 
-    /// iOS sets the icon beside the name and the tags in the same card, as the
-    /// entry editor does; macOS keeps a captioned row per field.
-    @ViewBuilder
+    /// The icon beside the name and the tags in the same card, as the entry
+    /// editor does.
     private var basicsSection: some View {
-        if PlatformDesign.followsIOSDesign {
-            Section {
-                HStack(spacing: Theme.Spacing.iconText) {
-                    iconButton
-                    nameField
-                }
-
-                tagFields
+        Section {
+            HStack(spacing: Theme.Spacing.iconText) {
+                iconButton
+                nameField
             }
-        } else {
-            Section("Basics") {
-                fieldRow("Name") {
-                    nameField
-                }
 
-                iconRow
-
-                fieldRow("Tags") {
-                    tagFields
-                }
-            }
+            tagFields
         }
     }
 
@@ -229,8 +215,6 @@ struct GroupEditView: View {
         tagSuggestionStrip
     }
 
-    /// iOS explains in the footer what hiding does; macOS keeps only the
-    /// inherited-exclusion note.
     private var searchSection: some View {
         Section {
             Toggle("Hide from Search & AutoFill", isOn: $formViewModel.isHiddenFromAutoFill)
@@ -244,13 +228,11 @@ struct GroupEditView: View {
         } header: {
             Text("Search & AutoFill")
         } footer: {
-            if PlatformDesign.followsIOSDesign {
-                Text("Entries in a hidden group and its subgroups stay in the database but don't appear in search or AutoFill suggestions.")
-            }
+            Text("Entries in a hidden group and its subgroups stay in the database but don't appear in search or AutoFill suggestions.")
         }
     }
 
-    /// The icon on iOS: a tap opens the picker. The pencil badge says it can
+    /// The icon: a tap opens the picker. The pencil badge says it can
     /// be changed, as on entry detail.
     private var iconButton: some View {
         Button {
@@ -280,33 +262,6 @@ struct GroupEditView: View {
         .buttonStyle(.borderless)
         .accessibilityLabel("Icon")
         .accessibilityHint("Changes the group icon")
-        .accessibilityIdentifier("group-edit.icon-button")
-        .accessibilityValue(String(formViewModel.iconID))
-    }
-
-    /// The group's standard KDBX icon, presenting the shared picker sheet. A
-    /// custom icon is deliberately not previewed here: the payload only carries
-    /// a standard `iconID`, and the draft layer keeps the custom icon untouched
-    /// unless the user actually picks a different standard one.
-    private var iconRow: some View {
-        Button {
-            isShowingIconPicker = true
-        } label: {
-            HStack {
-                Text("Icon")
-                Spacer(minLength: 8)
-                StandardIconView(
-                    iconID: formViewModel.iconID,
-                    fallbackSystemName: "folder.fill",
-                    fallbackPalette: .blue
-                )
-                Image(systemName: "chevron.forward")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
         .accessibilityIdentifier("group-edit.icon-button")
         .accessibilityValue(String(formViewModel.iconID))
     }
@@ -375,23 +330,6 @@ struct GroupEditView: View {
         )
     }
 
-    private func fieldRow<Content: View>(
-        _ title: LocalizedStringKey,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            content()
-                .macLabelsHidden()
-                .macFormFieldStyle()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 2)
-    }
-
     private func cancelTapped() {
         if formViewModel.isDirty {
             showDiscardConfirmation = true
@@ -408,3 +346,5 @@ struct GroupEditView: View {
         Task { await coordinator.save(resuming: lockRequest) { _ in onComplete() } }
     }
 }
+
+#endif

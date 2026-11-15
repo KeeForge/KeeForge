@@ -239,6 +239,18 @@ final class FTPSessionTests: XCTestCase {
         XCTAssertTrue(server.commandLog.contains("MLSD vaults"))
     }
 
+    func testStatTreatsA450AsUnavailableAndLetsTheListingDecide() async throws {
+        server.supportsMachineListing = false
+        server.setFile("vaults/other.kdbx", data: Data(count: 3), modified: "20260918120001")
+        server.overrideNextReply(to: "SIZE", with: "450 path vaults/a.kdbx not found")
+        let missing = try await session { try await $0.stat("vaults/a.kdbx") }
+        XCTAssertNil(missing, "rclone answers 450 for a missing file")
+
+        server.overrideNextReply(to: "MDTM", with: "450 File not available")
+        let unstamped = try await session { try await $0.stat("vaults/other.kdbx") }
+        XCTAssertEqual(unstamped, FTPListEntry(name: "other.kdbx", isFolder: false, size: 3, modifiedStamp: nil))
+    }
+
     func testStatMatchesACaseOnlyDifferenceInTheParentListing() async throws {
         server.supportsMachineListing = false
         server.setFile("A.KDBX", data: Data(count: 2))

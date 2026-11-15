@@ -1,4 +1,4 @@
-import LocalAuthentication
+#if os(iOS)
 import SwiftUI
 
 /// Change the master key (password and/or key file) of the unlocked database.
@@ -16,7 +16,6 @@ struct MasterKeyChangeView: View {
     @State private var isConfirmPasswordVisible = false
     @State private var isKeyFileImporterPresented = false
     @State private var newKeyFile: KeyFileExportDocument?
-    @State private var isAuthenticating = false
     @State private var isChangeConfirmationPresented = false
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
 
@@ -89,7 +88,7 @@ struct MasterKeyChangeView: View {
                 Button("Save") {
                     handleSaveTap()
                 }
-                .disabled(viewModel.isWorking || isAuthenticating)
+                .disabled(viewModel.isWorking || viewModel.isAuthenticating)
                 .accessibilityIdentifier("master-key.save")
                 }
             }
@@ -144,6 +143,7 @@ struct MasterKeyChangeView: View {
                 Text("This permanently re-encrypts the database file. It will open only with the new master key — if the new master password or key file is lost, the data in it cannot be recovered.")
             }
         }
+        .macSheetCancellation { viewModel.cancelPendingChange() }
         .onDisappear {
             viewModel.cancelPendingChange()
         }
@@ -232,44 +232,13 @@ struct MasterKeyChangeView: View {
     }
 
     private func authenticateAndPerformChange() {
-        guard isAuthenticating == false, viewModel.isWorking == false else { return }
+        guard viewModel.isAuthenticating == false, viewModel.isWorking == false else { return }
         viewModel.isCancelled = false
-        guard viewModel.validate() else { return }
-
-        if BiometricService.canAuthenticateDeviceOwner {
-            isAuthenticating = true
-            Task { @MainActor in
-                let request = BiometricService.beginAuthenticationRequest()
-                defer {
-                    BiometricService.endAuthenticationRequest(request)
-                    isAuthenticating = false
-                }
-                do {
-                    try await sessionViewModel.secretAccess.authenticate(
-                        reason: String(localized: "Change master key")
-                    )
-                    await performChange()
-                } catch {
-                    // A user-initiated cancel needs no explanation; anything
-                    // else (system cancel, timeout) must not look like success.
-                    if (error as? LAError)?.code != .userCancel {
-                        await MainActor.run {
-                            viewModel.changeError = String(localized: "Authentication didn't complete. The master key was not changed.")
-                        }
-                    }
-                }
+        Task {
+            if await viewModel.performConfirmedChange(session: sessionViewModel) {
+                HapticService.success()
+                dismiss()
             }
-        } else {
-            Task {
-                await performChange()
-            }
-        }
-    }
-
-    private func performChange() async {
-        if await viewModel.performChange() {
-            HapticService.success()
-            dismiss()
         }
     }
 
@@ -327,3 +296,4 @@ private struct MasterKeyErrorBanner: View {
         .accessibilityIdentifier("master-key.error")
     }
 }
+#endif

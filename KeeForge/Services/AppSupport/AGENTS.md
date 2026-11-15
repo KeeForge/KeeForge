@@ -5,9 +5,11 @@
 ## Ownership
 
 - `SettingsService`: where each preference is stored (app-local or App Group-shared). `AppSettingsViewModel` owns their live effects.
+- `MacWindowRestorationStore`: data-only Mac window topology and restoration decisions; `MacWindowCoordinator` is its only writer and the only owner of top-level frames (no AppKit frame autosave or state restoration). Inject the app's own defaults, never the App Group suite; records contain only database UUIDs, frames, launcher visibility, and frontmost UUID. Database and Databases windows have separate minimum sizes. Termination freezes recording until cancelled. Split geometry remains AppKit-owned under per-database autosave names and is removed with the database.
 - `MacLockMonitor`: the macOS lock lifecycle. macOS has no "entered background" moment, so its triggers are what locks the vault there.
-- `MacWindowCloseGuard`: settles unsaved work before a close that would leave no host window. `MacLockMonitor`'s last-window trigger fires after the close commits, too late to prompt.
-- `MacQuickAccessController`: the opt-in status item, the quick-search panel, and the global shortcut, which exists only while the status item does.
+- `MacDatabaseWindowRegistry`: app-owned window-identity to database-ID mapping, resolving sheets/children to their database parent. Sessions never retain AppKit objects; unregistering clears callbacks.
+- `MacWindowCloseGuard`: settles each registered database window's unsaved work independently and locks/cancels only its session on committed close. Cancel and save failure retain both.
+- `MacQuickAccessController`: the opt-in status item, the quick-search panel, and the global shortcut, which exists only while the status item does. The app supplies its targets: `focusedDatabaseID`, `sessionForDatabase`, `showDatabaseWindow`, and `showDatabaseList`. No service looks up a database through `NSApp`'s key, main, or first window.
 - `WhatsNewPresentationService`: the curated feature catalog. Add one case before each feature-bearing release, written from `CHANGELOG.md` as user-facing copy.
 
 ## Invariants
@@ -20,7 +22,7 @@
 
 ### Settings storage
 
-- A setting the extension reads lives in the App Group suite: `clipboardTimeout`, `autoFillCopyTOTP`, `autoUnlockWithFaceID`, `quickAutoFillEnabled`, `passwordGeneratorOptions`. `showWebsiteIcons` is shared too, but no extension code reads it today. Everything else stays in `UserDefaults.standard`. Moving one changes what shipped installs read.
+- A setting the extension reads lives in the App Group suite: `clipboardTimeout`, `autoFillCopyTOTP`, `autoUnlockWithFaceID`, `quickAutoFillEnabled`, `quickUnlockPasswordInterval`, `passwordGeneratorOptions`, and the extension-written `successfulAutoFillCount`. `showWebsiteIcons` is shared too, but no extension code reads it today. Everything else stays in `UserDefaults.standard`. Moving one changes what shipped installs read.
 - `clipboardTimeout` is shared so the app and extension agree on expiry; its getter migrates the older app-local value on first read.
 - `AuthenticationGracePeriod` defaults to Always Ask and is bounded at five minutes; do not add an unbounded option. `../Security/SecretAccessGate` reads it.
 - The SSH agent's settings (`macSSHAgentEnabled(in:)`, `macSSHAgentSelectedEntryIDs(in:)`, and their setters) take the `UserDefaults` to use instead of reading `.standard`. `../SSHAgent/MacSSHAgentController` passes the app's own and its tests a suite of their own, so a Mac test run never changes a developer's agent.
@@ -28,8 +30,9 @@
 ### Clipboard
 
 - iOS: every copy carries a `UIPasteboard` expiration date and `.localOnly`, so the system expires it and it stays off Universal Clipboard. macOS has neither: a copy is marked `org.nspasteboard.ConcealedType` and cleared by an in-process timer.
+- A clear timeout of Never sets no expiration date on iOS and no timer on macOS; only a lock or a later copy removes the value. On iOS a background lock does not scrub, so such a copy can stay on the pasteboard indefinitely. That is the user's explicit choice; the default stays 30 seconds.
 - Both branches clear only while `changeCount` still matches the app's own write, so a later copy by the user is never clobbered.
-- `clearOwnedContents()` runs on every lock. The single exception is iOS backgrounding (`../../ViewModels/AGENTS.md`), where the expiration date bounds the copy instead. macOS has no such bound, so a missed scrub there leaves the secret on the pasteboard.
+- `clearOwnedContents()` runs on every lock, and on Mac when a quit goes ahead (`MacWindowCoordinator`), since the clear timer dies with the process. The single exception is iOS backgrounding (`../../ViewModels/AGENTS.md`), where the expiration date bounds the copy instead. macOS has no such bound, so a missed scrub there leaves the secret on the pasteboard.
 - The AutoFill extension calls only the iOS branch (verification-code copy). The macOS timer would die with the extension process, so the coordinator gates the feature on `#if os(iOS)`; the Mac extension compiles the AppKit branch without calling it.
 
 ### Favicons
@@ -43,15 +46,17 @@
 
 - `FeedbackSubmissionService` sends only on explicit submit, only to `feedback.keeforge.com`: the message, optional contact email with consent, an optional photo up to 5 MiB, and the error context of the failure being reported (category, code, details).
 - That context comes from `DatabaseOpenFailure` and carries no file names, paths, or vault data. Do not attach anything else automatically.
-- `AttachmentPreviewFileStore` files are plaintext attachment contents tracked by the owning database session's preview owner ID. Consumers pass that owner to `write` and `remove`; lock and reload clear only that owner's files. App-global `purgeOrphanedFiles()` at launch cleans up after a crash and is a no-op while any owner has tracked previews.
+- `AttachmentPreviewFileStore` files are plaintext attachment contents tracked by the owning database session's preview owner ID. Consumers pass that owner to `write` and `remove`; lock and reload clear only that owner's files. App-global `purgeOrphanedFiles()` at launch cleans up after a crash and is a no-op while any owner has tracked previews; `removeAll()` is for a Mac quit that goes ahead and removes every preview.
 
 ### Mac lock, window close, quick access
 
-- Screen lock, screensaver, sleep, session resign, and the last host window closing lock unconditionally. App deactivation locks only under the strict `MacLockPolicy`.
+- `AutoLockTimeout` has no Immediately case on Mac (it is `#if os(iOS)`), and the Mac default is 5 Minutes, so every Mac session has a real inactivity timer unless the user picks Never. A stored Immediately fails to decode on Mac and reads as that default; nothing rewrites it.
+- Screen lock, screensaver, sleep, and session resign request locks immediately for every session and cancel any background deadline. App deactivation locks only under the strict `MacLockPolicy`, after `macBackgroundLockDelay` (app-local, default Immediately). Activation within the delay, delay edits, stop, and the last open session locking cancel that deadline; activation once the wall-clock delay has passed locks instead; one session locking must not remove the protection of others. Authentication holds retain their independent immediate settlement.
 - Under the strict policy, a deactivation caused by the app's own authentication prompt is held, not excused: it needs both a pending request (`BiometricService.isBiometricAuthInProgress`) and the system authentication UI in front (`ForegroundApplication.isSystemAuthenticationPrompt`). Any other application coming forward locks.
 - When the last pending request ends the hold settles: KeeForge is active again within `defaultReactivationGracePeriod`, or it locks.
-- `MacLockMonitor.countRemainingHostWindows` is the one definition of a host window; `MacWindowCloseGuard` shares it. The guard proxies each window's delegate instead of replacing it.
-- The quick-search panel is a non-activating `NSPanel` with `canBecomeMain == false`: it neither keeps a vault unlocked nor counts as the last window. It holds no entry data and only a reference to the active session, cleared when the database closes.
+- The close guard proxies only registered database windows and preserves their delegates. Prompt grants and answers must match the original registration and session; repeated closes cannot stack prompts.
+- User events reset only their registered database session, throttled per database; sheet/child activity belongs to the parent. Settings and panels reset nothing. Activation evaluates existing deadlines without renewing them; system authentication holds remain app-wide.
+- The quick-search panel is a non-activating `NSPanel` with `canBecomeMain == false`: it is not a registered database host and extends no inactivity deadline. It holds no entry data and no session, only the focused database's ID. It searches that one database and shows its locked or no-database state rather than falling back to another open database; results and actions carry their database ID.
 - The panel is outside `ScreenProtectionService`'s key-window sweep, so it sets its own `sharingType` from Block Screen Capture.
 - Only the password copy activates KeeForge (LocalAuthentication needs the active app); the previous app is re-activated when the prompt ends, however it ends.
 - The panel's key monitor leaves every key to the field while an input method is composing (`isComposingText(in:)`), because those keys confirm and cancel candidates.
@@ -62,14 +67,15 @@
 - `MacTransitionNoticeService` shows its sheet when the App Group list exists or the container cannot be resolved at all. A nil container means macOS denied the group to this build (another build shares the bundle id), which is exactly when the list is empty and the user needs the instructions.
 - `MacAppSuggestionService` suggests the native app only when `ProcessInfo.isiOSAppOnMac` is true.
 - `WhatsNewPresentationService` presents nothing while Show What's New After Updates is off and leaves that version unclaimed. The UI-testing override still decides first.
-- `ReviewPromptService` no-ops outside App Store builds; macOS has no scene entry point, so the app injects `RequestReviewAction` through `requestReviewHandler`.
+- `ReviewPromptService` no-ops outside App Store builds; macOS has no scene entry point, so `AppDelegate` installs `requestReviewHandler` once; it asks for review in the current command-target database window's content controller.
 - `ReviewPromptService` asks at most once per `CFBundleShortVersionString`, only after a clean save or, once the AutoFill extensions have counted enough fills in `SettingsService.successfulAutoFillCount`, a clean unlock (the extension cannot present the prompt). A success that follows an error the user just saw never prompts and does not use up the version.
 - `AutoFillStatusService.requestEnableAutoFill` returns false when the prompt closed with the provider still off; callers must report that so the tap does not look like a switch that reset itself.
 
 ## Tests
 
 - `SettingsServiceTests`, `FaviconServiceTests`, `FaviconIconEncoderTests`, `FeedbackSubmissionServiceTests`, `AttachmentPreviewFileStoreTests`, `ReviewPromptServiceTests`, `WhatsNewPresentationServiceTests`, `AutoFillStatusServiceTests`.
-- Mac: `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `MacQuickAccessControllerTests`, `MacQuickSearchViewModelTests`, `MacTransitionNoticeServiceTests` (all `KeeForgeMacTests` only).
+- Mac restoration: `MacWindowRestorationStoreTests` covers persistence, allowed JSON fields, supported-reference filtering, frame constraints with separate minimum sizes, launcher/Quick Launch/explicit-open precedence, termination snapshots, and split geometry cleanup. Wiring into real window lifetime is in `MacWindowCoordinatorTests`.
+- Mac: `MacDatabaseWindowRegistryTests`, `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `MacQuickAccessControllerTests`, `MacQuickSearchViewModelTests`, `MacTransitionNoticeServiceTests` (all `KeeForgeMacTests` only).
 - `ClipboardService` has no class of its own; scrubbing on lock is covered in `AutoLockTests`.
 - UI tests suppress the AutoFill tip unless `UI_TEST_SHOW_AUTOFILL_TIP=1` and force the Mac app banner with `UI_TEST_SHOW_MAC_APP_SUGGESTION=1`.
 

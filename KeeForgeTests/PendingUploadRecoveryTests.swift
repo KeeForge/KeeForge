@@ -30,7 +30,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
             files: [cacheURL: payload]
         )
 
-        XCTAssertFalse(PendingUploadRecovery.hasConflicts(for: reference, environment: fake.environment))
+        XCTAssertTrue(PendingUploadRecovery.conflictedPayloadSHA512s(for: reference, environment: fake.environment).isEmpty)
         guard case .noConflicts = PendingUploadRecovery.lookUpPayloads(for: reference, environment: fake.environment) else {
             return XCTFail("A marker that never conflicted is the drainer's to push, not a merge's")
         }
@@ -187,7 +187,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
             notifying: false
         )
 
-        XCTAssertTrue(PendingUploadRecovery.hasConflicts(for: reference))
+        XCTAssertFalse(PendingUploadRecovery.conflictedPayloadSHA512s(for: reference).isEmpty)
         let payloads = try recoveredPayloads(PendingUploadRecovery.lookUpPayloads(for: reference))
         XCTAssertEqual(payloads.map(\.data), [payload])
         let originalBackup = backupDirectory.appendingPathComponent("20260924-100000-000000.kdbx")
@@ -208,7 +208,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
         PendingUploadRecovery.dropMarkers([promoted])
 
         XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id).isEmpty)
-        XCTAssertFalse(PendingUploadRecovery.hasConflicts(for: reference))
+        XCTAssertTrue(PendingUploadRecovery.conflictedPayloadSHA512s(for: reference).isEmpty)
     }
 
     /// v1.16.0 already enqueued the base hash before the cache write, without

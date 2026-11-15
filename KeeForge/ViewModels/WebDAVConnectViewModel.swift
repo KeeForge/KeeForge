@@ -1,4 +1,5 @@
 import Foundation
+import RemoteFileTransports
 
 /// Drives the manual WebDAV connect form. Captures the server URL, username,
 /// and password, performs lightweight client-side validation, and hands a
@@ -17,10 +18,13 @@ final class WebDAVConnectViewModel {
     var errorMessage: String?
 
     private let connector: any WebDAVConnecting
+    /// Reconnecting a database: only its own account may be connected.
+    private let expectedAccountID: String?
     private var isCancelled = false
 
-    init(connector: any WebDAVConnecting) {
+    init(connector: any WebDAVConnecting, expectedAccountID: String? = nil) {
         self.connector = connector
+        self.expectedAccountID = expectedAccountID
     }
 
     /// Attempts to connect using the current field values. Returns the created
@@ -60,6 +64,14 @@ final class WebDAVConnectViewModel {
             } else {
                 errorMessage = String(localized: "The server address must start with https://.")
             }
+            return nil
+        }
+
+        if let expectedAccountID,
+           let baseURL = try? WebDAVURL.normalizedBaseURL(from: trimmedServerURL,
+                                                          allowsUnencryptedHTTP: allowsUnencryptedHTTP),
+           WebDAVURL.accountId(normalizedBaseURL: baseURL, username: trimmedUsername) != expectedAccountID {
+            errorMessage = String(localized: "This database was added with a different server address or username.")
             return nil
         }
 

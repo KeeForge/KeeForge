@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// Lets the user pick which of the standard KDBX icons a group displays.
@@ -96,3 +97,5 @@ struct GroupIconPickerView: View {
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
+
+#endif

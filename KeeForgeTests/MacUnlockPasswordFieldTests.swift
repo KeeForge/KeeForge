@@ -226,6 +226,96 @@ final class MacUnlockPasswordFieldTests: XCTestCase {
         XCTAssertEqual(text, "hunter2")
     }
 
+    // MARK: - Completion, pasteboard and focus requests
+
+    func testBothFieldsOfferNoCompletionAndDrawNoBezel() throws {
+        for isSecure in [true, false] {
+            let host = NSHostingView(rootView: makeRepresentable(isSecure: isSecure))
+            host.frame = NSRect(x: 200, y: 0, width: 400, height: 400)
+            window.contentView?.addSubview(host)
+            host.layoutSubtreeIfNeeded()
+            let field = try XCTUnwrap(waitForField(in: host))
+            XCTAssertFalse(field.isAutomaticTextCompletionEnabled)
+            XCTAssertNil(field.contentType, "No content type, so Passwords offers nothing")
+            XCTAssertFalse(field.isBezeled)
+            XCTAssertEqual(field.focusRingType, .none, "The page's capsule draws the ring")
+            XCTAssertEqual(field.accessibilityLabel(), "Enter password")
+            host.removeFromSuperview()
+        }
+    }
+
+    func testTheShownPasswordNeverReachesAPasteboard() throws {
+        let field = MacUnlockPlainTextField(frame: NSRect(x: 220, y: 100, width: 200, height: 24))
+        field.stringValue = "hunter2"
+        window.contentView?.addSubview(field)
+        XCTAssertTrue(window.makeFirstResponder(field))
+        let editor = try XCTUnwrap(field.currentEditor() as? MacUnlockPasswordFieldEditor)
+        editor.selectAll(nil)
+
+        for action in [#selector(NSText.copy(_:)), #selector(NSText.cut(_:))] {
+            let item = NSMenuItem(title: "", action: action, keyEquivalent: "")
+            XCTAssertFalse(editor.validateUserInterfaceItem(item), "\(action)")
+        }
+        let paste = NSMenuItem(title: "", action: #selector(NSText.paste(_:)), keyEquivalent: "")
+        _ = editor.validateUserInterfaceItem(paste)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("MacUnlockPasswordFieldTests.\(UUID().uuidString)"))
+        defer { pasteboard.releaseGlobally() }
+        XCTAssertFalse(editor.writeSelection(to: pasteboard, types: [.string]))
+        XCTAssertNil(pasteboard.string(forType: .string))
+        XCTAssertNil(editor.validRequestor(forSendType: .string, returnType: nil), "No Services menu send")
+
+        let changeCount = NSPasteboard.general.changeCount
+        editor.copy(nil)
+        editor.cut(nil)
+        XCTAssertEqual(NSPasteboard.general.changeCount, changeCount)
+        XCTAssertEqual(field.stringValue, "hunter2", "Cut removes nothing either")
+    }
+
+    func testAFocusRequestFocusesOnceAndMountingAsksNothing() throws {
+        var request = 4
+        let binding = Binding(get: { "" }, set: { _ in })
+        func representable() -> MacUnlockPasswordField {
+            MacUnlockPasswordField(text: binding, isSecure: true, placeholder: "Enter password",
+                accessibilityIdentifier: "unlock.password.field", focusOnAppear: false, focusRequest: request,
+                onSubmit: {}, onEscape: {})
+        }
+        let host = NSHostingView(rootView: representable())
+        host.frame = NSRect(x: 200, y: 0, width: 400, height: 400)
+        focusSidebar()
+        window.contentView?.addSubview(host)
+        host.layoutSubtreeIfNeeded()
+        let field = try XCTUnwrap(waitForField(in: host))
+        XCTAssertFalse(waitUntil(timeout: 0.3) { MacInitialFocus.hasFocus(field) }, "Mounting with a request asks nothing")
+        XCTAssertTrue(window.firstResponder === sidebar)
+
+        request += 1
+        host.rootView = representable()
+        host.layoutSubtreeIfNeeded()
+        XCTAssertTrue(waitUntil { MacInitialFocus.hasFocus(field) }, "A new request focuses the field")
+
+        focusSidebar()
+        host.rootView = representable()
+        host.layoutSubtreeIfNeeded()
+        XCTAssertFalse(waitUntil(timeout: 0.3) { MacInitialFocus.hasFocus(field) }, "The same request never refocuses")
+    }
+
+    func testFocusChangesAreReported() throws {
+        var focusChanges: [Bool] = []
+        let host = NSHostingView(rootView: MacUnlockPasswordField(text: .constant(""), isSecure: true,
+            placeholder: "Enter password", accessibilityIdentifier: "unlock.password.field", focusOnAppear: false,
+            onFocusChange: { focusChanges.append($0) }, onSubmit: {}, onEscape: {}))
+        host.frame = NSRect(x: 200, y: 0, width: 400, height: 400)
+        window.contentView?.addSubview(host)
+        host.layoutSubtreeIfNeeded()
+        let field = try XCTUnwrap(waitForField(in: host))
+
+        XCTAssertTrue(window.makeFirstResponder(field))
+        focusSidebar()
+
+        XCTAssertEqual(focusChanges.first, true)
+        XCTAssertEqual(focusChanges.last, false)
+    }
+
     // MARK: - Helpers
 
     private func focusSidebar(file: StaticString = #filePath, line: UInt = #line) {

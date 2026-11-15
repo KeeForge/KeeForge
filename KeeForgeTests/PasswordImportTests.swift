@@ -152,6 +152,16 @@ final class ApplePasswordsCSVImporterTests: XCTestCase {
         XCTAssertEqual(preview.skippedRows, (3...8).map { .init(row: $0, reason: .fieldReference) })
     }
 
+    /// The iOS screen and the Mac sheet list skipped rows with these titles.
+    @MainActor
+    func testEverySkipReasonHasTheTitleBothImportScreensShow() {
+        XCTAssertEqual(PasswordImportPreview.SkipReason.fieldReference.title,
+                       String(localized: "Contains a field reference ({REF:…})"))
+        XCTAssertEqual(PasswordImportPreview.SkipReason.columnCountMismatch.title, String(localized: "Wrong number of values"))
+        XCTAssertEqual(PasswordImportPreview.SkipReason.malformedQuoting.title, String(localized: "Damaged quotation marks"))
+        XCTAssertEqual(PasswordImportPreview.SkipReason.noLoginData.title, String(localized: "No login data"))
+    }
+
     func testRowNumbersCountRecordsNotLines() throws {
         let csv = header + "One,,,,\"multi\nline\nnote\",\n" + "Two,,,,,\n"
 

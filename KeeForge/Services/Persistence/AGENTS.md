@@ -54,7 +54,7 @@
 
 - `LocalDatabaseSaver` step order and the `SaveBaseline` gate are in `../AGENTS.md`. Under `-ui-testing` only (`UI_TEST_LOCAL_SAVE_CONFLICT_COUNT`), the saver can rewrite the file with real divergent bytes before the hash check, so UI tests conflict and merge against a real file (`../../../KeeForgeUITests/AGENTS.md`).
 - The staged replacement is written outside the picked folder: file-scoped security access may not allow creating a sibling temp file.
-- Backups are `yyyyMMdd-HHmmss-uuuuuu.kdbx` in UTC. `recentBackups` and pruning sort by filename, and `DatabaseExportService` parses the date out of it, so any new backup writer must use the same shape.
+- Backups are `yyyyMMdd-HHmmss-uuuuuu.kdbx` in UTC. `recentBackups` and pruning sort by filename, and `DatabaseExportService` parses the date out of it, so any new backup writer must use the same shape. A retained backup appends `DatabaseListStore.retainedBackupSuffix` before the extension; pruning never removes it.
 - Export filenames carry a "KeeForge copy" or "backup" suffix with a timestamp, so exporting into the source folder never overwrites the original.
 - Database creation registers the reference only after the durable copy exists (file written, or cloud `createFile` returned), and validates for duplicates before writing. Its verification re-parse runs under `KDFExecutionPolicy.autoFillExtension`, so a new database never exceeds what the extension can open.
 - File-provider reads that may never answer go through `CoordinatedFileReader.performBlocking(timeout:)`. The underlying call can still finish later; only the first result is delivered.

@@ -11,7 +11,7 @@
 <p align="center">
   Un gestore KeePass gratuito e open source per iPhone, iPad e Mac.
   <br />
-  SwiftUI nativo, archiviazione locale prima di tutto, inserimento automatico, passkey, TOTP, sincronizzazione cloud, modifica dei file KDBX e visualizzazione degli allegati.
+  SwiftUI nativo su iPhone e iPad e AppKit nativo su Mac, archiviazione locale prima di tutto, inserimento automatico, passkey, TOTP, sincronizzazione cloud, modifica dei file KDBX e visualizzazione degli allegati.
 </p>
 
 <p align="center">
@@ -90,7 +90,7 @@ KeeForge/
 ├── ViewModels/       # Elenco dei database, sblocco, salvataggio, ricerca, ordinamento, stato TOTP
 ├── Views/            # Schermate SwiftUI, editor, impostazioni, barattolo delle mance, controlli riutilizzabili
 AutoFillExtension/    # Provider di credenziali per l'inserimento automatico, autenticazione con passkey, creazione di credenziali
-KeeForgeMac/          # Configurazione ed entitlement dell'app macOS nativa
+KeeForgeMac/          # App macOS nativa: interfaccia AppKit, configurazione ed entitlement
 KeeForgeMacUITests/   # Copertura XCUITest dell'app macOS
 KeeForgeTests/        # Test unitari
 KeeForgeUITests/      # Copertura XCUITest

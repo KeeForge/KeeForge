@@ -483,6 +483,13 @@ enum DatabaseListStore {
         try validateAppOnlyCreatedLocal(reference, in: loadDatabases())
     }
 
+    /// Refuses a new database's destination when a listed database already lives there.
+    static func validateCreatedLocalDestination(_ url: URL) throws {
+        if let duplicate = existingLocalReference(matching: url, in: loadDatabases()) {
+            throw AddDatabaseError.duplicateFile(existingReferenceID: duplicate.id, filename: duplicate.displayName)
+        }
+    }
+
     static func validateCreatedCloud(
         provider: String,
         accountId: String,

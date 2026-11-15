@@ -564,6 +564,45 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         XCTAssertEqual(database.workspace.selectedGroupID, rootID)
     }
 
+    /// Save, conflict, cancel its alert, edit again, then Resolve > Merge Changes and acknowledge.
+    func testInputChangedAfterAConflictedSaveSurvivesTheMergeInAnOpenDirtyEditor() async throws {
+        let remoteData = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        let firstSave = FirstSaveConflicts()
+        let database = try await makeDatabase { _, _, _, hash, reconciledHash, _, _ in
+            if let reconciledHash { return .saved(newSHA512: reconciledHash) }
+            guard await firstSave.isFirst() else { return .saved(newSHA512: hash) }
+            return .conflict(remoteSHA512: FileDigest.sha512(remoteData), remoteData: remoteData)
+        }
+        defer { database.lock() }
+        let entry = try XCTUnwrap(database.rootGroup?.allEntries.first)
+        let form = EntryEditViewModel(editing: entry, sessionKey: try XCTUnwrap(database.sessionKey))
+        let editor = DatabaseEditorCoordinator(entry: form, database: database)
+        editor.activate()
+        var completions: [EntryEditCompletion] = []
+        form.username = "first-attempt"
+
+        await editor.save { completions.append($0) }
+        XCTAssertNotNil(database.saveConflict)
+        form.username = "newer-input"
+        form.password = "newer-password"
+        editor.synchronizeUnsavedChanges()
+
+        try await database.mergeAndSave()
+        database.acknowledgeMergeSummary()
+        editor.completeAfterConflictIfSettled { completions.append($0) }
+
+        XCTAssertTrue(completions.isEmpty, "The editor stays open")
+        XCTAssertEqual(form.username, "newer-input")
+        XCTAssertTrue(form.isDirty)
+        XCTAssertTrue(database.hasUnsavedEditor, "A lock or quit still asks about the newer input")
+        XCTAssertEqual(database.entry(withID: entry.id)?.username, "first-attempt")
+
+        await editor.save { completions.append($0) }
+        XCTAssertEqual(completions, [.saved])
+        XCTAssertEqual(database.entry(withID: entry.id)?.username, "newer-input")
+        XCTAssertFalse(database.isDirty)
+    }
+
     func testGroupConflictWaitsForSuccessfulMergeAndSummaryAcknowledgement() async throws {
         let remoteData = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         let database = try await makeDatabase { _, _, _, _, reconciledHash, _, _ in
@@ -720,6 +759,14 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
         func run() { operation() }
     }
 
+    private actor FirstSaveConflicts {
+        private var count = 0
+        func isFirst() -> Bool {
+            count += 1
+            return count == 1
+        }
+    }
+
     private actor SaveAttempts {
         let conflicts: Bool
         private(set) var editCounts: [Int] = []
@@ -738,6 +785,162 @@ final class DatabaseEditorCoordinatorTests: XCTestCase {
             writtenGroupNames = draft.rootGroup.groups.map(\.name)
             return .saved(newSHA512: hash)
         }
+    }
+
+    func testGroupFieldsAndParentSaveTogetherAndCancelWritesNothing() async throws {
+        let counter = SaveCounter()
+        let database = try await makeDatabase { _, _, _, hash, _, _, _ in
+            await counter.increment()
+            return .saved(newSHA512: hash)
+        }
+        let root = try XCTUnwrap(database.visibleRootGroup)
+        let group = try XCTUnwrap(root.groups.first)
+        try database.createGroup(named: "Destination", in: root.id)
+        await database.saveHandlingError()
+        await counter.reset()
+        let destination = try XCTUnwrap(database.groupDestinationOptions(currentGroupID: nil).first { $0.name == "Destination" }).id
+        let cancelled = GroupEditViewModel(editing: group, isHiddenFromAutoFill: false)
+        cancelled.configureParent(in: database)
+        cancelled.name = "Cancelled"
+        cancelled.parentGroupID = destination
+        let cancel = DatabaseEditorCoordinator(group: cancelled, database: database)
+        cancel.activate()
+        cancel.discard { _ in }
+        XCTAssertFalse(database.isDirty)
+        let cancelledSaveCount = await counter.count
+        XCTAssertEqual(cancelledSaveCount, 0)
+        XCTAssertEqual(database.group(withID: group.id)?.name, group.name)
+
+        let form = GroupEditViewModel(editing: group, isHiddenFromAutoFill: false)
+        form.configureParent(in: database)
+        XCTAssertEqual(form.parentPath(in: database), root.name)
+        form.name = "Renamed and Moved"
+        form.parentGroupID = destination
+        XCTAssertEqual(form.parentPath(in: database), "Destination")
+        let editor = DatabaseEditorCoordinator(group: form, database: database)
+        editor.activate()
+        XCTAssertTrue(editor.isDirty)
+        editor.synchronizeUnsavedChanges()
+        XCTAssertTrue(database.hasUnsavedEditor)
+        await editor.save { _ in }
+        let savedCount = await counter.count
+        XCTAssertEqual(savedCount, 1)
+        XCTAssertEqual(database.group(withID: destination)?.groups.first?.name, "Renamed and Moved")
+        XCTAssertFalse(database.isDirty)
+        editor.deactivate()
+    }
+
+    func testEditingAGroupWithoutMovingItKeepsItsPlaceAmongItsSiblings() async throws {
+        let database = try await makeDatabase()
+        let root = try XCTUnwrap(database.visibleRootGroup)
+        let group = try XCTUnwrap(root.groups.first)
+        try database.createGroup(named: "Later Sibling", in: root.id)
+        await database.saveHandlingError()
+        let order = try XCTUnwrap(database.group(withID: root.id)).groups.map(\.id)
+        XCTAssertEqual(order.first, group.id)
+
+        let form = GroupEditViewModel(editing: group, isHiddenFromAutoFill: false)
+        form.configureParent(in: database)
+        form.name = "Renamed Only"
+        let editor = DatabaseEditorCoordinator(group: form, database: database)
+        editor.activate()
+        await editor.save { _ in }
+        editor.deactivate()
+
+        XCTAssertEqual(database.group(withID: group.id)?.name, "Renamed Only")
+        XCTAssertEqual(database.group(withID: root.id)?.groups.map(\.id), order)
+    }
+
+    func testInvalidGroupParentLeavesFieldsAndDraftUntouched() async throws {
+        let database = try await makeDatabase()
+        let root = try XCTUnwrap(database.visibleRootGroup)
+        let group = try XCTUnwrap(root.groups.first)
+        try database.createGroup(named: "Descendant", in: group.id)
+        await database.saveHandlingError()
+        let descendant = try XCTUnwrap(database.group(withID: group.id)?.groups.first { $0.name == "Descendant" })
+        var invalid = [group.id, descendant.id]
+        try database.deleteEntry(try XCTUnwrap(group.entries.first).id, sendToRecycleBin: true)
+        await database.saveHandlingError()
+        let bin = try XCTUnwrap(database.recycleBinGroup)
+        invalid.append(bin.id)
+        for parent in invalid {
+            var payload = GroupEditViewModel(editing: group, isHiddenFromAutoFill: false).makeDraftPayload()
+            payload.name = "Must Not Apply"
+            XCTAssertThrowsError(try database.updateGroup(groupID: group.id, draft: payload, parentGroupID: parent))
+            XCTAssertEqual(database.group(withID: group.id)?.name, group.name)
+            XCTAssertFalse(database.isDirty)
+        }
+    }
+
+    func testParentOnlyGroupChangeSavesOnceBeforeLocking() async throws {
+        let counter = SaveCounter()
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            await counter.record(draft.rootGroup)
+            return .saved(newSHA512: hash)
+        }
+        let root = try XCTUnwrap(database.visibleRootGroup)
+        let group = try XCTUnwrap(root.groups.first)
+        let destination = try XCTUnwrap(root.groups.first { $0.id != group.id && $0.id != root.recycleBinUUID })
+        let form = GroupEditViewModel(editing: group, isHiddenFromAutoFill: false)
+        form.configureParent(in: database)
+        form.parentGroupID = destination.id
+        let editor = DatabaseEditorCoordinator(group: form, database: database)
+        editor.activate()
+        XCTAssertTrue(database.hasUnsavedEditor)
+        database.lockRequest(manuallyTriggered: true)
+        let request = try XCTUnwrap(editor.pendingLockRequest)
+        await editor.save(resuming: request) { _ in }
+        XCTAssertEqual(database.state, .locked)
+        let count = await counter.count
+        let savedParent = await counter.children[destination.id]
+        XCTAssertEqual(count, 1)
+        XCTAssertTrue(savedParent?.contains(group.id) == true)
+        editor.deactivate()
+    }
+
+    func testFailedGroupMoveCanReturnToOriginalParentOnRetry() async throws {
+        let counter = SaveCounter()
+        let database = try await makeDatabase { draft, _, _, hash, _, _, _ in
+            await counter.record(draft.rootGroup)
+            if await counter.count == 1 { throw DatabaseSaveError.networkUnavailable }
+            return .saved(newSHA512: hash)
+        }
+        defer { database.lock() }
+        let root = try XCTUnwrap(database.visibleRootGroup)
+        let group = try XCTUnwrap(root.groups.first)
+        let destination = try XCTUnwrap(root.groups.first { $0.id != group.id && $0.id != root.recycleBinUUID })
+        let form = GroupEditViewModel(editing: group, isHiddenFromAutoFill: false)
+        form.configureParent(in: database)
+        form.name = "Renamed despite failed move"
+        form.parentGroupID = destination.id
+        let editor = DatabaseEditorCoordinator(group: form, database: database)
+        editor.activate()
+        await editor.save { _ in XCTFail("First write must fail") }
+        XCTAssertTrue(database.isDirty)
+        XCTAssertTrue(database.group(withID: destination.id)?.groups.contains { $0.id == group.id } == true)
+        form.parentGroupID = root.id
+        XCTAssertNil(form.pendingParentGroupID)
+        await editor.save { _ in }
+        XCTAssertNil(editor.errorMessage)
+        XCTAssertFalse(database.isDirty)
+        XCTAssertTrue(database.group(withID: root.id)?.groups.contains { $0.id == group.id } == true)
+        XCTAssertFalse(database.group(withID: destination.id)?.groups.contains { $0.id == group.id } == true)
+        editor.deactivate()
+    }
+
+    private actor SaveCounter {
+        private(set) var count = 0
+        private(set) var children: [UUID: [UUID]] = [:]
+        func record(_ group: KPGroup) {
+            count += 1
+            func visit(_ group: KPGroup) {
+                children[group.id] = group.groups.map(\.id)
+                group.groups.forEach(visit)
+            }
+            visit(group)
+        }
+        func increment() { count += 1 }
+        func reset() { count = 0 }
     }
 
     private func makeDatabase(

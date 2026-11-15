@@ -62,9 +62,6 @@ final class DatabaseListViewModel {
     /// down together with its own prompt, so anything modal raised at that
     /// moment is dropped before it can appear.
     private(set) var isAutoFillEnableRequestRejected = false
-    /// Incremented by the macOS File ▸ New Database… command; the list view
-    /// observes it and presents the creation sheet it hosts.
-    private(set) var newDatabaseRequestID = 0
     private var didConsumeInitialLaunchSelection = false
     private let pendingUploadDrainer: PendingUploadDrainer
     typealias KeyFileBookmarkOperation = @Sendable (URL) async throws -> Data
@@ -98,6 +95,9 @@ final class DatabaseListViewModel {
         }
     }
 
+    var pendingUploadsDidChange: ((Set<UUID>) -> Void)?
+    var referencesDidChange: (([DatabaseReference]) -> Void)?
+
     func reload() {
         guard !initializationUnconfirmed else { return }
         do {
@@ -105,15 +105,10 @@ final class DatabaseListViewModel {
             databases = snapshot
             registryReadError = nil
             refreshRowStatuses()
+            referencesDidChange?(databases)
         } catch {
             registryReadError = error.localizedDescription
         }
-    }
-
-    /// macOS File ▸ New Database…: signals the list view to present its
-    /// creation sheet.
-    func requestNewDatabase() {
-        newDatabaseRequestID += 1
     }
 
     func databaseToAutoOpenOnLaunch() -> DatabaseReference? {
@@ -173,14 +168,7 @@ final class DatabaseListViewModel {
         reload()
     }
 
-    /// Installed by the app root (`AppRootView` in `AppRootView.swift`, which
-    /// is the one place that knows the active `DatabaseViewModel`): called
-    /// with the id of a database whose AutoFill participation was just turned
-    /// on, so the owner can refresh that database's credential identities
-    /// immediately when it is the currently unlocked session (and no-op
-    /// otherwise). The registry layer cannot know what is unlocked, which is
-    /// why the enable-while-unlocked immediacy lives at this layer; for every
-    /// other database enabling stays lazy — identities appear on next unlock.
+    // The application owner supplies session lookup without retaining a view.
     var autoFillEnabledRefreshHandler: ((UUID) -> Void)?
 
     /// Toggles a database's AutoFill participation (surfaced by the settings
@@ -190,7 +178,7 @@ final class DatabaseListViewModel {
     /// consequences: targeted removal of exactly that database's credential
     /// identities and reassigning the active AutoFill pointer when the active
     /// database is disabled. Enabling is lazy in the store; when the toggled
-    /// database is the currently unlocked session, the app-root-installed
+    /// database is the currently unlocked session, the application-installed
     /// `autoFillEnabledRefreshHandler` republishes its identities immediately.
     @discardableResult
     func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) async -> DatabaseListStore.AutoFillPreferenceOutcome {
@@ -265,7 +253,7 @@ final class DatabaseListViewModel {
         status(for: reference).pendingUploadConflictCount > 0
     }
 
-    func lastOpenedDescription(
+    static func lastOpenedDescription(
         for reference: DatabaseReference,
         showsUsageStats: Bool = SettingsService.showDatabaseUsageStats
     ) -> String? {
@@ -275,22 +263,23 @@ final class DatabaseListViewModel {
         return String(localized: "Last opened \(relative)")
     }
 
-    func detailSubtitle(for reference: DatabaseReference) -> String? {
-        if reference.showsFilenameSubtitle {
-            return reference.filename
-        }
-        return nil
-    }
-
-    func drainPendingUploadsOnAppActive(sessionStore: DatabaseSessionStore) async {
+    func drainPendingUploadsOnAppActive() async {
         let outcome = await pendingUploadDrainer.drainAll()
-        applyDrainOutcome(outcome, surfaceAlerts: false, preferredDatabaseId: nil)
-        sessionStore.refreshPendingUploads(for: outcome.drainedDatabaseIDs.union(outcome.conflictDatabaseIDs).union(outcome.skippedDatabaseIDs))
+        reload()
+        pendingUploadsDidChange?(outcome.drainedDatabaseIDs.union(outcome.conflictDatabaseIDs).union(outcome.skippedDatabaseIDs))
     }
 
-    func pushPendingChanges(for reference: DatabaseReference) async {
+    /// The one push behind every Push Pending Changes. The list shows what went
+    /// wrong itself unless `presentsAlert` is off, as for a Mac database
+    /// window, which shows the returned alert in its own window.
+    @discardableResult
+    func pushPendingChanges(for reference: DatabaseReference, presentsAlert: Bool = true) async -> PendingUploadAlert? {
         let outcome = await pendingUploadDrainer.drain(databaseId: reference.id)
-        applyDrainOutcome(outcome, surfaceAlerts: true, preferredDatabaseId: reference.id)
+        reload()
+        pendingUploadsDidChange?(outcome.drainedDatabaseIDs.union(outcome.conflictDatabaseIDs).union(outcome.skippedDatabaseIDs))
+        let alert = Self.alert(for: outcome, preferredDatabaseId: reference.id)
+        if presentsAlert, let alert { pendingUploadAlert = alert }
+        return alert
     }
 
     /// User-confirmed resolution for the orange conflict badge: backs up the
@@ -435,31 +424,26 @@ final class DatabaseListViewModel {
         }
 
         rowStatuses = updatedStatuses
-        databases = DatabaseListStore.databases
     }
 
-    private func applyDrainOutcome(
-        _ outcome: PendingUploadDrainer.DrainOutcome,
-        surfaceAlerts: Bool,
-        preferredDatabaseId: UUID?
-    ) {
-        reload()
-
-        guard surfaceAlerts else { return }
-
+    private static func alert(
+        for outcome: PendingUploadDrainer.DrainOutcome,
+        preferredDatabaseId: UUID
+    ) -> PendingUploadAlert? {
         guard let issue = outcome.userIssue else {
             // A conflicted push leaves the marker in place without a user
             // issue; an explicit push still owes the user an explanation.
             let conflictIDs = outcome.conflictDatabaseIDs
-            guard let conflictedId = preferredDatabaseId.flatMap({ conflictIDs.contains($0) ? $0 : nil })
-                ?? conflictIDs.min(by: { $0.uuidString < $1.uuidString }) else { return }
-            pendingUploadAlert = PendingUploadAlert(
+            let conflictedId = conflictIDs.contains(preferredDatabaseId)
+                ? preferredDatabaseId
+                : conflictIDs.min(by: { $0.uuidString < $1.uuidString })
+            guard let conflictedId else { return nil }
+            return PendingUploadAlert(
                 databaseId: conflictedId,
                 kind: .conflict,
                 title: String(localized: "Pending Upload Conflict"),
                 message: String(localized: "A change saved through AutoFill couldn’t be uploaded because the copy of this database in the cloud changed since. Open the database to merge the change into it. You can also export a copy to merge it in another KeePass app, or discard the pending upload. KeeForge keeps a backup of the discarded change on this device.")
             )
-            return
         }
 
         let alert: PendingUploadAlert
@@ -486,8 +470,7 @@ final class DatabaseListViewModel {
                 message: issue.message
             )
         }
-
-        pendingUploadAlert = alert
+        return alert
     }
 
 }
@@ -546,6 +529,21 @@ final class PendingLocalRecoveryViewModel {
             }
         } catch { actionError = error.localizedDescription }
         await refresh()
+    }
+
+    static func discardMessage(for snapshot: PendingLocalSaveStore.RecoverySnapshot, abandonKeyRecord: Bool) -> String {
+        if snapshot.preferenceIntent != nil {
+            return String(localized: "Abandoning this key-file preference recovery disables local writes. It does not change the database master key. Keep any snapshots and unsaved edits you need, then remove and add the database again.")
+        } else if snapshot.admission?.purpose == .ordinarySave, snapshot.admission?.knownTarget != nil,
+                  snapshot.entries.isEmpty, snapshot.keyEvidence?.pending == nil, !abandonKeyRecord, !snapshot.ownerUnavailable {
+            return String(localized: "The file contains this change, but its durability or recovery record is unconfirmed. You can make a new explicit save from this version without discarding recovery. Discarding the record does not undo the file change or discard your open draft.")
+        } else if snapshot.admission?.purpose == .ordinarySave, snapshot.keyEvidence?.pending == nil, !abandonKeyRecord, !snapshot.ownerUnavailable {
+            return String(localized: "This local save has an unresolved outcome. Export the database and any unsaved changes before discarding this recovery record. Discarding does not undo a replacement and deletes only the snapshots listed here; later snapshots and your open draft are kept.")
+        } else if abandonKeyRecord || snapshot.ownerUnavailable || snapshot.admission?.purpose.isMasterKeyChange == true || snapshot.keyEvidence?.pending != nil {
+            return String(localized: "Discarding this recovery record disables local writes. It does not undo a saved master-key change. Export any snapshots and unsaved edits you need first, then remove and add the database again using the correct master key. Changes not saved elsewhere will be lost.")
+        } else {
+            return String(localized: "This permanently deletes the selected AutoFill snapshots and their recovery record. Changes not saved elsewhere will be lost. New snapshots added after this confirmation was opened are kept.")
+        }
     }
 
     func discard(_ confirmed: PendingLocalSaveStore.RecoverySnapshot, abandonKeyRecord: Bool = false) async {

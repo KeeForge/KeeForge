@@ -151,3 +151,19 @@ final class PasswordImportViewModel {
         }.value
     }
 }
+
+extension PasswordImportPreview.SkipReason {
+    /// The skipped-row line both import screens show.
+    var title: String {
+        switch self {
+        case .columnCountMismatch:
+            String(localized: "Wrong number of values")
+        case .malformedQuoting:
+            String(localized: "Damaged quotation marks")
+        case .noLoginData:
+            String(localized: "No login data")
+        case .fieldReference:
+            String(localized: "Contains a field reference ({REF:…})")
+        }
+    }
+}

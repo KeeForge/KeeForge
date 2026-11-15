@@ -28,10 +28,12 @@ final class AppSettingsSummaryTests: XCTestCase {
     }
 
     func testSecurityDescribesEveryAutoLockTimeout() {
+        #if os(iOS)
         XCTAssertEqual(
             AppSettingsSummary.security(autoUnlockBiometric: .none, autoLockTimeout: .immediately, lockOnBackground: false),
             "Locks immediately"
         )
+        #endif
         // With no timeout, background locking is the only lock left to report.
         XCTAssertEqual(
             AppSettingsSummary.security(autoUnlockBiometric: .none, autoLockTimeout: .never, lockOnBackground: true),

@@ -69,7 +69,7 @@ final class EntryEditViewModel {
     ]).union(PasskeyCredential.allFieldKeys)
     /// The parser reads a `key=` value under these names as KeeOTP storage.
     private static let keeOTPCandidateKeys: Set<String> = ["OTP", "Otp"]
-    private static let additionalURLKeyPrefix = "KP2A_URL_"
+    nonisolated static let additionalURLKeyPrefix = "KP2A_URL_"
 
     enum Mode: Sendable, Equatable {
         case create(parentGroupID: UUID)
@@ -378,24 +378,16 @@ final class EntryEditViewModel {
 
     /// The custom fields left for the Custom Fields section, here and on the
     /// detail screen, once the ones shown as URL rows are taken out.
+    /// An empty `KP2A_URL_*` field stays a custom field so a save never drops it unasked, and a
+    /// protected one stays there to keep its value concealed (`KPEntry.additionalURLFields`).
     static func customFieldsOutsideURLRows(of entry: KPEntry) -> [String: String] {
-        entry.displayCustomFields.filter { isAdditionalURL(key: $0.key, value: $0.value, in: entry) == false }
+        let urlKeys = Set(entry.additionalURLFields.map(\.key))
+        return entry.displayCustomFields.filter { urlKeys.contains($0.key) == false }
     }
 
     /// In `KPEntry.additionalURLs` order, so row numbers match the detail screen.
     private static func additionalURLs(of entry: KPEntry) -> [AdditionalURL] {
-        entry.customFields
-            .filter { isAdditionalURL(key: $0.key, value: $0.value, in: entry) }
-            .sorted { $0.key < $1.key }
-            .map { AdditionalURL(key: $0.key, value: $0.value) }
-    }
-
-    /// An empty field stays a custom field so a save never drops it unasked,
-    /// and a protected one stays there to keep its value concealed.
-    private static func isAdditionalURL(key: String, value: String, in entry: KPEntry) -> Bool {
-        key.hasPrefix(additionalURLKeyPrefix)
-            && value.isEmpty == false
-            && entry.protectedStringKeys.contains(key) == false
+        entry.additionalURLFields.map { AdditionalURL(key: $0.key, value: $0.value) }
     }
 
     private static func written(_ additionalURLs: [AdditionalURL]) -> [AdditionalURL] {
@@ -596,12 +588,29 @@ final class EntryEditViewModel {
     /// Fills the TOTP form from a parsed enrollment URI. KeeOTP-sourced
     /// entries keep their query-rewrite path, so the URI itself is only
     /// retained for verbatim storage when no legacy source owns the config.
+    /// An empty title or user name is filled from the link's issuer and
+    /// account name; one the user already has is kept.
     func applyOTPAuthURI(_ uri: OTPAuthURI) {
+        let issuer = Self.withoutFieldReference(uri.issuer)
+        let accountName = Self.withoutFieldReference(uri.accountName)
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let suggestedTitle = issuer ?? accountName {
+            title = suggestedTitle
+        }
+        if username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let accountName {
+            username = accountName
+        }
         totpSecret = uri.secret
         totpPeriod = uri.period
         totpDigits = uri.digits
         totpAlgorithm = uri.algorithm
         enrolledOTPAuthURI = keeOTPSource == nil ? uri.rawURI : nil
+    }
+
+    /// The link's sender chooses these, and a fill resolves `{REF:…}`.
+    private static func withoutFieldReference(_ value: String?) -> String? {
+        guard let value, FieldReferenceResolver.containsReference(value) == false else { return nil }
+        return value
     }
 
     /// Parses `text` as an `otpauth://` setup link and fills the form on
@@ -619,6 +628,38 @@ final class EntryEditViewModel {
         }
         applyOTPAuthURI(uri)
         return nil
+    }
+
+    /// The Mac "Set Up Verification Code" input: text with a URL scheme is a setup link and
+    /// returns its parse error, leaving the form untouched; any other text is a setup key, stored
+    /// canonical when it is Base32 and as typed otherwise, so the preview reports an invalid key.
+    /// Blank text changes nothing.
+    @discardableResult
+    func applySetupInput(_ text: String) -> OTPAuthURIError? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return nil }
+        if URLComponents(string: trimmed)?.scheme != nil {
+            return applySetupLink(trimmed)
+        }
+        let compact = String(trimmed.unicodeScalars.filter { CharacterSet.whitespacesAndNewlines.contains($0) == false })
+        var unpadded = compact
+        while unpadded.hasSuffix("=") { unpadded.removeLast() }
+        totpSecret = Base32.canonicalSecret(unpadded) ?? compact
+        enrolledOTPAuthURI = nil
+        return nil
+    }
+
+    static func setupLinkMessage(for error: OTPAuthURIError) -> String {
+        switch error {
+        case .notAnOTPAuthURI:
+            String(localized: "This isn't an otpauth:// setup link.")
+        case .unsupportedType:
+            String(localized: "This setup link uses an unsupported code type. Only time-based (TOTP) codes are supported.")
+        case .missingOrInvalidSecret:
+            String(localized: "This setup link doesn't contain a valid secret.")
+        case .invalidParameter:
+            String(localized: "This setup link contains an invalid parameter.")
+        }
     }
 
     func removeTOTP() {

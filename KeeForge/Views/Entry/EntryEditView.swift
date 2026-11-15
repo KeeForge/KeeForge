@@ -1,6 +1,8 @@
+#if os(iOS)
 import OneTimeCodes
 import SwiftUI
 
+/// The iOS entry editor. The Mac editor is `MacEntryEditorView`, inline in the detail column.
 struct EntryEditView: View {
     typealias Completion = EntryEditCompletion
 
@@ -158,7 +160,6 @@ struct EntryEditView: View {
 
     private var presentedForm: some View {
         editorForm
-        .macGroupedForm()
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -209,17 +210,12 @@ struct EntryEditView: View {
             PasswordGeneratorSheet { password in
                 formViewModel.password = password
             }
-            // Shorter than the default: the generator is a compact control
-            // stack, not a form.
-            .macSheetFrame(minHeight: 420)
         }
-        #if os(iOS)
         .sheet(isPresented: $showTOTPScanner) {
             TOTPQRScannerSheet { uri in
                 formViewModel.applyOTPAuthURI(uri)
             }
         }
-        #endif
         .modifier(EntryCustomFieldOrderSheet(
             isPresented: $showCustomFieldOrder,
             form: formViewModel
@@ -449,23 +445,12 @@ struct EntryEditView: View {
                 .buttonStyle(.borderless)
                 .accessibilityLabel(removeLabel)
                 .accessibilityIdentifier("entry-edit.additional-url.remove.\(index)")
-                .macHelp(removeLabel)
             }
         }
     }
 
-    /// iOS draws a field as one name/value row with its protection and removal
-    /// in a menu; macOS keeps the captioned block with visible move controls.
-    @ViewBuilder
+    /// One name/value row, with the field's protection and removal in a menu.
     private func customFieldRow(_ field: Binding<EntryEditViewModel.CustomField>) -> some View {
-        if PlatformDesign.followsIOSDesign {
-            customFieldInlineRow(field)
-        } else {
-            customFieldBlock(field)
-        }
-    }
-
-    private func customFieldInlineRow(_ field: Binding<EntryEditViewModel.CustomField>) -> some View {
         let id = field.wrappedValue.id
         let index = formViewModel.customFields.firstIndex { $0.id == id } ?? 0
         let name = field.wrappedValue.key.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -588,101 +573,6 @@ struct EntryEditView: View {
         .accessibilityIdentifier("entry-edit.custom-field.menu.\(index)")
     }
 
-    private func customFieldBlock(_ field: Binding<EntryEditViewModel.CustomField>) -> some View {
-        let id = field.wrappedValue.id
-        let index = formViewModel.customFields.firstIndex { $0.id == id } ?? 0
-        // Every row draws the same two captions, so VoiceOver needs the field's
-        // own name to tell one row's value and Remove button from the next.
-        let name = field.wrappedValue.key.trimmingCharacters(in: .whitespacesAndNewlines)
-        let valueLabel = name.isEmpty ? String(localized: "Field Value") : name
-
-        return VStack(alignment: .leading, spacing: 10) {
-            customFieldReorderControls(id: id, index: index)
-            basicFieldRow("Field Name") {
-                TextField(String(localized: "Field Name"), text: field.key)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("entry-edit.custom-field.name-field.\(index)")
-            }
-
-            basicFieldRow("Field Value") {
-                if field.wrappedValue.isProtected {
-                    PasswordInputRow(
-                        title: valueLabel,
-                        text: field.value,
-                        isVisible: customFieldVisibility(id),
-                        fieldAccessibilityIdentifier: "entry-edit.custom-field.value-field.\(index)",
-                        visibilityAccessibilityIdentifier: "entry-edit.custom-field.value-visibility-button.\(index)",
-                        onVisibilityToggle: { toggleCustomFieldVisibility(id) },
-                        usesPasswordAutoFill: false,
-                        axis: .vertical
-                    )
-                } else {
-                    TextField(String(localized: "Field Value"), text: field.value, axis: .vertical)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityLabel(valueLabel)
-                        .accessibilityIdentifier("entry-edit.custom-field.value-field.\(index)")
-                }
-            }
-
-            Toggle("Protect Field", isOn: Binding(
-                get: { field.wrappedValue.isProtected },
-                set: { setCustomFieldProtection(id, isProtected: $0) }
-            ))
-            .accessibilityLabel(name.isEmpty ? Text("Protect Field") : Text("Protect field \(name)"))
-            .accessibilityIdentifier("entry-edit.custom-field.protection.\(index)")
-
-            if let message = formViewModel.customFieldValidationMessage(for: field.wrappedValue) {
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.State.danger)
-                    .accessibilityIdentifier("entry-edit.custom-field.error.\(index)")
-            }
-
-            // Borderless so a tap elsewhere in the row does not trigger it.
-            Button("Remove Field", role: .destructive) {
-                revealedCustomFieldIDs.remove(id)
-                formViewModel.removeCustomField(id: id)
-            }
-            .buttonStyle(.borderless)
-            .font(.footnote)
-            .accessibilityLabel(name.isEmpty ? Text("Remove Field") : Text("Remove field \(name)"))
-            .accessibilityIdentifier("entry-edit.custom-field.remove.\(index)")
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(valueLabel)
-        .accessibilityIdentifier(
-            formViewModel.customFieldAccessibilityIdentifier(for: field.wrappedValue, fallbackIndex: index)
-        )
-    }
-
-    private func customFieldReorderControls(id: UUID, index: Int) -> some View {
-        HStack {
-            Spacer()
-            Button {
-                formViewModel.moveCustomField(id: id, offset: -1)
-            } label: {
-                Label("Move Up", systemImage: "arrow.up")
-            }
-            .disabled(index == 0)
-            .accessibilityLabel(Text("Move Up"))
-            .macHelp(String(localized: "Move Up"))
-            .accessibilityIdentifier("entry-edit.custom-field.move-up.\(index)")
-            Button {
-                formViewModel.moveCustomField(id: id, offset: 1)
-            } label: {
-                Label("Move Down", systemImage: "arrow.down")
-            }
-            .disabled(index + 1 >= formViewModel.customFields.count)
-            .accessibilityLabel(Text("Move Down"))
-            .macHelp(String(localized: "Move Down"))
-            .accessibilityIdentifier("entry-edit.custom-field.move-down.\(index)")
-        }
-        .labelStyle(.iconOnly)
-        .buttonStyle(.borderless)
-    }
-
     private func customFieldVisibility(_ id: UUID) -> Binding<Bool> {
         Binding(
             get: { revealedCustomFieldIDs.contains(id) },
@@ -739,14 +629,12 @@ struct EntryEditView: View {
 
     @ViewBuilder
     private var totpEntryPathRows: some View {
-        #if os(iOS)
         Button {
             showTOTPScanner = true
         } label: {
             Label("Scan QR Code", systemImage: "qrcode.viewfinder")
         }
         .accessibilityIdentifier("entry-edit.totp.scan-qr")
-        #endif
 
         Button {
             showTOTPSetupLink = true
@@ -1005,7 +893,6 @@ struct EntryEditView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("entry-edit.group")
-        .macHoverHighlight()
     }
 
     private var destinationGroupName: String {
@@ -1013,26 +900,17 @@ struct EntryEditView: View {
         return databaseViewModel.group(withID: groupID)?.name ?? ""
     }
 
-    /// iOS splits Basics into the design's cards: the fields, the URLs, and the
-    /// tags; macOS keeps one section.
+    /// Basics in the design's cards: the fields, the URLs, and the tags.
     @ViewBuilder
     private var basicsSections: some View {
-        if PlatformDesign.followsIOSDesign {
-            Section("Basics") {
-                identityFields
-            }
-            Section {
-                urlFields
-            }
-            Section("Tags") {
-                tagFields
-            }
-        } else {
-            Section("Basics") {
-                identityFields
-                urlFields
-                tagFields
-            }
+        Section("Basics") {
+            identityFields
+        }
+        Section {
+            urlFields
+        }
+        Section("Tags") {
+            tagFieldContent
         }
     }
 
@@ -1063,13 +941,12 @@ struct EntryEditView: View {
                 Button {
                     showPasswordGenerator = true
                 } label: {
-                    Image(systemName: PlatformDesign.followsIOSDesign ? "wand.and.stars" : "dice.fill")
+                    Image(systemName: "wand.and.stars")
                         .frame(width: 30, height: 30)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Generate password")
                 .accessibilityIdentifier("entry-edit.password-generator-button")
-                .macHelp(String(localized: "Generate password"))
             }
 
             PasswordStrengthIndicator(password: formViewModel.password)
@@ -1090,18 +967,6 @@ struct EntryEditView: View {
         additionalURLRows
     }
 
-    /// The field's own label stays on macOS, where the section is shared.
-    @ViewBuilder
-    private var tagFields: some View {
-        if PlatformDesign.followsIOSDesign {
-            tagFieldContent
-        } else {
-            basicFieldRow("Tags") {
-                tagFieldContent
-            }
-        }
-    }
-
     @ViewBuilder
     private var tagFieldContent: some View {
         appliedTagStrip
@@ -1118,8 +983,7 @@ struct EntryEditView: View {
         tagSuggestionStrip
     }
 
-    /// iOS puts Reorder in the section header, as the design does; macOS keeps
-    /// it as the section's last row.
+    /// Reorder sits in the section header, as the design does.
     @ViewBuilder
     private var customFieldsSection: some View {
         let reorder = Button("Reorder Fields") { showCustomFieldOrder = true }
@@ -1136,34 +1000,26 @@ struct EntryEditView: View {
                 Label("Add Field", systemImage: "plus")
             }
             .accessibilityIdentifier("entry-edit.custom-field.add")
-
-            if PlatformDesign.followsIOSDesign == false {
-                reorder
-            }
         } header: {
-            if PlatformDesign.followsIOSDesign {
-                HStack {
-                    Text("Custom Fields")
-                    Spacer()
-                    reorder
-                        .font(Theme.Font.subhead)
-                        .textCase(nil)
-                }
-            } else {
+            HStack {
                 Text("Custom Fields")
+                Spacer()
+                reorder
+                    .font(Theme.Font.subhead)
+                    .textCase(nil)
             }
         }
     }
 
-    /// `inline` sets a short field as a label/value row on iOS, the design's
-    /// row for a fact with a short value.
+    /// `inline` sets a short field as a label/value row, the design's row for
+    /// a fact with a short value.
     @ViewBuilder
     private func basicFieldRow<Content: View>(
         _ title: LocalizedStringKey,
         inline: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        if inline, PlatformDesign.followsIOSDesign {
+        if inline {
             LabeledContent {
                 content()
                     .multilineTextAlignment(.trailing)
@@ -1178,8 +1034,6 @@ struct EntryEditView: View {
                     .foregroundStyle(.secondary)
 
                 content()
-                    .macLabelsHidden()
-                    .macFormFieldStyle()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 2)
@@ -1220,43 +1074,23 @@ private struct TOTPPreviewRow: View {
         TimelineView(.periodic(from: tickStart, by: 1)) { context in
             let code = preview.code(at: context.date)
             let secondsRemaining = preview.secondsRemaining(at: context.date)
-            if PlatformDesign.followsIOSDesign {
-                HStack(spacing: Theme.Spacing.tileGap) {
-                    CountdownRing(
-                        progress: Double(secondsRemaining) / Double(preview.period),
-                        seconds: secondsRemaining,
-                        showsSeconds: false
-                    )
-                    .frame(width: ringSize, height: ringSize)
-                    .accessibilityLabel(Text("\(secondsRemaining) seconds remaining"))
+            HStack(spacing: Theme.Spacing.tileGap) {
+                CountdownRing(
+                    progress: Double(secondsRemaining) / Double(preview.period),
+                    seconds: secondsRemaining,
+                    showsSeconds: false
+                )
+                .frame(width: ringSize, height: ringSize)
+                .accessibilityLabel(Text("\(secondsRemaining) seconds remaining"))
 
-                    Text(code)
-                        .font(Theme.Font.codeRow)
-                        .foregroundStyle(.tint)
-                        .contentTransition(.numericText())
-                        .accessibilityIdentifier("entry-edit.totp.preview-code")
+                Text(code)
+                    .font(Theme.Font.codeRow)
+                    .foregroundStyle(.tint)
+                    .contentTransition(.numericText())
+                    .accessibilityIdentifier("entry-edit.totp.preview-code")
 
-                    CopyButton(text: code, accessibilityID: "entry-edit.totp.preview-copy")
-                        .accessibilityLabel("Copy Verification Code")
-                }
-            } else {
-                HStack {
-                    CountdownRing(
-                        progress: Double(secondsRemaining) / Double(preview.period),
-                        seconds: secondsRemaining
-                    )
-                    .frame(width: 40, height: 40)
-
-                    Text(code)
-                        .font(.title.monospaced().bold())
-                        .contentTransition(.numericText())
-                        .accessibilityIdentifier("entry-edit.totp.preview-code")
-
-                    Spacer()
-
-                    CopyButton(text: code, accessibilityID: "entry-edit.totp.preview-copy")
-                        .accessibilityLabel("Copy Verification Code")
-                }
+                CopyButton(text: code, accessibilityID: "entry-edit.totp.preview-copy")
+                    .accessibilityLabel("Copy Verification Code")
             }
         }
     }
@@ -1275,23 +1109,7 @@ private struct TOTPSetupLinkSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                #if os(macOS)
-                // A labelled field shares its row with the label until the
-                // text outgrows it, then drops beneath; a caption keeps both
-                // in one place.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Setup Link")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    linkField
-                        .labelsHidden()
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 2)
-                #else
                 linkField
-                #endif
 
                 if let errorMessage {
                     Text(errorMessage)
@@ -1300,7 +1118,6 @@ private struct TOTPSetupLinkSheet: View {
                         .accessibilityIdentifier("entry-edit.totp.link-error")
                 }
             }
-            .macGroupedForm()
             .navigationTitle("Enter Setup Link")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1320,10 +1137,7 @@ private struct TOTPSetupLinkSheet: View {
                 }
             }
         }
-        #if os(iOS)
         .presentationDetents([.medium])
-        #endif
-        .macSheetFrame(minWidth: 460, minHeight: 220)
     }
 
     private var linkField: some View {
@@ -1333,28 +1147,15 @@ private struct TOTPSetupLinkSheet: View {
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .keyboardType(.URL)
-        .macFormFieldStyle()
         .accessibilityIdentifier("entry-edit.totp.link-field")
     }
 
     private func applyTapped() {
         if let error = onApply(linkText) {
-            errorMessage = Self.message(for: error)
+            errorMessage = EntryEditViewModel.setupLinkMessage(for: error)
         } else {
             dismiss()
         }
     }
-
-    static func message(for error: OTPAuthURIError) -> String {
-        switch error {
-        case .notAnOTPAuthURI:
-            String(localized: "This isn't an otpauth:// setup link.")
-        case .unsupportedType:
-            String(localized: "This setup link uses an unsupported code type. Only time-based (TOTP) codes are supported.")
-        case .missingOrInvalidSecret:
-            String(localized: "This setup link doesn't contain a valid secret.")
-        case .invalidParameter:
-            String(localized: "This setup link contains an invalid parameter.")
-        }
-    }
 }
+#endif

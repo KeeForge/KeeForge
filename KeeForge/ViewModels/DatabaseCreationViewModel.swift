@@ -176,6 +176,46 @@ final class DatabaseCreationViewModel {
         }
     }
 
+    #if os(macOS)
+    private var isChoosingLocalDestination = false
+
+    func createLocal(chooseURL: @MainActor (String) async -> URL?) async -> CreatedDatabase? {
+        guard !isCreating, !isChoosingLocalDestination, !isCancelled, validate() else { return nil }
+        isChoosingLocalDestination = true
+        defer { isChoosingLocalDestination = false }
+        guard let url = await chooseURL(suggestedFilename), !isCancelled, !Task.isCancelled else { return nil }
+        isCreating = true
+        creationError = nil
+        defer { isCreating = false }
+        do {
+            try DatabaseListStore.validateCreatedLocalDestination(url)
+            let prepared = try await preparationOperation(
+                DatabasePreparationRequest(
+                    displayName: databaseName,
+                    password: password.isEmpty ? nil : password,
+                    keyFileData: keyFileData,
+                    keyFileBookmarkData: keyFileBookmarkData,
+                    keyFileFilename: keyFileFilename,
+                    cipher: cipher,
+                    kdfPreset: kdfPreset
+                ), environment)
+            guard !isCancelled, !Task.isCancelled else { return nil }
+            preparedDatabase = prepared
+            let writer = environment.writePrimaryFile
+            try await Task.detached { try writer(prepared.encryptedBytes, url, true) }.value
+            guard !isCancelled, !Task.isCancelled else { return nil }
+            let created = try completeExport(to: url)
+            clearSecrets()
+            return created
+        } catch {
+            preparedDatabase = nil
+            guard !isCancelled, !Task.isCancelled else { return nil }
+            creationError = error.localizedDescription
+            return nil
+        }
+    }
+    #endif
+
     func completeExport(to url: URL) throws -> CreatedDatabase {
         guard let preparedDatabase else {
             throw DatabaseCreationService.CreationError.destinationUnavailable

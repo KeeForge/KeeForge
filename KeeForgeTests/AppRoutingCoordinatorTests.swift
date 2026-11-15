@@ -256,21 +256,21 @@ final class AppRoutingCoordinatorTests: XCTestCase {
         _ = routing.resolveInitialRoute(
             hasActiveSession: false, showsTransitionNotice: false, release: release, autoOpenReference: nil
         )
-        routing.receiveEnrollment(try makeURI())
-        let enrollment = try XCTUnwrap(routing.pendingEnrollment)
-        XCTAssertNil(routing.enrollmentAlert)
-        XCTAssertNil(routing.presentedEnrollment)
+        routing.enrollment.receiveEnrollment(try makeURI(), destination: nil)
+        let enrollment = try XCTUnwrap(routing.enrollment.pendingEnrollment)
+        XCTAssertNil(routing.enrollment.enrollmentAlert)
+        XCTAssertNil(routing.enrollment.presentedEnrollment)
         let unlocked = session(owner)
-        routing.updateSession(unlocked)
-        XCTAssertNil(routing.deferredPresentation, "An unlock must not compete with What's New")
+        routing.enrollment.updateSession(unlocked)
+        XCTAssertNil(routing.enrollment.deferredPresentation, "An unlock must not compete with What's New")
         _ = routing.finishLaunchPresentation()
-        routing.resumeEnrollmentAfterLaunchPresentation()
-        XCTAssertNil(routing.presentedEnrollment)
-        try completeDeferred(routing)
-        XCTAssertEqual(routing.presentedEnrollment?.id, enrollment.id)
-        XCTAssertEqual(routing.pendingEnrollment?.id, enrollment.id, "Keep the retry until the sheet appears")
-        routing.enrollmentDidAppear(id: enrollment.id, session: unlocked)
-        XCTAssertNil(routing.pendingEnrollment)
+        routing.enrollment.resumeEnrollmentAfterLaunchPresentation()
+        XCTAssertNil(routing.enrollment.presentedEnrollment)
+        try completeDeferred(routing.enrollment)
+        XCTAssertEqual(routing.enrollment.presentedEnrollment?.id, enrollment.id)
+        XCTAssertEqual(routing.enrollment.pendingEnrollment?.id, enrollment.id, "Keep the retry until the sheet appears")
+        routing.enrollment.enrollmentDidAppear(id: enrollment.id, session: unlocked)
+        XCTAssertNil(routing.enrollment.pendingEnrollment)
     }
 
     func testWhatsNewDismissalRequestsUnlockOnlyAfterDeferredPresentation() throws {
@@ -278,127 +278,21 @@ final class AppRoutingCoordinatorTests: XCTestCase {
         _ = routing.resolveInitialRoute(
             hasActiveSession: false, showsTransitionNotice: false, release: release, autoOpenReference: nil
         )
-        routing.receiveEnrollment(try makeURI())
+        routing.enrollment.receiveEnrollment(try makeURI(), destination: nil)
         _ = routing.finishLaunchPresentation()
-        routing.resumeEnrollmentAfterLaunchPresentation()
-        XCTAssertNil(routing.enrollmentAlert)
-        try completeDeferred(routing)
-        XCTAssertEqual(routing.enrollmentAlert, .unlockNeeded)
-        XCTAssertNotNil(routing.pendingEnrollment)
+        routing.enrollment.resumeEnrollmentAfterLaunchPresentation()
+        XCTAssertNil(routing.enrollment.enrollmentAlert)
+        try completeDeferred(routing.enrollment)
+        XCTAssertEqual(routing.enrollment.enrollmentAlert, .unlockNeeded)
+        XCTAssertNotNil(routing.enrollment.pendingEnrollment)
     }
 
-    func testLockParksTheSameEnrollmentAndStaleDismissalCannotCancelAfterReunlock() throws {
-        let owner = NSObject()
-        let routing = AppRoutingCoordinator()
-        let firstUnlock = session(owner)
-        routing.updateSession(firstUnlock)
-        routing.receiveEnrollment(try makeURI())
-        let enrollment = try XCTUnwrap(routing.presentedEnrollment)
-        routing.enrollmentDidAppear(id: enrollment.id, session: firstUnlock)
-        routing.updateSession(session(owner, lockCycleID: 1, isUnlocked: false))
-        XCTAssertNil(routing.presentedEnrollment)
-        XCTAssertEqual(routing.pendingEnrollment?.createdAt, enrollment.createdAt)
-        let secondUnlock = session(owner, lockCycleID: 1)
-        routing.updateSession(secondUnlock)
-        try completeDeferred(routing)
-        routing.cancelEnrollment(id: enrollment.id, session: firstUnlock)
-        XCTAssertEqual(routing.presentedEnrollment?.id, enrollment.id)
-        routing.cancelEnrollment(id: enrollment.id, session: secondUnlock)
-        XCTAssertNil(routing.presentedEnrollment)
-        XCTAssertNil(routing.pendingEnrollment)
-    }
-
-    func testSessionSwitchInvalidatesDeferredWorkAndOldSheetCallbacks() throws {
-        let firstOwner = NSObject()
-        let secondOwner = NSObject()
-        let routing = AppRoutingCoordinator()
-        routing.receiveEnrollment(try makeURI())
-        let enrollment = try XCTUnwrap(routing.pendingEnrollment)
-        let firstSession = session(firstOwner)
-        routing.updateSession(firstSession)
-        let staleRequest = try XCTUnwrap(routing.deferredPresentation?.id)
-        let secondSession = session(secondOwner)
-        routing.updateSession(secondSession)
-        routing.completeDeferredPresentation(id: staleRequest)
-        XCTAssertNil(routing.presentedEnrollment)
-        try completeDeferred(routing)
-        routing.enrollmentDidAppear(id: enrollment.id, session: firstSession)
-        XCTAssertNotNil(routing.pendingEnrollment)
-        routing.cancelEnrollment(id: enrollment.id, session: firstSession)
-        XCTAssertNotNil(routing.presentedEnrollment)
-        routing.enrollmentDidAppear(id: enrollment.id, session: secondSession)
-        XCTAssertNil(routing.pendingEnrollment)
-    }
-
-    func testNewEnrollmentInvalidatesOlderDeferredPresentationAndCancellation() throws {
-        let owner = NSObject()
-        let routing = AppRoutingCoordinator()
-        routing.receiveEnrollment(try makeURI())
-        let oldEnrollment = try XCTUnwrap(routing.pendingEnrollment)
-        let unlocked = session(owner)
-        routing.updateSession(unlocked)
-        let staleRequest = try XCTUnwrap(routing.deferredPresentation?.id)
-        routing.receiveEnrollment(try makeURI(account: "second"))
-        let newEnrollment = try XCTUnwrap(routing.presentedEnrollment)
-        routing.completeDeferredPresentation(id: staleRequest)
-        routing.cancelEnrollment(id: oldEnrollment.id, session: unlocked)
-        XCTAssertEqual(routing.presentedEnrollment?.id, newEnrollment.id)
-        XCTAssertNil(routing.pendingEnrollment)
-    }
-
-    func testExpiryAtDeferredCompletionDropsSecretAndReportsExpiration() throws {
-        let owner = NSObject()
-        var now = Date(timeIntervalSince1970: 100)
-        let routing = AppRoutingCoordinator(now: { now })
-        routing.receiveEnrollment(try makeURI())
-        routing.enrollmentAlert = nil
-        now = now.addingTimeInterval(PendingTOTPEnrollment.lifetime)
-        XCTAssertFalse(routing.discardExpiredEnrollment(), "Preserve the existing strict greater-than TTL boundary")
-        routing.updateSession(session(owner))
-        let promotion = try XCTUnwrap(routing.deferredPresentation?.id)
-        now = now.addingTimeInterval(1)
-        routing.completeDeferredPresentation(id: promotion)
-        XCTAssertNil(routing.pendingEnrollment)
-        XCTAssertNil(routing.presentedEnrollment)
-        try completeDeferred(routing)
-        XCTAssertEqual(routing.enrollmentAlert, .linkExpired)
-    }
-
-    func testNewEnrollmentInvalidatesDeferredExpirationAlert() throws {
-        let owner = NSObject()
-        var now = Date(timeIntervalSince1970: 100)
-        let routing = AppRoutingCoordinator(now: { now })
-        routing.receiveEnrollment(try makeURI())
-        now = now.addingTimeInterval(PendingTOTPEnrollment.lifetime + 1)
-        XCTAssertTrue(routing.discardExpiredEnrollment())
-        let expiredRequest = try XCTUnwrap(routing.deferredPresentation?.id)
-        routing.updateSession(session(owner))
-        routing.receiveEnrollment(try makeURI(account: "new"))
-        routing.completeDeferredPresentation(id: expiredRequest)
-        XCTAssertNil(routing.enrollmentAlert)
-        XCTAssertEqual(routing.presentedEnrollment?.uri.accountName, "new")
-    }
-
-    func testSessionUnlockDoesNotLoseDeferredExpirationNotice() throws {
-        let owner = NSObject()
-        var now = Date(timeIntervalSince1970: 100)
-        let routing = AppRoutingCoordinator(now: { now })
-        routing.receiveEnrollment(try makeURI())
-        routing.enrollmentAlert = nil
-        now = now.addingTimeInterval(PendingTOTPEnrollment.lifetime + 1)
-        XCTAssertTrue(routing.discardExpiredEnrollment())
-        routing.updateSession(session(owner))
-        try completeDeferred(routing)
-        XCTAssertEqual(routing.enrollmentAlert, .linkExpired)
-        XCTAssertNil(routing.presentedEnrollment)
-    }
-
-    private func completeDeferred(_ routing: AppRoutingCoordinator) throws {
+    private func completeDeferred(_ routing: TOTPEnrollmentCoordinator) throws {
         routing.completeDeferredPresentation(id: try XCTUnwrap(routing.deferredPresentation?.id))
     }
 
-    private func session(_ owner: NSObject, lockCycleID: Int = 0, isUnlocked: Bool = true) -> AppRoutingCoordinator.Session {
-        .init(identity: ObjectIdentifier(owner), lockCycleID: lockCycleID, isUnlocked: isUnlocked)
+    private func session(_ owner: NSObject, databaseID: UUID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, lockCycleID: Int = 0, isUnlocked: Bool = true) -> TOTPEnrollmentCoordinator.Session {
+        .init(databaseID: databaseID, identity: ObjectIdentifier(owner), lockCycleID: lockCycleID, isUnlocked: isUnlocked)
     }
 
     private func makeURI(account: String = "test") throws -> OTPAuthURI {

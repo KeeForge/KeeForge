@@ -32,7 +32,7 @@ Design docs written before or during a feature's implementation. Multi-slice fea
 | 2026-04-07 | `specs/2026-04-07-edit-support/` | Write path: XML round-trip, KDBX writer, drafts, local/cloud/AutoFill save (epic + slices 01–07) |
 | 2026-04-15 | `specs/2026-04-15-kdbx-3-compatibility.md` | KDBX 3.x compatibility |
 | 2026-04-24 | `specs/2026-04-24-database-creation.md` | Creating new local KDBX 4.x databases |
-| 2026-07-12 | `specs/2026-07-12-macos-port/` | Native macOS app: target scaffolding, Mac UX, desktop OAuth, macOS AutoFill, distribution (epic + slices 01–07) |
+| 2026-07-12 | `specs/2026-07-12-macos-port/` | Native macOS app: target scaffolding, Mac UX, desktop OAuth, macOS AutoFill, distribution (epic + slices 01–07); describes the earlier SwiftUI Mac app, superseded by the AppKit rebuild (see `KeeForgeMac/AGENTS.md`) |
 | 2026-07-12 | `specs/2026-07-12-twofish-support/` | Twofish cipher support and KDBX 3.1 read (epic + slices 01–03) |
 | 2026-07-19 | `specs/2026-07-19-selectable-autofill-per-database/` | Per-database AutoFill selection, multi-database QuickType, clear-entries action (epic + slices 01–06; `deferred-tests.md` is the 2026-07-19 pick-up list for the tests written after the Linux implementation — all slice tests are done, and the remaining manual checks were largely automated by `AutoFillStoreUITests`, see `KeeForgeUITests/AGENTS.md`) |
 | 2026-07-19 | `specs/2026-07-19-tag-integration/` | Tag browser, tag search, group-tag inheritance, editor tag suggestions (epic + slices 01–04) |
