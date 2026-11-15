@@ -18,6 +18,57 @@ final class PendingUploadQueueTests: XCTestCase {
         try super.tearDownWithError()
     }
 
+    func test_creationJournalRoundTripAndLostCAS() throws {
+        let environment = makeEnvironment()
+        let reference = DatabaseReference(id: UUID(), nickname: nil, filename: "vault.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: Data([7]), keyFileFilename: "key", isQuickLaunch: false, lastOpenedAt: nil,
+            addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+        let payload = Data("encrypted".utf8)
+        let prepared = try PendingUploadQueue.prepareCreation(operationID: UUID(), provider: "webdav", accountID: "account",
+            target: "/vault.kdbx", payload: payload, referenceTemplate: reference, isConflictCopy: false, environment: environment)
+        XCTAssertEqual(try PendingUploadQueue.listCreations(environment: environment).first?.intent, prepared.intent)
+        XCTAssertEqual(try PendingUploadQueue.readCreationPayload(prepared, environment: environment), payload)
+        XCTAssertThrowsError(try PendingUploadQueue.prepareCreation(operationID: UUID(), provider: "webdav", accountID: "account",
+            target: "/vault.kdbx", payload: payload, referenceTemplate: reference, isConflictCopy: false, environment: environment))
+        let attempting = try PendingUploadQueue.transitionCreation(prepared, to: .attempting, environment: environment)
+        XCTAssertThrowsError(try PendingUploadQueue.transitionCreation(prepared, to: .attempting, environment: environment))
+        var receipt = reference
+        receipt.source = .cloud(CloudSyncMetadata(provider: "webdav", accountId: "account", fileId: "created-id", displayPath: "/vault.kdbx",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil))
+        let confirmed = try PendingUploadQueue.transitionCreation(attempting, to: .confirmed, receipt: receipt, environment: environment)
+        let completed = try PendingUploadQueue.transitionCreation(confirmed, to: .completed, environment: environment)
+        XCTAssertEqual(completed.intent.receipt, receipt)
+    }
+
+    func test_creationCannotPrepareWhenPayloadWriteFails() throws {
+        let environment = makeEnvironment(writeMarkerAtomically: { _, _ in throw CocoaError(.fileWriteUnknown) })
+        let reference = DatabaseReference(id: UUID(), nickname: nil, filename: "vault.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
+            addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+        XCTAssertThrowsError(try PendingUploadQueue.prepareCreation(operationID: UUID(), provider: "webdav", accountID: "account",
+            target: "/vault", payload: Data([1]), referenceTemplate: reference, isConflictCopy: false, environment: environment))
+        XCTAssertTrue(try PendingUploadQueue.listCreations(environment: environment).isEmpty)
+    }
+
+    func test_creationJournalRejectsUnknownVersionAndMissingPayloadBeforeAttempt() throws {
+        let environment = makeEnvironment()
+        let reference = DatabaseReference(id: UUID(), nickname: nil, filename: "vault.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
+            addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+        let prepared = try PendingUploadQueue.prepareCreation(operationID: UUID(), provider: "webdav", accountID: "account",
+            target: "/vault", payload: Data([1]), referenceTemplate: reference, isConflictCopy: false, environment: environment)
+        let directory = containerURL.appendingPathComponent("cloud-creation-journal")
+        try FileManager.default.removeItem(at: directory.appendingPathComponent(prepared.intent.operationID.uuidString + ".kdbx"))
+        XCTAssertThrowsError(try PendingUploadQueue.transitionCreation(prepared, to: .attempting, environment: environment))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: prepared.serialized) as? [String: Any])
+        json["version"] = 999
+        try JSONSerialization.data(withJSONObject: json).write(to: directory.appendingPathComponent(prepared.intent.operationID.uuidString + ".creation"))
+        XCTAssertThrowsError(try PendingUploadQueue.listCreations(environment: environment))
+        json["version"] = false
+        try JSONSerialization.data(withJSONObject: json).write(to: directory.appendingPathComponent(prepared.intent.operationID.uuidString + ".creation"))
+        XCTAssertThrowsError(try PendingUploadQueue.listCreations(environment: environment))
+    }
+
     func test_publishedLegacyFinalizationPhasesNeverAuthorizeDelivery() throws {
         let id = UUID()
         let bytes = Data("legacy encrypted payload".utf8)

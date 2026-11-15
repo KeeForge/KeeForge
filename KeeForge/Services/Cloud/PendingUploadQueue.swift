@@ -934,3 +934,146 @@ enum PendingUploadQueue {
         return try operation()
     }
 }
+
+// Creation journals are isolated from replacement markers and never grant delivery authority.
+extension PendingUploadQueue {
+    struct CreationIntent: Codable, Equatable, Sendable {
+        enum Phase: String, Codable, Sendable { case prepared, attempting, confirmed, completed }
+        let version: Int
+        let operationID: UUID
+        let provider: String
+        let accountID: String
+        let target: String
+        let payloadSHA512: Data
+        let referenceTemplate: DatabaseReference
+        let isConflictCopy: Bool
+        var phase: Phase
+        var receipt: DatabaseReference?
+    }
+
+    struct StoredCreation: Sendable {
+        let intent: CreationIntent
+        let serialized: Data
+    }
+
+    enum CreationError: Error { case invalid, reserved, changed }
+
+    private static func creationDirectory(_ environment: Environment) -> URL {
+        environment.appGroupContainerURL().appendingPathComponent("cloud-creation-journal", isDirectory: true)
+    }
+
+    private static func creationURL(_ id: UUID, _ environment: Environment) -> URL {
+        creationDirectory(environment).appendingPathComponent(id.uuidString + ".creation")
+    }
+
+    private static func creationPayloadURL(_ id: UUID, _ environment: Environment) -> URL {
+        creationDirectory(environment).appendingPathComponent(id.uuidString + ".kdbx")
+    }
+
+    private static func decodeCreation(_ data: Data, id: UUID) throws -> CreationIntent {
+        let value = try JSONDecoder().decode(CreationIntent.self, from: data)
+        guard value.version == 1, value.operationID == id, value.payloadSHA512.count == 64,
+              !value.provider.isEmpty, !value.accountID.isEmpty, !value.target.isEmpty,
+              (value.phase == .prepared || value.phase == .attempting) == (value.receipt == nil),
+              value.receipt == nil || value.receipt?.id == value.referenceTemplate.id else { throw CreationError.invalid }
+        if let receipt = value.receipt {
+            guard receiptMatches(receipt, intent: value) else { throw CreationError.invalid }
+        }
+        return value
+    }
+
+    private static func receiptMatches(_ receipt: DatabaseReference, intent: CreationIntent) -> Bool {
+        guard let metadata = receipt.cloudSyncMetadata, metadata.provider == intent.provider,
+              metadata.accountId == intent.accountID, !metadata.fileId.isEmpty else { return false }
+        var original = receipt
+        original.source = intent.referenceTemplate.source
+        return original == intent.referenceTemplate
+    }
+
+    static func listCreations(environment: Environment = .live) throws -> [StoredCreation] {
+        let directory = creationDirectory(environment)
+        try environment.createDirectory(directory)
+        return try environment.listDirectory(directory).filter { $0.pathExtension == "creation" }.map { url in
+            guard let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else { throw CreationError.invalid }
+            let data = try environment.readData(url)
+            return StoredCreation(intent: try decodeCreation(data, id: id), serialized: data)
+        }
+    }
+
+    private static func withCreationLock<T>(_ name: String, environment: Environment, _ body: () throws -> T) throws -> T {
+        let directory = environment.appGroupContainerURL().appendingPathComponent("cloud-creation-locks", isDirectory: true)
+        try environment.createDirectory(directory)
+        let fd = Darwin.open(directory.appendingPathComponent(name + ".lock").path, O_CREAT | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else { throw POSIXError(.EIO) }
+        defer { Darwin.close(fd) }
+        guard flock(fd, LOCK_EX) == 0 else { throw POSIXError(.EIO) }
+        defer { flock(fd, LOCK_UN) }
+        return try body()
+    }
+
+    private static func targetLockName(_ intent: CreationIntent) throws -> String {
+        let encoder = JSONEncoder()
+        let bytes = try encoder.encode([intent.provider, intent.accountID, intent.target])
+        return FileDigest.sha512(bytes).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func withCreationLocks<T>(_ intent: CreationIntent, environment: Environment, _ body: () throws -> T) throws -> T {
+        try withCreationLock("target-" + targetLockName(intent), environment: environment) {
+            try withCreationLock("operation-" + intent.operationID.uuidString, environment: environment, body)
+        }
+    }
+
+    static func prepareCreation(operationID: UUID, provider: String, accountID: String, target: String,
+                                payload: Data, referenceTemplate: DatabaseReference, isConflictCopy: Bool,
+                                environment: Environment = .live) throws -> StoredCreation {
+        let intent = CreationIntent(version: 1, operationID: operationID, provider: provider, accountID: accountID,
+                                    target: target, payloadSHA512: FileDigest.sha512(payload), referenceTemplate: referenceTemplate,
+                                    isConflictCopy: isConflictCopy, phase: .prepared, receipt: nil)
+        return try withCreationLocks(intent, environment: environment) {
+            let records = try listCreations(environment: environment)
+            guard !records.contains(where: { $0.intent.operationID == operationID }) else { throw CreationError.changed }
+            guard !records.contains(where: { $0.intent.phase != .completed && $0.intent.provider == provider && $0.intent.accountID == accountID && $0.intent.target == target }) else { throw CreationError.reserved }
+            let payloadURL = creationPayloadURL(operationID, environment)
+            guard !(try environment.listDirectory(creationDirectory(environment))).contains(where: { $0.lastPathComponent == payloadURL.lastPathComponent }) else { throw CreationError.changed }
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+            let data = try encoder.encode(intent)
+            _ = try decodeCreation(data, id: operationID)
+            try environment.writeMarkerAtomically(payload, payloadURL)
+            try environment.writeMarkerAtomically(data, creationURL(operationID, environment))
+            return StoredCreation(intent: intent, serialized: data)
+        }
+    }
+
+    static func readCreationPayload(_ stored: StoredCreation, environment: Environment = .live) throws -> Data {
+        let bytes = try environment.readData(creationPayloadURL(stored.intent.operationID, environment))
+        guard FileDigest.sha512(bytes) == stored.intent.payloadSHA512 else { throw CreationError.invalid }
+        return bytes
+    }
+
+    // Only these edges are permitted: prepared -> attempting -> confirmed -> completed.
+    // A failed write grants no authority, even if its rename became visible.
+    static func transitionCreation(_ stored: StoredCreation, to phase: CreationIntent.Phase,
+                                   receipt: DatabaseReference? = nil, environment: Environment = .live) throws -> StoredCreation {
+        try withCreationLocks(stored.intent, environment: environment) {
+            guard try environment.readData(creationURL(stored.intent.operationID, environment)) == stored.serialized,
+                  try decodeCreation(stored.serialized, id: stored.intent.operationID) == stored.intent else { throw CreationError.changed }
+            switch (stored.intent.phase, phase) {
+            case (.prepared, .attempting):
+                guard receipt == nil else { throw CreationError.invalid }
+                _ = try readCreationPayload(stored, environment: environment)
+            case (.attempting, .confirmed):
+                guard let receipt, receiptMatches(receipt, intent: stored.intent) else { throw CreationError.invalid }
+            case (.confirmed, .completed):
+                guard receipt == nil else { throw CreationError.invalid }
+            default: throw CreationError.invalid
+            }
+            var next = stored.intent
+            next.phase = phase
+            if phase == .confirmed { next.receipt = receipt }
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+            let data = try encoder.encode(next)
+            try environment.writeMarkerAtomically(data, creationURL(next.operationID, environment))
+            return StoredCreation(intent: next, serialized: data)
+        }
+    }
+}
