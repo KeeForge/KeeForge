@@ -101,3 +101,5 @@
 - Clearing a reconciled marker's expected/base revision also removes permission to use the reference's old content hash as a shortcut. Equality between the reconciled baseline and predecessor/cache SHA does not bind that hash to those bytes; delivery downloads and checks the reconciled SHA. Existing content-identifying revision or bound-hash shortcuts remain available when marker validators have not been cleared.
 
 - A confirmed rekey reconciliation signals only its weak, operation-scoped live ticket after journal retirement. The ticket carries no secret and does not authorize key publication.
+
+- App-owned ordinary cloud saves carry a nonsecret operation ticket through encryption and preparation so later key effects can identify their own installed head.

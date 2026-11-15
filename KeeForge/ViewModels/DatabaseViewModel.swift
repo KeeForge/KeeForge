@@ -2730,6 +2730,8 @@ final class DatabaseViewModel {
             // screen. Same guard shape as `refreshCredentialStoreIfStillUnlocked`.
             let expectedLockCycleID = lockCycleID
 
+            let authority = cloudKeyAction.map { CloudSaveAuthority(reference: databaseReference, actionID: $0,
+                cycle: expectedLockCycleID, ticket: CloudDatabaseSaver.SaveTicket()) }
             let saveResult: SaveResult
             switch databaseReference.source {
             case .local:
@@ -2743,7 +2745,7 @@ final class DatabaseViewModel {
                     nil
                 )
             case .cloud:
-                saveResult = try await cloudSaveOperation(
+                saveResult = try await CloudDatabaseSaver.$saveTicket.withValue(authority?.ticket) { try await cloudSaveOperation(
                     snapshot,
                     databaseReference,
                     compositeKey,
@@ -2752,7 +2754,7 @@ final class DatabaseViewModel {
                     databaseReference.expectedCloudRevision,
                     nil,
                     nil
-                )
+                ) }
             }
 
             // Locked while the save was in flight: the bytes did reach storage,
@@ -2773,7 +2775,7 @@ final class DatabaseViewModel {
                 saveConflict = nil
                 saveError = nil
                 if let cloudKeyAction {
-                    try await publishCloudExpressKeyAfterSave(expressKey, sha512: newSHA512, actionID: cloudKeyAction)
+                    try await publishCloudExpressKeyAfterSave(expressKey, sha512: newSHA512, actionID: cloudKeyAction, authority: authority)
                     guard expectedLockCycleID == lockCycleID,
                   cloudKeyAction == nil || keyCommitPublicationActionID == cloudKeyAction else { return }
                 }
@@ -3251,8 +3253,20 @@ final class DatabaseViewModel {
         expressUnlockKeySaveOperation(quickUnlockItemHoldsSessionKey ? key : nil, databaseReference)
     }
 
-    private func publishCloudExpressKeyAfterSave(_ key: ExpressUnlockKey?, sha512: Data, actionID: UUID) async throws {
-        let reference = databaseReference
+    private struct CloudSaveAuthority {
+        let reference: DatabaseReference
+        let actionID: UUID
+        let cycle: Int
+        let ticket: CloudDatabaseSaver.SaveTicket
+    }
+
+    private func publishCloudExpressKeyAfterSave(_ key: ExpressUnlockKey?, sha512: Data, actionID: UUID,
+                                                authority: CloudSaveAuthority?) async throws {
+        guard let authority, authority.actionID == actionID, authority.cycle == lockCycleID,
+              keyCommitPublicationActionID == actionID, authority.ticket.payloadSHA == sha512 else { return }
+        var capturedReference = authority.reference
+        capturedReference.updateCloudSyncMetadata { $0.localHeadOperationID = authority.ticket.operationID }
+        let reference = capturedReference
         let effect = expressUnlockKeySaveOperation
         let desired = quickUnlockItemHoldsSessionKey ? key : nil
         do {
@@ -3260,7 +3274,8 @@ final class DatabaseViewModel {
                 try PendingUploadQueue.readJournal(for: reference.id).isEmpty == false
             }
             // The journal owns queued ciphertext; optional express-key refresh waits for delivery.
-            if hasQueuedDelivery { return }
+            guard !hasQueuedDelivery, authority.cycle == lockCycleID,
+                  keyCommitPublicationActionID == actionID else { return }
             try await publishCloudKeyEffect(reference: reference, sha512: sha512, actionID: actionID) {
                 effect(desired, reference)
             }
@@ -3341,6 +3356,8 @@ final class DatabaseViewModel {
         }
 
         try await refreshSameEpochKeyFilePreference()
+        let authority = cloudKeyAction.map { CloudSaveAuthority(reference: databaseReference, actionID: $0,
+            cycle: expectedLockCycleID, ticket: CloudDatabaseSaver.SaveTicket()) }
         let saveResult: SaveResult
         switch databaseReference.source {
         case .local:
@@ -3354,7 +3371,7 @@ final class DatabaseViewModel {
                 change
             )
         case .cloud:
-            saveResult = try await cloudSaveOperation(
+            saveResult = try await CloudDatabaseSaver.$saveTicket.withValue(authority?.ticket) { try await cloudSaveOperation(
                 workingDraft,
                 databaseReference,
                 compositeKey,
@@ -3363,7 +3380,7 @@ final class DatabaseViewModel {
                 databaseReference.expectedCloudRevision,
                 nil,
                 change
-            )
+            ) }
         }
 
         switch saveResult {
@@ -3373,7 +3390,7 @@ final class DatabaseViewModel {
             // express key until the next unlock or save stores one.
             if let cloudKeyAction {
                 if expectedLockCycleID == lockCycleID, keyCommitPublicationActionID == cloudKeyAction { self.openTimeSHA512 = newSHA512 }
-                try await publishCloudExpressKeyAfterSave(nil, sha512: newSHA512, actionID: cloudKeyAction)
+                try await publishCloudExpressKeyAfterSave(nil, sha512: newSHA512, actionID: cloudKeyAction, authority: authority)
             } else { expressUnlockKeySaveOperation(nil, databaseReference) }
             refreshDatabaseReference()
             if expectedLockCycleID == lockCycleID {
@@ -3617,6 +3634,8 @@ final class DatabaseViewModel {
         // new records says nothing about the user's unsaved edits, which are
         // the reason this save was attempted at all. Only the confirmation
         // wording changes.
+        let authority = cloudKeyAction.map { CloudSaveAuthority(reference: databaseReference, actionID: $0,
+            cycle: expectedLockCycleID, ticket: CloudDatabaseSaver.SaveTicket(operationID: mergeContext?.operationID ?? UUID())) }
         let saveResult: SaveResult
         switch databaseReference.source {
         case .local:
@@ -3632,7 +3651,7 @@ final class DatabaseViewModel {
         case .cloud:
             let context = mergeContext
             saveResult = try await withTaskCancellationHandler {
-                try await CloudDatabaseSaver.$mergeContext.withValue(context) { try await cloudSaveOperation(
+                try await CloudDatabaseSaver.$mergeContext.withValue(context) { try await CloudDatabaseSaver.$saveTicket.withValue(authority?.ticket) { try await cloudSaveOperation(
                 mergedDraft,
                 databaseReference,
                 compositeKey,
@@ -3641,7 +3660,7 @@ final class DatabaseViewModel {
                 databaseReference.expectedCloudRevision,
                 nil,
                 nil
-            ) }
+            ) } }
             } onCancel: { context?.revoke() }
         }
 
@@ -3661,7 +3680,7 @@ final class DatabaseViewModel {
             saveError = nil
             draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
             if let cloudKeyAction {
-                try await publishCloudExpressKeyAfterSave(expressKey, sha512: newSHA512, actionID: cloudKeyAction)
+                try await publishCloudExpressKeyAfterSave(expressKey, sha512: newSHA512, actionID: cloudKeyAction, authority: authority)
                 guard expectedLockCycleID == lockCycleID,
                   cloudKeyAction == nil || keyCommitPublicationActionID == cloudKeyAction else { return }
             }
@@ -3780,8 +3799,10 @@ final class DatabaseViewModel {
         let mergedDraft = DatabaseDraft(rootGroup: merged.rootGroup, meta: merged.meta, sessionKey: sessionKey,
             binaryPoolFields: localBinaryPoolFields)
         // Even an unchanged tree needs an installed durable output before source ownership transfers.
+        let authority = cloudKeyAction.map { CloudSaveAuthority(reference: reference, actionID: $0,
+            cycle: expectedLockCycleID, ticket: CloudDatabaseSaver.SaveTicket(operationID: context.operationID)) }
         let saveResult = try await withTaskCancellationHandler {
-            try await CloudDatabaseSaver.$mergeContext.withValue(context) { try await cloudSaveOperation(
+            try await CloudDatabaseSaver.$mergeContext.withValue(context) { try await CloudDatabaseSaver.$saveTicket.withValue(authority?.ticket) { try await cloudSaveOperation(
             mergedDraft,
             reference,
             compositeKey,
@@ -3790,7 +3811,7 @@ final class DatabaseViewModel {
             reference.expectedCloudRevision,
             nil,
             nil
-        ) }
+        ) } }
         } onCancel: { context.revoke() }
 
         switch saveResult {
@@ -3814,7 +3835,7 @@ final class DatabaseViewModel {
             self.openTimeSHA512 = newSHA512
             draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
             if let cloudKeyAction {
-                try await publishCloudExpressKeyAfterSave(expressKey, sha512: newSHA512, actionID: cloudKeyAction)
+                try await publishCloudExpressKeyAfterSave(expressKey, sha512: newSHA512, actionID: cloudKeyAction, authority: authority)
                 guard expectedLockCycleID == lockCycleID,
                   cloudKeyAction == nil || keyCommitPublicationActionID == cloudKeyAction else { return }
             }

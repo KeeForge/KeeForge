@@ -9188,12 +9188,21 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testChangeEncryptionSettingsCloudAdoptsTheUploadedRevision() async throws {
+        try await exerciseCloudSettingsPublication(foreignHead: false)
+    }
+
+    func testChangeEncryptionSettingsCloudRejectsForeignPublishedHead() async throws {
+        try await exerciseCloudSettingsPublication(foreignHead: true)
+    }
+
+    private func exerciseCloudSettingsPublication(foreignHead: Bool) async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
         DatabaseListStore.update(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
         try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference)
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let capture = EncryptionSettingsCapture()
+        let keyEffects = OSAllocatedUnfairLock(initialState: 0)
         let transport = CloudJournalTransport(remote: fixtureData, revision: "rev-A",
             response: .init(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-B"))
         var environment = CloudDatabaseSaver.Environment.live
@@ -9216,10 +9225,30 @@ final class DatabaseViewModelTests: XCTestCase {
                 guard case .saved? = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: saver) else {
                     throw SaveError.saveContextUnavailable
                 }
+                if foreignHead {
+                    let observed = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata)
+                    guard case .published = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id,
+                        ifUnchangedFrom: observed, mutate: { $0.localHeadOperationID = UUID() }) else {
+                        throw SaveError.saveContextUnavailable
+                    }
+                }
                 return result
-            })
+            }, expressUnlockKeySaveOperation: { _, _ in keyEffects.withLock { $0 += 1 } })
         await vm.unlock(password: fixturePassword)
+        keyEffects.withLock { $0 = 0 }
+        if foreignHead {
+            do {
+                try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
+                XCTFail("A different head cannot authorize this key effect")
+            } catch is CloudSaveRecoveryWarning { }
+            XCTAssertEqual(keyEffects.withLock { $0 }, 0)
+            XCTAssertEqual(transport.effects.uploads.count, 1)
+            XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+            vm.lock()
+            return
+        }
         try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
+        XCTAssertEqual(keyEffects.withLock { $0 }, 1)
         let bytes = try Data(contentsOf: cacheURL)
         let parsed = try KDBXParser.parseWithMetaAndHeader(data: bytes,
             compositeKey: KDBXCrypto.compositeKey(password: fixturePassword), sessionKey: SymmetricKey(size: .bits256))

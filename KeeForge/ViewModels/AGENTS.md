@@ -133,3 +133,5 @@ Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, f
 - After a pending-local merge archives divergent sources, its cache tail uses only the original reference or the bookmark advanced by that same validated mergeCompletion and session cycle. It never rereads/adopts a current reference to bypass the final cache CAS; later sources, changed authority, unconfirmed receipts and removal remain fenced.
 
 - Confirmed cloud rekey recovery may retain its initiating unlocked session's key and key-file data in RAM until exact reconciliation or revocation. Lock, retirement, a new authority or another mutation revokes it, including while key publication is in flight; completion must pass the original action, cycle, target, epoch, operation, cache digest and key-publication fences. Revocation closes an unclaimed permit; a claimed effect may finish, but cannot restore session state after revocation.
+
+- Optional cloud save key effects use the initiating save operation and ciphertext digest captured before its await, plus its original target and action cycle; a current registry head alone is not authority.
