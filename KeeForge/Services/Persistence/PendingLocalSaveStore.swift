@@ -747,10 +747,10 @@ enum PendingLocalSaveStore {
     }
 
     static func withKeyCommitPublicationAuthorization<T>(
-        _ receipt: CommitReceipt, reference: DatabaseReference,
+        _ receipt: CommitReceipt, reference: DatabaseReference, nonBlocking: Bool = false,
         observeTarget: () throws -> (TargetIdentity, Data), _ publish: () throws -> T
     ) throws -> T {
-        try withLock(for: receipt.databaseID) {
+        try withLock(for: receipt.databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(receipt.databaseID)
             let state = try loadState(receipt.databaseID) ?? OwnerState(version: 1, removed: false)
             guard state.version == receipt.ownerVersion, state.retirementID == nil,
@@ -853,9 +853,9 @@ enum PendingLocalSaveStore {
     }
 
     static func withCachePublicationAuthorization<T>(
-        for databaseID: UUID, sha512: Data, lease: CacheReadLease? = nil, _ publish: () throws -> T
+        for databaseID: UUID, sha512: Data, lease: CacheReadLease? = nil, nonBlocking: Bool = false, _ publish: () throws -> T
     ) throws -> T {
-        try withLock(for: databaseID) {
+        try withLock(for: databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(databaseID)
             let state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
             if let lease {
@@ -1017,9 +1017,9 @@ enum PendingLocalSaveStore {
 
     static func withAssociationPublicationAuthorization<T>(
         for databaseID: UUID, operationID: UUID, association: KeyFileAssociation,
-        expectedWitness: KeyEpochEvidence?, expectedAssociationVersion: UUID?, observeTarget: () throws -> (TargetIdentity, Data), _ publish: () throws -> T
+        expectedWitness: KeyEpochEvidence?, expectedAssociationVersion: UUID?, nonBlocking: Bool = false, observeTarget: () throws -> (TargetIdentity, Data), _ publish: () throws -> T
     ) throws -> T {
-        try withLock(for: databaseID) {
+        try withLock(for: databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(databaseID)
             let state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
             let barrierMatches: Bool
@@ -1397,7 +1397,7 @@ enum PendingLocalSaveStore {
         }
     }
 
-    private static func withLock<T>(for databaseID: UUID, _ body: () throws -> T) throws -> T {
+    private static func withLock<T>(for databaseID: UUID, nonBlocking: Bool = false, _ body: () throws -> T) throws -> T {
         guard let container = AppGroupContainer.resolvedURL else { throw OwnershipError.recoveryRequired }
         return try $ownerContainer.withValue(container) {
             let directory = controlDirectory(databaseID)
@@ -1407,7 +1407,10 @@ enum PendingLocalSaveStore {
             defer { Darwin.close(fd) }
             try protectDurableFile(at: directory.appendingPathComponent(".lock"), descriptor: fd)
             try synchronizeDirectory(directory)
-            guard flock(fd, LOCK_EX) == 0 else { throw POSIXError(.EIO) }
+            guard flock(fd, LOCK_EX | (nonBlocking ? LOCK_NB : 0)) == 0 else {
+                if nonBlocking && (errno == EWOULDBLOCK || errno == EAGAIN) { throw OwnershipError.recoveryRequired }
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
             defer { flock(fd, LOCK_UN) }
             return try body()
         }

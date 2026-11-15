@@ -438,7 +438,7 @@ enum DatabaseListStore {
                     let bytes = try encoder.encode(references)
                     outcome = try PendingLocalSaveStore.withAssociationPublicationAuthorization(
                         for: id, operationID: operationID, association: association,
-                        expectedWitness: expectedWitness, expectedAssociationVersion: expectedAssociationVersion, observeTarget: {
+                        expectedWitness: expectedWitness, expectedAssociationVersion: expectedAssociationVersion, nonBlocking: true, observeTarget: {
                             let identity = try PendingLocalSaveStore.targetIdentity(at: protectedTarget)
                             guard identity == expectedTarget else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
                             return (identity, FileDigest.sha512(try Data(contentsOf: protectedTarget)))
@@ -1083,7 +1083,7 @@ enum DatabaseListStore {
                           current.legacyKeychainFilename == observed.legacyKeychainFilename else {
                         throw PendingLocalSaveStore.OwnershipError.sourceChanged
                     }
-                    return try PendingLocalSaveStore.withKeyCommitPublicationAuthorization(receipt, reference: current,
+                    return try PendingLocalSaveStore.withKeyCommitPublicationAuthorization(receipt, reference: current, nonBlocking: true,
                         observeTarget: { (identity, bytes) }) {
                             try io.beforeEffect()
                             guard permit.claim() else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
@@ -1148,7 +1148,7 @@ enum DatabaseListStore {
                           current.cloudSyncMetadata?.provider == expected.cloudSyncMetadata?.provider else { throw SaveError.saveContextUnavailable }
                     return try PendingUploadQueue.withCommitLock(for: current.id, nonBlocking: true) {
                         guard try PendingUploadQueue.readJournal(for: current.id).isEmpty else { throw SaveError.saveContextUnavailable }
-                        return try PendingLocalSaveStore.withCachePublicationAuthorization(for: current.id, sha512: sha512) {
+                        return try PendingLocalSaveStore.withCachePublicationAuthorization(for: current.id, sha512: sha512, nonBlocking: true) {
                             try io.beforeEffect()
                             guard permit.claim() else { throw SaveError.saveContextUnavailable }
                             return try publish()
@@ -1304,7 +1304,7 @@ enum DatabaseListStore {
                 }
                 try PendingUploadQueue.withCommitLock(for: reference.id, nonBlocking: true) {
                     guard try PendingUploadQueue.readJournal(for: reference.id).isEmpty else { throw SaveError.saveContextUnavailable }
-                    try PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: FileDigest.sha512(data)) {
+                    try PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: FileDigest.sha512(data), nonBlocking: true) {
                         guard let anchor = AppGroupContainer.resolvedURL else { throw CocoaError(.fileWriteNoPermission) }
                         try writeAtomicallyAndDurably(data, to: protectedURL, directoryAnchor: anchor)
                     }
