@@ -93,6 +93,7 @@ enum MainMenu {
         add(String(localized: "Sync Now"), #selector(DatabaseWindowController.syncNow), key: "r", modifiers: [.command, .shift], to: database)
         database.addItem(.separator())
         add(String(localized: "Database Settings…"), #selector(DatabaseWindowController.showDatabaseSettings), key: "i", to: database)
+        add(String(localized: "Change Master Key…"), #selector(DatabaseWindowController.changeMasterKey), to: database)
         database.addItem(.separator())
         add(String(localized: "Password Generator"), #selector(AppDelegate.showPasswordGenerator), to: database)
 

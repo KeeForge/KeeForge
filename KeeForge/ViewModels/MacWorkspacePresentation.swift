@@ -37,6 +37,8 @@ final class MacWorkspacePresentation {
     var isSidebarCollapsed = false
     var passwordImport = false
     var isShowingDatabaseDetails = false
+    /// Database ▸ Change Master Key…: Database Settings opens on Security with the master-key sheet on top.
+    var masterKeyChangeRequested = false
     var presentedSaveError: DatabaseSaveError?
     var isCloudReconnectInFlight = false
     /// Bumped by the status card's Resolve…, which brings the Save Conflict alert back.
@@ -344,6 +346,7 @@ final class MacWorkspacePresentation {
         pendingMove = nil
         passwordImport = false
         isShowingDatabaseDetails = false
+        masterKeyChangeRequested = false
         presentedSaveError = nil
         isCloudReconnectInFlight = false
         serverCredentialPrompt.finish(connected: false)

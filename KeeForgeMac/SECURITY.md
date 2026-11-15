@@ -221,7 +221,7 @@ state in defaults, one name per database UUID.
 
 [Database Settings](App/MacDatabaseSettingsSheet.swift) is attached to its originating
 database window and ends with that window's lock cycle, including its group picker
-and hosted key-change forms. Launcher settings hold only a reference: no destination
+and its master-key and encryption sheets, which never cancel a write already running. Launcher settings hold only a reference: no destination
 group or key-changing action is available there. The session records only whether
 a password and key file were supplied at typed unlock or rekey; these non-secret
 composition flags are cleared on lock and are unavailable for a composite-key-only

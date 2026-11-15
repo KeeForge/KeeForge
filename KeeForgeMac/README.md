@@ -138,7 +138,7 @@ state remains on `MacWorkspacePresentation`. Both presenters end on lock,
 window close and invalidation, reject answers from old lock cycles, and drain
 queued sheet requests after detachment. `MacFormSheetController` caps sheets at
 560 pt and sets initial focus once; busy disables form input and footer actions.
-Hosted master-key and import forms register their existing cancellation paths
+Master-key, encryption and import sheets register their cancellation paths
 with the shell; teardown runs them synchronously and leaves writes in flight
 running. Group editing hosts a scrolling column form and a fixed footer; its parent and
 standard-icon pickers stack over it and update only the form until Save.
@@ -149,8 +149,9 @@ Database Settings uses a 720×540 pt shell with centred native segmented tabs
 (General, Security, Sync for WebDAV/FTP, AutoFill, Backups) and Done. Its hosted
 column forms omit key-file association rows; the unlock page and launcher row
 still manage associations. AutoFill's destination row needs the unlocked session.
-Manage Custom Icons opens its existing sheet; Change Master Key and Encryption
-Settings keep their existing views until their separate rebuild. Backups export
+Manage Custom Icons opens its existing sheet. Change Master Key and Encryption
+Settings are native sheets stacked on the Security tab; Database ▸ Change Master
+Key… opens Database Settings on Security with the master-key sheet on top. Backups export
 through the existing encrypted-copy exporter at `exportDatabaseCopy`. `MacDatabaseRootView`
 keeps enrollment and its biometric observer mounted across lock/unlock. This
 embedding avoids replacing the window's presentation hierarchy; no content swap

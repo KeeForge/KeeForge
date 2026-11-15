@@ -68,6 +68,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `mergePendingUploads()` drops upload markers only after `.saved`; `.changeUnidentified` must never suggest Discard.
 - Rekey and re-encryption refuse a dirty draft, an in-flight save, and cloud references with pending upload markers (draining them afterwards reverts the remote). The rekey stamps `lastMasterKeyChangeAt` so the drainer refuses older markers.
 - A Mac window close (`requestWindowClose`) returns `.waitForSave` while any write is in flight, locked or not; a failed rekey or re-encryption bumps `failedSettingsWriteCount`, which keeps the window open.
+- `MasterKeyChangeViewModel.performConfirmedChange` runs device-owner authentication, then the rekey; the iOS view and the Mac sheet both call it after their confirmation. `EncryptionSettingsViewModel.benchmark()` derives once off the main actor on a throwaway key, runs only when asked, and waits for a cancelled derivation to finish before starting another.
 - `save()` no-ops behind an in-flight save. An operation holding `isSaving` (rekey, re-encryption) flushes edits that landed behind it; `importEntries` refuses to start.
 - `syncCloudNow()` never discards unsaved work, never applies a response older than a save that finished mid-sync, never swaps a YubiKey session, and never pushes pending uploads.
 - A completion arriving while a save conflict is on screen is held by `EntryEditCompletionGate` until `isSettled`. Reporting it races the conflict alert, which presents from the editor, and loses the dismissal.

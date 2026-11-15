@@ -6,6 +6,11 @@ final class MacDatabaseSettingsSheet {
     let model: MacDatabaseSettingsModel
     let shell: MacFormSheetController
     private let tabs: NSSegmentedControl
+    private(set) var masterKeySheet: MacMasterKeySheet?
+    private(set) var encryptionSheet: MacEncryptionSettingsSheet?
+    var presentChild: @MainActor (MacFormSheetController, NSWindow, @escaping @MainActor (Bool) -> Void) -> Void = {
+        $0.begin(on: $1, completion: $2)
+    }
 
     init(model: MacDatabaseSettingsModel) {
         self.model = model
@@ -14,7 +19,8 @@ final class MacDatabaseSettingsSheet {
         tabs.setAccessibilityIdentifier("database-settings.tabs")
         let scope = MacSheetCancellationScope()
         let owner = MacDatabaseSettingsWindow()
-        let host = NSHostingController(rootView: MacDatabaseSettingsContent(model: model, window: { owner.window })
+        let host = NSHostingController(rootView: MacDatabaseSettingsContent(model: model, window: { owner.window },
+            changeMasterKey: { owner.sheet?.showMasterKey() }, changeEncryption: { owner.sheet?.showEncryptionSettings() })
             .environment(\.macSheetCancellationScope, scope).modifier(MacHostingAppearance()))
         host.sizingOptions = []
         shell = MacFormSheetController(title: String(localized: "\(model.current.displayName) — Database Settings"),
@@ -26,6 +32,11 @@ final class MacDatabaseSettingsSheet {
         shell.defaultButton.setAccessibilityIdentifier("database-details.close")
         tabs.target = self
         tabs.action = #selector(changeTab)
+        owner.sheet = self
+        scope.register { [weak self] in
+            self?.masterKeySheet?.shell.end()
+            self?.encryptionSheet?.shell.end()
+        }
     }
 
     @objc private func changeTab() {
@@ -33,44 +44,67 @@ final class MacDatabaseSettingsSheet {
         guard model.tabs.indices.contains(tabs.selectedSegment) else { return }
         model.selection = model.tabs[tabs.selectedSegment]
     }
+
+    /// Database ▸ Change Master Key… opens it without waiting for the file facts the Security tab shows.
+    func showMasterKey(selectingSecurityTab: Bool = false) {
+        guard let session = model.session, session.state == .unlocked, !model.isReadOnly, !session.isSaving,
+              let parent = childParent() else { return }
+        if selectingSecurityTab, let index = model.tabs.firstIndex(of: .security) {
+            model.commitNickname()
+            tabs.selectedSegment = index
+            model.selection = .security
+        }
+        let child = MacMasterKeySheet(session: session)
+        masterKeySheet = child
+        presentChild(child.shell, parent) { [weak self, weak child] _ in
+            if let self, self.masterKeySheet === child { self.masterKeySheet = nil }
+        }
+    }
+
+    func showEncryptionSettings() {
+        guard model.canChangeSecurity, let session = model.session, let summary = model.fileInfo?.summary,
+              let parent = childParent() else { return }
+        let child = MacEncryptionSettingsSheet(session: session, current: summary)
+        encryptionSheet = child
+        presentChild(child.shell, parent) { [weak self, weak child] _ in
+            if let self, self.encryptionSheet === child { self.encryptionSheet = nil }
+        }
+    }
+
+    private func childParent() -> NSWindow? {
+        guard shell.isPresented, masterKeySheet == nil, encryptionSheet == nil,
+              let window = shell.window, window.attachedSheet == nil else { return nil }
+        return window
+    }
 }
 
 @MainActor
 private final class MacDatabaseSettingsWindow {
     weak var window: NSWindow?
+    weak var sheet: MacDatabaseSettingsSheet?
 }
 
 private struct MacDatabaseSettingsContent: View {
     @Bindable var model: MacDatabaseSettingsModel
     let window: @MainActor () -> NSWindow?
-    @State private var masterKey = false
-    @State private var encryption = false
+    let changeMasterKey: @MainActor () -> Void
+    let changeEncryption: @MainActor () -> Void
     @State private var icons = false
     @State private var exportRequest: DatabaseExportRequest?
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                Form {
-                    switch model.selection {
-                    case .general: MacDatabaseGeneralTab(model: model, showIcons: { icons = true })
-                    case .security: MacDatabaseSecurityTab(model: model, changeMasterKey: { masterKey = true }, changeEncryption: { encryption = true })
-                    case .sync: MacDatabaseSyncTab(model: model)
-                    case .autoFill: MacDatabaseAutoFillTab(model: model, window: window)
-                    case .backups: MacDatabaseBackupsTab(model: model, export: exportDatabaseCopy)
-                    }
-                }
-                .formStyle(.columns)
-                .padding(20)
-            }
-            .navigationDestination(isPresented: $masterKey) {
-                if let session = model.session { MasterKeyChangeView(sessionViewModel: session) }
-            }
-            .navigationDestination(isPresented: $encryption) {
-                if let session = model.session, let summary = model.fileInfo?.summary {
-                    EncryptionSettingsView(sessionViewModel: session, current: summary)
+        ScrollView {
+            Form {
+                switch model.selection {
+                case .general: MacDatabaseGeneralTab(model: model, showIcons: { icons = true })
+                case .security: MacDatabaseSecurityTab(model: model, changeMasterKey: changeMasterKey, changeEncryption: changeEncryption)
+                case .sync: MacDatabaseSyncTab(model: model)
+                case .autoFill: MacDatabaseAutoFillTab(model: model, window: window)
+                case .backups: MacDatabaseBackupsTab(model: model, export: exportDatabaseCopy)
                 }
             }
+            .formStyle(.columns)
+            .padding(20)
         }
         .task(id: model.session?.openTimeSHA512) { await model.refreshFactsIfNeeded() }
         .onDisappear { model.commitNickname() }
@@ -137,8 +171,8 @@ private struct MacDatabaseGeneralTab: View {
 
 private struct MacDatabaseSecurityTab: View {
     let model: MacDatabaseSettingsModel
-    let changeMasterKey: () -> Void
-    let changeEncryption: () -> Void
+    let changeMasterKey: @MainActor () -> Void
+    let changeEncryption: @MainActor () -> Void
     var body: some View {
         LabeledContent("Master key:") {
             VStack(alignment: .leading, spacing: 8) {

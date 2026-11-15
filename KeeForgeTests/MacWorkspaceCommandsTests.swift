@@ -52,7 +52,28 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         session.lockRequest(force: true)
         assertDisabled(MacWorkspaceCommands(session: session, presentation: presentation))
         MacWorkspaceCommands(session: session, presentation: presentation).showDatabaseSettings()
+        MacWorkspaceCommands(session: session, presentation: presentation).changeMasterKey()
         XCTAssertFalse(presentation.isShowingDatabaseDetails)
+        XCTAssertFalse(presentation.masterKeyChangeRequested)
+    }
+
+    func testChangeMasterKeyOpensSettingsWithTheRequestAndIsDimmedReadOnly() async throws {
+        let (session, presentation, _) = try await makeSession()
+        let commands = MacWorkspaceCommands(session: session, presentation: presentation)
+        XCTAssertTrue(commands.canChangeMasterKey)
+        commands.changeMasterKey()
+        XCTAssertTrue(presentation.isShowingDatabaseDetails)
+        XCTAssertTrue(presentation.masterKeyChangeRequested)
+        presentation.reset()
+        XCTAssertFalse(presentation.masterKeyChangeRequested)
+
+        let (readOnly, other, _) = try await makeSession(readOnly: true)
+        let dimmed = MacWorkspaceCommands(session: readOnly, presentation: other)
+        XCTAssertTrue(dimmed.canShowDatabaseSettings)
+        XCTAssertFalse(dimmed.canChangeMasterKey)
+        dimmed.changeMasterKey()
+        XCTAssertFalse(other.isShowingDatabaseDetails)
+        XCTAssertFalse(other.masterKeyChangeRequested)
     }
 
     func testLibraryCommandsSelectTheCollectionAsTheSidebarDoes() async throws {
@@ -271,6 +292,7 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         XCTAssertFalse(commands.canCollapseAllGroups, file: file, line: line)
         XCTAssertFalse(commands.canSyncNow, file: file, line: line)
         XCTAssertFalse(commands.canShowDatabaseSettings, file: file, line: line)
+        XCTAssertFalse(commands.canChangeMasterKey, file: file, line: line)
     }
 
     private func makeSession(readOnly: Bool = false,

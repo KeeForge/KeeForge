@@ -1,3 +1,5 @@
+import KDBXKit
+import LocalAuthentication
 import XCTest
 @testable import KeeForge
 
@@ -352,6 +354,148 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
         XCTAssertFalse(succeeded)
         XCTAssertEqual(viewModel.newPassword, "new password")
         XCTAssertNotNil(viewModel.changeError)
+    }
+
+    // MARK: - Confirmed change (authentication, then the change)
+
+    private final class EventLog {
+        var events: [String] = []
+    }
+
+    private func makeLoggingViewModel(_ log: EventLog) -> MasterKeyChangeViewModel {
+        let viewModel = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
+            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _ in log.events.append("change") })
+        viewModel.newPassword = "new-password"
+        viewModel.confirmPassword = "new-password"
+        return viewModel
+    }
+
+    func testConfirmedChangeAuthenticatesBeforeTheChange() async {
+        let log = EventLog()
+        let viewModel = makeLoggingViewModel(log)
+
+        let succeeded = await viewModel.performConfirmedChange {
+            XCTAssertTrue(viewModel.isAuthenticating)
+            log.events.append("authenticate")
+        }
+
+        XCTAssertTrue(succeeded)
+        XCTAssertEqual(log.events, ["authenticate", "change"])
+        XCTAssertFalse(viewModel.isAuthenticating)
+        XCTAssertEqual(viewModel.newPassword, "")
+    }
+
+    func testFailedAuthenticationIsAnErrorAndNothingChanges() async {
+        let log = EventLog()
+        let viewModel = makeLoggingViewModel(log)
+
+        let succeeded = await viewModel.performConfirmedChange { throw LAError(.systemCancel) }
+
+        XCTAssertFalse(succeeded)
+        XCTAssertEqual(log.events, [])
+        XCTAssertEqual(viewModel.changeError, "Authentication didn't complete. The master key was not changed.")
+        XCTAssertFalse(viewModel.isAuthenticating)
+        XCTAssertEqual(viewModel.newPassword, "new-password", "The fields stay for another try")
+    }
+
+    func testCancelledAuthenticationAbortsWithoutAnError() async {
+        let log = EventLog()
+        let viewModel = makeLoggingViewModel(log)
+
+        let succeeded = await viewModel.performConfirmedChange { throw LAError(.userCancel) }
+
+        XCTAssertFalse(succeeded)
+        XCTAssertEqual(log.events, [])
+        XCTAssertNil(viewModel.changeError)
+    }
+
+    func testEndingTheFormDuringAuthenticationAbortsTheChange() async {
+        let log = EventLog()
+        let viewModel = makeLoggingViewModel(log)
+
+        let succeeded = await viewModel.performConfirmedChange {
+            log.events.append("authenticate")
+            viewModel.cancelPendingChange()
+        }
+
+        XCTAssertFalse(succeeded)
+        XCTAssertEqual(log.events, ["authenticate"])
+        XCTAssertEqual(viewModel.newPassword, "")
+        XCTAssertNil(viewModel.changeError)
+    }
+
+    func testInvalidFormNeverAuthenticates() async {
+        let log = EventLog()
+        let viewModel = makeLoggingViewModel(log)
+        viewModel.confirmPassword = "other"
+
+        let succeeded = await viewModel.performConfirmedChange { log.events.append("authenticate") }
+
+        XCTAssertFalse(succeeded)
+        XCTAssertEqual(log.events, [])
+        XCTAssertNotNil(viewModel.validationError)
+    }
+
+    func testWeakPasswordWarnsButDoesNotBlockTheChange() async {
+        let log = EventLog()
+        let viewModel = makeLoggingViewModel(log)
+        viewModel.newPassword = "abc"
+        viewModel.confirmPassword = "abc"
+        XCTAssertNotNil(viewModel.passwordStrengthWarning)
+
+        let succeeded = await viewModel.performConfirmedChange {}
+
+        XCTAssertTrue(succeeded)
+        XCTAssertEqual(log.events, ["change"])
+    }
+
+    // MARK: - Created key file
+
+    private final class KeyFileWrites: @unchecked Sendable {
+        var saved: [Data] = []
+        var wipedAfterSave: [Bool] = []
+    }
+
+    func testCreatedKeyFileIsWrittenOnlyToTheChosenURLWipedAndSelected() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("vault.keyx")
+        let writes = KeyFileWrites()
+        let viewModel = makeViewModel()
+
+        try await viewModel.createKeyFile(at: url, write: { data, url in
+            writes.saved.append(Data(data))
+            try data.write(to: url)
+        }, wipe: { bytes in
+            let matchesSaved = writes.saved.last == bytes
+            SecureWipe.wipe(&bytes)
+            writes.wipedAfterSave.append(matchesSaved && bytes.allSatisfy { $0 == 0 })
+        })
+
+        XCTAssertEqual(writes.saved.count, 1)
+        XCTAssertEqual(writes.wipedAfterSave, [true], "The buffer that was saved is wiped after the save")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["vault.keyx"], "No temporary copy")
+        XCTAssertEqual(try Data(contentsOf: url), writes.saved.first)
+        XCTAssertEqual(viewModel.keyFileChange, .replace)
+        XCTAssertEqual(viewModel.pickedKeyFileData, writes.saved.first)
+        XCTAssertEqual(viewModel.pickedKeyFileFilename, "vault.keyx")
+        XCTAssertNotNil(viewModel.pickedKeyFileBookmarkData)
+    }
+
+    func testCreatedKeyFileIsNotSelectedAfterTheFormEnded() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("vault.keyx")
+        let viewModel = makeViewModel()
+        viewModel.cancelPendingChange()
+
+        try await viewModel.createKeyFile(at: url)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), "The saved file stays where the user put it")
+        XCTAssertEqual(viewModel.keyFileChange, .keepCurrent)
+        XCTAssertNil(viewModel.pickedKeyFileData)
     }
 
     // MARK: - Cancellation

@@ -327,6 +327,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         }
     }
     @objc func showDatabaseSettings(_ sender: Any?) { workspaceCommands.showDatabaseSettings() }
+    @objc func changeMasterKey(_ sender: Any?) { workspaceCommands.changeMasterKey() }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
@@ -371,6 +372,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         case #selector(importPasswords): return workspaceCommands.canImportPasswords
         case #selector(exportDatabase): return workspaceCommands.canExportDatabase
         case #selector(showDatabaseSettings): return workspaceCommands.canShowDatabaseSettings
+        case #selector(changeMasterKey): return workspaceCommands.canChangeMasterKey
         default: return false
         }
     }

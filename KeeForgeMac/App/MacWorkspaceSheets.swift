@@ -15,7 +15,7 @@ final class MacWorkspaceSheets {
     private var sheetEndObserver: NSObjectProtocol?
     private(set) var childSheet: MacFormSheetController?
     private var iconPicker: MacIconPickerController?
-    private var databaseSettings: MacDatabaseSettingsSheet?
+    private(set) var databaseSettings: MacDatabaseSettingsSheet?
     private var passwordImport: MacPasswordImportSheet?
     private var editorCoordinator: DatabaseEditorCoordinator?
     private(set) var sheet: MacFormSheetController?
@@ -61,6 +61,7 @@ final class MacWorkspaceSheets {
         _ = presentation.pendingMove
         _ = presentation.passwordImport
         _ = presentation.isShowingDatabaseDetails
+        _ = presentation.masterKeyChangeRequested
     }
 
     private var requestedID: String? {
@@ -101,6 +102,7 @@ final class MacWorkspaceSheets {
         if let sheet {
             if requestedID == activeID {
                 if activeID != "import" { sheet.setBusy(session.isSaving, label: String(localized: "Saving changes...")) }
+                showRequestedMasterKey()
                 return
             }
             endCurrent()
@@ -168,6 +170,7 @@ final class MacWorkspaceSheets {
             picker.onDoubleClick = { [weak shell] in shell?.performDefault() }
         } else {
             let settings = MacDatabaseSettingsSheet(model: MacDatabaseSettingsModel(reference: session.databaseReference, session: session))
+            settings.presentChild = { [weak self] in self?.present($0, $1, $2) }
             databaseSettings = settings
             shell = settings.shell
         }
@@ -200,6 +203,13 @@ final class MacWorkspaceSheets {
             editorCoordinator = nil
             Task { @MainActor [weak self] in self?.reconcile() }
         }
+        showRequestedMasterKey()
+    }
+
+    private func showRequestedMasterKey() {
+        guard presentation.masterKeyChangeRequested, activeID == "details", let databaseSettings else { return }
+        presentation.masterKeyChangeRequested = false
+        databaseSettings.showMasterKey(selectingSecurityTab: true)
     }
 
     private func isCurrent(_ lockCycle: Int) -> Bool {
@@ -212,7 +222,7 @@ final class MacWorkspaceSheets {
         else if id.hasPrefix("icon-") { presentation.entryIconID = nil }
         else if id.hasPrefix("edit-") { presentation.groupEditor = nil }
         else if id.hasPrefix("move-") { presentation.pendingMove = nil }
-        else if id == "details" { presentation.isShowingDatabaseDetails = false }
+        else if id == "details" { presentation.isShowingDatabaseDetails = false; presentation.masterKeyChangeRequested = false }
     }
 
     private func endCurrent() {

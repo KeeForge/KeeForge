@@ -77,6 +77,7 @@ final class MacMainMenuTests: XCTestCase {
             ("Lock All Databases", "l", option, "lockAllDatabases:"),
             ("Sync Now", "r", shift, "syncNow:"),
             ("Database Settings…", "i", command, "showDatabaseSettings:"),
+            ("Change Master Key…", "", [], "changeMasterKey:"),
             ("Password Generator", "", [], "showPasswordGenerator:"),
         ], [
             ("Minimize", "m", command, "performMiniaturize:"),
@@ -84,7 +85,7 @@ final class MacMainMenuTests: XCTestCase {
             ("Databases", "0", shift, "showDatabasesWindow:"),
             ("Bring All to Front", "", [], "arrangeInFront:"),
         ], [("KeeForge Help", "", [], "showHelp:"), ("Report a Bug", "", [], "reportBug:")]]
-        let databaseActions: Set<String> = ["importPasswords:", "exportDatabase:", "newEntry:", "newGroup:", "saveDatabase:", "closeDatabase:", "copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "editEntry:", "duplicateSelectedEntry:", "moveSelectedEntries:", "deleteSelection:", "findEntry:", "showAllEntries:", "showVerificationCodes:", "showPasskeys:", "chooseSortOrder:", "chooseSortDirection:", "expandAllGroups:", "collapseAllGroups:", "showInLargeType:", "lockDatabase:", "syncNow:", "showDatabaseSettings:"]
+        let databaseActions: Set<String> = ["importPasswords:", "exportDatabase:", "newEntry:", "newGroup:", "saveDatabase:", "closeDatabase:", "copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "editEntry:", "duplicateSelectedEntry:", "moveSelectedEntries:", "deleteSelection:", "findEntry:", "showAllEntries:", "showVerificationCodes:", "showPasskeys:", "chooseSortOrder:", "chooseSortDirection:", "expandAllGroups:", "collapseAllGroups:", "showInLargeType:", "lockDatabase:", "syncNow:", "showDatabaseSettings:", "changeMasterKey:"]
         let appActions: Set<String> = ["showAboutPanel:", "showSettings:", "newDatabase:", "openDatabase:", "showHelp:", "reportBug:", "checkForUpdates:", "showDatabasesWindow:", "connectToServer:", "lockAllDatabases:", "showPasswordGenerator:"]
         for (top, contracts) in zip(menu.items, expected) {
             let submenu = try XCTUnwrap(top.submenu)
@@ -122,7 +123,7 @@ final class MacMainMenuTests: XCTestCase {
         ])
         let sortHeader = try XCTUnwrap(menu.items[3].submenu?.items.first { $0.title == localized("Sort By") })
         XCTAssertTrue(sortHeader.isSectionHeader)
-        XCTAssertEqual(separatedTitles(menu.items[4]), [["Lock", "Lock All Databases"], ["Sync Now"], ["Database Settings…"], ["Password Generator"]].map { $0.map(localized) })
+        XCTAssertEqual(separatedTitles(menu.items[4]), [["Lock", "Lock All Databases"], ["Sync Now"], ["Database Settings…", "Change Master Key…"], ["Password Generator"]].map { $0.map(localized) })
         let view = try XCTUnwrap(menu.items[3].submenu)
         XCTAssertEqual(view.items.filter { $0.action == #selector(DatabaseWindowController.chooseSortOrder) }
             .compactMap { $0.representedObject as? String }, DatabaseViewModel.SortOrder.allCases.map(\.rawValue))

@@ -191,7 +191,7 @@ final class MacDatabasesSheets: NSObject {
                         defer { document.resetBytes(in: 0..<document.count) }
                         let scoped = url.startAccessingSecurityScopedResource()
                         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                        try document.write(to: url, options: .atomic)
+                        try document.write(to: url)
                     }.value
                 } else { url = await self.panels.chooseKeyFile() }
                 guard self.generation == token, let url else { return }

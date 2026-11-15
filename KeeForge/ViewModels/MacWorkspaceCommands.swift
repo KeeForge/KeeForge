@@ -164,5 +164,17 @@ struct MacWorkspaceCommands {
         guard canShowDatabaseSettings else { return }
         presentation.isShowingDatabaseDetails = true
     }
+
+    /// The sheet reports the rekey's other preconditions (a save running, unsaved changes), as before.
+    var canChangeMasterKey: Bool {
+        guard let session = unlocked else { return false }
+        return !session.isReadOnly
+    }
+
+    func changeMasterKey() {
+        guard canChangeMasterKey else { return }
+        presentation.masterKeyChangeRequested = true
+        presentation.isShowingDatabaseDetails = true
+    }
 }
 #endif
