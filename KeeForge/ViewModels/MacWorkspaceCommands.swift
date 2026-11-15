@@ -159,6 +159,14 @@ struct MacWorkspaceCommands {
         return Task { await session.syncCloudNow() }
     }
 
+    /// Database ▸ Discard Pending Upload…: a conflicted AutoFill upload, with no
+    /// unsaved draft, save or editor that the discard could race, and no sheet up.
+    var canDiscardPendingUpload: Bool {
+        guard let session = unfrozen, !presentation.hasWorkspaceSheet, !session.isDirty else { return false }
+        return session.hasPendingUploadConflict
+            || presentation.pendingUploads.counts(session.databaseReference.id).conflicts > 0
+    }
+
     var canShowDatabaseSettings: Bool { unlocked != nil }
 
     func showDatabaseSettings() {

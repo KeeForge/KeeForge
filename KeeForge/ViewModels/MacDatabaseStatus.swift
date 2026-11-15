@@ -12,6 +12,8 @@ struct MacPendingUploads {
     var counts: @MainActor (UUID) -> Counts
     /// What went wrong, for the window that asked to show.
     var push: @MainActor (UUID) async -> PendingUploadAlert?
+    /// Drops the conflicted uploads after a timestamped backup, as the database list's discard does.
+    var discardConflicts: @MainActor (UUID) async -> Void = { _ in }
 
     static let none = MacPendingUploads(counts: { _ in Counts() }, push: { _ in nil })
 }
@@ -288,7 +290,7 @@ struct MacDatabaseStatus: Equatable {
             let text = [String(localized: "Offline"), synced].compactMap(\.self).joined(separator: separator)
             return (Line(storage: storage, state: text, dot: .neutral), nil)
         case .disconnected:
-            return (warning(String(localized: "Reconnect needed")), nil)
+            return (warning(String(localized: "Reconnect needed")), .reconnect(provider: storage))
         case .failed:
             return (warning(String(localized: "Sync failed")), nil)
         case nil:
@@ -326,7 +328,10 @@ struct MacDatabaseStatus: Equatable {
         case .offline:
             notices.append(Notice(kind: .cloud, text: CloudSyncResolution.offlineCachedBannerMessage))
         case .disconnected:
-            notices.append(Notice(kind: .cloud, text: CloudSyncResolution.disconnectedCachedBannerMessage, isWarning: true))
+            // The save-error notice above already offers Reconnect.
+            notices.append(Notice(kind: .cloud, text: CloudSyncResolution.disconnectedCachedBannerMessage,
+                                  action: state.needsReconnect ? nil : .reconnect(provider: provider), isWarning: true,
+                                  isActionEnabled: state.isReconnectInFlight == false))
         case .failed(let text):
             notices.append(Notice(kind: .cloud, text: text, isWarning: true))
         case nil:

@@ -46,8 +46,8 @@ and remaining management confirmations. The brand panel shows the app icon, name
 and sends New Database…, Open Database File… and Connect to Server… (captioned
 with the server types) to the same nil-targeted commands as the File menu. The
 list renders `MacDatabasesLauncherViewModel.rows` (local, WebDAV and FTP only)
-in an inset `NSTableView`: storage tile, name, "file · storage", a problem or
-last-opened line, and Quick Launch, Read-Only, Open (window unlocked) or the
+in an inset `NSTableView`: storage tile, name with Read-Only inline, "file · storage", a problem or
+last-opened line, and Quick Launch, Open (window unlocked) or the
 lock, and Touch ID. Return and double-click open or front the selected row;
 the row menu holds Open and the management items; the bottom bar's + offers
 the three add commands and − removes the selection. With nothing listed the
@@ -203,10 +203,14 @@ window or app refuses or ignores it. Groups do not drag.
 The status card is always shown for an unlocked database: its name (with the
 Read-Only badge), Database Settings, Sync Now (cloud only) and Lock, the
 storage and state line from `MacDatabaseStatus`, and the state's one recovery
-action (Retry Save, Resolve…, Reconnect, Push Pending Changes). Sync and upload
+action (Retry Save, Resolve…, Reconnect, Push Pending Changes); Reconnect also
+covers a cached copy opened while the server rejects the saved sign-in. Sync and upload
 notices sit above the entry list (`MacWorkspaceNoticesView`). Both act through
-`MacDatabaseStatusActions`; pending upload counts and Push come from the
-database list through `MacWorkspacePresentation.pendingUploads`. The
+`MacDatabaseStatusActions`; pending upload counts, Push and the discard come from the
+database list through `MacWorkspacePresentation.pendingUploads`. Database ▸
+Discard Pending Upload… asks in the window through `MacWorkspaceAlerts` (Cancel is
+the default) and is dimmed without a conflicted upload or with an unsaved draft,
+save, open editor or sheet. The
 outline is disabled while saving and takes its appearance from the window, which
 the root host's `preferredColorScheme` sets from the in-app setting. Focus and
 keyboard come from the outline as first responder; nothing routes focus to it.

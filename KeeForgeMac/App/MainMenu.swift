@@ -91,6 +91,7 @@ enum MainMenu {
         add(String(localized: "Lock All Databases"), #selector(AppDelegate.lockAllDatabases), key: "l", modifiers: [.command, .option], to: database)
         database.addItem(.separator())
         add(String(localized: "Sync Now"), #selector(DatabaseWindowController.syncNow), key: "r", modifiers: [.command, .shift], to: database)
+        add(String(localized: "Discard Pending Upload…"), #selector(DatabaseWindowController.discardPendingUpload), to: database)
         database.addItem(.separator())
         add(String(localized: "Database Settings…"), #selector(DatabaseWindowController.showDatabaseSettings), key: "i", to: database)
         add(String(localized: "Change Master Key…"), #selector(DatabaseWindowController.changeMasterKey), to: database)

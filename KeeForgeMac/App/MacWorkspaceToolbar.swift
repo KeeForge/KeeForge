@@ -310,11 +310,7 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 /// bounds, which do not clip. A narrow column truncates the name first.
 final class MacToolbarTitleView: NSView {
     static let readOnlyIdentifier = "toolbar.title.read-only"
-    /// The ReadOnly board's amber (#a05a00) in light mode; the system orange reads better on dark.
-    static let readOnlyTint = NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            ? .systemOrange : NSColor(srgbRed: 0xa0 / 255, green: 0x5a / 255, blue: 0, alpha: 1)
-    }
+    static let readOnlyTint = MacStatusPalette.warning
     private static let gap: CGFloat = 8
     private static let margin: CGFloat = 12
 

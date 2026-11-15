@@ -271,6 +271,73 @@ final class MacWorkspaceAlertsTests: XCTestCase {
         }
     }
 
+    func testDiscardPendingUploadAsksWithCancelAsTheDefaultAndDiscardsThroughTheList() async throws {
+        let (alerts, session, presentation) = try await makeAlerts()
+        var discarded: [UUID] = []
+        presentation.pendingUploads = MacPendingUploads(
+            counts: { _ in .init(waiting: 0, conflicts: 1) }, push: { _ in nil },
+            discardConflicts: { discarded.append($0) })
+
+        alerts.requestDiscardPendingUpload()
+        await settle()
+        XCTAssertEqual(alerts.presented?.kind, .discardPendingUpload)
+        let alert = try XCTUnwrap(shown.last?.alert)
+        XCTAssertEqual(alert.messageText, String(localized: "Discard Pending Upload?"))
+        XCTAssertEqual(alert.informativeText, MacDatabasesAlerts.makeDiscardAlert(for: session.databaseReference).informativeText,
+                       "The Databases window's wording")
+        XCTAssertEqual(alert.buttons.map(\.title), [String(localized: "Discard Upload"), String(localized: "Cancel")])
+        XCTAssertEqual(alert.buttons.map { $0.accessibilityIdentifier() },
+                       ["pending-upload-discard.confirm", "pending-upload-discard.cancel"])
+        XCTAssertTrue(alert.buttons[0].hasDestructiveAction)
+        XCTAssertEqual(alert.buttons[0].keyEquivalent, "", "Return never discards")
+        XCTAssertEqual(alert.buttons[1].keyEquivalent, "\r", "Cancel is the default")
+
+        shown.last?.answer(.alertSecondButtonReturn)
+        await settle()
+        XCTAssertNil(alerts.presented)
+        XCTAssertEqual(discarded, [])
+
+        alerts.requestDiscardPendingUpload()
+        await settle()
+        shown.last?.answer(.alertFirstButtonReturn)
+        try await waitUntil { discarded.isEmpty == false }
+        XCTAssertEqual(discarded, [session.databaseReference.id])
+        XCTAssertEqual(shown.count, 2)
+    }
+
+    func testDiscardPendingUploadEndsOnLockAndDropsAStaleAnswer() async throws {
+        let (alerts, session, presentation) = try await makeAlerts(save: { _, _, _, hash, _, _, _ in .saved(newSHA512: hash) })
+        var discarded = 0
+        presentation.pendingUploads = MacPendingUploads(
+            counts: { _ in .init(waiting: 0, conflicts: 1) }, push: { _ in nil },
+            discardConflicts: { _ in discarded += 1 })
+
+        alerts.requestDiscardPendingUpload()
+        await settle()
+        let staleAnswer = try XCTUnwrap(shown.last?.answer)
+        try session.createGroup(named: "Draft", in: try XCTUnwrap(session.visibleRootGroupID))
+        await settle()
+        XCTAssertNil(alerts.presented, "A draft that the discard could race ends the alert")
+        staleAnswer(.alertFirstButtonReturn)
+        await settle()
+        XCTAssertEqual(discarded, 0)
+
+        alerts.requestDiscardPendingUpload()
+        await settle()
+        XCTAssertNil(alerts.presented, "Refused while the draft is unsaved")
+        await session.saveHandlingError()
+        alerts.requestDiscardPendingUpload()
+        await settle()
+        XCTAssertEqual(alerts.presented?.kind, .discardPendingUpload)
+        let lockedAnswer = try XCTUnwrap(shown.last?.answer)
+        session.lockRequest(force: true)
+        await settle()
+        XCTAssertNil(alerts.presented, "Lock ends the alert")
+        lockedAnswer(.alertFirstButtonReturn)
+        await settle()
+        XCTAssertEqual(discarded, 0)
+    }
+
     // MARK: - Helpers
 
     private func makeAlerts(

@@ -528,15 +528,56 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertFalse(card.isCompact)
         XCTAssertEqual(card.lineView.textField.stringValue, "Personal.kdbx · \(String(localized: "On This Mac"))")
         XCTAssertEqual(card.readOnlyBadge.attributedTitle.string, String(localized: "Read-only").uppercased())
+        XCTAssertGreaterThanOrEqual(card.nameField.frame.width.rounded(.up),
+                                    card.nameField.intrinsicContentSize.width.rounded(.down), "The name is not truncated")
 
         card.frame = NSRect(x: 0, y: 0, width: 200, height: 80)
         card.layoutSubtreeIfNeeded()
         XCTAssertTrue(card.isCompact)
         XCTAssertEqual(card.lineView.textField.stringValue, String(localized: "On This Mac"), "DarkMin drops the storage")
-        XCTAssertNotNil(card.readOnlyBadge.image, "The badge shrinks to the glasses")
+        XCTAssertNil(card.readOnlyBadge.image, "The pill stays at every width")
+        XCTAssertEqual(card.readOnlyBadge.attributedTitle.string, String(localized: "Read-only").uppercased())
+        XCTAssertFalse(card.readOnlyBadge.isHidden)
         XCTAssertEqual(card.readOnlyBadge.accessibilityLabel(), String(localized: "Read-only database"))
-        XCTAssertGreaterThanOrEqual(card.nameField.frame.width.rounded(.up),
-                                    card.nameField.intrinsicContentSize.width.rounded(.down), "The name is not truncated")
+        XCTAssertEqual(card.nameField.toolTip, "Personal", "A name the pill squeezes is still in the tooltip")
+    }
+
+    func testTheCardNamesItsDatabaseInATooltipAndWarnsInTheBoardsAmber() throws {
+        var state = MacDatabaseStatus.State()
+        state.name = "A Rather Long Database Name For The Card"
+        state.storage = .cloud(provider: "WebDAV")
+        state.hasSaveConflict = true
+        let card = MacSidebarStatusCardView()
+        card.update(MacDatabaseStatus(state))
+        XCTAssertEqual(card.nameField.toolTip, state.name)
+
+        let text = card.lineView.textField.attributedStringValue
+        let warning = (text.string as NSString).range(of: String(localized: "Save conflict"))
+        let color = try XCTUnwrap(text.attribute(.foregroundColor, at: warning.location, effectiveRange: nil) as? NSColor)
+        XCTAssertEqual(color, MacStatusPalette.warning)
+        let light = try XCTUnwrap(NSAppearance(named: .aqua))
+        var rgb: NSColor?
+        light.performAsCurrentDrawingAppearance { rgb = MacStatusPalette.warning.usingColorSpace(.sRGB) }
+        XCTAssertEqual(rgb?.redComponent ?? 0, 0xa0 / 255, accuracy: 0.01, "#a05a00 in light mode")
+        XCTAssertEqual(rgb?.greenComponent ?? 0, 0x5a / 255, accuracy: 0.01)
+        XCTAssertTrue(MacToolbarTitleView.readOnlyTint === MacStatusPalette.warning, "One amber for every status surface")
+    }
+
+    func testANoticeHasTheAmberTriangleAndAnIndentedAccentButton() throws {
+        let view = MacWorkspaceNoticeView(notice: .init(
+            kind: .reconnect, text: "Reconnect WebDAV to save changes.", action: .reconnect(provider: "WebDAV"), isWarning: true))
+        XCTAssertEqual(view.actionButton.title, String(localized: "Reconnect \("WebDAV")"))
+        XCTAssertEqual(view.actionButton.bezelColor, .controlAccentColor)
+        XCTAssertEqual(view.actionButton.controlSize, .regular)
+        XCTAssertEqual(view.actionButton.keyEquivalent, "", "Return stays with the window")
+        let row = try XCTUnwrap(view.actionButton.superview as? NSStackView)
+        XCTAssertEqual(row.edgeInsets.left, MacWorkspaceNoticeView.actionIndent)
+        XCTAssertEqual(MacWorkspaceNoticeView.actionIndent, 21)
+        let icon = try XCTUnwrap(view.textField.superview?.subviews.compactMap { $0 as? NSImageView }.first)
+        XCTAssertEqual(icon.contentTintColor, MacStatusPalette.warning)
+
+        let plain = MacWorkspaceNoticeView(notice: .init(kind: .cloud, text: CloudSyncResolution.offlineCachedBannerMessage))
+        XCTAssertTrue(try XCTUnwrap(plain.actionButton.superview).isHidden, "No action, no button row")
     }
 
     func testAReadOnlySessionShowsTheBadgeAndOffersNoGroupMenu() async throws {

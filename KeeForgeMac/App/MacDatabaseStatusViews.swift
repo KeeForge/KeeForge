@@ -1,5 +1,13 @@
 import AppKit
-import SwiftUI
+
+/// The status surfaces' warning colour: the boards' amber (#a05a00) in light
+/// mode; the system orange reads better on dark.
+enum MacStatusPalette {
+    static let warning = NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? .systemOrange : NSColor(srgbRed: 0xa0 / 255, green: 0x5a / 255, blue: 0, alpha: 1)
+    }
+}
 
 /// The status line's dot and text: the storage in secondary text, then the
 /// state, emphasized when it is a warning.
@@ -59,7 +67,7 @@ final class MacStatusLineView: NSStackView {
             let isWarning = line.dot == .warning
             text.append(NSAttributedString(string: state, attributes: [
                 .font: isWarning ? NSFont.systemFont(ofSize: 11, weight: .semibold) : font,
-                .foregroundColor: isWarning ? NSColor(Theme.State.warning) : NSColor.secondaryLabelColor,
+                .foregroundColor: isWarning ? MacStatusPalette.warning : NSColor.secondaryLabelColor,
             ]))
         }
         textField.attributedStringValue = text
@@ -106,9 +114,8 @@ final class MacSidebarStatusCardView: NSView {
     let lineView = MacStatusLineView()
     let actionButton = NSButton(title: "", target: nil, action: nil)
     let box = NSBox()
-    /// Below this width (the sidebar's minimum is 200, its ideal 240) the card
-    /// keeps the name whole: the line drops the storage name (DarkMin) and the
-    /// badge shrinks to the read-only glasses.
+    /// Below this width (the sidebar's minimum is 200, its ideal 240) the line
+    /// drops the storage name so the card keeps the name whole (DarkMin).
     static let compactWidth: CGFloat = 230
     private(set) var isCompact = false
 
@@ -136,7 +143,11 @@ final class MacSidebarStatusCardView: NSView {
         readOnlyBadge.layer?.cornerRadius = 7
         readOnlyBadge.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.14).cgColor
         readOnlyBadge.contentTintColor = .controlAccentColor
-        applyBadgeStyle()
+        readOnlyBadge.imagePosition = .noImage
+        readOnlyBadge.attributedTitle = NSAttributedString(
+            string: String(localized: "Read-only").uppercased(),
+            attributes: [.font: NSFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor.controlAccentColor]
+        )
         readOnlyBadge.setAccessibilityLabel(String(localized: "Read-only database"))
         readOnlyBadge.setAccessibilityIdentifier("sidebar.status-card.read-only")
         readOnlyBadge.setContentHuggingPriority(.required, for: .horizontal)
@@ -200,6 +211,7 @@ final class MacSidebarStatusCardView: NSView {
         guard status != self.status else { return }
         self.status = status
         nameField.stringValue = status.name
+        nameField.toolTip = status.name
         readOnlyBadge.isHidden = status.isReadOnly == false
         settingsButton.isEnabled = status.canShowSettings
         syncButton.isHidden = status.offersSyncNow == false
@@ -218,23 +230,7 @@ final class MacSidebarStatusCardView: NSView {
         let compact = bounds.width < Self.compactWidth
         guard compact != isCompact else { return }
         isCompact = compact
-        applyBadgeStyle()
         if let status { lineView.update(status.line, short: compact) }
-    }
-
-    private func applyBadgeStyle() {
-        if isCompact {
-            readOnlyBadge.attributedTitle = NSAttributedString(string: "")
-            readOnlyBadge.image = NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)
-            readOnlyBadge.imagePosition = .imageOnly
-        } else {
-            readOnlyBadge.image = nil
-            readOnlyBadge.imagePosition = .noImage
-            readOnlyBadge.attributedTitle = NSAttributedString(
-                string: String(localized: "Read-only").uppercased(),
-                attributes: [.font: NSFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor.controlAccentColor]
-            )
-        }
     }
 
     @objc private func controlClicked(_ sender: NSButton) {
@@ -314,6 +310,8 @@ final class MacWorkspaceNoticesView: NSStackView {
 }
 
 final class MacWorkspaceNoticeView: NSView {
+    /// Lines the button up with the text after the icon.
+    static let actionIndent: CGFloat = 21
     let notice: MacDatabaseStatus.Notice
     let textField: NSTextField
     let actionButton = NSButton(title: "", target: nil, action: nil)
@@ -339,7 +337,7 @@ final class MacWorkspaceNoticeView: NSView {
 
         let symbol = notice.isWarning ? "exclamationmark.triangle.fill" : "icloud.slash"
         let icon = NSImageView(image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil) ?? NSImage())
-        icon.contentTintColor = notice.isWarning ? NSColor(Theme.State.warning) : .secondaryLabelColor
+        icon.contentTintColor = notice.isWarning ? MacStatusPalette.warning : .secondaryLabelColor
         icon.setContentHuggingPriority(.required, for: .horizontal)
         textField.font = .systemFont(ofSize: 12, weight: .semibold)
         textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -348,9 +346,13 @@ final class MacWorkspaceNoticeView: NSView {
         titleRow.alignment = .firstBaseline
         titleRow.spacing = 7
 
+        // The board's accent-filled primary button, without taking Return from the window.
         actionButton.bezelStyle = .push
-        actionButton.controlSize = .small
-        actionButton.title = notice.action?.title ?? ""
+        actionButton.bezelColor = .controlAccentColor
+        actionButton.attributedTitle = NSAttributedString(string: notice.action?.title ?? "", attributes: [
+            .font: NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .semibold),
+            .foregroundColor: NSColor.alternateSelectedControlTextColor,
+        ])
         actionButton.isHidden = notice.action == nil
         actionButton.keyEquivalent = ""
         actionButton.isEnabled = notice.isActionEnabled
@@ -358,7 +360,10 @@ final class MacWorkspaceNoticeView: NSView {
         actionButton.target = self
         actionButton.action = #selector(actionClicked(_:))
 
-        let stack = NSStackView(views: [titleRow, actionButton])
+        let actionRow = NSStackView(views: [actionButton])
+        actionRow.edgeInsets = NSEdgeInsets(top: 0, left: Self.actionIndent, bottom: 0, right: 0)
+        actionRow.isHidden = notice.action == nil
+        let stack = NSStackView(views: [titleRow, actionRow])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8

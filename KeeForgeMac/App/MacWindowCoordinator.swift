@@ -102,7 +102,7 @@ final class MacWindowCoordinator {
         restorationStore: MacWindowRestorationStore? = nil,
         restoresWindows: Bool = true,
         screenFrames: @escaping @MainActor () -> [CGRect] = { NSScreen.screens.map(\.visibleFrame) },
-        terminationPrompt: @escaping MacWindowCloseGuard.UnsavedWorkPrompt = MacWindowCloseGuard.presentUnsavedWorkAlert,
+        terminationPrompt: @escaping MacWindowCloseGuard.UnsavedWorkPrompt = MacWindowCloseGuard.presentQuitUnsavedWorkAlert,
         removalPrompt: @escaping MacRemoveFromListAlert.Present = MacRemoveFromListAlert.present,
         databaseWindowContentSize: NSSize = DatabaseWindow.defaultContentSize,
         notificationCenter: NotificationCenter = .default,
@@ -356,6 +356,11 @@ final class MacWindowCoordinator {
             push: { databaseID in
                 guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return nil }
                 return await listViewModel.pushPendingChanges(for: reference, presentsAlert: false)
+            },
+            // The list's reload reconciles the open session's conflict flag.
+            discardConflicts: { databaseID in
+                guard let reference = listViewModel.databases.first(where: { $0.id == databaseID }) else { return }
+                await listViewModel.discardConflictedPendingUploads(for: reference)
             }
         )
         controller.loadWindow()

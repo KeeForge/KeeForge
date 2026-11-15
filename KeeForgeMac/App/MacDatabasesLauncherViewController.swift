@@ -540,8 +540,8 @@ final class MacLauncherEmptyStateView: NSStackView {
 
 // MARK: - Rows
 
-/// A database row: storage tile, name, "file · storage" and an optional
-/// problem or last-opened line, then Quick Launch, Read-Only, Open or locked,
+/// A database row: storage tile, name with Read-Only, "file · storage" and an
+/// optional problem or last-opened line, then Quick Launch, Open or locked,
 /// and Touch ID. The row identifier sits on the title text for XCUITest.
 @MainActor
 final class MacLauncherRowCellView: NSTableCellView {
@@ -588,7 +588,12 @@ final class MacLauncherRowCellView: NSTableCellView {
         let detailRow = NSStackView(views: [detailIcon, detailField])
         detailRow.spacing = 4
         detailRow.detachesHiddenViews = true
-        let labels = NSStackView(views: [titleField, subtitleField, detailRow])
+        // Read-only sits inline after the name (ReadOnly board).
+        readOnlyBadge.setContentCompressionResistancePriority(.required, for: .horizontal)
+        let titleRow = NSStackView(views: [titleField, readOnlyBadge])
+        titleRow.spacing = 6
+        titleRow.detachesHiddenViews = true
+        let labels = NSStackView(views: [titleRow, subtitleField, detailRow])
         labels.orientation = .vertical
         labels.alignment = .leading
         labels.spacing = 1
@@ -611,7 +616,7 @@ final class MacLauncherRowCellView: NSTableCellView {
         lockImage.image = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: String(localized: "Locked"))
         lockImage.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
         lockImage.setAccessibilityIdentifier("database-row.locked")
-        let trailing = NSStackView(views: [quickLaunchBadge, readOnlyBadge, openStack, touchIDImage, lockImage])
+        let trailing = NSStackView(views: [quickLaunchBadge, openStack, touchIDImage, lockImage])
         trailing.spacing = 10
         trailing.detachesHiddenViews = true
         trailing.setContentCompressionResistancePriority(.required, for: .horizontal)

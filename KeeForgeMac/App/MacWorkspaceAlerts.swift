@@ -13,6 +13,7 @@ final class MacWorkspaceAlerts {
         case mergeSummary
         case syncFailure
         case pushFailure(PendingUploadAlert)
+        case discardPendingUpload
     }
 
     enum ConflictChoice: Equatable {
@@ -33,6 +34,7 @@ final class MacWorkspaceAlerts {
     private var presentedConflict: SaveConflict?
     private var presentedSheetParent: NSWindow?
     private var wantsConflictPrompt = false
+    private var wantsDiscardPrompt = false
     private var lastConflict: SaveConflict?
     private var lastPromptRequestID: Int
     private let observation = MacObservation()
@@ -89,6 +91,8 @@ final class MacWorkspaceAlerts {
         var hasSyncFailure: Bool
         var isSaving: Bool
         var pushAlert: PendingUploadAlert?
+        var isDirty: Bool
+        var hasPendingUploadConflict: Bool
     }
 
     private func readState() -> State {
@@ -107,7 +111,9 @@ final class MacWorkspaceAlerts {
             hasMergeSummary: session.mergeSummaryMessage != nil,
             hasSyncFailure: hasSyncFailure,
             isSaving: session.isSaving,
-            pushAlert: presentation.pushAlert
+            pushAlert: presentation.pushAlert,
+            isDirty: session.isDirty,
+            hasPendingUploadConflict: session.hasPendingUploadConflict
         )
     }
 
@@ -117,6 +123,7 @@ final class MacWorkspaceAlerts {
             cycle = state.cycle
             lockResponseID = nil
             wantsConflictPrompt = false
+            wantsDiscardPrompt = false
             lastConflict = nil
             lastPromptRequestID = state.promptRequestID
             dismissPresented()
@@ -139,6 +146,11 @@ final class MacWorkspaceAlerts {
         lastPromptRequestID = state.promptRequestID
         // A conflict alert whose conflict cleared or changed asks about nothing; a changed one comes back fresh.
         if presented?.kind == .saveConflict, state.conflict != presentedConflict { dismissPresented() }
+        // Discarding is refused once a draft, save or editor could race it, or the conflict is gone.
+        if wantsDiscardPrompt || presented?.kind == .discardPendingUpload, !canDiscardPendingUpload {
+            wantsDiscardPrompt = false
+            if presented?.kind == .discardPendingUpload { dismissPresented() }
+        }
         presentNext(state)
     }
 
@@ -160,6 +172,8 @@ final class MacWorkspaceAlerts {
             .mergeSummary
         } else if wantsConflictPrompt, state.isSaving == false {
             .saveConflict
+        } else if wantsDiscardPrompt {
+            .discardPendingUpload
         } else if let pushAlert = state.pushAlert {
             .pushFailure(pushAlert)
         } else if state.hasSyncFailure {
@@ -169,7 +183,21 @@ final class MacWorkspaceAlerts {
         }
         guard let next else { return }
         if next == .saveConflict { wantsConflictPrompt = false }
+        if next == .discardPendingUpload { wantsDiscardPrompt = false }
         show(next)
+    }
+
+    // MARK: - Discard Pending Upload
+
+    private var canDiscardPendingUpload: Bool {
+        MacWorkspaceCommands(session: session, presentation: presentation).canDiscardPendingUpload
+    }
+
+    /// Database ▸ Discard Pending Upload…, asked in this window for this lock cycle.
+    func requestDiscardPendingUpload() {
+        guard !invalidated, canDiscardPendingUpload else { return }
+        wantsDiscardPrompt = true
+        presentNext(readState())
     }
 
     // MARK: - Alerts
@@ -240,6 +268,14 @@ final class MacWorkspaceAlerts {
                 alert.informativeText = failure.message
                 addButton(String(localized: "OK"), identifier: "pending-upload-push.ok", to: alert)
             }
+        case .discardPendingUpload:
+            // The Databases window's wording; Cancel is the default here (SyncProblems board).
+            alert.messageText = String(localized: "Discard Pending Upload?")
+            alert.informativeText = String(localized: "The pending change for “\(session.databaseReference.displayName)” could not be uploaded because the copy in the cloud changed. KeeForge keeps a timestamped backup on this device before discarding it.")
+            let discard = addButton(String(localized: "Discard Upload"), identifier: "pending-upload-discard.confirm", to: alert)
+            discard.hasDestructiveAction = true
+            discard.keyEquivalent = ""
+            addButton(String(localized: "Cancel"), identifier: "pending-upload-discard.cancel", to: alert).keyEquivalent = "\r"
         }
         return alert
     }
@@ -338,6 +374,11 @@ final class MacWorkspaceAlerts {
             case .message:
                 break
             }
+        case .discardPendingUpload:
+            guard response == .alertFirstButtonReturn, canDiscardPendingUpload else { return }
+            let discard = presentation.pendingUploads.discardConflicts
+            let databaseID = session.databaseReference.id
+            Task { await discard(databaseID) }
         }
     }
 

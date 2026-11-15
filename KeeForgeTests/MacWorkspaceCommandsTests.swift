@@ -287,6 +287,45 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         XCTAssertTrue(commands.canImportPasswords)
     }
 
+    func testDiscardPendingUploadNeedsAConflictAndNothingThatCouldRaceIt() async throws {
+        let gate = SaveGate()
+        let (session, presentation, tree) = try await makeSession(save: { _, _, _, hash, _, _, _ in
+            await gate.signalStarted()
+            await gate.waitUntilOpen()
+            return .saved(newSHA512: hash)
+        })
+        let commands = MacWorkspaceCommands(session: session, presentation: presentation)
+        XCTAssertFalse(commands.canDiscardPendingUpload, "No pending upload conflict")
+
+        var conflicts = 1
+        presentation.pendingUploads = MacPendingUploads(counts: { _ in .init(waiting: 0, conflicts: conflicts) },
+                                                        push: { _ in nil })
+        XCTAssertTrue(commands.canDiscardPendingUpload)
+        XCTAssertFalse(MacWorkspaceCommands(session: nil, presentation: presentation).canDiscardPendingUpload)
+
+        presentation.isShowingDatabaseDetails = true
+        XCTAssertFalse(commands.canDiscardPendingUpload, "Not under a sheet")
+        presentation.isShowingDatabaseDetails = false
+        presentation.beginNewEntry(in: session)
+        XCTAssertFalse(commands.canDiscardPendingUpload, "Not with the editor open")
+        presentation.closeEntryEditor()
+
+        try session.createGroup(named: "Draft", in: tree.work.id)
+        XCTAssertFalse(commands.canDiscardPendingUpload, "Not with unsaved changes")
+        let save = Task { await session.saveHandlingError() }
+        await gate.waitUntilStarted()
+        XCTAssertFalse(commands.canDiscardPendingUpload, "Not while saving")
+        await gate.open()
+        await save.value
+        XCTAssertTrue(commands.canDiscardPendingUpload)
+
+        conflicts = 0
+        XCTAssertFalse(commands.canDiscardPendingUpload)
+        conflicts = 1
+        session.lockRequest(force: true)
+        XCTAssertFalse(commands.canDiscardPendingUpload, "A locked window discards from the Databases window")
+    }
+
     func testExportIsDisabledWhenNoReadableCopyExists() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kdbx")
         try Data([1]).write(to: url)
@@ -306,6 +345,7 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         XCTAssertFalse(commands.canSort, file: file, line: line)
         XCTAssertFalse(commands.canCollapseAllGroups, file: file, line: line)
         XCTAssertFalse(commands.canSyncNow, file: file, line: line)
+        XCTAssertFalse(commands.canDiscardPendingUpload, file: file, line: line)
         XCTAssertFalse(commands.canShowDatabaseSettings, file: file, line: line)
         XCTAssertFalse(commands.canChangeMasterKey, file: file, line: line)
     }

@@ -314,6 +314,10 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     @objc func expandAllGroups(_ sender: Any?) { workspaceCommands.expandAllGroups() }
     @objc func collapseAllGroups(_ sender: Any?) { workspaceCommands.collapseAllGroups() }
     @objc func syncNow(_ sender: Any?) { workspaceCommands.syncNow() }
+    @objc func discardPendingUpload(_ sender: Any?) {
+        guard workspaceCommands.canDiscardPendingUpload else { return }
+        workspaceAlerts.requestDiscardPendingUpload()
+    }
     @objc func importPasswords(_ sender: Any?) { workspaceCommands.importPasswords() }
     @objc func exportDatabase(_ sender: Any?) {
         guard workspaceCommands.canExportDatabase, databaseExportTask == nil else { return }
@@ -369,6 +373,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         case #selector(expandAllGroups): return workspaceCommands.canExpandAllGroups
         case #selector(collapseAllGroups): return workspaceCommands.canCollapseAllGroups
         case #selector(syncNow): return workspaceCommands.canSyncNow
+        case #selector(discardPendingUpload): return workspaceCommands.canDiscardPendingUpload
         case #selector(importPasswords): return workspaceCommands.canImportPasswords
         case #selector(exportDatabase): return workspaceCommands.canExportDatabase
         case #selector(showDatabaseSettings): return workspaceCommands.canShowDatabaseSettings

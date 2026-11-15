@@ -80650,6 +80650,58 @@
         }
       }
     },
+    "Your changes haven’t been saved to this database yet. Quitting locks the database and discards them." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Änderungen wurden noch nicht in dieser Datenbank gesichert. Beim Beenden wird die Datenbank gesperrt und die Änderungen werden verworfen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los cambios aún no se han guardado en esta base de datos. Al salir, la base de datos se bloquea y los cambios se descartan."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos modifications n'ont pas encore été enregistrées dans cette base de données. Quitter verrouille la base de données et les abandonne."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le tue modifiche non sono ancora state salvate in questo database. Uscendo il database viene bloccato e le modifiche vengono scartate."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更はまだこのデータベースに保存されていません。終了すると、データベースがロックされ、変更は破棄されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ваши изменения ещё не сохранены в этой базе данных. При выходе база данных будет заблокирована, а изменения будут отменены."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的更改尚未保存到此数据库。退出会锁定数据库并放弃这些更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的變更尚未儲存到此資料庫。結束會鎖定資料庫並捨棄這些變更。"
+          }
+        }
+      }
+    },
     "Your database files are safe and unchanged. The Mac app opens files differently from the iPad version, so it needs you to add them again." : {
       "localizations" : {
         "de" : {

@@ -148,14 +148,23 @@ final class MacWindowCloseGuard {
     /// The standard AppKit unsaved-work choice, as a sheet on the window that
     /// is trying to close.
     static func presentUnsavedWorkAlert(_ window: NSWindow?, offersSave: Bool) async -> Choice {
+        await present(makeUnsavedWorkAlert(offersSave: offersSave, quitting: false), on: window)
+    }
+
+    /// The same choice for a quit, on each window with unsaved work in turn.
+    static func presentQuitUnsavedWorkAlert(_ window: NSWindow?, offersSave: Bool) async -> Choice {
+        await present(makeUnsavedWorkAlert(offersSave: offersSave, quitting: true), on: window)
+    }
+
+    static func makeUnsavedWorkAlert(offersSave: Bool, quitting: Bool) -> (alert: NSAlert, choices: [Choice]) {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = offersSave
             ? String(localized: "Save your changes before closing?")
             : String(localized: "Discard changes?")
-        alert.informativeText = String(
-            localized: "Your changes haven’t been saved to this database yet. Closing this window locks the database and discards them."
-        )
+        alert.informativeText = quitting
+            ? String(localized: "Your changes haven’t been saved to this database yet. Quitting locks the database and discards them.")
+            : String(localized: "Your changes haven’t been saved to this database yet. Closing this window locks the database and discards them.")
 
         // Added right to left, so this reads Don't Save · Cancel · Save.
         var choices: [Choice] = []
@@ -169,17 +178,20 @@ final class MacWindowCloseGuard {
         discardButton.keyEquivalent = "d"
         discardButton.keyEquivalentModifierMask = .command
         choices.append(.discard)
+        return (alert, choices)
+    }
 
+    private static func present(_ prompt: (alert: NSAlert, choices: [Choice]), on window: NSWindow?) async -> Choice {
         let response: NSApplication.ModalResponse
         if let window {
-            response = await alert.beginSheetModal(for: window)
+            response = await prompt.alert.beginSheetModal(for: window)
         } else {
-            response = alert.runModal()
+            response = prompt.alert.runModal()
         }
 
         let index = response.rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
-        guard choices.indices.contains(index) else { return .cancel }
-        return choices[index]
+        guard prompt.choices.indices.contains(index) else { return .cancel }
+        return prompt.choices[index]
     }
 
     /// A committed close locks only this window's session; a lock that already

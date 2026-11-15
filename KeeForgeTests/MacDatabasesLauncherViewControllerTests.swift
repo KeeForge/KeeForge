@@ -127,6 +127,8 @@ final class MacDatabasesLauncherViewControllerTests: XCTestCase {
         XCTAssertEqual(second.lockImage.accessibilityIdentifier(), "database-row.locked")
         XCTAssertFalse(second.readOnlyBadge.isHidden)
         XCTAssertEqual(second.readOnlyBadge.accessibilityIdentifier(), "database-row.read-only-badge")
+        XCTAssertTrue(second.readOnlyBadge.superview === second.titleField.superview, "Read-Only sits inline after the name")
+        XCTAssertFalse(second.readOnlyBadge.superview === second.lockImage.superview)
         XCTAssertFalse(second.touchIDImage.isHidden)
         XCTAssertEqual(controller.tableView(controller.tableView, heightOfRow: 1), MacDatabasesLauncherViewController.rowHeight)
 

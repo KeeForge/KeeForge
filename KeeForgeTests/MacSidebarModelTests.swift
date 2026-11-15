@@ -792,7 +792,6 @@ final class MacDatabaseStatusTests: MacSidebarSessionTestCase {
 
         status = MacDatabaseStatus(cloudState { $0.cachedCopy = .disconnected })
         XCTAssertEqual(status.line.text, "WebDAV · \(String(localized: "Reconnect needed"))")
-        XCTAssertNil(status.action)
         XCTAssertEqual(status.notices.map(\.text), [CloudSyncResolution.disconnectedCachedBannerMessage])
 
         status = MacDatabaseStatus(cloudState { $0.cachedCopy = .failed("Server said no") })
@@ -807,6 +806,48 @@ final class MacDatabaseStatusTests: MacSidebarSessionTestCase {
         XCTAssertEqual(status.notices.map(\.kind), [.syncResult])
         XCTAssertEqual(status.notices.first?.action, .dismissSyncResult)
         XCTAssertEqual(status.notices.first?.action?.title, String(localized: "Dismiss"))
+    }
+
+    func testACachedCopyWhoseSignInIsRejectedOffersReconnectInTheCardAndTheNotice() {
+        var status = MacDatabaseStatus(cloudState { $0.cachedCopy = .disconnected })
+        XCTAssertEqual(status.line.dot, .warning)
+        XCTAssertEqual(status.action, .reconnect(provider: "WebDAV"))
+        XCTAssertEqual(status.action?.accessibilityIdentifier, "sidebar.status-card.reconnect")
+        XCTAssertTrue(status.isActionEnabled)
+        XCTAssertEqual(status.notices.map(\.kind), [.cloud])
+        XCTAssertEqual(status.notices.first?.action, .reconnect(provider: "WebDAV"))
+        XCTAssertEqual(status.notices.first?.action?.title, String(localized: "Reconnect \("WebDAV")"))
+        XCTAssertEqual(status.notices.first?.isWarning, true)
+
+        status = MacDatabaseStatus(cloudState {
+            $0.cachedCopy = .disconnected
+            $0.isReconnectInFlight = true
+        })
+        XCTAssertFalse(status.isActionEnabled, "One reconnect at a time")
+        XCTAssertEqual(status.notices.first?.isActionEnabled, false)
+
+        status = MacDatabaseStatus(cloudState {
+            $0.cachedCopy = .disconnected
+            $0.needsReconnect = true
+        })
+        XCTAssertEqual(status.notices.map(\.kind), [.reconnect, .cloud])
+        XCTAssertEqual(status.notices.map(\.action), [.reconnect(provider: "WebDAV"), nil], "One Reconnect above the list")
+    }
+
+    func testEveryCloudStateKeepsSyncNow() {
+        let states: [(String, (inout MacDatabaseStatus.State) -> Void)] = [
+            ("pending upload", { $0.pendingUploads = .init(waiting: 2, conflicts: 0) }),
+            ("upload conflict", { $0.hasPendingUploadConflict = true }),
+            ("reconnect", { $0.needsReconnect = true }),
+            ("cached, rejected", { $0.cachedCopy = .disconnected }),
+            ("offline", { $0.cachedCopy = .offline }),
+            ("save conflict", { $0.hasSaveConflict = true }),
+        ]
+        for (name, configure) in states {
+            let status = MacDatabaseStatus(cloudState(configure))
+            XCTAssertTrue(status.offersSyncNow, name)
+            XCTAssertTrue(status.canSyncNow, name)
+        }
     }
 
     func testProblemsKeepTheBoardsPrecedence() {

@@ -734,6 +734,21 @@ final class MacWindowCoordinatorTests: XCTestCase {
 
     // MARK: - Quit
 
+    func testTheQuitPromptSaysQuittingWithTheCloseButtons() {
+        for offersSave in [true, false] {
+            let quit = MacWindowCloseGuard.makeUnsavedWorkAlert(offersSave: offersSave, quitting: true)
+            let close = MacWindowCloseGuard.makeUnsavedWorkAlert(offersSave: offersSave, quitting: false)
+            XCTAssertEqual(quit.alert.informativeText, String(
+                localized: "Your changes haven’t been saved to this database yet. Quitting locks the database and discards them."))
+            XCTAssertEqual(close.alert.informativeText, String(
+                localized: "Your changes haven’t been saved to this database yet. Closing this window locks the database and discards them."))
+            XCTAssertEqual(quit.alert.messageText, close.alert.messageText)
+            XCTAssertEqual(quit.alert.buttons.map(\.title), close.alert.buttons.map(\.title))
+            XCTAssertEqual(quit.choices, close.choices)
+            XCTAssertEqual(quit.choices, offersSave ? [.save, .cancel, .discard] : [.cancel, .discard])
+        }
+    }
+
     func testCleanQuitTerminatesNowAndKeepsThePreQuitTopology() throws {
         makeRestoringCoordinator()
         start()

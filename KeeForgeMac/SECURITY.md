@@ -27,14 +27,22 @@ key file, for that attempt), a new pick, a cleared or changed key-file
 association, every lock of that session (including Cancel while opening) and
 closing the window wipe them with `SecureWipe`.
 
-Reconnect for a WebDAV or FTP database (recovery page, status card, notice)
-shows the Connect to Server form as a sheet on that window, prefilled with the
+Reconnect for a WebDAV or FTP database (recovery page, status card, notice,
+including a cached copy opened while the saved sign-in is rejected) shows the Connect to Server form as a sheet on that window, prefilled with the
 stored server address and username but never the password. It accepts only the
 reference's own account, so a mistyped address cannot attach another account's
 credential, and a successful connect replaces that account's Keychain item. The
 sheet closes, and its password is dropped, on lock and window close. The unlock password field never copies, cuts,
 drags or serves its text to Services, and neither field offers completion or a
 content type that Passwords would fill.
+
+Discarding a conflicted AutoFill upload has two entry points: the Databases
+window's row and Database ▸ Discard Pending Upload… in an unlocked database
+window. Both go through `CloudSyncCoordinator.discardConflictedPendingUploads`,
+which backs up the cached copy before dropping a marker it protects and keeps
+the marker if the backup fails. The window's command is refused while the draft
+is unsaved, a save runs, the editor or a sheet is open; its alert defaults to
+Cancel, ends on lock and close, and drops an answer once any of those holds.
 
 The Databases window owns its native New Database, Connect to Server and remote
 browser sheets through [MacDatabasesSheets](App/MacDatabasesSheets.swift).
