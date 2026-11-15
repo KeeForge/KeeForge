@@ -6,9 +6,9 @@
 
 - `GroupListView` is iOS/iPadOS only. macOS browses through the native split controller and SwiftUI columns, with sheets and confirmations on the stable workspace presentation host. A feature added here needs its Mac counterpart there.
 - New Entry, Duplicate, and Edit Group open through `viewModel.workspace.present(_:)`; the shell presents the editor (`../../App/AGENTS.md`, Layout changes). On iPhone a created entry replaces its editor on the stack in one path change (`finishCompactEntryEditor`).
-- `GroupEditView` only collects fields; `DatabaseEditorCoordinator` applies them as one `updateGroup` edit and owns dirty state, Save and Lock, and completion (`../../ViewModels/AGENTS.md`). The Mac sidebar raises the group to the workspace so the sheet is hosted on the split view, not on a row that comes and goes.
+- `GroupEditView` only collects fields; `DatabaseEditorCoordinator` applies fields and a pending parent change in one draft before one save and owns dirty state, Save and Lock, and completion (`../../ViewModels/AGENTS.md`). The Mac sidebar raises the group to the workspace so the sheet is hosted on the split view, not on a row that comes and goes.
 - Recycled group rows expose the shared Restore action on iOS/iPadOS and in the Mac sidebar. The Recycle Bin itself is excluded.
-- The pickers (`GroupIconPickerView`, `MoveToGroupPickerView`) report a pick and dismiss. The caller mutates and saves; cancelling writes nothing.
+- The iOS pickers (`GroupIconPickerView`, `MoveToGroupPickerView`) report a pick and dismiss. The caller mutates and saves; cancelling writes nothing.
 - The database root lists its sync status (iPhone, cloud only), the tiles, and the root group's contents. Each tile pushes `DatabaseRoute.collection`, a `GroupListView` with `collection` set. The iPad sidebar keeps its own stack, so it passes `onOpenRoute`; compact appends to `workspace.navigationPath`.
 
 ## Invariants
@@ -27,12 +27,13 @@
 - `VerificationCodeRow` is two sibling buttons; the opening one keeps `entry.navlink` and does what the link would in each shell (select in the regular workspace, append to `workspace.navigationPath` in compact).
 - The group editor never previews a custom icon: the payload carries only a standard `iconID`, and the draft leaves a custom icon alone unless a different standard one is picked.
 - The group editor's tag row mirrors the entry editor's, with one intended difference: suggestions do not exclude inherited tags, because restating an ancestor's tag on a child group is legitimate.
-- On Mac the workspace uses `MacGroupPickerSheet` (native outline, select then Move/Restore, or double-click). `MacGroupPickerModelTests` covers its rows and eligibility. Group edit content stays hosted unchanged until its form rebuild; the window presenter owns its coordinator and deactivates it on teardown.
+- On Mac the workspace uses `MacGroupPickerSheet` (native outline, select then Move/Restore, or double-click). `MacGroupPickerModelTests` covers its rows and eligibility. The window presenter owns the hosted `MacGroupEditorView` and its coordinator, and deactivates it on teardown. Save and Lock uses a native alert through the group lock prompt adapter. Its nested parent picker changes only the form; Save stages fields and parent together, with self/descendant/bin destinations refused by `DatabaseViewModel`. The icon sheet selects then Use Icon; groups offer standard icons only. Cancel stages nothing.
 - `MoveToGroupPickerView` is also the New Entry destination picker, with its own title. Options are resolved when the sheet is built, not when the menu was tapped.
 
 ## Tests
 
 - New-entry detail after save: `EntryCreateFocusUITests` on iPhone and iPad; the Mac selection and inline-editor case is `MacSmokeUITests.testNewEntryIsSelectedAfterSaving`.
+- `GroupEditViewModelTests` and `DatabaseEditorCoordinatorTests` cover parent dirty state, atomic fields/move, cancellation and lock. `MacWorkspaceSheetsTests` covers stacked pickers and teardown; `MacIconPickerModelTests` covers icon selection and cancellable favicon state.
 - `VaultHomeUITests`, `VaultLargeTextUITests`, `TagBrowserUITests` for the root and its collections; `GroupEditUITests`, `GroupIconPickerUITests` for the editor and picker.
 - `KeeForgeUITestCase.selectDatabaseView` is the supported way to open a collection, or return to the root, in a test.
 - The iPad cloud title, the iPhone sync warning and its Sync Now, pull to refresh, and the status popover: `CloudUnlockSmokeUITests`.

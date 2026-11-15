@@ -18,6 +18,28 @@ final class GroupEditViewModel {
         var isHiddenFromAutoFill: Bool
     }
 
+    var parentGroupID: UUID?
+    private var originalParentGroupID: UUID?
+
+    func configureParent(in database: DatabaseViewModel) {
+        let parent = database.moveDestinationOptions(forGroupID: groupID).first { $0.isCurrentParent }?.id
+        parentGroupID = parent
+        originalParentGroupID = parent
+    }
+
+    func parentPath(in database: DatabaseViewModel) -> String {
+        var path: [String] = []
+        for option in database.groupDestinationOptions(currentGroupID: parentGroupID) {
+            path = Array(path.prefix(option.depth)) + [option.name]
+            if option.id == parentGroupID { return (path.count > 1 ? Array(path.dropFirst()) : path).joined(separator: " › ") }
+        }
+        return ""
+    }
+
+    var pendingParentGroupID: UUID? {
+        parentGroupID == originalParentGroupID ? nil : parentGroupID
+    }
+
     var name: String
     /// Tags the user has committed, rendered as removable pills — exact-string
     /// identity and arrival order, exactly like the entry editor's.
@@ -95,7 +117,7 @@ final class GroupEditViewModel {
     }
 
     var isDirty: Bool {
-        currentSnapshot != originalSnapshot
+        currentSnapshot != originalSnapshot || pendingParentGroupID != nil
     }
 
     /// A group must keep a name — the draft layer rejects an empty one, so the

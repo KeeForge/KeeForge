@@ -960,7 +960,7 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     @MainActor
-    func test_editorCoordinators_createUpdateAndRename_surviveRealLocalSaveAndReopen() async throws {
+    func test_editorCoordinators_createUpdateRenameAndMove_surviveRealLocalSaveAndReopen() async throws {
         let fixture = KDBXTestFixture.test
         let sourceBytes = try fixture.data(in: bundle)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -977,7 +977,8 @@ final class KDBXCompatibilityTests: XCTestCase {
         defer { database.lock() }
         await database.unlock(password: fixture.password)
         let root = try XCTUnwrap(database.rootGroup)
-        let group = try XCTUnwrap(root.groups.first)
+        let workspaceRoot = try XCTUnwrap(database.visibleRootGroup)
+        let group = try XCTUnwrap(workspaceRoot.groups.first)
         let existing = try XCTUnwrap(root.allEntries.first)
         let sessionKey = try XCTUnwrap(database.sessionKey)
         let originalPassword = try existing.password.decrypt(using: sessionKey)
@@ -1004,6 +1005,9 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertNil(updateEditor.errorMessage)
 
         let groupForm = GroupEditViewModel(editing: group, isHiddenFromAutoFill: false)
+        groupForm.configureParent(in: database)
+        let destination = try XCTUnwrap(workspaceRoot.groups.first { $0.id != group.id && $0.id != root.recycleBinUUID })
+        groupForm.parentGroupID = destination.id
         groupForm.name = "Coordinator-renamed group"
         let groupEditor = DatabaseEditorCoordinator(group: groupForm, database: database)
         groupEditor.activate()
@@ -1024,7 +1028,10 @@ final class KDBXCompatibilityTests: XCTestCase {
         let created = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.title == createForm.title })
         XCTAssertEqual(created.id, createdID)
         let updated = try XCTUnwrap(reopened.rootGroup.allEntries.first { $0.id == existing.id })
-        let renamed = try XCTUnwrap(reopened.rootGroup.groups.first { $0.id == group.id })
+        let reopenedWorkspace = try XCTUnwrap(reopened.rootGroup.groups.first { $0.id == workspaceRoot.id })
+        let movedParent = try XCTUnwrap(reopenedWorkspace.groups.first { $0.id == destination.id })
+        let renamed = try XCTUnwrap(movedParent.groups.first { $0.id == group.id })
+        XCTAssertFalse(reopenedWorkspace.groups.contains { $0.id == group.id })
         XCTAssertEqual(reopened.rootGroup.allEntries.count, root.allEntries.count + 1)
         XCTAssertTrue(renamed.entries.contains { $0.id == created.id })
         XCTAssertEqual(created.tags, ["coordinator-tag"])

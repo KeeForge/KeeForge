@@ -10,14 +10,14 @@ Views compose state, collect input, and forward intent and lifecycle events. Wor
 - All three shells are first-class. A change to navigation, chrome, editing, or status UI has to be checked in each; prefer sharing the row/detail/editor view over forking per shell.
 - Compact pushes one session from the database list. iPad keeps the list visible and renders the session in a detail workspace. macOS always uses the regular layout (`usesRegularLayout` is hardcoded there).
 - macOS never mounts `Group/GroupListView.swift` or the compact stack: it browses through the AppKit sidebar and entry list (`../../KeeForgeMac/App/MacSidebarViewController.swift`, `MacEntryListViewController.swift`) and the detail column root in `../App/MacWorkspaceColumns.swift`, composed by `MacDatabaseWorkspaceView`. Anything wired only into `GroupListView` is invisible on macOS and needs a counterpart there.
-- `EntryEditView` (iOS only) and `GroupEditView` carry no `NavigationStack`. The presenter supplies one: a push on iOS, a sheet on macOS for `GroupEditView`, where pushes inside split-view columns misrender. The Mac entry editor is `Entry/Mac/MacEntryEditorView`, inline in the detail column.
+- `EntryEditView` and `GroupEditView` are iOS only and carry no `NavigationStack`; their presenter supplies one. Mac group editing uses the window-owned AppKit shell hosting `MacGroupEditorView`. The Mac entry editor is `Entry/Mac/MacEntryEditorView`, inline in the detail column.
 - On iOS a vault editor is the workspace's (`workspace.present(_:)`), never a list's or detail's own `@State`: a layout switch (iPhone Duo open/close, iPad resize) rebuilds every view and would drop the draft. The host passes the editor `workspace.editorCoordinator(database:)` for the same reason: a view-owned coordinator forgets a staged creation and a save in flight.
 
 ## Invariants
 
 ### macOS forms and controls
 
-- Any `Form` shown in a macOS sheet takes `.macGroupedForm()`. The default `.columns` style does not scroll, so a form taller than its sheet clips rows where no click can reach them. Find the current ones with `grep -rl macGroupedForm KeeForge AutoFillExtension`.
+- New Mac column forms may use `.columns` inside an explicit `ScrollView` with a fixed footer. Other `Form` content shown in a macOS sheet takes `.macGroupedForm()`. The default `.columns` style does not scroll, so a form taller than its sheet clips rows where no click can reach them. Find the current ones with `grep -rl macGroupedForm KeeForge AutoFillExtension`.
 - In a grouped form, text fields take `.macFormFieldStyle()` (grouped draws them borderless), and `.macLabelsHidden()` wherever a caption or section header already names the field (macOS otherwise reserves a second label column).
 - A `Button` whose label fills a row takes `.macPlainRowButton()`, or macOS draws a bordered slab inside the section card.
 - Icon-only controls carry an `accessibilityLabel` and `.macHelp(...)` with the same text. Not `.help()`: on iOS that becomes the VoiceOver hint and changes what a labelled control reads out.

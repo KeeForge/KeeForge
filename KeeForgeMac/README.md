@@ -115,8 +115,12 @@ queued sheet requests after detachment. `MacFormSheetController` caps sheets at
 560 pt and sets initial focus once; busy disables form input and footer actions.
 Hosted master-key and import forms register their existing cancellation paths
 with the shell; teardown runs them synchronously and leaves writes in flight
-running. Group editor and details content retain their navigation and controls
-until their separate rebuilds. `MacDatabaseRootView`
+running. Group editing hosts a scrolling column form and a fixed footer; its parent and
+standard-icon pickers stack over it and update only the form until Save.
+A native alert forwards Save and Lock, Discard and Lock and Keep Editing to its coordinator. New Group
+names its parent in the caption. Entry icons use the same select-then-Use Icon
+shell, with custom icons, their manager and cancellable website download. Details
+content retains its navigation and controls until its separate rebuild. `MacDatabaseRootView`
 keeps enrollment and its biometric observer mounted across lock/unlock. This
 embedding avoids replacing the window's presentation hierarchy; no content swap
 orders the window or assigns first responder.

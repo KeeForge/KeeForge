@@ -141,6 +141,19 @@ an exhaustive audit of every App Group writer.
 [AppGroupIsolationTests](../KeeForgeTests/AppGroupIsolationTests.swift) protect
 unit tests from reaching the user's real shared container.
 
+## Group and icon sheets
+
+The window's [MacWorkspaceSheets](App/MacWorkspaceSheets.swift) owns the group
+form, its nested parent/icon pickers, and the entry icon sheet. A parent pick
+changes only the form. Save stages the fields and validated move in one draft
+before one save; self, descendant and Recycle Bin destinations are refused in
+[DatabaseViewModel](../KeeForge/ViewModels/DatabaseViewModel.swift). Cancelling the group form or an unconfirmed icon selection writes
+nothing. The separate custom-icon manager retains its existing immediate saves. Lock ends and clears the forms and nested sheets and cancels pending
+favicon downloads through [MacIconPickerModel](../KeeForge/ViewModels/MacIconPickerModel.swift).
+A favicon explicitly downloaded by the user still sends only the website domain
+to DuckDuckGo through the existing service, independently of automatic-icon
+settings. Once an icon is staged, its save continues even if the sheet closes.
+
 ## Lock and unlock lifecycle
 
 [AppDelegate](App/AppDelegate.swift) owns the session store, lock services, and

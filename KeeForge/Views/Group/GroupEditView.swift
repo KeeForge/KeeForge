@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// The group editor: name, icon, tags, notes and Search & AutoFill visibility in
@@ -334,3 +335,5 @@ struct GroupEditView: View {
         Task { await coordinator.save(resuming: lockRequest) { _ in onComplete() } }
     }
 }
+
+#endif

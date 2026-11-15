@@ -2246,13 +2246,26 @@ final class DatabaseViewModel {
     /// `iconID` outside the standard set is ignored for the same reason
     /// `setGroupIcon` ignores it — KDBX would store the bare integer happily and
     /// every client would render its own fallback.
-    func updateGroup(groupID: UUID, draft: GroupDraftPayload) throws {
+    func updateGroup(groupID: UUID, draft: GroupDraftPayload, parentGroupID: UUID? = nil) throws {
+        guard state == .unlocked, !isReadOnly, !isSaving,
+              groupID != currentRootGroup?.recycleBinUUID, !isGroupInRecycleBin(groupID: groupID) else {
+            throw SaveError.saveContextUnavailable
+        }
         guard groupIndex[groupID] != nil else { return }
         var draft = draft
         draft.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard draft.name.isEmpty == false else { return }
         guard KPEntry.standardIconNames[draft.iconID] != nil else { return }
-        try applyEntryEdit(.updateGroup(groupID: groupID, draft: draft))
+        var staged = try makeWorkingDraft().apply(.updateGroup(groupID: groupID, draft: draft))
+        let destinations = moveDestinationOptions(forGroupID: groupID)
+        // Moving to the current parent would reorder the group among its siblings.
+        if let parentGroupID, destinations.contains(where: { $0.id == parentGroupID && $0.isCurrentParent }) == false {
+            guard destinations.contains(where: { $0.id == parentGroupID }) else {
+                throw DatabaseDraft.DraftError.moveDestinationInsideMovedGroup(groupID: groupID, destinationGroupID: parentGroupID)
+            }
+            staged = try staged.apply(.moveGroup(groupID: groupID, destinationGroupID: parentGroupID))
+        }
+        stageDraft(staged)
     }
 
     /// One stored version with its position in `KPEntry.history`. Restoring addresses the

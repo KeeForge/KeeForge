@@ -102,6 +102,110 @@ final class MacWorkspaceSheetsTests: XCTestCase {
         presenter.invalidate()
     }
 
+    func testGroupParentPickerStacksAndChangesOnlyTheFormThenLockClearsBoth() async throws {
+        let (presenter, database, state, _) = try await makePresenter()
+        let root = try XCTUnwrap(database.visibleRootGroup)
+        let group = try XCTUnwrap(root.groups.first)
+        state.beginGroupEdit(groupID: group.id, in: database)
+        await settle()
+        let editorSheet = try XCTUnwrap(presenter.sheet)
+        presenter.chooseGroupParent()
+        let child = try XCTUnwrap(presenter.childSheet)
+        let picker = try XCTUnwrap(child.bodyController as? MacGroupPickerSheet)
+        let destination = try XCTUnwrap(picker.model.rows.first { $0.isSelectable })
+        picker.model.selection = destination.id
+        child.canConfirm = picker.model.canConfirm
+        child.performDefault()
+        await settle()
+        XCTAssertTrue(presenter.sheet === editorSheet)
+        XCTAssertNil(presenter.childSheet)
+        XCTAssertEqual(state.groupEditor?.parentGroupID, destination.id)
+        XCTAssertFalse(database.isDirty)
+        presenter.chooseGroupParent()
+        let repick = try XCTUnwrap(presenter.childSheet)
+        let repicker = try XCTUnwrap(repick.bodyController as? MacGroupPickerSheet)
+        XCTAssertTrue(repicker.model.rows.first { $0.id == destination.id }?.isCurrent == true)
+        repick.performCancel()
+        await settle()
+        XCTAssertEqual(state.groupEditor?.parentGroupID, destination.id)
+        presenter.chooseGroupIcon()
+        let icon = try XCTUnwrap(presenter.childSheet)
+        database.lockRequest(force: true)
+        await settle()
+        XCTAssertNil(presenter.childSheet)
+        XCTAssertFalse(icon.isPresented)
+        XCTAssertFalse(editorSheet.isPresented)
+        XCTAssertNil(state.groupEditor)
+        XCTAssertFalse(database.hasUnsavedEditor)
+        presenter.invalidate()
+    }
+
+    func testEntryIconCancelAndLockClearRequestWithoutWriting() async throws {
+        let (presenter, database, state, _) = try await makePresenter()
+        defer { presenter.invalidate(); database.lockRequest(force: true) }
+        let entry = try XCTUnwrap(database.visibleRootGroup?.allEntries.first)
+        state.entryIconID = entry.id
+        await settle()
+        let shell = try XCTUnwrap(presenter.sheet)
+        XCTAssertEqual(shell.defaultButton.accessibilityIdentifier(), "icon-picker.use")
+        shell.performCancel()
+        await settle()
+        XCTAssertNil(state.entryIconID)
+        XCTAssertFalse(database.isDirty)
+        state.entryIconID = entry.id
+        await settle()
+        let lockedSheet = try XCTUnwrap(presenter.sheet)
+        database.lockRequest(force: true)
+        await settle()
+        XCTAssertFalse(lockedSheet.isPresented)
+        XCTAssertNil(state.entryIconID)
+    }
+
+    func testLockWithCleanGroupAndOpenPickerEndsBothWithoutAWrite() async throws {
+        let (presenter, database, state, _) = try await makePresenter()
+        let group = try XCTUnwrap(database.visibleRootGroup?.groups.first)
+        state.beginGroupEdit(groupID: group.id, in: database)
+        await settle()
+        let editor = try XCTUnwrap(presenter.sheet)
+        presenter.chooseGroupIcon()
+        let child = try XCTUnwrap(presenter.childSheet)
+        XCTAssertTrue(database.hasUnsavedEditor)
+        database.lockRequest(manuallyTriggered: false)
+        await settle()
+        XCTAssertEqual(database.state, .locked)
+        XCTAssertFalse(editor.isPresented)
+        XCTAssertFalse(child.isPresented)
+        XCTAssertNil(state.groupEditor)
+        XCTAssertFalse(database.hasUnsavedEditor)
+        presenter.invalidate()
+    }
+
+    func testDirtyGroupLockUsesNativePromptAndDiscardLocksWithoutSaving() async throws {
+        let (presenter, database, state, _) = try await makePresenter()
+        let group = try XCTUnwrap(database.visibleRootGroup?.groups.first)
+        var answer: (@MainActor (NSApplication.ModalResponse) -> Void)?
+        presenter.groupLockPrompt.present = { _, _, response in answer = response }
+        state.beginGroupEdit(groupID: group.id, in: database)
+        await settle()
+        let form = try XCTUnwrap(state.groupEditor)
+        form.name = "Unsaved group"
+        presenter.chooseGroupIcon()
+        database.lockRequest(manuallyTriggered: true)
+        await settle()
+        XCTAssertNil(presenter.childSheet)
+        let alert = try XCTUnwrap(presenter.groupLockPrompt.alert)
+        XCTAssertEqual(alert.messageText, String(localized: "Save your changes before locking?"))
+        XCTAssertEqual(alert.buttons.map(\.title), [String(localized: "Save and Lock"), String(localized: "Discard and Lock"), String(localized: "Keep Editing")])
+        XCTAssertTrue(alert.buttons[0].isEnabled)
+        answer?(.alertSecondButtonReturn)
+        await settle()
+        XCTAssertEqual(database.state, .locked)
+        XCTAssertNil(state.groupEditor)
+        XCTAssertNil(presenter.groupLockPrompt.alert)
+        XCTAssertFalse(database.hasUnsavedEditor)
+        presenter.invalidate()
+    }
+
     private func request(_ kind: Int, _ database: DatabaseViewModel, _ state: MacWorkspacePresentation) throws {
         switch kind {
         case 0: state.beginNewGroup(); state.newGroupName = "Unsaved"
@@ -126,6 +230,7 @@ final class MacWorkspaceSheetsTests: XCTestCase {
             shell.presentWindow = { _, _, _ in }
             shell.begin(on: parent, completion: completion)
         }
+        presenter.groupLockPrompt.present = { _, _, _ in }
         presenter.start()
         return (presenter, database, state, window)
     }

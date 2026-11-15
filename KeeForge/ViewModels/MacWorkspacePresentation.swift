@@ -19,6 +19,7 @@ final class MacWorkspacePresentation {
     /// A duplicate made from search results or a tag selects the copy where the
     /// list is, instead of revealing it in its group.
     private(set) var selectsCreatedEntryInPlace = false
+    var entryIconID: UUID?
     var groupEditor: GroupEditViewModel?
     var isShowingNewGroupSheet = false
     var newGroupName = ""
@@ -224,13 +225,15 @@ final class MacWorkspacePresentation {
 
     func beginGroupEdit(groupID: UUID, in database: DatabaseViewModel) {
         guard groupEditor == nil, database.state == .unlocked, !database.isReadOnly,
-              !database.isSyntheticRootGroup(groupID: groupID), let group = database.group(withID: groupID) else { return }
+              !database.isSyntheticRootGroup(groupID: groupID),
+              groupID != database.recycleBinGroup?.id, !database.isGroupInRecycleBin(groupID: groupID), let group = database.group(withID: groupID) else { return }
         groupEditor = GroupEditViewModel(
             editing: group,
             isHiddenFromAutoFill: database.isGroupExcludedFromAutoFill(groupID: groupID),
             isExclusionInherited: database.isGroupExclusionInherited(groupID: groupID),
             knownTags: database.tagsInDisplayOrder
         )
+        groupEditor?.configureParent(in: database)
     }
 
     func beginNewGroup(parentID: UUID? = nil) {
@@ -333,6 +336,7 @@ final class MacWorkspacePresentation {
         lifetimeID = UUID()
         closeEntryEditor()
         closeEntryHistory()
+        entryIconID = nil
         groupEditor = nil
         dismissNewGroup()
         pendingDeletion = nil

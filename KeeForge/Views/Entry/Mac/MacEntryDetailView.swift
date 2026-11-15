@@ -12,7 +12,6 @@ struct MacEntryDetailView: View {
     let attachmentPreview: MacAttachmentPreviewController
 
     @State private var width: CGFloat = 600
-    @State private var isShowingIconPicker = false
     @State private var hasClosed = false
 
     private var entryID: UUID { model.source.entryID }
@@ -56,23 +55,6 @@ struct MacEntryDetailView: View {
             set: { if $0 == nil { presentation.closeEntryHistory() } }
         )) { history in
             MacEntryHistorySheet(history: history) { presentation.closeEntryHistory(history) }
-        }
-        .sheet(isPresented: $isShowingIconPicker) {
-            if let entry = viewModel.entry(withID: entryID) {
-                EntryIconPickerView(
-                    entryTitle: entry.title,
-                    selection: Self.iconSelection(of: entry),
-                    customIcons: viewModel.customIcons,
-                    databaseViewModel: viewModel,
-                    canDownloadFavicon: viewModel.canDownloadFavicon(forEntryID: entryID),
-                    onSelect: { icon in changeEntryIcon(icon) },
-                    onDownloadFavicon: {
-                        try await viewModel.downloadFavicon(forEntryID: entryID)
-                        // Outside the picker's cancellable task: the icon is in the draft by now.
-                        await Task { await viewModel.saveHandlingError() }.value
-                    }
-                )
-            }
         }
     }
 
@@ -184,23 +166,7 @@ struct MacEntryDetailView: View {
         if viewModel.isReadOnly {
             icon
         } else {
-            MacEntryIconButton(icon: icon) { isShowingIconPicker = true }
-        }
-    }
-
-    private static func iconSelection(of entry: KPEntry) -> EntryIconSelection {
-        if let uuid = entry.customIconUUID {
-            return .custom(uuid: uuid)
-        }
-        return .standard(iconID: entry.iconID)
-    }
-
-    private func changeEntryIcon(_ icon: EntryIconSelection) {
-        do {
-            try viewModel.setEntryIcon(icon, entryID: entryID)
-            Task { await viewModel.saveHandlingError() }
-        } catch {
-            viewModel.presentSaveError(error)
+            MacEntryIconButton(icon: icon) { presentation.entryIconID = entryID }
         }
     }
 

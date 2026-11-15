@@ -977,6 +977,7 @@ struct GroupListView: View {
 
 #endif
 
+#if os(iOS)
 struct NewGroupSheet: View {
     @Binding var name: String
     @Binding var errorMessage: String?
@@ -1027,6 +1028,8 @@ struct NewGroupSheet: View {
         .macSheetFrame(minWidth: 420, minHeight: 180)
     }
 }
+
+#endif
 
 #if os(iOS)
 struct GroupRow: View {

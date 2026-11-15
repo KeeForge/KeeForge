@@ -10,7 +10,7 @@ final class DatabaseEditorCoordinator {
 
     private enum SubmittedForm: Equatable {
         case entry(EntryDraftPayload)
-        case group(GroupDraftPayload)
+        case group(GroupDraftPayload, UUID?)
     }
 
     private struct StagedCreation {
@@ -130,7 +130,7 @@ final class DatabaseEditorCoordinator {
     private var currentForm: SubmittedForm {
         switch form {
         case .entry(let entry): .entry(entry.entryDraftPayload)
-        case .group(let group): .group(group.makeDraftPayload())
+        case .group(let group): .group(group.makeDraftPayload(), group.parentGroupID)
         }
     }
 
@@ -151,7 +151,7 @@ final class DatabaseEditorCoordinator {
                     try database.applyEntryEdit(.updateEntry(entryID: entryID, draft: entry.entryDraftPayload))
                 }
             case .group(let group):
-                try database.updateGroup(groupID: group.groupID, draft: group.makeDraftPayload())
+                try database.updateGroup(groupID: group.groupID, draft: group.makeDraftPayload(), parentGroupID: group.parentGroupID)
             }
         } catch {
             errorMessage = error.localizedDescription

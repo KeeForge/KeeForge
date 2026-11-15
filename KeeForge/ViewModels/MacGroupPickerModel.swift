@@ -59,14 +59,14 @@ final class MacGroupPickerModel {
         rows = options.map { option in
             let group = database.group(withID: option.id)
             return Row(id: option.id, name: option.name, depth: option.depth, iconID: group?.iconID ?? 48,
-                       customIconData: group.flatMap(database.customIconData(for:)), isCurrent: option.isCurrentParent)
+                       customIconData: group.flatMap(database.customIconData(for:)), isCurrent: current.map { $0 == option.id } ?? option.isCurrentParent)
         }
         var ancestors: [String] = []
         var path: String?
         for option in options {
             ancestors = Array(ancestors.prefix(option.depth))
             ancestors.append(option.name)
-            if option.isCurrentParent { path = (ancestors.count > 1 ? Array(ancestors.dropFirst()) : ancestors).joined(separator: " › ") }
+            if current.map({ $0 == option.id }) ?? option.isCurrentParent { path = (ancestors.count > 1 ? Array(ancestors.dropFirst()) : ancestors).joined(separator: " › ") }
         }
         currentPath = path
     }
