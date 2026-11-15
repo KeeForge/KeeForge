@@ -1853,8 +1853,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         let reference = try makeStoredManualReference()
         try DatabaseListStore.cacheDatabaseCopy(openedData, for: reference)
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
-        // Same bytes, new revision: the metadata-only change the saver rebases over.
-        let remote = InMemoryRemoteProvider(bytes: openedData, rev: "rev-B")
+        let remote = InMemoryRemoteProvider(bytes: try mergeVariant(title: "Remote Mid-Sync"), rev: "rev-B")
         let vm = makeViewModelOnTheRealCache(reference: reference, remote: remote)
         await vm.unlock(password: fixturePassword)
         XCTAssertEqual(vm.state, .unlocked)
@@ -1869,24 +1868,47 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         )
         try await vm.save()
         XCTAssertNil(vm.saveConflict)
-        let savedData = remote.currentBytes
+        let savedData = try Data(contentsOf: cacheURL)
+        let source = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(source), savedData)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(savedData))
         await gate.open()
         await syncTask.value
 
-        XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
+        XCTAssertEqual(vm.cloudSyncOutcome, .updateWaitsForSave)
         XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(savedData))
         XCTAssertEqual(try Data(contentsOf: cacheURL), savedData, "The stale download must not replace the saved cache")
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(source), savedData)
         XCTAssertEqual(vm.state, .unlocked)
-
+        XCTAssertNotNil(vm.saveConflict)
+        try await vm.mergeAndSave()
+        let merged = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        let mergedBytes = try PendingUploadQueue.readImmutablePayload(merged)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), mergedBytes)
+        XCTAssertTrue(try Self.entryTitles(in: mergedBytes, password: fixturePassword)
+            .isSuperset(of: ["Saved Mid-Sync", "Remote Mid-Sync"]))
+        var delivery = CloudDatabaseSaver.Environment.live
+        delivery.getMetadata = { _ in remote.currentMetadata }
+        delivery.downloadRemoteData = { _ in remote.currentBytes }
+        delivery.upload = { _, data, rev, _ in try remote.store(data, expectedRev: rev) }
+        guard case .saved? = try await CloudDatabaseSaver.deliver(merged, reference: vm.databaseReference, environment: delivery) else {
+            return XCTFail("Merged payload must deliver")
+        }
+        XCTAssertEqual(remote.currentBytes, mergedBytes)
         try vm.applyEntryEdit(
             .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Saved After Sync", password: "p"))
         )
         try await vm.save()
         XCTAssertNil(vm.saveConflict)
+        let next = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        let nextBytes = try PendingUploadQueue.readImmutablePayload(next)
+        guard case .saved? = try await CloudDatabaseSaver.deliver(next, reference: vm.databaseReference, environment: delivery) else {
+            return XCTFail("Subsequent save must deliver")
+        }
+        XCTAssertEqual(remote.currentBytes, nextBytes)
         let remoteTitles = try Self.entryTitles(in: remote.currentBytes, password: fixturePassword)
-        XCTAssertTrue(remoteTitles.isSuperset(of: ["Saved Mid-Sync", "Saved After Sync"]))
+        XCTAssertTrue(remoteTitles.isSuperset(of: ["Saved Mid-Sync", "Remote Mid-Sync", "Saved After Sync"]))
     }
 
     /// The response can also arrive while a save is still uploading. Nothing
