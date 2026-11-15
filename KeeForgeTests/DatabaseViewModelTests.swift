@@ -5059,68 +5059,56 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testMergeAndSaveCloudGatesOnConflictBytesAndKeepsRecordedRevision() async throws {
-        let remoteData = try makeRemoteVariantData { visibleRoot in
-            visibleRoot.entries.append(KPEntry(title: "Cloud Remote Entry"))
-        }
+        let remoteData = try makeRemoteVariantData { $0.entries.append(KPEntry(title: "Cloud Remote Entry")) }
         let remoteHash = FileDigest.sha512(remoteData)
-        let mergedHash = FileDigest.sha512(Data("cloud-merged".utf8))
-        let recorder = MergeSaveRecorder(results: [
-            .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
-            .saved(newSHA512: mergedHash),
-        ])
         let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.update(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
-        let trace = TestDatabaseSupport.LocalPublicationTrace()
-        let vm = try makeViewModel(
-            reference: reference,
-            cloudSyncOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: fixtureData,
-                    status: .current
-                )
-            },
-            localPublicationFailure: { trace.record($0, $1) },
-            cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _, _ in
-                recorder.record(
-                    openTimeSHA512: openTimeSHA512,
-                    reconciledRemoteSHA512: reconciledRemoteSHA512,
-                    expectedRev: expectedRev,
-                    rootGroup: draft.rootGroup
-                )
-            }
-        )
-
+        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let transport = CloudJournalTransport(remote: remoteData, revision: "rev-B",
+            response: .init(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-C"))
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in try transport.metadata(byteCount: remoteData.count) }
+        environment.downloadRemoteData = { _ in transport.download(fallback: remoteData) }
+        environment.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        let saver = environment
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: cacheURL, data: fixtureData, status: .current)
+        }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+            try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+        })
         await vm.unlock(password: fixturePassword)
         vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Cloud Local Entry")
+        try remoteData.write(to: cacheURL, options: .atomic)
         try await vm.save()
         XCTAssertNotNil(vm.saveConflict)
-
-        let historicalSHA = vm.openTimeSHA512
-        TestDatabaseSupport.cloudDiagnosticSnapshot("13 before", reference: reference, savedSHA: mergedHash, openSHA: historicalSHA)
-        defer { TestDatabaseSupport.cloudDiagnosticSnapshot("13 after", reference: reference, savedSHA: mergedHash, openSHA: historicalSHA) }
-        do {
-            try await vm.mergeAndSave()
-            print("diagnostic 13 operation=returned; boundaries=\(trace.summary)")
-        } catch {
-            _ = trace.failure(error, at: "diagnostic 13 operation")
-            throw error
-        }
-
-        let calls = recorder.recordedCalls
-        XCTAssertEqual(calls.count, 2)
-        XCTAssertEqual(calls[1].reconciledRemoteSHA512, remoteHash)
-        // The recorded rev is still the one the session opened: the cloud
-        // saver rebases onto the head that hashes to the merged bytes rather
-        // than being handed a rev the merge never saw.
-        XCTAssertEqual(calls[1].expectedRev, "rev-A")
-
-        let savedTitles = allEntryTitles(in: calls[1].rootGroup)
-        XCTAssertTrue(savedTitles.contains("Cloud Local Entry"))
-        XCTAssertTrue(savedTitles.contains("Cloud Remote Entry"))
+        XCTAssertEqual(try Data(contentsOf: cacheURL), remoteData)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        try await vm.mergeAndSave()
+        let mergedBytes = try Data(contentsOf: cacheURL)
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(marker.marker.expectedRev, "rev-A")
+        XCTAssertEqual(marker.marker.remoteBaseSHA512, remoteHash)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker), mergedBytes)
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(mergedBytes))
+        let parsed = try KDBXParser.parse(data: mergedBytes, password: fixturePassword, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertTrue(parsed.allEntries.contains { $0.title == "Cloud Local Entry" })
+        XCTAssertTrue(parsed.allEntries.contains { $0.title == "Cloud Remote Entry" })
         XCTAssertNil(vm.saveConflict)
-        XCTAssertEqual(vm.openTimeSHA512, mergedHash)
+        guard case .saved? = try await CloudDatabaseSaver.deliver(marker, reference: vm.databaseReference, environment: saver) else {
+            return XCTFail("Merged bytes must deliver")
+        }
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(transport.effects.uploads.first?.bytes, mergedBytes)
+        XCTAssertEqual(transport.effects.uploads.first?.revision, "rev-B")
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.expectedCloudRevision, "rev-C")
     }
 
     // MARK: - Merging a conflicted AutoFill upload (#149)
@@ -9029,54 +9017,48 @@ final class DatabaseViewModelTests: XCTestCase {
         let reference = makeCloudReference(remoteRev: "rev-A")
         DatabaseListStore.update(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
+        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let capture = EncryptionSettingsCapture()
-        let trace = TestDatabaseSupport.LocalPublicationTrace()
-        let vm = try makeViewModel(
-            reference: reference,
+        let transport = CloudJournalTransport(remote: fixtureData, revision: "rev-A",
+            response: .init(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-B"))
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in try transport.metadata(byteCount: fixtureData.count) }
+        environment.downloadRemoteData = { _ in transport.download(fallback: fixtureData) }
+        environment.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        let saver = environment
+        let vm = try makeViewModel(reference: reference,
             cloudSyncOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: fixtureData,
-                    status: .current
-                )
-            },
-            localPublicationFailure: { trace.record($0, $1) },
-            cloudSaveOperation: { _, reference, compositeKey, _, _, expectedRev, newCompositeKey, encryptionSettings in
-                capture.record(
-                    compositeKey: compositeKey,
-                    newCompositeKey: newCompositeKey,
-                    change: encryptionSettings,
-                    expectedRev: expectedRev
-                )
-                var uploaded = reference
-                uploaded.updateCloudSyncMetadata { $0.remoteRev = "rev-B" }
-                DatabaseListStore.update(uploaded)
-                return .saved(newSHA512: Data("cloud-re-encrypted-hash".utf8))
-            },
-            pendingUploadMarkerCheck: { _ in false }
-        )
-
+                CloudSyncResolution(reference: reference, localURL: cacheURL, data: fixtureData, status: .current)
+            }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+                capture.record(compositeKey: key, newCompositeKey: newKey, change: settings, expectedRev: rev)
+                let result = try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                    openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                    kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+                let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+                guard case .saved? = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: saver) else {
+                    throw SaveError.saveContextUnavailable
+                }
+                return result
+            })
         await vm.unlock(password: fixturePassword)
-        let historicalSHA = vm.openTimeSHA512
-        TestDatabaseSupport.cloudDiagnosticSnapshot("9 before", reference: reference, savedSHA: Data("cloud-re-encrypted-hash".utf8), openSHA: historicalSHA)
-        defer { TestDatabaseSupport.cloudDiagnosticSnapshot("9 after", reference: reference, savedSHA: Data("cloud-re-encrypted-hash".utf8), openSHA: historicalSHA) }
-        do {
-            try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
-            print("diagnostic 9 operation=returned; boundaries=\(trace.summary)")
-        } catch {
-            _ = trace.failure(error, at: "diagnostic 9 operation")
-            throw error
-        }
-
+        try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
+        let bytes = try Data(contentsOf: cacheURL)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: bytes,
+            compositeKey: KDBXCrypto.compositeKey(password: fixturePassword), sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertEqual(parsed.header.cipherID, KDBXOuterCipher.chaCha20.uuid)
         XCTAssertEqual(capture.expectedRev, "rev-A")
         XCTAssertEqual(capture.change?.cipherID, KDBXOuterCipher.chaCha20.uuid)
-        XCTAssertEqual(vm.openTimeSHA512, Data("cloud-re-encrypted-hash".utf8))
-        XCTAssertEqual(
-            vm.databaseReference.expectedCloudRevision,
-            "rev-B",
-            "The next save must not reuse the revision this change replaced."
-        )
+        XCTAssertNil(capture.newCompositeKey)
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(bytes))
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(transport.effects.uploads.first?.bytes, bytes)
+        XCTAssertEqual(transport.effects.uploads.first?.revision, "rev-A")
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertEqual(vm.databaseReference.expectedCloudRevision, "rev-B")
     }
 
     func testChangeEncryptionSettingsWhenReadOnlyThrowsWithoutSaving() async throws {

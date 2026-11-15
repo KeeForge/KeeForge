@@ -1796,56 +1796,48 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
     /// Now asks again and meets the saved copy.
     func testSyncNowDoesNotRollBackASaveThatFinishedMidSync() async throws {
         let openedData = try fixtureData()
-        let savedData = try fixtureData(named: "kitchen-sink")
-        let savedSHA512 = FileDigest.sha512(savedData)
+        let reference = try makeStoredManualReference()
+        try DatabaseListStore.cacheDatabaseCopy(openedData, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let gate = SaveGate()
         let refreshRecorder = RefreshRecorder()
-        let trace = TestDatabaseSupport.LocalPublicationTrace()
-        let vm = makeViewModel(
-            reference: try makeStoredManualReference(),
-            openedData: openedData,
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        let saver = environment
+        let vm = makeViewModel(reference: reference, openedData: openedData,
             cloudRefreshOperation: { reference, _ in
                 refreshRecorder.record(reference)
-                guard refreshRecorder.references.count == 1 else {
-                    return Self.resolution(reference, data: savedData, status: .current)
+                if refreshRecorder.references.count == 1 {
+                    await gate.signalStarted()
+                    await gate.waitUntilOpen()
+                    return Self.resolution(reference, data: openedData, status: .current)
                 }
-                await gate.signalStarted()
-                await gate.waitUntilOpen()
-                return Self.resolution(reference, data: openedData, status: .current)
-            },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
-                .saved(newSHA512: savedSHA512)
-            },
-            localPublicationFailure: { trace.record($0, $1) }
-        )
+                return Self.resolution(reference, data: try Data(contentsOf: cacheURL), status: .current)
+            }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+                try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                    openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                    kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+            }, pendingUploadMarkerCheck: { !PendingUploadQueue.listMarkers(for: $0.id).isEmpty })
         await vm.unlock(password: fixturePassword)
-
-        let historicalReference = vm.databaseReference
-        let historicalSHA = vm.openTimeSHA512
-        TestDatabaseSupport.cloudDiagnosticSnapshot("8 before", reference: historicalReference, savedSHA: savedSHA512, openSHA: historicalSHA)
-        defer { TestDatabaseSupport.cloudDiagnosticSnapshot("8 after", reference: historicalReference, savedSHA: savedSHA512, openSHA: historicalSHA) }
-
         let syncTask = Task { await vm.syncCloudNow() }
         await gate.waitUntilStarted()
-        let parentGroupID = try XCTUnwrap(vm.visibleRootGroup?.id)
-        try vm.applyEntryEdit(
-            .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Saved Mid-Sync", password: "p"))
-        )
-        do {
-            try await vm.save()
-            print("diagnostic 8 save=returned; boundaries=\(trace.summary)")
-        } catch {
-            _ = trace.failure(error, at: "diagnostic 8 save")
-            throw error
-        }
-        XCTAssertFalse(vm.isDirty)
+        let parent = try XCTUnwrap(vm.visibleRootGroup?.id)
+        try vm.applyEntryEdit(.createEntry(parentGroupID: parent, draft: EntryDraftPayload(title: "Saved Mid-Sync", password: "p")))
+        try await vm.save()
+        let saved = try Data(contentsOf: cacheURL)
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker), saved)
+        XCTAssertEqual(marker.marker.expectedRev, reference.expectedCloudRevision)
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(saved))
         await gate.open()
         await syncTask.value
-
-        XCTAssertEqual(refreshRecorder.references.count, 2, "The superseded response must be fetched again")
+        XCTAssertEqual(refreshRecorder.references.count, 2)
         XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
+        XCTAssertTrue(vm.hasPendingCloudUploads)
         XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
-        XCTAssertEqual(vm.openTimeSHA512, savedSHA512)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), saved)
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(saved))
         XCTAssertEqual(vm.state, .unlocked)
         XCTAssertFalse(vm.isSyncingCloud)
     }
@@ -1903,76 +1895,55 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
     /// keep the save's revision from being recorded.
     func testSyncNowWaitsOutASaveStillInFlightWhenItsResponseArrives() async throws {
         let openedData = try fixtureData()
-        let savedData = try fixtureData(named: "kitchen-sink")
-        let savedSHA512 = FileDigest.sha512(savedData)
+        let reference = try makeStoredManualReference()
+        try DatabaseListStore.cacheDatabaseCopy(openedData, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let refreshGate = SaveGate()
         let saveGate = SaveGate()
         let refreshRecorder = RefreshRecorder()
-        let trace = TestDatabaseSupport.LocalPublicationTrace()
-        let vm = makeViewModel(
-            reference: try makeStoredManualReference(),
-            openedData: openedData,
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        let saver = environment
+        let vm = makeViewModel(reference: reference, openedData: openedData,
             cloudRefreshOperation: { reference, _ in
                 refreshRecorder.record(reference)
-                guard refreshRecorder.references.count == 1 else {
-                    return Self.resolution(reference, data: savedData, status: .current)
+                if refreshRecorder.references.count == 1 {
+                    await refreshGate.signalStarted()
+                    await refreshGate.waitUntilOpen()
+                    return Self.resolution(reference, data: openedData, status: .current)
                 }
-                await refreshGate.signalStarted()
-                await refreshGate.waitUntilOpen()
-                var learned = reference
-                learned.updateCloudSyncMetadata { metadata in
-                    metadata.remoteRev = "rev-B"
-                    metadata.lastSyncedAt = .now
-                }
-                return Self.resolution(learned, data: openedData, status: .current)
-            },
-            cloudSaveOperation: { _, reference, _, _, _, _, _, _ in
+                return Self.resolution(reference, data: try Data(contentsOf: cacheURL), status: .current)
+            }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
                 await saveGate.signalStarted()
                 await saveGate.waitUntilOpen()
-                // What journal delivery records once the upload lands.
-                let observed = try XCTUnwrap(reference.cloudSyncMetadata)
-                _ = DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed) { metadata in
-                    metadata.remoteRev = "rev-C"
-                }
-                return .saved(newSHA512: savedSHA512)
-            },
-            localPublicationFailure: { trace.record($0, $1) }
-        )
+                return try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                    openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                    kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+            }, pendingUploadMarkerCheck: { !PendingUploadQueue.listMarkers(for: $0.id).isEmpty })
         await vm.unlock(password: fixturePassword)
-
-        let historicalReference = vm.databaseReference
-        let historicalSHA = vm.openTimeSHA512
-        TestDatabaseSupport.cloudDiagnosticSnapshot("5 before", reference: historicalReference, savedSHA: savedSHA512, openSHA: historicalSHA)
-        defer { TestDatabaseSupport.cloudDiagnosticSnapshot("5 after", reference: historicalReference, savedSHA: savedSHA512, openSHA: historicalSHA) }
-
         let syncTask = Task { await vm.syncCloudNow() }
         await refreshGate.waitUntilStarted()
-        let parentGroupID = try XCTUnwrap(vm.visibleRootGroup?.id)
-        try vm.applyEntryEdit(
-            .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Saved Mid-Sync", password: "p"))
-        )
+        let parent = try XCTUnwrap(vm.visibleRootGroup?.id)
+        try vm.applyEntryEdit(.createEntry(parentGroupID: parent, draft: EntryDraftPayload(title: "Saved Mid-Sync", password: "p")))
         let saveTask = Task { try await vm.save() }
         await saveGate.waitUntilStarted()
         await refreshGate.open()
-        // Let Sync Now take the response while the save is still uploading.
         try await Task.sleep(for: .milliseconds(200))
-        XCTAssertNil(vm.cloudSyncOutcome, "Sync Now must not settle while a save is in flight")
+        XCTAssertNil(vm.cloudSyncOutcome, "Sync Now must wait for the in-flight save")
         await saveGate.open()
-        do {
-            try await saveTask.value
-            print("diagnostic 5 save=returned; boundaries=\(trace.summary)")
-        } catch {
-            _ = trace.failure(error, at: "diagnostic 5 save")
-            throw error
-        }
+        try await saveTask.value
         await syncTask.value
-
-        XCTAssertEqual(refreshRecorder.references.count, 2, "The response that predates the save must be fetched again")
+        let saved = try Data(contentsOf: cacheURL)
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker), saved)
+        XCTAssertEqual(marker.marker.expectedRev, reference.expectedCloudRevision)
+        XCTAssertEqual(refreshRecorder.references.count, 2)
         XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
-        XCTAssertEqual(vm.openTimeSHA512, savedSHA512)
-        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == vm.databaseReference.id }))
-        XCTAssertEqual(stored.cloudSyncMetadata?.remoteRev, "rev-C", "The save's revision must be the one recorded")
-        XCTAssertEqual(vm.databaseReference.cloudSyncMetadata?.remoteRev, "rev-C")
+        XCTAssertTrue(vm.hasPendingCloudUploads)
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(saved))
+        XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
+        XCTAssertEqual(vm.databaseReference.expectedCloudRevision, reference.expectedCloudRevision)
         XCTAssertFalse(vm.isSyncingCloud)
     }
 
