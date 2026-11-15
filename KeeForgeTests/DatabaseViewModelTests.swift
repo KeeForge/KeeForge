@@ -8661,11 +8661,15 @@ final class DatabaseViewModelTests: XCTestCase {
         try await exerciseConfirmedCloudRekeyRecovery(.otherAction)
     }
 
+    func testConfirmedCloudRekeyRevocationDuringPublicationRejectsKeyEffects() async throws {
+        try await exerciseConfirmedCloudRekeyRecovery(.duringPublication)
+    }
+
     func testConfirmedCloudRekeyRecoveryRejectsChangedEpoch() async throws {
         try await exerciseConfirmedCloudRekeyRecovery(.changedEpoch)
     }
 
-    private enum RecoveryCase { case normal, locked, retired, otherAction, changedEpoch }
+    private enum RecoveryCase { case normal, locked, retired, otherAction, duringPublication, changedEpoch }
 
     private func exerciseConfirmedCloudRekeyRecovery(_ scenario: RecoveryCase) async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
@@ -8674,6 +8678,16 @@ final class DatabaseViewModelTests: XCTestCase {
         try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let storedKeys = RekeyedKeyCapture()
+        let effects = OSAllocatedUnfairLock(initialState: 0)
+        let pause = KeyPublicationPause()
+        let publicationFailed = XCTestExpectation(description: "revoked recovery publication returned")
+        var publicationIO = DatabaseListStore.KeyCommitPublicationIO()
+        let nativeRead = publicationIO.read
+        if scenario == .duringPublication {
+            publicationIO.read = { url in try pause.wait(); return try nativeRead(url) }
+            publicationIO.didFinish = { pause.finished.fulfill() }
+        }
+        defer { pause.resume() }
         let transport = CloudJournalTransport(remote: original, revision: "rev-A",
             response: .init(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-B"))
         var environment = CloudDatabaseSaver.Environment.live
@@ -8688,19 +8702,25 @@ final class DatabaseViewModelTests: XCTestCase {
         let faulty = environment
         let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
             CloudSyncResolution(reference: reference, localURL: cacheURL, data: original, status: .current)
-        }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+        }, localPublicationFailure: { phase, _ in
+            if scenario == .duringPublication && phase == "cloud-rekey-recovery-publication" { publicationFailed.fulfill() }
+        }, keyCommitPublicationIO: publicationIO, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
             try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
                 openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
                 kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: faulty)
-        }, storedKeyPresenceCheck: { _ in true },
-           storedKeyStoreOperation: { key, _ in storedKeys.record(oldKey: nil, newKey: key) })
+        }, expressUnlockKeySaveOperation: { _, _ in effects.withLock { $0 += 1 } },
+           storedKeyPresenceCheck: { _ in true },
+           storedKeyStoreOperation: { key, _ in effects.withLock { $0 += 1 }; storedKeys.record(oldKey: nil, newKey: key) })
         await vm.unlock(password: fixturePassword)
+        effects.withLock { $0 = 0 }
         let oldKey = try XCTUnwrap(vm.compositeKey)
         do {
             try await vm.changeMasterKey(newPassword: "cloud-rotated", newKeyFileData: nil,
                 newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
             XCTFail("Expected local reconciliation failure")
         } catch is CloudSaveRecoveryWarning { }
+        let oldSHA = vm.openTimeSHA512
+        let oldReference = vm.databaseReference
         let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
         XCTAssertNotNil(marker.marker.confirmedAt)
         let payload = try PendingUploadQueue.readImmutablePayload(marker)
@@ -8730,12 +8750,30 @@ final class DatabaseViewModelTests: XCTestCase {
             XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).count, 1)
             vm.lock()
             return
-        case .normal: break
+        case .normal, .duringPublication: break
         }
         guard case .saved? = try CloudDatabaseSaver.recoverConfirmed(marker, reference: reference, environment: recovery) else {
             return XCTFail("Confirmed remote rekey must reconcile without upload")
         }
         let newKey = try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil)
+        if scenario == .duringPublication {
+            await fulfillment(of: [pause.entered], timeout: 15)
+            CloudDatabaseSaver.RekeyTicket.complete(marker.id)
+            await Task.yield()
+            vm.discardDraft()
+            pause.resume()
+            await fulfillment(of: [pause.finished, publicationFailed], timeout: 15)
+            XCTAssertEqual(effects.withLock { $0 }, 0)
+            XCTAssertEqual(storedKeys.writeCount, 0)
+            XCTAssertEqual(vm.compositeKey, oldKey)
+            XCTAssertEqual(vm.openTimeSHA512, oldSHA)
+            XCTAssertEqual(vm.databaseReference, oldReference)
+            XCTAssertEqual(try Data(contentsOf: cacheURL), payload)
+            XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+            XCTAssertEqual(transport.effects.uploads.count, 1)
+            vm.lock()
+            return
+        }
         if scenario != .normal {
             await Task.yield()
             if scenario == .otherAction {
@@ -9404,6 +9442,7 @@ final class DatabaseViewModelTests: XCTestCase {
             )
         },
         localPublicationFailure: @escaping @Sendable (String, Error) -> Void = { _, _ in },
+        keyCommitPublicationIO: DatabaseListStore.KeyCommitPublicationIO = .init(),
         cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings in
             try await CloudDatabaseSaver.save(
                 draft: draft,
@@ -9455,6 +9494,9 @@ final class DatabaseViewModelTests: XCTestCase {
             return try QuickUnlockKeychain.retrieve(for: reference, context: context)
         },
         pendingUploadRecovery: PendingUploadRecovery.Environment = .live,
+        expressUnlockKeySaveOperation: @escaping DatabaseViewModel.ExpressUnlockKeySaveOperation = { key, reference in
+            QuickUnlockKeychain.replaceExpressKey(with: key, for: reference)
+        },
         pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { reference in
             PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
         },
@@ -9485,6 +9527,7 @@ final class DatabaseViewModelTests: XCTestCase {
             cloudSyncOperation: cloudSyncOperation,
             cloudRefreshOperation: cloudRefreshOperation,
             localPublicationFailure: localPublicationFailure,
+            keyCommitPublicationIO: keyCommitPublicationIO,
             localSaveOperation: localSaveOperation,
             cloudSaveOperation: cloudSaveOperation,
             conflictCopyEncryptionOperation: conflictCopyEncryptionOperation,
@@ -9492,6 +9535,7 @@ final class DatabaseViewModelTests: XCTestCase {
             cloudConflictCopyOperation: cloudConflictCopyOperation,
             reloadOperation: reloadOperation,
             biometricCompositeKeyOperation: biometricCompositeKeyOperation,
+            expressUnlockKeySaveOperation: expressUnlockKeySaveOperation,
             pendingUploadMarkerCheck: pendingUploadMarkerCheck,
             pendingUploadRecovery: pendingUploadRecovery,
             storedKeyPresenceCheck: storedKeyPresenceCheck,

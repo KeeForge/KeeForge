@@ -679,11 +679,13 @@ final class DatabaseViewModel {
         let key: SymmetricKey
         let keyFileData: Data?
         let hadStoredKey: Bool
+        var publicationStarted = false
     }
     private var pendingCloudRekey: PendingCloudRekey?
     private var keyCommitPublicationActionID: UUID? {
         didSet {
             if let pendingCloudRekey, pendingCloudRekey.actionID != keyCommitPublicationActionID {
+                keyCommitPublicationPermit?.close()
                 self.pendingCloudRekey = nil
             }
         }
@@ -3127,7 +3129,7 @@ final class DatabaseViewModel {
     }
 
     private func finishPendingCloudRekey() async {
-        guard !isSaving, let pending = pendingCloudRekey else { return }
+        guard !isSaving, let pending = pendingCloudRekey, !pending.publicationStarted else { return }
         if !pending.ticket.isCompleted {
             let current = DatabaseListStore.databases.first { $0.id == pending.original.id }
             let originalCloud = pending.original.cloudSyncMetadata
@@ -3157,10 +3159,12 @@ final class DatabaseViewModel {
               databaseReference.id == pending.original.id,
               databaseReference.cloudSyncMetadata?.keyEpoch == pending.original.cloudSyncMetadata?.keyEpoch,
               case .unlocked = state else { revokePendingCloudRekey(); return }
-        // Consume the completion before suspension so duplicates cannot publish twice.
-        pendingCloudRekey = nil
+        pendingCloudRekey?.publicationStarted = true
         defer {
-            if keyCommitPublicationActionID == pending.actionID { keyCommitPublicationActionID = nil }
+            if pendingCloudRekey?.ticket === pending.ticket {
+                pendingCloudRekey = nil
+                if keyCommitPublicationActionID == pending.actionID { keyCommitPublicationActionID = nil }
+            }
         }
         let original = pending.original
         let current = DatabaseListStore.databases.first { $0.id == original.id }
@@ -3181,6 +3185,7 @@ final class DatabaseViewModel {
                     hasStoredKey: { _ in pending.hadStoredKey }, storeKey: storeKey, deleteKey: deleteKey)
             }
             guard pending.cycle == lockCycleID, keyCommitPublicationActionID == pending.actionID,
+                  pendingCloudRekey?.ticket === pending.ticket, pendingCloudRekey?.publicationStarted == true,
                   case .unlocked = state else { return }
             compositeKey = pending.key
             sessionKeyFileData = pending.keyFileData
