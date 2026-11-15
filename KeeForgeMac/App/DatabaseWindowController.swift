@@ -1,5 +1,4 @@
 import AppKit
-import AuthenticationServices
 import SwiftUI
 
 /// One database's window. It owns that session for its whole life and never
@@ -27,6 +26,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     )
     private let titleObservation = MacObservation()
     private let unlockFormObservation = MacObservation()
+    private let lockedPageObservation = MacObservation()
     let unlockFilePanel: MacUnlockFilePanel
     /// The locked pages' form, kept across the locked, opening and error pages.
     private(set) lazy var unlockForm = MacUnlockFormModel(session: session, filePicker: unlockFilePanel)
@@ -157,21 +157,29 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             self.unlockForm.clearSecrets()
             // The page may stay mounted across a lock, so its own load would not run again.
             guard isUnlocked == false else { return }
+            self.workspacePresentation.serverCredentialPrompt.finish(connected: false)
             let form = self.unlockForm
             Task { await form.loadAssociatedKeyFileIfNeeded() }
+        })
+        lockedPageObservation.start(reading: { [weak self] () -> (MacDatabaseOpenPage?, MacKeyFileAssociation?) in
+            guard let session = self?.session else { return (nil, nil) }
+            return (MacDatabaseOpenPage.make(for: session), session.keyFileAssociation)
+        }, onChange: { [weak self] page, _ in
+            guard let form = self?.unlockForm else { return }
+            form.windowDidShow(page)
+            Task { await form.reconcileKeyFileAssociation() }
         })
     }
 
     private var clearedFormLockCycle = 0
 
-    /// Reconnect on a recovery page: the status card's sign-in, then back to the form.
-    private func reconnectFromRecoveryPage() {
-        guard let providerID = session.databaseReference.cloudSyncMetadata?.provider,
-              let provider = CloudProviderRegistry.provider(for: providerID) else { return }
-        let anchor: ASPresentationAnchor = window ?? NSApp.keyWindow ?? ASPresentationAnchor()
+    /// Reconnect on a recovery page: the server's credentials again, then back to the form.
+    func reconnectFromRecoveryPage() {
+        guard let reconnect = MacServerReconnect(reference: session.databaseReference) else { return }
         let form = unlockForm
+        let prompt = workspacePresentation.serverCredentialPrompt
         Task {
-            await form.reconnect { _ = try await provider.authenticate(from: anchor) }
+            await form.reconnect { try await reconnect.run(present: prompt.present) }
         }
     }
 
@@ -179,7 +187,9 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
     func invalidate() {
         titleObservation.cancel()
         unlockFormObservation.cancel()
+        lockedPageObservation.cancel()
         unlockForm.clearSecrets()
+        workspacePresentation.serverCredentialPrompt.finish(connected: false)
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
         closeObserver = nil
         onWillClose = nil

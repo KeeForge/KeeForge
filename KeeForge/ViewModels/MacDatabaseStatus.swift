@@ -193,7 +193,8 @@ struct MacDatabaseStatus: Equatable {
             isSaving = session.isSaving
             isDirty = session.isDirty
             hasSaveConflict = session.saveConflict != nil
-            needsReconnect = session.saveError?.isWriteScopeRequired == true
+            // WebDAV and FTP report a changed password as notAuthenticated, never writeScopeRequired.
+            needsReconnect = session.saveError == .writeScopeRequired || session.saveError == .notAuthenticated
             isReconnectInFlight = presentation.isCloudReconnectInFlight
             hasPendingUploadConflict = session.hasPendingUploadConflict
             let commands = MacWorkspaceCommands(session: session, presentation: presentation)

@@ -9,6 +9,7 @@ protocol MacUnlockSession: AnyObject {
     var state: DatabaseViewModel.State { get }
     var biometricUnlockAvailability: DatabaseViewModel.BiometricUnlockAvailability { get }
     var canRelinkDatabaseFile: Bool { get }
+    var keyFileAssociation: MacKeyFileAssociation? { get }
     func unlock(password: String, keyFileData: Data?) async
     func unlockWithBiometrics() async -> DatabaseViewModel.BiometricUnlockOutcome
     func loadAssociatedKeyFile() async -> (data: Data, filename: String)?
@@ -16,7 +17,23 @@ protocol MacUnlockSession: AnyObject {
     func dismissOpenFailure()
 }
 
-extension DatabaseViewModel: MacUnlockSession {}
+extension DatabaseViewModel: MacUnlockSession {
+    var keyFileAssociation: MacKeyFileAssociation? {
+        MacKeyFileAssociation(reference: databaseReference)
+    }
+}
+
+/// The reference's key-file association as the unlock form compares it.
+struct MacKeyFileAssociation: Equatable {
+    let bookmarkData: Data?
+    let filename: String?
+
+    init?(reference: DatabaseReference) {
+        guard reference.hasAssociatedKeyFile else { return nil }
+        bookmarkData = reference.keyFileBookmarkData
+        filename = reference.keyFileFilename
+    }
+}
 
 /// The open panels a locked database window presents; `nil` when the user cancels.
 @MainActor
@@ -27,7 +44,11 @@ protocol MacUnlockFilePicking: AnyObject {
 
 /// One database window's unlock form. It outlives the locked, opening and
 /// error pages, so a picked key file and the field error survive a wrong
-/// attempt; the typed password never does.
+/// attempt.
+///
+/// The typed password lives only while this form shows it: it leaves the
+/// field before any attempt awaits, by password or Touch ID, and is dropped
+/// when the window shows a page that can neither show nor clear it.
 @MainActor @Observable
 final class MacUnlockFormModel {
     enum Layout: Equatable {
@@ -38,7 +59,7 @@ final class MacUnlockFormModel {
 
     enum KeyLine: Equatable {
         case none
-        /// The database's own key file, offered as Change….
+        /// The database's own key file, offered with Clear (for this attempt) and Change….
         case associated(String)
         /// Picked in this form, offered with Clear and Select….
         case picked(String)
@@ -62,6 +83,11 @@ final class MacUnlockFormModel {
     /// Bumped when the password field should take focus.
     private(set) var focusRequest = 0
     private var keyFile: KeyFile?
+    /// The associated key file was cleared for this attempt; set until unlock, lock or a new association.
+    private var declinesAssociation = false
+    @ObservationIgnored private var knownAssociation: MacKeyFileAssociation?
+    /// Bumped when the association changes, so a read of the old one is dropped.
+    @ObservationIgnored private var associationRevision = 0
     /// Bumped by `clearSecrets`, so an await begun before it changes nothing after.
     @ObservationIgnored private var generation = 0
 
@@ -129,6 +155,7 @@ final class MacUnlockFormModel {
     /// Only ever called from the Touch ID button; the form never prompts by itself.
     func unlockWithBiometrics() async {
         guard canUnlockWithBiometrics else { return }
+        password = ""
         let generation = generation
         let outcome = await session.unlockWithBiometrics()
         guard generation == self.generation else { return }
@@ -160,23 +187,53 @@ final class MacUnlockFormModel {
     }
 
     func clearKeyFile() {
+        if keyFile?.isAssociated == true { declinesAssociation = true }
         keyFileSelection.cancel()
         wipeKeyFile()
     }
 
-    /// Never replaces a key file picked in this form, even one picked while the read was running.
+    /// Never replaces a key file picked in this form, even one picked while the
+    /// read was running, nor one cleared for this attempt.
     func loadAssociatedKeyFileIfNeeded() async {
-        guard keyFile == nil, isLoadingKeyFile == false else { return }
+        guard session.state != .unlocked, keyFile == nil, isLoadingKeyFile == false,
+              declinesAssociation == false else { return }
         if let uiTestKeyFile = Self.uiTestKeyFile() {
             keyFile = uiTestKeyFile
             return
         }
         let revision = keyFileSelection.revision
         let generation = generation
-        guard let associated = await session.loadAssociatedKeyFile() else { return }
+        let associationRevision = associationRevision
+        let association = session.keyFileAssociation
+        guard var associated = await session.loadAssociatedKeyFile() else { return }
         guard Task.isCancelled == false, generation == self.generation, keyFile == nil,
-              keyFileSelection.revision == revision else { return }
+              keyFileSelection.revision == revision, associationRevision == self.associationRevision,
+              association == session.keyFileAssociation, session.state != .unlocked,
+              declinesAssociation == false else {
+            SecureWipe.wipe(&associated.data)
+            return
+        }
+        knownAssociation = session.keyFileAssociation
         keyFile = KeyFile(name: associated.filename, data: associated.data, isAssociated: true)
+    }
+
+    /// Run when the reference may have changed: a cleared association wipes the
+    /// loaded bytes and a new one is read, unless a file was picked here.
+    func reconcileKeyFileAssociation() async {
+        let current = session.keyFileAssociation
+        guard current != knownAssociation else { return }
+        knownAssociation = current
+        associationRevision += 1
+        declinesAssociation = false
+        if keyFile?.isAssociated == true { wipeKeyFile() }
+        await loadAssociatedKeyFileIfNeeded()
+    }
+
+    /// Applies the password rule when the window changes page.
+    func windowDidShow(_ page: MacDatabaseOpenPage?) {
+        if case .form = page { return }
+        password = ""
+        isPasswordVisible = false
     }
 
     func locateDatabaseFile() async {
@@ -231,6 +288,7 @@ final class MacUnlockFormModel {
         isPasswordVisible = false
         showsFieldError = false
         isReconnecting = false
+        declinesAssociation = false
         keyFileSelection.cancel()
         wipeKeyFile()
     }

@@ -103,6 +103,7 @@ private final class PanelSession: MacUnlockSession {
     var state: DatabaseViewModel.State = .locked
     var biometricUnlockAvailability: DatabaseViewModel.BiometricUnlockAvailability = .none
     var canRelinkDatabaseFile = false
+    var keyFileAssociation: MacKeyFileAssociation?
     private(set) var relinked: [URL] = []
     private(set) var unlockedWith: [(password: String, keyFileData: Data?)] = []
 

@@ -1,5 +1,4 @@
 import AppKit
-import AuthenticationServices
 
 /// What the status card, the hidden-sidebar toolbar items and the notices above
 /// the entry list do, through the same recovery paths the banners used.
@@ -16,7 +15,7 @@ struct MacDatabaseStatusActions {
         case .resolveConflict:
             presentation.requestSaveConflictPrompt()
         case .reconnect:
-            reconnect(from: window)
+            reconnect()
         case .pushPendingUploads:
             presentation.pushPendingUploads(in: session)
         }
@@ -25,7 +24,7 @@ struct MacDatabaseStatusActions {
     func perform(_ action: MacDatabaseStatus.Notice.Action, from window: NSWindow?) {
         switch action {
         case .reconnect:
-            reconnect(from: window)
+            reconnect()
         case .mergePendingUploads:
             let session = session
             Task {
@@ -56,16 +55,15 @@ struct MacDatabaseStatusActions {
         }
     }
 
-    private func reconnect(from window: NSWindow?) {
+    private func reconnect() {
         guard presentation.isCloudReconnectInFlight == false else { return }
-        guard let providerID = session.databaseReference.cloudSyncMetadata?.provider,
-              let provider = CloudProviderRegistry.provider(for: providerID) else {
+        guard let reconnect = MacServerReconnect(reference: session.databaseReference) else {
             session.presentSaveError(CloudProviderError.invalidConfiguration)
             return
         }
-        let anchor: ASPresentationAnchor = window ?? NSApp.keyWindow ?? ASPresentationAnchor()
+        let prompt = presentation.serverCredentialPrompt
         presentation.reconnectCloud(in: session) {
-            _ = try await provider.authenticate(from: anchor)
+            try await reconnect.run(present: prompt.present)
         }
     }
 }

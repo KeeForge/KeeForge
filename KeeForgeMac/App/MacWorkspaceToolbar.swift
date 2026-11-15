@@ -228,7 +228,10 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 
         let readOnly = addButton(Item.readOnly, symbol: "eyeglasses", label: String(localized: "Read-only database"),
                                  target: self, action: #selector(explainReadOnly(_:)))
-        readOnly.contentTintColor = NSColor(Theme.State.warning)
+        // Toolbar glass ignores contentTintColor, so the colour goes into the symbol.
+        readOnly.image = readOnly.image?.withSymbolConfiguration(
+            NSImage.SymbolConfiguration(paletteColors: [MacToolbarTitleView.readOnlyTint]))
+        readOnly.contentTintColor = MacToolbarTitleView.readOnlyTint
 
         addButton(Item.add, symbol: "plus", label: String(localized: "New Entry"),
                   target: self, action: #selector(newEntry(_:)))
@@ -307,6 +310,11 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
 /// bounds, which do not clip. A narrow column truncates the name first.
 final class MacToolbarTitleView: NSView {
     static let readOnlyIdentifier = "toolbar.title.read-only"
+    /// The ReadOnly board's amber (#a05a00) in light mode; the system orange reads better on dark.
+    static let readOnlyTint = NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? .systemOrange : NSColor(srgbRed: 0xa0 / 255, green: 0x5a / 255, blue: 0, alpha: 1)
+    }
     private static let gap: CGFloat = 8
     private static let margin: CGFloat = 12
 
@@ -331,9 +339,9 @@ final class MacToolbarTitleView: NSView {
         readOnlyButton.imagePosition = .imageLeading
         readOnlyButton.imageHugsTitle = true
         readOnlyButton.font = .systemFont(ofSize: 12, weight: .semibold)
-        readOnlyButton.contentTintColor = NSColor(Theme.State.warning)
+        readOnlyButton.contentTintColor = Self.readOnlyTint
         readOnlyButton.attributedTitle = NSAttributedString(string: label, attributes: [
-            .foregroundColor: NSColor(Theme.State.warning),
+            .foregroundColor: Self.readOnlyTint,
             .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
         ])
         readOnlyButton.toolTip = String(localized: "Read-only database")

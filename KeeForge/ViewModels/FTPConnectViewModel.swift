@@ -16,10 +16,13 @@ final class FTPConnectViewModel {
     var errorMessage: String?
 
     private let connector: any FTPConnecting
+    /// Reconnecting a database: only its own account may be connected.
+    private let expectedAccountID: String?
     private var isCancelled = false
 
-    init(connector: any FTPConnecting) {
+    init(connector: any FTPConnecting, expectedAccountID: String? = nil) {
         self.connector = connector
+        self.expectedAccountID = expectedAccountID
     }
 
     /// Returns the connected account, or nil with `errorMessage` set. The
@@ -55,10 +58,15 @@ final class FTPConnectViewModel {
         )
 
         do {
-            _ = try FTPURL.normalizedBaseURL(
+            let baseURL = try FTPURL.normalizedBaseURL(
                 from: configuration.serverURL,
                 allowsUnencryptedFTP: configuration.allowsUnencryptedFTP
             )
+            if let expectedAccountID,
+               FTPURL.accountId(normalizedBaseURL: baseURL, username: trimmedUsername) != expectedAccountID {
+                errorMessage = String(localized: "This database was added with a different server address or username.")
+                return nil
+            }
         } catch {
             errorMessage = Self.connectionMessage(for: error)
             return nil

@@ -19,10 +19,20 @@ key-file data from the [database session](../KeeForge/ViewModels/DatabaseViewMod
 
 While a database window shows its unlock form, the
 [form](../KeeForge/ViewModels/MacUnlockFormModel.swift) clears the typed master
-password before each attempt runs, but keeps a chosen key file's bytes across
-failed attempts so the user need not pick it again. Unlocking, Clear, a new pick,
-every lock of that session (including Cancel while opening) and closing the
-window wipe them with `SecureWipe`. The shown password field never copies, cuts,
+password before each attempt runs, by password or Touch ID, and drops it whenever
+the window shows a page that can neither show nor clear it (opening, recovery,
+unavailable). It keeps a chosen key file's bytes across failed attempts so the
+user need not pick it again. Unlocking, Clear (also of the database's associated
+key file, for that attempt), a new pick, a cleared or changed key-file
+association, every lock of that session (including Cancel while opening) and
+closing the window wipe them with `SecureWipe`.
+
+Reconnect for a WebDAV or FTP database (recovery page, status card, notice)
+shows the Connect to Server form as a sheet on that window, prefilled with the
+stored server address and username but never the password. It accepts only the
+reference's own account, so a mistyped address cannot attach another account's
+credential, and a successful connect replaces that account's Keychain item. The
+sheet closes, and its password is dropped, on lock and window close. The shown password field never copies, cuts,
 drags or serves its text to Services, and neither field offers completion or a
 content type that Passwords would fill.
 

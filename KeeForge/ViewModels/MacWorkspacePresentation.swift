@@ -47,6 +47,8 @@ final class MacWorkspacePresentation {
     private(set) var statusClockTick = 0
     /// The list's and the detail pane's copy ticks.
     let copyFeedback = MacCopyFeedback()
+    /// The window's Reconnect sheet, for the recovery page and the status card alike.
+    let serverCredentialPrompt = MacServerCredentialPrompt()
     /// Replaced when the selected entry or session changes, which conceals what the old one revealed.
     @ObservationIgnored private var currentDetailModel: MacEntryDetailModel?
     /// The open History sheet; `currentEntryHistory(in:)` stops answering it once it is stale.
@@ -317,6 +319,7 @@ final class MacWorkspacePresentation {
                 try await authenticate()
                 guard self.lifetimeID == lifetimeID, database.lockCycleID == lockCycleID else { return }
                 database.clearSaveError()
+                if database.isDirty { await database.saveHandlingError() }
             } catch let error as CloudProviderError where error == .authenticationCancelled {
                 return
             } catch {
@@ -337,6 +340,7 @@ final class MacWorkspacePresentation {
         isShowingDatabaseDetails = false
         presentedSaveError = nil
         isCloudReconnectInFlight = false
+        serverCredentialPrompt.finish(connected: false)
         pushAlert = nil
         copyFeedback.clear()
         currentDetailModel?.invalidate()

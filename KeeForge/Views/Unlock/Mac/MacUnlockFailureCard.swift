@@ -5,6 +5,8 @@ import SwiftUI
 /// the field it concerns. The form's Unlock is the retry; the rest is in its menu.
 struct MacUnlockFailureCard: View {
     let card: MacDatabaseOpenPage.FailureCard
+    /// Offered after a Locate no unlock has confirmed yet, in case it picked the wrong file.
+    let onLocate: (() -> Void)?
     let onCopyDetails: () -> Void
     let onSendFeedback: () -> Void
 
@@ -35,6 +37,11 @@ struct MacUnlockFailureCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Menu {
+                if let onLocate {
+                    Button("Locate Database File…", action: onLocate)
+                        .accessibilityIdentifier("unlock.relink")
+                    Divider()
+                }
                 Button("Copy Error Details", action: onCopyDetails)
                     .accessibilityIdentifier("unlock.copy-error")
                 Button("Send Feedback", action: onSendFeedback)

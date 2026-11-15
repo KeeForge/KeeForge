@@ -606,6 +606,51 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertFalse(presentation.isCloudReconnectInFlight)
     }
 
+    func testAServerThatRejectsTheSavedPasswordAsksForReconnectAndSuccessRetriesTheSave() async throws {
+        let saves = SaveCounter()
+        let database = try await makeDatabase { _, _, _, hash, _, _, _ in
+            await saves.increment()
+            return .saved(newSHA512: hash)
+        }
+        defer { database.lock() }
+        let presentation = MacWorkspacePresentation()
+        try database.applyEntryEdit(.createEntry(parentGroupID: try XCTUnwrap(database.workspaceRootGroupID),
+                                                 draft: EntryDraftPayload(title: "Unsaved", password: "secret")))
+        for (error, needsReconnect) in [(CloudProviderError.notAuthenticated, true), (.writeScopeRequired, true),
+                                        (.networkUnavailable, false)] {
+            database.presentSaveError(error)
+            XCTAssertEqual(MacDatabaseStatus.State(session: database, presentation: presentation).needsReconnect,
+                           needsReconnect, "\(error)")
+        }
+
+        database.presentSaveError(CloudProviderError.notAuthenticated)
+        let task = try XCTUnwrap(presentation.reconnectCloud(in: database) {})
+        await task.value
+
+        XCTAssertNil(database.saveError)
+        XCTAssertFalse(database.isDirty, "The change that failed to save is saved once the server takes the password")
+        let count = await saves.count
+        XCTAssertEqual(count, 1)
+    }
+
+    func testResetClosesAnOpenReconnectForm() async {
+        let presentation = MacWorkspacePresentation()
+        let form = MacServerCredentialForm.ftp(FTPConnectViewModel(connector: FTPCloudProvider()))
+        let answer = Task { await presentation.serverCredentialPrompt.present(form) }
+        while presentation.serverCredentialPrompt.request == nil { await Task.yield() }
+
+        presentation.reset()
+
+        let connected = await answer.value
+        XCTAssertFalse(connected)
+        XCTAssertNil(presentation.serverCredentialPrompt.request)
+    }
+
+    private actor SaveCounter {
+        private(set) var count = 0
+        func increment() { count += 1 }
+    }
+
     func testLockBeforeReconnectStartsPreventsAuthentication() async throws {
         let database = try await makeDatabase()
         let presentation = MacWorkspacePresentation()

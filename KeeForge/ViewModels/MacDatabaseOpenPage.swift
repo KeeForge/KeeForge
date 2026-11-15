@@ -9,6 +9,8 @@ enum MacDatabaseOpenPage: Equatable {
         let title: String
         let summary: String
         let code: String
+        /// A Locate not yet confirmed by an unlock may have picked the wrong file.
+        var offersLocate = false
     }
 
     struct Opening: Equatable {
@@ -101,7 +103,8 @@ enum MacDatabaseOpenPage: Equatable {
             guard hasSavedFile else { return .unavailable }
             return .form(card: nil, footer: footer(for: lastLockCause))
         case .error(let failure) where failure.canRetryUnlock:
-            let card = FailureCard(title: failure.title, summary: failure.summary, code: failure.errorCode)
+            let card = FailureCard(title: failure.title, summary: failure.summary, code: failure.errorCode,
+                                   offersLocate: canRelink)
             return .form(card: card, footer: footer(for: lastLockCause))
         case .error(let failure):
             return .recovery(recoveryPage(for: failure, reference: reference, canRelink: canRelink))

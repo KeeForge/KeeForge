@@ -85,6 +85,20 @@ final class MacDatabaseOpenPageTests: XCTestCase {
         XCTAssertEqual(recovery.actions, [.locateDatabaseFile, .tryAgain, .removeFromList])
     }
 
+    func testWrongCredentialsAfterAnUnverifiedLocateKeepLocateOnTheCard() {
+        let wrongKey = failure("auth.invalid_credentials", .authentication)
+
+        guard case .form(let card?, _)? = make(.error(wrongKey), reference: local, canRelink: true) else {
+            return XCTFail("A wrong key keeps the form")
+        }
+        XCTAssertTrue(card.offersLocate, "The located file may be the wrong one")
+
+        guard case .form(let plain?, _)? = make(.error(wrongKey), reference: local, canRelink: false) else {
+            return XCTFail("A wrong key keeps the form")
+        }
+        XCTAssertFalse(plain.offersLocate)
+    }
+
     // MARK: - Recovery actions
 
     func testLocateIsOfferedOnlyWhenTheFailureCanBeRelinked() {

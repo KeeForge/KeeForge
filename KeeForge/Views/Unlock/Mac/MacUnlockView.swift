@@ -209,6 +209,7 @@ struct MacUnlockView: View {
         if let card {
             MacUnlockFailureCard(
                 card: card,
+                onLocate: card.offersLocate ? { Task { await form.locateDatabaseFile() } } : nil,
                 onCopyDetails: copyErrorDetails,
                 onSendFeedback: sendFeedback
             )
@@ -262,20 +263,12 @@ struct MacUnlockView: View {
                 selectButton
             case .associated(let name):
                 keyFileName(name)
+                clearKeyFileButton
                 separatorDot
                 linkButton("Change…", identifier: "unlock.keyfile.change", action: chooseKeyFile)
             case .picked(let name):
                 keyFileName(name)
-                Button {
-                    form.clearKeyFile()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text("Clear key file"))
-                .accessibilityIdentifier("unlock.keyfile.clear")
-                .macHelp(String(localized: "Clear key file"))
+                clearKeyFileButton
                 separatorDot
                 selectButton
             }
@@ -290,6 +283,20 @@ struct MacUnlockView: View {
         .alert(item: $form.selectionAlert) { alert in
             Alert(title: Text(alert.title), message: Text(alert.message), dismissButton: .default(Text("OK")))
         }
+    }
+
+    private var clearKeyFileButton: some View {
+        Button {
+            form.clearKeyFile()
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .disabled(form.isUnlocking)
+        .accessibilityLabel(Text("Clear key file"))
+        .accessibilityIdentifier("unlock.keyfile.clear")
+        .macHelp(String(localized: "Clear key file"))
     }
 
     private var separatorDot: some View {

@@ -20,6 +20,17 @@ struct WebDAVConnectView: View {
         self.onCancel = onCancel
     }
 
+    /// A form prepared by the caller, such as Reconnect's prefilled one.
+    init(
+        viewModel: WebDAVConnectViewModel,
+        onConnected: @escaping (CloudAccount) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        _viewModel = State(initialValue: viewModel)
+        self.onConnected = onConnected
+        self.onCancel = onCancel
+    }
+
     var body: some View {
         NavigationStack {
             Form {

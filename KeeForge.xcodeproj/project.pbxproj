@@ -1046,6 +1046,7 @@
 		E77BF5F41D48BD25D55204A9 /* ReviewPromptServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7654CB864A7BECF13483C8 /* ReviewPromptServiceTests.swift */; };
 		E7A57A077FB4C75DBBDC47E7 /* MacWorkspaceCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF188C25154B55D4CBB67CDA /* MacWorkspaceCommands.swift */; };
 		E83713EEF66A51744E157D9D /* AutoFillPickerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6220FDFB74D43D8B57CF0F4A /* AutoFillPickerUITests.swift */; };
+		E8A20323117FAD9D3F8B253C /* MacServerReconnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B746C084A8F17A5F25F870B /* MacServerReconnect.swift */; };
 		E90EAA422907A6D9AF9F9963 /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17350EF5DF6C5C2E97B61A34 /* Attachment.swift */; };
 		E934741BA4B7FB467C3BD8F5 /* TagEntriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC86639AE08CA5050447A3E8 /* TagEntriesView.swift */; };
 		E93F94FBD15A51BF5FC04019 /* CloudSyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 633D74C75C8E56DA9DAF5458 /* CloudSyncCoordinatorTests.swift */; };
@@ -1080,6 +1081,7 @@
 		EE4396D4B80DABC1BFC2310B /* DatabaseSettingsSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757B2A2645F632F8803B7868 /* DatabaseSettingsSummary.swift */; };
 		EE51139DDDFD5C48CEF2E51F /* UnlockFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2C726CD862BFFCE77228AAD /* UnlockFlowUITests.swift */; };
 		EE7B401DDB0623C64BD52754 /* DatabaseListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F8881C68F6627BAD44F716 /* DatabaseListRow.swift */; };
+		EEA83B047E37C1760408BC96 /* MacServerReconnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B746C084A8F17A5F25F870B /* MacServerReconnect.swift */; };
 		EF00AF85066CB4C85535CBAF /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94BB534FB7CE421342A621AC /* SearchView.swift */; };
 		EF30A950284CF94994BB2F73 /* PasskeyCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEA3048149FA6E823621EA0 /* PasskeyCrypto.swift */; };
 		EF4103B2BC86843B0126FAE9 /* MacAppSuggestionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37CE72A45874FEE3F1662805 /* MacAppSuggestionUITests.swift */; };
@@ -1538,6 +1540,7 @@
 		88380F3217BD0B2ED403BE33 /* DatabaseOpeningSteps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseOpeningSteps.swift; sourceTree = "<group>"; };
 		88C756C74A90FA29646A5AEA /* AttachmentPreviewSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentPreviewSessionTests.swift; sourceTree = "<group>"; };
 		8AF0307ABDC2EF9F25DF159C /* FileDigest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDigest.swift; sourceTree = "<group>"; };
+		8B746C084A8F17A5F25F870B /* MacServerReconnect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacServerReconnect.swift; sourceTree = "<group>"; };
 		8B8777AF29F684C087EE1C71 /* CustomIconXMLTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomIconXMLTests.swift; sourceTree = "<group>"; };
 		8CA9912B84B19D308EAEDF9F /* DatabaseListUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseListUITests.swift; sourceTree = "<group>"; };
 		8CBA3653D9EF4874EFB15DDE /* MacWorkspaceAlerts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWorkspaceAlerts.swift; sourceTree = "<group>"; };
@@ -2431,6 +2434,7 @@
 				353D81F044C468E67347CA07 /* MacEntrySelectionSummary.swift */,
 				01B1638D52236BB804BBDA4A /* MacLockedDatabaseSummary.swift */,
 				55E903CDBD7364BF86811E15 /* MacQuickSearchViewModel.swift */,
+				8B746C084A8F17A5F25F870B /* MacServerReconnect.swift */,
 				0274F675F87B5624551F3F24 /* MacSidebarModel.swift */,
 				6B1E3C3A2D5C42011C7DB621 /* MacUnlockFormModel.swift */,
 				BF188C25154B55D4CBB67CDA /* MacWorkspaceCommands.swift */,
@@ -3613,6 +3617,7 @@
 				439FFD8A5C8DD43E7A1D1F47 /* MacQuickSearchViewModel.swift in Sources */,
 				AE6E6CBFF433E43C3C0EE497 /* MacSSHAgentController.swift in Sources */,
 				2DE6B2A3403F1B60AAF74E7D /* MacSSHAgentSettingsTab.swift in Sources */,
+				EEA83B047E37C1760408BC96 /* MacServerReconnect.swift in Sources */,
 				B22E809F370A17D70A0E4544 /* MacSidebarModel.swift in Sources */,
 				5A10E360645961094AEE20DB /* MacSidebarViewController.swift in Sources */,
 				51957F9D60D710E17B502FE7 /* MacTOTPSetupSheet.swift in Sources */,
@@ -3881,6 +3886,7 @@
 				E30324E708285E96A1223377 /* MacQuickSearchView.swift in Sources */,
 				24FDB7F5CE246BFDC0F694A4 /* MacQuickSearchViewModel.swift in Sources */,
 				EDD944BCB7C2FEA3E8A4559C /* MacSSHAgentSettingsTab.swift in Sources */,
+				E8A20323117FAD9D3F8B253C /* MacServerReconnect.swift in Sources */,
 				376AFFBF71E6A632F085E14C /* MacSidebarModel.swift in Sources */,
 				E0747E8B002CEF80A8FD36EF /* MacTOTPSetupSheet.swift in Sources */,
 				F867D279C4D44D16B6A38AE7 /* MacTransitionNoticeService.swift in Sources */,

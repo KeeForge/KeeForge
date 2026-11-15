@@ -64960,6 +64960,58 @@
         }
       }
     },
+    "This database was added with a different server address or username." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank wurde mit einer anderen Serveradresse oder einem anderen Benutzernamen hinzugefügt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos se añadió con otra dirección del servidor u otro nombre de usuario."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données a été ajoutée avec une autre adresse de serveur ou un autre nom d'utilisateur."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database è stato aggiunto con un altro indirizzo del server o un altro nome utente."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースは別のサーバアドレスまたはユーザ名で追加されています。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта база данных была добавлена с другим адресом сервера или именем пользователя."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库是使用其他服务器地址或用户名添加的。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫是使用其他伺服器位址或使用者名稱加入的。"
+          }
+        }
+      }
+    },
     "This database's Argon2 settings require more memory or processing than this device can safely run. Lower the Argon2 settings in a desktop KeePass app and save the database, then try opening it again." : {
       "localizations" : {
         "de" : {

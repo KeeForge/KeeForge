@@ -15,6 +15,7 @@ struct MacLockedPageHeader: View {
     let tile: Tile
     let title: String
     let subtitle: String
+    @Environment(\.colorScheme) private var colorScheme
 
     static let tileSize: CGFloat = 76
 
@@ -48,6 +49,13 @@ struct MacLockedPageHeader: View {
                 .interpolation(.high)
                 .frame(width: Self.tileSize, height: Self.tileSize)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay {
+                    // The ink tile nearly matches the dark window; a hairline keeps its edge.
+                    if colorScheme == .dark {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                    }
+                }
                 .shadow(color: Color(red: 0.22, green: 0.27, blue: 0.47).opacity(0.22), radius: 9, y: 6)
                 .accessibilityHidden(true)
         case .symbol(let name):
@@ -86,7 +94,15 @@ struct MacLockedPageLayout<Content: View, Footer: View>: View {
             }
             .scrollBounceBehavior(.basedOnSize)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(nsColor: Self.background))
+    }
+
+    /// The boards' #f5f5f7 page in light mode; the system window colour in dark.
+    static var background: NSColor {
+        NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                ? .windowBackgroundColor : NSColor(srgbRed: 0xf5 / 255, green: 0xf5 / 255, blue: 0xf7 / 255, alpha: 1)
+        }
     }
 }
 
