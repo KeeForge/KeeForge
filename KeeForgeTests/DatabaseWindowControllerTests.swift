@@ -66,6 +66,34 @@ final class DatabaseWindowControllerTests: XCTestCase {
                      "A closed window writes no more preview files")
     }
 
+    func testCloseAndInvalidationEndWorkspaceSheetsAndAlerts() async throws {
+        for closeWindow in [true, false] {
+            let session = try makeSession()
+            await session.unlock(password: "testpassword123")
+            let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
+                enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false))
+            controller.workspaceSheets.present = { shell, parent, completion in
+                shell.presentWindow = { _, _, _ in }
+                shell.begin(on: parent, completion: completion)
+            }
+            controller.workspaceAlerts.present = { _, _, _ in }
+            controller.workspacePresentation.beginNewGroup()
+            controller.workspacePresentation.pendingDeletion = .entry(.init(
+                entryID: try XCTUnwrap(session.visibleRootGroup?.allEntries.first).id, sendToRecycleBin: true))
+            for _ in 0..<5 { await settle() }
+            let shell = try XCTUnwrap(controller.workspaceSheets.sheet)
+            XCTAssertNotNil(controller.workspaceAlerts.presented)
+            if closeWindow { controller.window?.close() } else { controller.invalidate() }
+            XCTAssertFalse(shell.isPresented)
+            XCTAssertNil(controller.workspaceSheets.sheet)
+            XCTAssertNil(controller.workspaceAlerts.presented)
+            XCTAssertFalse(controller.workspacePresentation.isShowingNewGroupSheet)
+            XCTAssertNil(controller.workspacePresentation.pendingDeletion)
+            controller.invalidate()
+            session.lockRequest(force: true)
+        }
+    }
+
     func testInitialContentSizeIsChosenByTheCoordinatorAndNeverBelowTheMinimum() throws {
         let large = try load(DatabaseWindowController(session: try makeSession(), windowRegistry: registry(),
             enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false, initialContentSize: NSSize(width: 1440, height: 900)))
@@ -221,9 +249,9 @@ final class DatabaseWindowControllerTests: XCTestCase {
     }
 
     func testTheOpenPanelsAreSheetsOnThisWindow() throws {
-        let panel = MacUnlockFilePanel { _, _ in nil }
+        let panel = MacFilePanels { _, _ in nil }
         let controller = try load(DatabaseWindowController(session: try makeSession(), windowRegistry: registry(),
-            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false, unlockFilePanel: panel))
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false, filePanels: panel))
         XCTAssertTrue(panel.window === controller.window)
     }
 

@@ -1778,6 +1778,28 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.isDirty)
     }
 
+    func testMoveGroupRefusesSelfDescendantAndRecycleBinInTheModel() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let rootID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Parent", in: rootID)
+        let parent = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Parent" })
+        try vm.createGroup(named: "Child", in: parent.id)
+        let child = try XCTUnwrap(vm.group(withID: parent.id)?.groups.first)
+        let work = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Work" })
+        try vm.deleteEntry(try XCTUnwrap(work.entries.first).id, sendToRecycleBin: true)
+        let bin = try XCTUnwrap(vm.recycleBinGroup)
+        let revision = vm.contentRevision
+        try vm.moveGroup(groupID: parent.id, toGroupID: parent.id)
+        XCTAssertThrowsError(try vm.moveGroup(groupID: parent.id, toGroupID: child.id))
+        try vm.moveGroup(groupID: parent.id, toGroupID: bin.id)
+        XCTAssertEqual(vm.contentRevision, revision)
+        XCTAssertTrue(vm.group(withID: rootID)?.groups.contains { $0.id == parent.id } == true)
+        XCTAssertTrue(vm.group(withID: parent.id)?.groups.contains { $0.id == child.id } == true)
+        XCTAssertFalse(vm.group(withID: bin.id)?.groups.contains { $0.id == parent.id } == true)
+        vm.lockRequest(force: true)
+    }
+
     func testMoveGroupToItsCurrentParentIsANoOp() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
@@ -6670,6 +6692,54 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertState(vm.state, is: .locked)
         XCTAssertNil(vm.pendingLockRequest)
         XCTAssertNil(vm.draft)
+    }
+
+    func testSaveAndLockCompletionCannotLockTheNextCycle() async throws {
+        let gate = SaveGate()
+        let vm = try makeViewModel(localSaveOperation: { _, _, _, _, _, _, _ in
+            await gate.signalStarted()
+            await gate.waitUntilOpen()
+            return .saved(newSHA512: Data([1]))
+        })
+        await vm.unlock(password: fixturePassword)
+        try vm.createGroup(named: "Old Draft", in: try XCTUnwrap(vm.visibleRootGroupID))
+        vm.lockRequest(manuallyTriggered: true)
+        let save = Task { await vm.saveAndLockAfterLockRequest() }
+        await gate.waitUntilStarted()
+        vm.lockRequest(force: true)
+        await vm.unlock(password: fixturePassword)
+        await gate.open()
+        await save.value
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNil(vm.pendingLockRequest)
+        vm.lockRequest(force: true)
+    }
+
+    func testKeepEditingAuthenticationCannotLockOrDismissARequestInTheNextCycle() async throws {
+        let gate = SaveGate()
+        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        let vm = DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false),
+            quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false },
+            deviceOwnerAuthAvailabilityCheck: { true }, secretAccess: SecretAccessGate(prompt: { _ in
+                await gate.signalStarted()
+                await gate.waitUntilOpen()
+            }))
+        await vm.unlock(password: fixturePassword)
+        try vm.createGroup(named: "Old Draft", in: try XCTUnwrap(vm.visibleRootGroupID))
+        vm.lockRequest()
+        let resume = Task { await vm.continueEditingAfterLockRequest() }
+        await gate.waitUntilStarted()
+        vm.lockRequest(force: true)
+        await vm.unlock(password: fixturePassword)
+        try vm.createGroup(named: "New Draft", in: try XCTUnwrap(vm.visibleRootGroupID))
+        vm.lockRequest()
+        let request = vm.pendingLockRequest
+        await gate.open()
+        await resume.value
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertEqual(vm.pendingLockRequest, request)
+        XCTAssertTrue(vm.isDirty)
+        vm.lockRequest(force: true)
     }
 
     func testKeepEditingAfterManualLockNeedsNoOwnerAuthentication() async throws {

@@ -139,6 +139,7 @@ struct MasterKeyChangeView: View {
                 Text("This permanently re-encrypts the database file. It will open only with the new master key — if the new master password or key file is lost, the data in it cannot be recovered.")
             }
         }
+        .macSheetCancellation { viewModel.cancelPendingChange() }
         .onDisappear {
             viewModel.cancelPendingChange()
         }

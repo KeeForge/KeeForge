@@ -57,13 +57,9 @@ final class MacWindowWorkspace {
 final class MacWorkspaceSplitViewController: NSSplitViewController {
     let session: DatabaseViewModel
     let entryList: MacEntryListViewController
-    private(set) lazy var alerts = MacWorkspaceAlerts(session: session, presentation: presentation) { [weak self] in
-        self?.view.window
-    }
     private let presentation: MacWorkspacePresentation
     private var sidebarCollapseObservation: NSKeyValueObservation?
     private var statusClock: Timer?
-    private var hasStartedAlerts = false
 
     /// Each database keeps its own widths and collapse state; nil keeps the layout unsaved.
     init(
@@ -122,10 +118,6 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
     /// Alerts wait for a window to attach to.
     override func viewDidAppear() {
         super.viewDidAppear()
-        if hasStartedAlerts == false {
-            hasStartedAlerts = true
-            alerts.start()
-        }
         statusClock?.invalidate()
         statusClock = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.presentation.advanceStatusClock() }

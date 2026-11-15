@@ -27,6 +27,7 @@
 - `VerificationCodeRow` is two sibling buttons; the opening one keeps `entry.navlink` and does what the link would in each shell (select in the regular workspace, append to `workspace.navigationPath` in compact).
 - The group editor never previews a custom icon: the payload carries only a standard `iconID`, and the draft leaves a custom icon alone unless a different standard one is picked.
 - The group editor's tag row mirrors the entry editor's, with one intended difference: suggestions do not exclude inherited tags, because restating an ancestor's tag on a child group is legitimate.
+- On Mac the workspace uses `MacGroupPickerSheet` (native outline, select then Move/Restore, or double-click). `MacGroupPickerModelTests` covers its rows and eligibility. Group edit content stays hosted unchanged until its form rebuild; the window presenter owns its coordinator and deactivates it on teardown.
 - `MoveToGroupPickerView` is also the New Entry destination picker, with its own title. Options are resolved when the sheet is built, not when the menu was tapped.
 
 ## Tests

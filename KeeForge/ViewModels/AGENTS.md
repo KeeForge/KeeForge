@@ -122,3 +122,5 @@ Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, f
 - `../Views/AGENTS.md`, `../App/AGENTS.md`: the shells that adapt this state and run auto-unlock
 - `../Models/AGENTS.md`, `../Services/AGENTS.md`: `DatabaseDraft`, merge, save paths, pending uploads
 - `../../KeeForgeTests/AGENTS.md`, `../../KeeForgeMac/SECURITY.md`
+
+- `MacGroupPickerModel` snapshots destination options when the native picker is built, keeps the current group disabled, and confirms only a selectable row. `DatabaseViewModel.moveGroup` also refuses Recycle Bin destinations; draft-level cycle checks remain authoritative. Deferred Keep Editing authentication and Save and Lock completion must recheck their original lock cycle before changing lock state. Tests: `MacGroupPickerModelTests` and `DatabaseViewModelTests`.

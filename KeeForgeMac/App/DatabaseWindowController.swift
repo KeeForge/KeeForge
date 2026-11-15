@@ -24,12 +24,14 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         splitAutosaveName: splitAutosaveName,
         currentSession: { [weak self] in self?.currentSession() }
     )
+    private(set) lazy var workspaceSheets = MacWorkspaceSheets(session: session, presentation: workspacePresentation) { [weak self] in self?.window }
+    private(set) lazy var workspaceAlerts = MacWorkspaceAlerts(session: session, presentation: workspacePresentation) { [weak self] in self?.window }
     private let titleObservation = MacObservation()
     private let unlockFormObservation = MacObservation()
     private let lockedPageObservation = MacObservation()
-    let unlockFilePanel: MacUnlockFilePanel
+    let filePanels: MacFilePanels
     /// The locked pages' form, kept across the locked, opening and error pages.
-    private(set) lazy var unlockForm = MacUnlockFormModel(session: session, filePicker: unlockFilePanel)
+    private(set) lazy var unlockForm = MacUnlockFormModel(session: session, filePicker: filePanels)
     private let windowRegistry: MacDatabaseWindowRegistry
     private let enrollment: TOTPEnrollmentCoordinator
     private let passwordCopyAction: EntrySecretAction
@@ -74,11 +76,11 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
         passwordCopyAction: EntrySecretAction = EntrySecretAction(),
         previewPanel: any MacPreviewPanelPresenting = MacSystemPreviewPanel(),
         largeType: MacLargeTypePanelController = .shared,
-        unlockFilePanel: MacUnlockFilePanel = MacUnlockFilePanel(),
+        filePanels: MacFilePanels = MacFilePanels(),
         requestClose: @escaping @MainActor (NSWindow) -> Void = { $0.performClose(nil) }
     ) {
         self.session = session
-        self.unlockFilePanel = unlockFilePanel
+        self.filePanels = filePanels
         self.previewPanel = previewPanel
         self.largeType = largeType
         self.windowRegistry = windowRegistry
@@ -124,13 +126,18 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             height: max(initialContentSize.height, DatabaseWindow.minimumContentSize.height)))
         window.center()
         self.window = window
-        unlockFilePanel.window = window
+        filePanels.window = window
+        workspaceSheets.start()
+        workspaceAlerts.start()
         attachmentPreview.install(in: window)
         closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: window, queue: nil
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                self.workspaceAlerts.invalidate()
+                self.workspaceSheets.invalidate()
+                self.filePanels.cancel()
                 self.attachmentPreview.windowClosed()
                 self.onWillClose?(self)
             }
@@ -154,6 +161,7 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             guard let self else { return }
             guard isUnlocked || lockCycleID != self.clearedFormLockCycle else { return }
             self.clearedFormLockCycle = lockCycleID
+            self.filePanels.cancel()
             self.unlockForm.clearSecrets()
             // The page may stay mounted across a lock, so its own load would not run again.
             guard isUnlocked == false else { return }
@@ -185,6 +193,9 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
 
     /// Stops observing once the window has closed for good.
     func invalidate() {
+        workspaceAlerts.invalidate()
+        workspaceSheets.invalidate()
+        filePanels.cancel()
         titleObservation.cancel()
         unlockFormObservation.cancel()
         lockedPageObservation.cancel()

@@ -24,8 +24,6 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         let stack = try XCTUnwrap(outline.view as? NSStackView)
         XCTAssertTrue(stack.arrangedSubviews.last === outline.statusCard, "The status card sits under the outline")
         XCTAssertFalse(outline.statusCard.isHidden, "Always shown for an open database")
-        XCTAssertTrue(controller.alerts.session === session)
-        XCTAssertNil(controller.alerts.presented, "Alerts wait for a window")
         XCTAssertTrue(sidebar.canCollapse)
         XCTAssertEqual(sidebar.minimumThickness, 200)
         XCTAssertEqual(sidebar.maximumThickness, 340)

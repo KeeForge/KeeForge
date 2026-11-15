@@ -1,7 +1,7 @@
 #if os(macOS)
 import SwiftUI
 
-/// Column revisions must never replace the host while a sheet is dismissing.
+/// Keeps command observers and the saving overlay stable across column revisions.
 struct MacWorkspacePresentationHost<Content: View>: View {
     @Bindable var viewModel: DatabaseViewModel
     @Bindable var presentation: MacWorkspacePresentation
@@ -44,89 +44,7 @@ struct MacWorkspacePresentationHost<Content: View>: View {
                 guard newValue != oldValue else { return }
                 presentation.beginSelectionDeletion(in: viewModel)
             }
-            .alert(item: $presentation.presentedSaveError) { error in
-                Alert(
-                    title: Text("Couldn't Save Database"),
-                    message: Text(error.localizedDescription),
-                    dismissButton: .default(Text("OK"))
-                )
-            }
-            .alert(
-                "Lock and discard unsaved changes?",
-                isPresented: Binding(
-                    get: { viewModel.pendingLockRequest?.reason == .draft },
-                    set: { _ in }
-                )
-            ) {
-                if viewModel.isReadOnly == false {
-                    Button("Retry Save and Lock") {
-                        Task { await viewModel.saveAndLockAfterLockRequest() }
-                    }
-                }
-                Button("Lock and Discard", role: .destructive) {
-                    let manuallyTriggered = viewModel.pendingLockRequest?.manuallyTriggered ?? false
-                    viewModel.lockRequest(force: true, manuallyTriggered: manuallyTriggered)
-                }
-                Button("Keep Editing", role: .cancel) {
-                    Task {
-                        await viewModel.continueEditingAfterLockRequest()
-                    }
-                }
-            } message: {
-                Text("Your unsaved entry changes will be lost.")
-            }
-            .sheet(isPresented: $presentation.isShowingNewGroupSheet) {
-                NewGroupSheet(
-                    name: $presentation.newGroupName,
-                    errorMessage: $presentation.groupCreationErrorMessage,
-                    onCancel: { presentation.dismissNewGroup() },
-                    onCreate: { presentation.createGroup(named: $0, in: viewModel) }
-                )
-            }
-            .sheet(item: $presentation.groupEditor) { formViewModel in
-                NavigationStack {
-                    GroupEditView(
-                        formViewModel: formViewModel,
-                        databaseViewModel: viewModel
-                    ) {
-                        presentation.groupEditor = nil
-                    }
-                }
-                .macSheetFrame(minHeight: 520)
-            }
-            .sheet(item: $presentation.pendingMove) { pending in
-                MoveToGroupPickerView(
-                    options: pending.destinationOptions(viewModel: viewModel),
-                    navigationTitle: pending.navigationTitle
-                ) { destinationGroupID in
-                    pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
-                }
-            }
-            .sheet(isPresented: $presentation.isShowingDatabaseDetails) {
-                DatabaseDetailsView(
-                    reference: viewModel.databaseReference,
-                    sessionViewModel: viewModel
-                )
-                .macSheetFrame()
-            }
-            // A separate dialog channel avoids colliding with the save-error alert.
-            .confirmationDialog(
-                presentation.pendingDeletion?.confirmationTitle ?? "",
-                isPresented: Binding(
-                    get: { presentation.pendingDeletion != nil },
-                    set: { if $0 == false { presentation.pendingDeletion = nil } }
-                ),
-                titleVisibility: .visible,
-                presenting: presentation.pendingDeletion
-            ) { deletion in
-                Button(deletion.confirmActionTitle, role: .destructive) {
-                    deletion.performDeletion(viewModel: viewModel)
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: { deletion in
-                Text(deletion.confirmationMessage)
-            }
-            .onDisappear { presentation.reset() }
+
     }
 
     private var decoratedContent: some View {

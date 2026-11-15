@@ -87,7 +87,7 @@ cannot fix, or an unavailable note for a reference with nothing to open. The
 form keeps its state in the window's `MacUnlockFormModel`, so a picked key file
 survives a wrong attempt; the controller clears it on unlock, on every lock and
 when the window closes. Key-file and Locate panels are `NSOpenPanel` sheets on
-the window (`MacUnlockFilePanel`). A recovery page's Remove from List goes
+the window (`MacFilePanels`). A recovery page's Remove from List goes
 through `MacWindowCoordinator.removeFromList(databaseID:)`: the Databases
 window's unsaved-work refusal and confirmation, as alerts in that window, then
 the same removal, which retires the session and closes the window. Reconnect
@@ -105,18 +105,18 @@ and selection changes keep the same controller and hosting roots.
 
 One outer `MacWorkspacePresentationHost` remains in `MacDatabaseWorkspaceView`,
 around the native split representable, inside the always-mounted root host.
-It owns workspace sheets, dialogs, SwiftUI alerts, and the saving overlay; the
-detail column has no banners. The save-conflict family (Save Conflict with
-Cancel on Escape, Changes Merged, Couldn't Merge Changes) and the failed Sync Now
-alert are `NSAlert`s from `MacWorkspaceAlerts`, which the split controller owns
-and starts once it has a window; releasing it on lock ends any alert still up.
-A Save Conflict alert closes when its conflict clears or changes, and an answer
-counts only for the conflict it was shown for with no save running. What a Push
-Pending Changes from the status card reports (reconnect, merge, failure) comes
-back through `MacWorkspacePresentation.pushAlert` and shows in that window, not
-the Databases window.
-Column revisions never replace it. It resets presentation state on workspace
-disappearance and rejects old cloud reconnect completions. `MacDatabaseRootView`
+It keeps command observers and the saving overlay. The window controller owns
+`MacWorkspaceSheets` (New/Edit Group, the native Move/Restore outline picker,
+and the existing Database Details form) and `MacWorkspaceAlerts` (delete,
+save-error, dirty-lock, conflict, merge, sync and push results). Presentation
+state remains on `MacWorkspacePresentation`. Both presenters end on lock,
+window close and invalidation, reject answers from old lock cycles, and drain
+queued sheet requests after detachment. `MacFormSheetController` caps sheets at
+560 pt and sets initial focus once; busy disables form input and footer actions.
+Hosted master-key and import forms register their existing cancellation paths
+with the shell; teardown runs them synchronously and leaves writes in flight
+running. Group editor and details content retain their navigation and controls
+until their separate rebuilds. `MacDatabaseRootView`
 keeps enrollment and its biometric observer mounted across lock/unlock. This
 embedding avoids replacing the window's presentation hierarchy; no content swap
 orders the window or assigns first responder.

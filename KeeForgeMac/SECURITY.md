@@ -155,8 +155,12 @@ Settings key, to the main database window; with the Databases window key, to
 nothing. A password copy re-checks after authentication that the same controller
 still owns that session. Each database window keeps its root host mounted across
 lock and unlock. A completed lock drops the native split controller and toolbar;
-the workspace presentation host resets editors and pending actions on
-disappearance, and the window controller closes the inline entry editor, which
+the window-owned sheet and alert presenters end attached presentations top-down
+on lock, close and invalidation. Callbacks are bound to the originating lock
+cycle; a delayed Keep Editing authentication or Save and Lock completion cannot
+change a later cycle’s lock state. The shell synchronously cancels registered pending authentication/import
+work and clears hosted content, without cancelling an in-flight database write.
+Presentation state resets and the window controller closes the inline editor, which
 drops its form, imports and reveals. Split-view autosave retains only column geometry and collapse
 state in defaults, one name per database UUID.
 

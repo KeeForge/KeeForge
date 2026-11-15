@@ -81,33 +81,88 @@ final class MacWorkspaceAlertsTests: XCTestCase {
         XCTAssertEqual(MacWorkspaceAlerts.conflictChoice(for: .cancel), .cancel)
     }
 
-    func testAnAlertOverARealSheetAttachesToItAndClosesWhenItsConflictClears() async throws {
-        // A sheet attaches only to a window on screen (as in MacWindowCoordinatorTests).
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
-                              styleMask: [.titled], backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.orderFront(nil)
-        let editor = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
-                              styleMask: [.titled], backing: .buffered, defer: false)
-        editor.isReleasedWhenClosed = false
-        window.beginSheet(editor, completionHandler: nil)
-        defer {
-            window.endSheet(editor)
-            window.close()
+    func testAnAlertUsesItsWindowAndClosesWhenItsConflictClears() async throws {
+        let window = NSWindow()
+        let (alerts, session, _) = try await makeAlerts(window: window)
+        var parent: NSWindow?
+        alerts.present = { [weak self] alert, window, answer in
+            parent = window
+            self?.shown.append((alert, answer))
         }
-        XCTAssertTrue(MacWorkspaceAlerts.topmostSheet(of: window) === editor)
-
-        let (alerts, session, _) = try await makeAlerts(window: window, presentsForReal: true)
         try await hitSaveConflict(session)
         await settle()
-        let alert = try XCTUnwrap(alerts.presented?.alert)
+        XCTAssertTrue(parent === window)
         XCTAssertEqual(alerts.presented?.kind, .saveConflict)
-        XCTAssertTrue(alert.window.sheetParent === editor, "The alert attaches to the editor sheet")
-
         session.discardDraft()
         await settle()
-        XCTAssertNil(alerts.presented, "An alert for a conflict that cleared closes")
-        try await waitUntil { editor.attachedSheet == nil }
+        XCTAssertNil(alerts.presented)
+    }
+
+    func testDeleteSaveErrorAndLockAlertContracts() async throws {
+        let (alerts, session, state) = try await makeAlerts()
+        let entry = try XCTUnwrap(session.visibleRootGroup?.allEntries.first)
+        let pending = PendingDeletion.entry(.init(entryID: entry.id, sendToRecycleBin: true))
+        let confirmations: [PendingDeletion] = [pending,
+            .entry(.init(entryID: entry.id, sendToRecycleBin: false)),
+            .group(.init(groupID: UUID(), groupName: "Work", entryCount: 31, nestedGroupCount: 0, sendToRecycleBin: true)),
+            .group(.init(groupID: UUID(), groupName: "Old", entryCount: 14, nestedGroupCount: 1, sendToRecycleBin: false)),
+            .entries([UUID(), UUID(), UUID()])]
+        for confirmation in confirmations {
+            let alert = MacWorkspaceAlerts.makeAlert(.deletion(confirmation.id), session: session, deletion: confirmation)
+            XCTAssertEqual(alert.messageText, confirmation.confirmationTitle)
+            XCTAssertEqual(alert.informativeText, confirmation.confirmationMessage)
+            XCTAssertEqual(alert.buttons.map(\.title), [confirmation.confirmActionTitle, String(localized: "Cancel")])
+        }
+        state.pendingDeletion = pending
+        await settle()
+        let delete = try XCTUnwrap(alerts.presented?.alert)
+        XCTAssertEqual(delete.messageText, pending.confirmationTitle)
+        XCTAssertEqual(delete.informativeText, pending.confirmationMessage)
+        XCTAssertEqual(delete.buttons.map(\.title), [pending.confirmActionTitle, String(localized: "Cancel")])
+        XCTAssertTrue(delete.buttons[0].hasDestructiveAction)
+        shown.last?.answer(.alertSecondButtonReturn)
+        await settle()
+        XCTAssertNil(state.pendingDeletion)
+        XCTAssertFalse(session.isDirty)
+
+        state.presentedSaveError = .unknown("Disk full")
+        await settle()
+        XCTAssertEqual(alerts.presented?.alert.messageText, String(localized: "Couldn't Save Database"))
+        XCTAssertEqual(alerts.presented?.alert.informativeText, "Disk full")
+        shown.last?.answer(.alertFirstButtonReturn)
+        await settle()
+        XCTAssertNil(state.presentedSaveError)
+
+        try session.createGroup(named: "Draft", in: try XCTUnwrap(session.visibleRootGroupID))
+        session.lockRequest(manuallyTriggered: true)
+        await settle()
+        let request = try XCTUnwrap(session.pendingLockRequest)
+        let lock = try XCTUnwrap(alerts.presented?.alert)
+        XCTAssertEqual(lock.buttons.map(\.title), [String(localized: "Retry Save and Lock"), String(localized: "Lock and Discard"), String(localized: "Keep Editing")])
+        XCTAssertEqual(lock.buttons.last?.keyEquivalent, "\u{1b}")
+        session.setReadOnly(true)
+        let readOnly = MacWorkspaceAlerts.makeAlert(.lockDraft(request, readOnly: true), session: session)
+        XCTAssertEqual(readOnly.buttons.map(\.title), [String(localized: "Lock and Discard"), String(localized: "Keep Editing")])
+        alerts.invalidate()
+    }
+
+    func testLockAndInvalidationEndAlertsWithoutAnswersAndRejectOldDeleteAfterUnlock() async throws {
+        for invalidate in [false, true] {
+            let (alerts, session, state) = try await makeAlerts()
+            let entry = try XCTUnwrap(session.visibleRootGroup?.allEntries.first)
+            state.pendingDeletion = .entry(.init(entryID: entry.id, sendToRecycleBin: true))
+            await settle()
+            let answer = try XCTUnwrap(shown.last?.answer)
+            if invalidate { alerts.invalidate() } else { session.lockRequest(force: true) }
+            await settle()
+            XCTAssertNil(alerts.presented)
+            XCTAssertNil(state.pendingDeletion)
+            if !invalidate { await session.unlock(password: "testpassword123") }
+            answer(.alertFirstButtonReturn)
+            await settle()
+            XCTAssertFalse(session.isDirty)
+            alerts.invalidate()
+        }
     }
 
     func testAnAnswerToAConflictASaveReplacedIsIgnoredAndTheNewConflictAsksAgain() async throws {
@@ -197,6 +252,23 @@ final class MacWorkspaceAlertsTests: XCTestCase {
         await gate.open()
         await push.value
         XCTAssertNil(presentation.pushAlert, "A lock in between drops the result")
+    }
+
+    func testLockAnswersDoNotPresentTheSamePromptAgainWhileTheirTaskStarts() async throws {
+        for retry in [false, true] {
+            let (alerts, session, _) = try await makeAlerts(save: { _, _, _, hash, _, _, _ in .saved(newSHA512: hash) })
+            try session.createGroup(named: "Draft", in: try XCTUnwrap(session.visibleRootGroupID))
+            session.lockRequest(manuallyTriggered: true)
+            await settle()
+            let count = shown.count
+            shown.last?.answer(retry ? .alertFirstButtonReturn : .alertThirdButtonReturn)
+            for _ in 0..<10 { await settle() }
+            XCTAssertEqual(shown.count, count, "The chosen response owns the request until it settles")
+            XCTAssertNil(alerts.presented)
+            XCTAssertNil(session.pendingLockRequest)
+            XCTAssertEqual(session.state, retry ? .locked : .unlocked)
+            alerts.invalidate()
+        }
     }
 
     // MARK: - Helpers

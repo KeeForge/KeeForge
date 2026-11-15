@@ -6,7 +6,7 @@ import XCTest
 
 /// The locked window's open panels through the form model; no panel is ever shown.
 @MainActor
-final class MacUnlockFilePanelTests: XCTestCase {
+final class MacFilePanelsTests: XCTestCase {
     private var files: [URL] = []
 
     override func tearDown() async throws {
@@ -16,9 +16,9 @@ final class MacUnlockFilePanelTests: XCTestCase {
     }
 
     func testPanelsChooseOneFileOfTheRightKind() {
-        let keyFile = MacUnlockFilePanel.makePanel(for: .keyFile)
+        let keyFile = MacFilePanels.makePanel(for: .keyFile)
         XCTAssertEqual(keyFile.allowedContentTypes, DocumentPickerService.keyFilePickerContentTypes)
-        let database = MacUnlockFilePanel.makePanel(for: .databaseFile)
+        let database = MacFilePanels.makePanel(for: .databaseFile)
         XCTAssertEqual(database.allowedContentTypes, DocumentPickerService.databasePickerContentTypes)
         for panel in [keyFile, database] {
             XCTAssertFalse(panel.allowsMultipleSelection)
@@ -32,7 +32,7 @@ final class MacUnlockFilePanelTests: XCTestCase {
         let window = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)
         window.isReleasedWhenClosed = false
         var requests: [(types: [UTType], window: NSWindow?)] = []
-        let panel = MacUnlockFilePanel { openPanel, window in
+        let panel = MacFilePanels { openPanel, window in
             requests.append((openPanel.allowedContentTypes, window))
             return url
         }
@@ -55,7 +55,7 @@ final class MacUnlockFilePanelTests: XCTestCase {
         let url = try makeFile(named: "moved.kdbx",
             contents: Data([0x03, 0xD9, 0xA2, 0x9A, 0x67, 0xFB, 0x4B, 0xB5]) + Data(repeating: 0, count: 64))
         var requested: [UTType] = []
-        let panel = MacUnlockFilePanel { openPanel, _ in
+        let panel = MacFilePanels { openPanel, _ in
             requested = openPanel.allowedContentTypes
             return url
         }
@@ -71,7 +71,7 @@ final class MacUnlockFilePanelTests: XCTestCase {
 
     func testCancellingEitherPanelChangesNothing() async {
         var presentations = 0
-        let panel = MacUnlockFilePanel { _, _ in
+        let panel = MacFilePanels { _, _ in
             presentations += 1
             return nil
         }
@@ -86,6 +86,46 @@ final class MacUnlockFilePanelTests: XCTestCase {
         XCTAssertEqual(form.keyLine, .none)
         XCTAssertNil(form.selectionAlert)
         XCTAssertTrue(session.relinked.isEmpty)
+    }
+
+    func testImportAndSavePanelsUseTheirTypesNamesAndWindow() async {
+        let window = NSWindow()
+        let url = URL(fileURLWithPath: "/tmp/chosen")
+        var names: [String] = []
+        var types: [[UTType]] = []
+        let panels = MacFilePanels(present: { panel, parent in
+            XCTAssertTrue(parent === window)
+            XCTAssertEqual(panel.allowedContentTypes, [.commaSeparatedText])
+            return url
+        }, presentSave: { panel, parent in
+            XCTAssertTrue(parent === window)
+            names.append(panel.nameFieldStringValue)
+            types.append(panel.allowedContentTypes ?? [])
+            return url
+        })
+        panels.window = window
+        let imported = await panels.chooseImportFile()
+        let key = await panels.saveKeyFile(suggestedName: "new.keyx")
+        let copy = await panels.saveDatabaseCopy(suggestedName: "copy.kdbx")
+        let created = await panels.saveNewDatabase(suggestedName: "new.kdbx")
+        XCTAssertEqual([imported, key, copy, created], [url, url, url, url])
+        XCTAssertEqual(names, ["new.keyx", "copy.kdbx", "new.kdbx"])
+        XCTAssertEqual(types, [[.data], DocumentPickerService.databasePickerContentTypes, DocumentPickerService.databasePickerContentTypes])
+    }
+
+    func testCancellationDropsALatePanelResult() async {
+        let gate = SaveGate()
+        let panels = MacFilePanels { _, _ in
+            await gate.signalStarted()
+            await gate.waitUntilOpen()
+            return URL(fileURLWithPath: "/tmp/stale.keyx")
+        }
+        let pick = Task { await panels.chooseKeyFile() }
+        await gate.waitUntilStarted()
+        panels.cancel()
+        await gate.open()
+        let result = await pick.value
+        XCTAssertNil(result)
     }
 
     private func makeFile(named name: String, contents: Data) throws -> URL {

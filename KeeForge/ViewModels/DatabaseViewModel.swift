@@ -1959,7 +1959,9 @@ final class DatabaseViewModel {
     func moveGroup(groupID: UUID, toGroupID: UUID) throws {
         guard groupID != toGroupID else { return }
         guard groupIndex[groupID] != nil else { return }
-        guard let destination = groupIndex[toGroupID] else { return }
+        guard toGroupID != currentRootGroup?.recycleBinUUID,
+              recycleBinGroupIDs.contains(toGroupID) == false,
+              let destination = groupIndex[toGroupID] else { return }
         guard destination.groups.contains(where: { $0.id == groupID }) == false else { return }
         try applyEntryEdit(.moveGroup(groupID: groupID, destinationGroupID: toGroupID))
     }
@@ -2540,10 +2542,12 @@ final class DatabaseViewModel {
     /// failure re-defers, leaving Discard and Keep Editing on offer.
     func saveAndLockAfterLockRequest() async {
         guard let request = pendingLockRequest, request.reason == .draft else { return }
+        let cycle = lockCycleID
         pendingLockRequest = nil
         isSavingBeforeLock = true
         defer { isSavingBeforeLock = false }
         await saveHandlingError()
+        guard lockCycleID == cycle, state == .unlocked else { return }
         lockRequest(manuallyTriggered: request.manuallyTriggered, cause: request.cause)
     }
 
@@ -2648,6 +2652,8 @@ final class DatabaseViewModel {
 
     func continueEditingAfterLockRequest() async {
         guard let pendingLockRequest else { return }
+        let cycle = lockCycleID
+        let cancellationID = lockRequestCancellationID
 
         if pendingLockRequest.requiresAuthenticationToContinueEditing {
             // Unavailable authentication is not a pass: finish the lock.
@@ -2659,11 +2665,15 @@ final class DatabaseViewModel {
             do {
                 try await secretAccess.authenticate(reason: String(localized: "Unlock Database"))
             } catch {
+                guard lockCycleID == cycle, lockRequestCancellationID == cancellationID,
+                      self.pendingLockRequest == pendingLockRequest else { return }
                 lockRequest(force: true)
                 return
             }
         }
 
+        guard lockCycleID == cycle, lockRequestCancellationID == cancellationID,
+              self.pendingLockRequest == pendingLockRequest else { return }
         cancelLockRequest()
     }
 

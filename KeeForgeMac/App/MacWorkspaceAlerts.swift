@@ -1,13 +1,12 @@
 import AppKit
 
-/// The save-conflict family of alerts (SyncProblems board), the failed Sync
-/// Now alert and what a Push Pending Changes from this window reported, as
-/// native alerts: SwiftUI's four-button macOS alert drops
-/// Cancel and ignores Escape. One per unlocked workspace; releasing it on lock
-/// ends any alert still up.
+/// Window-owned native workspace alerts. Answers belong to the shown lock cycle.
 @MainActor
 final class MacWorkspaceAlerts {
     enum Kind: Equatable {
+        case deletion(String)
+        case saveError(DatabaseSaveError)
+        case lockDraft(DatabaseViewModel.PendingLockRequest, readOnly: Bool)
         case saveConflict
         case mergeFailure
         case pendingUploadMergeFailure
@@ -37,20 +36,34 @@ final class MacWorkspaceAlerts {
     private var lastConflict: SaveConflict?
     private var lastPromptRequestID: Int
     private let observation = MacObservation()
+    private var cycle: Int
+    private var invalidated = false
+    private var lockResponseID: UUID?
+    private var endingSheet: NSWindow?
+    private var sheetEndObserver: NSObjectProtocol?
+    private var presentedDeletion: PendingDeletion?
 
     init(session: DatabaseViewModel, presentation: MacWorkspacePresentation, window: @escaping @MainActor () -> NSWindow?) {
         self.session = session
         self.presentation = presentation
         self.window = window
+        cycle = session.lockCycleID
         lastPromptRequestID = presentation.saveConflictPromptRequestID
     }
 
     isolated deinit {
         observation.cancel()
+        if let sheetEndObserver { NotificationCenter.default.removeObserver(sheetEndObserver) }
         dismissPresented()
     }
 
     func start() {
+        sheetEndObserver = NotificationCenter.default.addObserver(forName: NSWindow.didEndSheetNotification, object: nil, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.apply(self.readState())
+            }
+        }
         observation.start(reading: { [weak self] in
             self?.readState()
         }, onChange: { [weak self] state in
@@ -62,6 +75,12 @@ final class MacWorkspaceAlerts {
     // MARK: - State
 
     private struct State: Equatable {
+        var readOnly: Bool
+        var unlocked: Bool
+        var cycle: Int
+        var deletionID: String?
+        var saveError: DatabaseSaveError?
+        var lockRequest: DatabaseViewModel.PendingLockRequest?
         var conflict: SaveConflict?
         var promptRequestID: Int
         var hasMergeFailure: Bool
@@ -75,6 +94,12 @@ final class MacWorkspaceAlerts {
     private func readState() -> State {
         let hasSyncFailure = if case .failed = session.cloudSyncOutcome { true } else { false }
         return State(
+            readOnly: session.isReadOnly,
+            unlocked: session.state == .unlocked,
+            cycle: session.lockCycleID,
+            deletionID: presentation.pendingDeletion?.id,
+            saveError: presentation.presentedSaveError,
+            lockRequest: session.pendingLockRequest?.reason == .draft ? session.pendingLockRequest : nil,
             conflict: session.saveConflict,
             promptRequestID: presentation.saveConflictPromptRequestID,
             hasMergeFailure: session.mergeFailure != nil,
@@ -87,6 +112,26 @@ final class MacWorkspaceAlerts {
     }
 
     private func apply(_ state: State) {
+        guard !invalidated else { return }
+        guard state.unlocked, state.cycle == cycle else {
+            cycle = state.cycle
+            lockResponseID = nil
+            wantsConflictPrompt = false
+            lastConflict = nil
+            lastPromptRequestID = state.promptRequestID
+            dismissPresented()
+            if presentation.pendingDeletion != nil { presentation.pendingDeletion = nil }
+            if presentation.presentedSaveError != nil { presentation.presentedSaveError = nil }
+            return
+        }
+        if let presented {
+            switch presented.kind {
+            case .deletion(let id) where id != state.deletionID: dismissPresented()
+            case .saveError(let error) where error != state.saveError: dismissPresented()
+            case .lockDraft(let request, let readOnly) where request != state.lockRequest || readOnly != state.readOnly: dismissPresented()
+            default: break
+            }
+        }
         if state.conflict != nil, state.conflict != lastConflict { wantsConflictPrompt = true }
         if state.promptRequestID != lastPromptRequestID, state.conflict != nil { wantsConflictPrompt = true }
         if state.conflict == nil { wantsConflictPrompt = false }
@@ -98,8 +143,16 @@ final class MacWorkspaceAlerts {
     }
 
     private func presentNext(_ state: State) {
-        guard presented == nil, session.state == .unlocked else { return }
-        let next: Kind? = if state.hasMergeFailure {
+        guard !invalidated, lockResponseID == nil, presented == nil, session.state == .unlocked else { return }
+        if let endingSheet, endingSheet.sheetParent != nil { return }
+        endingSheet = nil
+        let next: Kind? = if let request = state.lockRequest {
+            .lockDraft(request, readOnly: state.readOnly)
+        } else if let error = state.saveError {
+            .saveError(error)
+        } else if let id = state.deletionID {
+            .deletion(id)
+        } else if state.hasMergeFailure {
             .mergeFailure
         } else if state.hasPendingUploadMergeFailure {
             .pendingUploadMergeFailure
@@ -121,9 +174,26 @@ final class MacWorkspaceAlerts {
 
     // MARK: - Alerts
 
-    static func makeAlert(_ kind: Kind, session: DatabaseViewModel) -> NSAlert {
+    static func makeAlert(_ kind: Kind, session: DatabaseViewModel, deletion: PendingDeletion? = nil) -> NSAlert {
         let alert = NSAlert()
         switch kind {
+        case .deletion:
+            alert.messageText = deletion?.confirmationTitle ?? ""
+            alert.informativeText = deletion?.confirmationMessage ?? ""
+            addButton(deletion?.confirmActionTitle ?? String(localized: "Delete"), identifier: "workspace.delete.confirm", to: alert).hasDestructiveAction = true
+            addButton(String(localized: "Cancel"), identifier: "workspace.delete.cancel", to: alert).keyEquivalent = "\u{1b}"
+        case .saveError(let error):
+            alert.messageText = String(localized: "Couldn't Save Database")
+            alert.informativeText = error.localizedDescription
+            addButton(String(localized: "OK"), identifier: "workspace.save-error.ok", to: alert)
+        case .lockDraft(_, let readOnly):
+            alert.messageText = String(localized: "Lock and discard unsaved changes?")
+            alert.informativeText = String(localized: "Your unsaved entry changes will be lost.")
+            if !readOnly {
+                addButton(String(localized: "Retry Save and Lock"), identifier: "workspace.lock.retry", to: alert)
+            }
+            addButton(String(localized: "Lock and Discard"), identifier: "workspace.lock.discard", to: alert).hasDestructiveAction = true
+            addButton(String(localized: "Keep Editing"), identifier: "workspace.lock.cancel", to: alert).keyEquivalent = "\u{1b}"
         case .saveConflict:
             alert.messageText = String(localized: "Save Conflict")
             alert.informativeText = String(localized: "The database changed outside KeeForge. Merge both sets of changes, reload it, or save your draft as a sibling conflict copy.")
@@ -191,7 +261,9 @@ final class MacWorkspaceAlerts {
     }
 
     private func show(_ kind: Kind) {
-        let alert = Self.makeAlert(kind, session: session)
+        let deletion = presentation.pendingDeletion
+        let alert = Self.makeAlert(kind, session: session, deletion: deletion)
+        presentedDeletion = deletion
         let lockCycleID = session.lockCycleID
         let conflict = session.saveConflict
         presented = (kind, alert)
@@ -202,21 +274,40 @@ final class MacWorkspaceAlerts {
             guard let self, presented?.alert === alert else { return }
             presented = nil
             presentedConflict = nil
+            let deletion = presentedDeletion
+            presentedDeletion = nil
             presentedSheetParent = nil
             guard session.lockCycleID == lockCycleID, session.state == .unlocked else { return }
             if kind == .saveConflict, session.saveConflict != conflict || session.isSaving {
                 // Asked again once the save ends, if the same conflict still stands.
                 if session.saveConflict != nil { wantsConflictPrompt = true }
             } else {
-                respond(to: kind, with: response)
+                respond(to: kind, with: response, deletion: deletion)
             }
             presentNext(readState())
         }
     }
 
-    private func respond(to kind: Kind, with response: NSApplication.ModalResponse) {
+    private func respond(to kind: Kind, with response: NSApplication.ModalResponse, deletion: PendingDeletion?) {
         let session = session
         switch kind {
+        case .deletion(let id):
+            guard presentation.pendingDeletion?.id == id else { return }
+            presentation.pendingDeletion = nil
+            if response == .alertFirstButtonReturn { deletion?.performDeletion(viewModel: session) }
+        case .saveError(let error):
+            if presentation.presentedSaveError == error { presentation.presentedSaveError = nil }
+        case .lockDraft(let request, let readOnly):
+            guard session.pendingLockRequest == request else { return }
+            let index = response.rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+            if !readOnly, index == 0 {
+                guard !session.isReadOnly else { return }
+                runLockResponse { await session.saveAndLockAfterLockRequest() }
+            } else if index == (readOnly ? 0 : 1) {
+                session.lockRequest(force: true, manuallyTriggered: request.manuallyTriggered)
+            } else {
+                runLockResponse { await session.continueEditingAfterLockRequest() }
+            }
         case .saveConflict:
             switch Self.conflictChoice(for: response) {
             case .merge: run { try await session.mergeAndSave() }
@@ -250,22 +341,52 @@ final class MacWorkspaceAlerts {
         }
     }
 
+    private func runLockResponse(_ operation: @escaping @MainActor () async -> Void) {
+        let id = UUID()
+        let cycle = session.lockCycleID
+        lockResponseID = id
+        Task { [weak self] in
+            guard let self, !invalidated, session.state == .unlocked,
+                  session.lockCycleID == cycle, lockResponseID == id else { return }
+            await operation()
+            guard lockResponseID == id else { return }
+            lockResponseID = nil
+            apply(readState())
+        }
+    }
+
     private func run(_ operation: @escaping @MainActor () async throws -> Void) {
         let session = session
-        Task {
+        let cycle = session.lockCycleID
+        Task { [weak self] in
+            guard let self, !invalidated, session.lockCycleID == cycle, session.state == .unlocked else { return }
             do {
                 try await operation()
             } catch {
+                guard !invalidated, session.lockCycleID == cycle, session.state == .unlocked else { return }
                 session.presentSaveError(error)
             }
         }
+    }
+
+    func invalidate() {
+        invalidated = true
+        observation.cancel()
+        if let sheetEndObserver { NotificationCenter.default.removeObserver(sheetEndObserver) }
+        sheetEndObserver = nil
+        lockResponseID = nil
+        dismissPresented()
+        presentation.pendingDeletion = nil
+        presentation.presentedSaveError = nil
     }
 
     private func dismissPresented() {
         guard let presented else { return }
         self.presented = nil
         presentedConflict = nil
+        presentedDeletion = nil
         let sheet = presented.alert.window
+        endingSheet = sheet
         if let parent = sheet.sheetParent ?? presentedSheetParent {
             parent.endSheet(sheet, returnCode: .cancel)
         } else if sheet.isVisible {

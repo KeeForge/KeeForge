@@ -120,6 +120,7 @@ struct PasswordImportView: View {
                 viewModel.discardPreview()
             }
         }
+        .macSheetCancellation { viewModel.discardPreview() }
         .onDisappear {
             viewModel.discardPreview()
         }

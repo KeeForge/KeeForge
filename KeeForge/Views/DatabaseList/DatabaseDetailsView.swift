@@ -25,6 +25,8 @@ struct DatabaseDetailsView: View {
     /// presents its own.
     var onSelectKeyFile: (() -> Void)?
 
+    private let onClose: (() -> Void)?
+
     @Environment(\.dismiss) private var dismiss
     @State private var listViewModel: DatabaseListViewModel
     @State private var nickname = ""
@@ -47,11 +49,13 @@ struct DatabaseDetailsView: View {
         reference: DatabaseReference,
         listViewModel: DatabaseListViewModel? = nil,
         sessionViewModel: DatabaseViewModel? = nil,
-        onSelectKeyFile: (() -> Void)? = nil
+        onSelectKeyFile: (() -> Void)? = nil,
+        onClose: (() -> Void)? = nil
     ) {
         self.reference = reference
         self.sessionViewModel = sessionViewModel
         self.onSelectKeyFile = onSelectKeyFile
+        self.onClose = onClose
         self.ownsListViewModel = listViewModel == nil
         _listViewModel = State(initialValue: listViewModel ?? DatabaseListViewModel())
     }
@@ -75,7 +79,7 @@ struct DatabaseDetailsView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") {
                         saveNickname()
-                        dismiss()
+                        if let onClose { onClose() } else { dismiss() }
                     }
                     .accessibilityIdentifier("database-details.close")
                 }
