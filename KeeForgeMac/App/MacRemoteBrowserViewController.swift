@@ -40,12 +40,17 @@ final class MacRemoteBrowserViewController: NSViewController, NSTableViewDataSou
         folders.setAccessibilityIdentifier("remote-browser.folder")
         let account = NSTextField(labelWithString: model.account.displayName)
         account.textColor = .secondaryLabelColor
+        account.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        account.lineBreakMode = .byTruncatingMiddle
+        account.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let status = NSImageView(image: NSImage(systemSymbolName: "circle.fill", accessibilityDescription: nil) ?? NSImage())
         status.contentTintColor = .systemGreen
         let accountLine = NSStackView(views: [status, account])
         status.widthAnchor.constraint(equalToConstant: 7).isActive = true
         status.heightAnchor.constraint(equalToConstant: 7).isActive = true
-        let toolbar = NSStackView(views: [back, forward, folders])
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let toolbar = NSStackView(views: [back, forward, folders, spacer, accountLine])
         folders.widthAnchor.constraint(greaterThanOrEqualToConstant: 200).isActive = true
         folders.setAccessibilityLabel(String(localized: "Current Folder"))
         showAll.title = String(localized: "Show All Files")
@@ -64,7 +69,7 @@ final class MacRemoteBrowserViewController: NSViewController, NSTableViewDataSou
         let scroll = NSScrollView()
         scroll.documentView = table
         scroll.hasVerticalScroller = true
-        let stack = NSStackView(views: [toolbar, accountLine, scroll, message, showAll])
+        let stack = NSStackView(views: [toolbar, scroll, message, showAll])
         stack.orientation = .vertical; stack.alignment = .leading
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)

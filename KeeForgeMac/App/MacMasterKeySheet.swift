@@ -11,6 +11,8 @@ final class MacMasterKeySheet {
     let shell: MacFormSheetController
     let panels: MacFilePanels
     private let observation = MacObservation()
+    private let layoutObservation = MacObservation()
+    private var fittedLayout: LayoutState?
     private let databaseFilename: String
     private(set) var hasEnded = false
     var confirm: @MainActor (NSAlert, NSWindow) async -> Bool = { alert, window in
@@ -49,10 +51,10 @@ final class MacMasterKeySheet {
         footer.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         footer.textColor = .secondaryLabelColor
         footer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let host = NSHostingController(rootView: MacMasterKeyForm(model: model, actions: actions).modifier(MacHostingAppearance()))
+        let host = NSHostingController(rootView: MacMasterKeyForm(model: model, actions: actions, scrolls: true).modifier(MacHostingAppearance()))
         host.sizingOptions = []
         shell = MacFormSheetController(title: String(localized: "\(name) — Master Key"), content: host,
-                                       size: NSSize(width: 610, height: 520), accessory: footer)
+                                       size: NSSize(width: 610, height: MacSheetMetrics.maxHeight), accessory: footer)
         shell.window?.setAccessibilityIdentifier("master-key.sheet")
         shell.cancelButton.setAccessibilityIdentifier("master-key.cancel")
         shell.defaultButton.setAccessibilityIdentifier("master-key.save")
@@ -64,9 +66,43 @@ final class MacMasterKeySheet {
             Task { await self.save() }
         }
         shell.cancellationScope.register { [weak self] in self?.discard() }
-        observation.start(reading: { model.isAuthenticating || model.isWorking }, onChange: { [weak self] busy in
+        observation.start(reading: { (model.isAuthenticating || model.isWorking, model.canSave) }, onChange: { [weak self] busy, canSave in
+            self?.shell.canConfirm = canSave
             self?.shell.setBusy(busy, label: String(localized: "Changing Master Key"))
         })
+        layoutObservation.start(reading: { LayoutState(model: model) }, onChange: { [weak self] state in
+            self?.fitToContent(state)
+        })
+    }
+
+    /// The form parts that change the sheet's height.
+    private struct LayoutState: Equatable {
+        let message: String?
+        let showsStrength: Bool
+        let showsWeakWarning: Bool
+        let hasKeyFile: Bool
+        let keyFileSummary: String
+
+        @MainActor init(model: MasterKeyChangeViewModel) {
+            message = model.validationError ?? model.changeError
+            showsStrength = !model.newPassword.isEmpty
+            showsWeakWarning = model.passwordStrengthWarning != nil
+            hasKeyFile = model.hasEffectiveKeyFile
+            keyFileSummary = model.keyFileSummary
+        }
+    }
+
+    private func fitToContent(_ state: LayoutState) {
+        guard !hasEnded, state != fittedLayout, let window = shell.window, let content = window.contentView else { return }
+        fittedLayout = state
+        content.layoutSubtreeIfNeeded()
+        let body = shell.bodyController.view.frame
+        let probe = NSHostingController(rootView: MacMasterKeyForm(model: model, actions: MacMasterKeyActions(), scrolls: false)
+            .modifier(MacHostingAppearance()))
+        let form = probe.sizeThatFits(in: NSSize(width: body.width, height: .greatestFiniteMagnitude)).height
+        let height = min((content.bounds.height - body.height + form).rounded(.up), MacSheetMetrics.maxHeight)
+        guard abs(height - content.bounds.height) >= 1 else { return }
+        window.setContentSize(NSSize(width: content.bounds.width, height: height))
     }
 
     func save() async {
@@ -106,6 +142,7 @@ final class MacMasterKeySheet {
     private func discard() {
         hasEnded = true
         observation.cancel()
+        layoutObservation.cancel()
         panels.cancel()
         model.cancelPendingChange()
     }
@@ -139,62 +176,65 @@ private final class MacMasterKeyActions {
 private struct MacMasterKeyForm: View {
     @Bindable var model: MasterKeyChangeViewModel
     let actions: MacMasterKeyActions
+    let scrolls: Bool
     @State private var passwordVisible = false
     @State private var confirmationVisible = false
 
     var body: some View {
-        ScrollView {
-            Form {
-                if let error = model.validationError ?? model.changeError {
-                    LabeledContent("") {
-                        Text(error).foregroundStyle(Theme.State.danger).fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("master-key.error")
-                    }
+        if scrolls { ScrollView { form } } else { form }
+    }
+
+    private var form: some View {
+        Form {
+            if let error = model.validationError ?? model.changeError {
+                LabeledContent("") {
+                    Text(error).foregroundStyle(Theme.State.danger).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("master-key.error")
                 }
-                LabeledContent("Master password:") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        PasswordInputRow(title: String(localized: "Master password"), text: $model.newPassword, isVisible: $passwordVisible,
-                                         fieldAccessibilityIdentifier: "master-key.new-password-field",
-                                         visibilityAccessibilityIdentifier: "master-key.new-password-visibility-button",
-                                         usesPasswordAutoFill: false).labelsHidden()
-                        if !model.newPassword.isEmpty {
-                            PasswordStrengthIndicator(password: model.newPassword, caption: .passwordStrength)
-                        }
-                        if let warning = model.passwordStrengthWarning {
-                            Text(warning).font(.caption).foregroundStyle(Theme.State.warning).fixedSize(horizontal: false, vertical: true)
-                        }
+            }
+            LabeledContent("Master password:") {
+                VStack(alignment: .leading, spacing: 6) {
+                    PasswordInputRow(title: String(localized: "Master password"), text: $model.newPassword, isVisible: $passwordVisible,
+                                     fieldAccessibilityIdentifier: "master-key.new-password-field",
+                                     visibilityAccessibilityIdentifier: "master-key.new-password-visibility-button",
+                                     usesPasswordAutoFill: false).labelsHidden()
+                    if !model.newPassword.isEmpty {
+                        PasswordStrengthIndicator(password: model.newPassword, caption: .passwordStrength)
                     }
-                }
-                LabeledContent("Confirm password:") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        PasswordInputRow(title: String(localized: "Confirm password"), text: $model.confirmPassword, isVisible: $confirmationVisible,
-                                         fieldAccessibilityIdentifier: "master-key.confirm-password-field",
-                                         visibilityAccessibilityIdentifier: "master-key.confirm-password-visibility-button",
-                                         usesPasswordAutoFill: false).labelsHidden()
-                        caption(String(localized: "The new master key protects this database file from now on. Backups and copies made before the change still open with the previous master key."))
-                    }
-                }
-                Divider()
-                LabeledContent("Key file:") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(model.keyFileSummary)
-                        HStack {
-                            Button("Select Key File…", action: actions.select).accessibilityIdentifier("master-key.keyfile.select")
-                            Button("Create Key File…", action: actions.create).accessibilityIdentifier("master-key.keyfile.create")
-                            if model.hasEffectiveKeyFile {
-                                Button("Clear Key File") { model.clearKeyFile() }.accessibilityIdentifier("master-key.keyfile.clear")
-                            }
-                        }
-                        caption(model.hasEffectiveKeyFile
-                            ? String(localized: "The database requires this key file after the change. Clear it to unlock with the master password only.")
-                            : String(localized: "No key file will be required after the change. The master password alone will unlock the database."))
-                        caption(String(localized: "Create Key File saves a new key file where you choose. Keep a copy somewhere safe: without the key file, the database can’t be opened."))
+                    if let warning = model.passwordStrengthWarning {
+                        Text(warning).font(.caption).foregroundStyle(Theme.State.warning).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
-            .formStyle(.columns)
-            .padding(.vertical, 4)
+            LabeledContent("Confirm password:") {
+                VStack(alignment: .leading, spacing: 6) {
+                    PasswordInputRow(title: String(localized: "Confirm password"), text: $model.confirmPassword, isVisible: $confirmationVisible,
+                                     fieldAccessibilityIdentifier: "master-key.confirm-password-field",
+                                     visibilityAccessibilityIdentifier: "master-key.confirm-password-visibility-button",
+                                     usesPasswordAutoFill: false).labelsHidden()
+                    caption(String(localized: "The new master key protects this database file from now on. Backups and copies made before the change still open with the previous master key."))
+                }
+            }
+            Divider()
+            LabeledContent("Key file:") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(model.keyFileSummary)
+                    HStack {
+                        Button("Select Key File…", action: actions.select).accessibilityIdentifier("master-key.keyfile.select")
+                        Button("Create Key File…", action: actions.create).accessibilityIdentifier("master-key.keyfile.create")
+                        if model.hasEffectiveKeyFile {
+                            Button("Clear Key File") { model.clearKeyFile() }.accessibilityIdentifier("master-key.keyfile.clear")
+                        }
+                    }
+                    caption(model.hasEffectiveKeyFile
+                        ? String(localized: "The database requires this key file after the change. Clear it to unlock with the master password only.")
+                        : String(localized: "No key file will be required after the change. The master password alone will unlock the database."))
+                    caption(String(localized: "Create Key File saves a new key file where you choose. Keep a copy somewhere safe: without the key file, the database can’t be opened."))
+                }
+            }
         }
+        .formStyle(.columns)
+        .padding(.vertical, 4)
         .disabled(model.isAuthenticating || model.isWorking)
     }
 

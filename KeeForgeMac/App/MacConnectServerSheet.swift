@@ -1,6 +1,11 @@
 import AppKit
 import SwiftUI
 
+/// The New Database and Connect to Server boards: a 140 pt label column and a 330 pt control column.
+enum MacSheetFormMetrics {
+    static let width: CGFloat = 480
+}
+
 struct MacConnectServerSheet: View {
     @Bindable var model: MacConnectServerModel
     var showsTypePicker = true
@@ -32,18 +37,18 @@ struct MacConnectServerSheet: View {
     private var webDAVForm: some View {
         @Bindable var form = model.webDAV
         return Form {
-            TextField("Server", text: $form.serverURL)
+            TextField("Server:", text: $form.serverURL)
                 .accessibilityIdentifier("webdav.connect.server-field")
             caption("Example: https://cloud.example.com/remote.php/dav/files/USERNAME/ — for Nextcloud, use an app password")
             Divider()
-            TextField("Username", text: $form.username)
+            TextField("Username:", text: $form.username)
                 .frame(width: 220)
                 .accessibilityIdentifier("webdav.connect.username-field")
-            LabeledContent("Password") { PasswordInputRow(title: String(localized: "Password"), text: $form.password, isVisible: $passwordVisible,
+            LabeledContent("Password:") { PasswordInputRow(title: String(localized: "Password"), text: $form.password, isVisible: $passwordVisible,
                              fieldAccessibilityIdentifier: "webdav.connect.password-field",
                              visibilityAccessibilityIdentifier: "webdav.connect.password-visibility-button", usesPasswordAutoFill: false).labelsHidden() }
             Divider()
-            LabeledContent("Advanced") {
+            LabeledContent("Advanced:") {
                 Toggle("Allow Unencrypted HTTP", isOn: $form.allowsUnencryptedHTTP)
                     .accessibilityIdentifier("webdav.connect.allow-http-toggle")
             }
@@ -52,23 +57,23 @@ struct MacConnectServerSheet: View {
             } else {
                 caption("Keep this off unless your trusted local WebDAV server cannot use HTTPS.")
             }
-        }.formStyle(.columns)
+        }.formStyle(.columns).frame(width: MacSheetFormMetrics.width)
     }
     private var ftpForm: some View {
         @Bindable var form = model.ftp
         return Form {
-            TextField("Server", text: $form.serverURL)
+            TextField("Server:", text: $form.serverURL)
                 .accessibilityIdentifier("ftp.connect.server-field")
             caption("The path starts in the folder your FTP account opens in.")
             Divider()
-            TextField("Username", text: $form.username)
+            TextField("Username:", text: $form.username)
                 .frame(width: 220)
                 .accessibilityIdentifier("ftp.connect.username-field")
-            LabeledContent("Password") { PasswordInputRow(title: String(localized: "Password"), text: $form.password, isVisible: $passwordVisible,
+            LabeledContent("Password:") { PasswordInputRow(title: String(localized: "Password"), text: $form.password, isVisible: $passwordVisible,
                              fieldAccessibilityIdentifier: "ftp.connect.password-field",
                              visibilityAccessibilityIdentifier: "ftp.connect.password-visibility-button", usesPasswordAutoFill: false).labelsHidden() }
             Divider()
-            LabeledContent("Security") {
+            LabeledContent("Security:") {
                 Toggle("Allow Unencrypted FTP", isOn: $form.allowsUnencryptedFTP)
                     .accessibilityIdentifier("ftp.connect.allow-unencrypted-toggle")
             }
@@ -77,7 +82,7 @@ struct MacConnectServerSheet: View {
                     .foregroundStyle(.orange)
                 caption("FTP cannot prevent every simultaneous save. Avoid editing this database from another app or device at the same time; a concurrent change may be overwritten.")
             }
-        }.formStyle(.columns)
+        }.formStyle(.columns).frame(width: MacSheetFormMetrics.width)
     }
     private func caption(_ key: LocalizedStringKey) -> some View {
         LabeledContent("") { Text(key).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }

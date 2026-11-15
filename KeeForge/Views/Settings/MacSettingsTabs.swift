@@ -25,20 +25,17 @@ struct MacSecuritySettingsTab: View {
                         .disabled(settings.macLockPolicy != .appDeactivates)
                         .accessibilityIdentifier("settings.security.background-delay-picker")
                     }
-                    HStack {
-                        if settings.autoLockTimeout == .immediately || settings.autoLockTimeout == .never {
-                            Text("Auto-Lock Timeout")
-                        } else {
-                            Text("After")
-                        }
-                        Picker("Auto-Lock Timeout", selection: $settings.autoLockTimeout) {
-                            ForEach(SettingsService.AutoLockTimeout.allCases, id: \.self) { Text($0.title).tag($0) }
-                        }.labelsHidden().fixedSize()
-                        if settings.autoLockTimeout != .immediately && settings.autoLockTimeout != .never {
-                            Text("of inactivity")
-                        }
-                    }
                     caption("Locked windows stay open and show the unlock screen.")
+                }
+            }
+            LabeledContent("Auto-lock:") {
+                HStack {
+                    let timed = settings.autoLockTimeout != .immediately && settings.autoLockTimeout != .never
+                    if timed { Text("After") }
+                    Picker("Auto-Lock Timeout", selection: $settings.autoLockTimeout) {
+                        ForEach(SettingsService.AutoLockTimeout.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }.labelsHidden().fixedSize()
+                    if timed { Text("of inactivity") }
                 }
             }
             Divider()
@@ -164,6 +161,8 @@ struct MacAppearanceSettingsTab: View {
                     }.pickerStyle(.radioGroup)
                 }
                 .accessibilityIdentifier("settings.display.theme-picker")
+                // Puts the row label beside the middle of the 54 pt thumbnails, not their captions.
+                .alignmentGuide(.firstTextBaseline) { _ in 54 / 2 + 4 }
             }
             Divider()
             LabeledContent("Accent color:") {
@@ -278,7 +277,10 @@ struct MacServersSettingsTab: View {
             LabeledContent("Servers:") {
                 VStack(alignment: .leading, spacing: 8) {
                     if settings.macServerAccounts.isEmpty {
-                        Text("No servers connected")
+                        GroupBox {
+                            Text("No servers connected").foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                         caption("Use Connect to Server in the Databases window to add one.")
                     } else {
                         GroupBox {
@@ -297,8 +299,8 @@ struct MacServersSettingsTab: View {
                                 }
                             }.frame(maxWidth: .infinity, alignment: .leading)
                         }.accessibilityLabel("Cloud Accounts")
+                        caption("Signing out stops future syncs but keeps cached databases available until you remove them.")
                     }
-                    caption("Signing out stops future syncs but keeps cached databases available until you remove them.")
                 }
             }
         }.formStyle(.columns).padding(24)
@@ -347,7 +349,9 @@ struct MacAboutSettingsTab: View {
                 }
             }
             #else
-            TipJarView()
+            LabeledContent("Support KeeForge:") {
+                VStack(alignment: .leading, spacing: 8) { TipJarView() }
+            }
             #endif
             Divider()
             LabeledContent("Links:") {

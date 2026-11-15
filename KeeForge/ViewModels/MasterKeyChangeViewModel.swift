@@ -100,6 +100,12 @@ final class MasterKeyChangeViewModel {
         }
     }
 
+    /// Whether the form asks for any change; `validate()` still decides whether it is valid.
+    /// Empty fields with a key file still required are a request to remove the password.
+    var canSave: Bool {
+        !newPassword.isEmpty || !confirmPassword.isEmpty || keyFileChange != .keepCurrent || hasEffectiveKeyFile
+    }
+
     private var hasCurrentKeyFile: Bool {
         currentKeyFileBookmarkData != nil || currentKeyFileFilename != nil || sessionKeyFileData != nil
     }

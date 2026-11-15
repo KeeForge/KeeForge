@@ -155,7 +155,7 @@ private struct MacPasswordImportForm: View {
                         .accessibilityIdentifier("password-import.error")
                 }
                 Form {
-                    LabeledContent("Apple Passwords Export") {
+                    LabeledContent("Apple Passwords Export:") {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 if let name = source.name { Label(name, systemImage: "doc") }
@@ -168,15 +168,15 @@ private struct MacPasswordImportForm: View {
                     }
                     if let preview = model.preview {
                         Divider()
-                        LabeledContent("Entries to Import") { Text(model.itemsToImport.count, format: .number).accessibilityIdentifier("password-import.import-count") }
-                        LabeledContent("With Verification Codes") { Text(preview.verificationCodeCount, format: .number) }
-                        LabeledContent("Unsupported Verification Codes") {
+                        LabeledContent("Entries to Import:") { Text(model.itemsToImport.count, format: .number).accessibilityIdentifier("password-import.import-count") }
+                        LabeledContent("With Verification Codes:") { Text(preview.verificationCodeCount, format: .number) }
+                        LabeledContent("Unsupported Verification Codes:") {
                             VStack(alignment: .leading) {
                                 Text(preview.unsupportedVerificationCodeCount, format: .number)
                                 if preview.unsupportedVerificationCodeCount > 0 { caption("KeeForge generates only time-based verification codes. Other code setups are kept in a protected field named OTPAuth.") }
                             }
                         }
-                        LabeledContent("Rows That Can't Be Imported") {
+                        LabeledContent("Rows That Can't Be Imported:") {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(preview.skippedRows.count, format: .number).accessibilityIdentifier("password-import.skipped-count")
                                 ForEach(preview.skippedRows, id: \.row) { row in
@@ -187,7 +187,7 @@ private struct MacPasswordImportForm: View {
                             }
                         }
                         Divider()
-                        LabeledContent("Likely Duplicates") {
+                        LabeledContent("Likely Duplicates:") {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(model.likelyDuplicateRows.count, format: .number).accessibilityIdentifier("password-import.duplicate-count")
                                 Toggle("Skip Likely Duplicates", isOn: $model.skipsLikelyDuplicates).accessibilityIdentifier("password-import.skip-duplicates-toggle")
@@ -195,7 +195,7 @@ private struct MacPasswordImportForm: View {
                             }
                         }
                         Divider()
-                        LabeledContent("Import Into") {
+                        LabeledContent("Import Into:") {
                             VStack(alignment: .leading, spacing: 5) {
                                 HStack {
                                     Label(session.group(withID: model.destinationGroupID)?.name ?? "", systemImage: "folder")
@@ -226,8 +226,8 @@ struct MacImportFinishedSheet: View {
     let summary: PasswordImportViewModel.Summary
     var body: some View {
         Form {
-            LabeledContent("Imported") { Text(summary.importedCount, format: .number).accessibilityIdentifier("password-import.imported-count") }
-            LabeledContent("Skipped") { Text(summary.skippedCount, format: .number).accessibilityIdentifier("password-import.summary-skipped-count") }
+            LabeledContent("Imported:") { Text(summary.importedCount, format: .number).accessibilityIdentifier("password-import.imported-count") }
+            LabeledContent("Skipped:") { Text(summary.skippedCount, format: .number).accessibilityIdentifier("password-import.summary-skipped-count") }
             Text("Check the imported entries, then delete the export file. It contains your passwords unencrypted.")
                 .font(.caption).foregroundStyle(.secondary)
             switch summary.outcome {

@@ -62,6 +62,41 @@ final class MacMasterKeySheetTests: XCTestCase {
         sheet.shell.end()
     }
 
+    func testSaveIsDimmedUntilTheFormRequestsAChange() async {
+        let log = EventLog()
+        let model = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
+            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _ in log.events.append("change") })
+        let sheet = MacMasterKeySheet(name: "Personal", databaseFilename: "Personal.kdbx", model: model) { _ in
+            log.events.append("perform"); return false
+        }
+        sheet.confirm = { _, _ in log.events.append("confirm"); return true }
+        defer { sheet.shell.end() }
+        XCTAssertFalse(sheet.shell.defaultButton.isEnabled)
+        sheet.shell.performDefault()
+        await settle()
+        XCTAssertEqual(log.events, [], "Return does nothing while Save is dimmed")
+        model.newPassword = "new password"
+        await settle()
+        XCTAssertTrue(sheet.shell.defaultButton.isEnabled)
+        model.newPassword = ""
+        await settle()
+        XCTAssertFalse(sheet.shell.defaultButton.isEnabled)
+    }
+
+    func testSheetFitsItsContentAndGrowsForAnError() async throws {
+        let sheet = makeSheet()
+        defer { sheet.shell.end() }
+        let window = try XCTUnwrap(sheet.shell.window)
+        let fitted = window.contentLayoutRect.height
+        XCTAssertLessThan(fitted, 480, "No empty lower half")
+        XCTAssertGreaterThan(fitted, 200)
+        sheet.model.confirmPassword = "different"
+        XCTAssertFalse(sheet.model.validate())
+        await settle()
+        XCTAssertGreaterThan(window.contentLayoutRect.height, fitted, "The error line adds height")
+        XCTAssertLessThanOrEqual(window.contentLayoutRect.height, MacSheetMetrics.maxHeight)
+    }
+
     func testConfirmationKeepsTheExistingTitlesAndIdentifiers() {
         let change = MacMasterKeySheet.confirmation(removingPassword: false)
         XCTAssertEqual(change.messageText, String(localized: "Change Master Key?"))

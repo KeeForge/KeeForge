@@ -1,3 +1,6 @@
+#if os(macOS)
+import AppKit
+#endif
 import AuthenticationServices
 import XCTest
 @testable import KeeForge
@@ -535,6 +538,19 @@ final class MacRemoteBrowserModelTests: XCTestCase {
         XCTAssertNil(folders.databaseSelection())
         folders.end()
         XCTAssertFalse(folders.canOpen)
+    }
+
+    func testAccountLineSitsAtTheTrailingEndOfTheFolderRow() throws {
+        let controller = MacRemoteBrowserViewController(model: MacRemoteBrowserModel(account: account), provider: MockBrowserCloudProvider())
+        defer { controller.end() }
+        controller.view.frame = NSRect(x: 0, y: 0, width: 600, height: 400)
+        controller.view.layoutSubtreeIfNeeded()
+        func all(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(all) }
+        let views = all(controller.view)
+        let label = try XCTUnwrap(views.compactMap { $0 as? NSTextField }.first { $0.stringValue == "Alex" })
+        let folders = try XCTUnwrap(views.first { $0.accessibilityIdentifier() == "remote-browser.folder" })
+        XCTAssertTrue(label.superview?.superview === folders.superview, "The account shares the folder pop-up's row")
+        XCTAssertEqual(label.convert(label.bounds, to: controller.view).maxX, 600, accuracy: 3)
     }
 
     func testHistoryAncestorsAndNewVisitClearsForward() async {

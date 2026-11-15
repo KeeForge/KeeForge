@@ -11,7 +11,7 @@ struct MacNewDatabaseSheet: View {
     var body: some View {
         ScrollView {
             Form {
-                TextField("Database name", text: $model.databaseName)
+                TextField("Database name:", text: $model.databaseName)
                     .accessibilityIdentifier("database-create.name-field")
                 if let filename = model.filenamePreview {
                     caption(Text("Filename: \(filename)"))
@@ -21,15 +21,15 @@ struct MacNewDatabaseSheet: View {
                     caption(Text("Unsupported filename characters are replaced with _."))
                         .accessibilityIdentifier("database-create.filename-explanation")
                 }
-                Picker("Save To", selection: $model.destinationChoice) {
+                Picker("Save To:", selection: $model.destinationChoice) {
                     ForEach(DatabaseCreationDestinationChoice.availableChoices) { Text($0.title).tag($0) }
                 }.accessibilityIdentifier("database-create.destination-picker")
                 caption(Text("After you click Create, KeeForge asks where to save the encrypted .kdbx database. Other choices: WebDAV, FTP."))
                 Divider()
-                LabeledContent("Master password") { PasswordInputRow(title: String(localized: "Master password"), text: $model.password, isVisible: $passwordVisible,
+                LabeledContent("Master password:") { PasswordInputRow(title: String(localized: "Master password"), text: $model.password, isVisible: $passwordVisible,
                                  fieldAccessibilityIdentifier: "database-create.password-field",
                                  visibilityAccessibilityIdentifier: "database-create.password-visibility-button", usesPasswordAutoFill: false).labelsHidden() }
-                LabeledContent("Confirm password") { PasswordInputRow(title: String(localized: "Confirm password"), text: $model.confirmPassword, isVisible: $confirmationVisible,
+                LabeledContent("Confirm password:") { PasswordInputRow(title: String(localized: "Confirm password"), text: $model.confirmPassword, isVisible: $confirmationVisible,
                                  fieldAccessibilityIdentifier: "database-create.confirm-password-field",
                                  visibilityAccessibilityIdentifier: "database-create.confirm-password-visibility-button", usesPasswordAutoFill: false).labelsHidden() }
                 if !model.password.isEmpty {
@@ -38,7 +38,7 @@ struct MacNewDatabaseSheet: View {
                 if let warning = model.passwordStrengthWarning { caption(Text(warning)) }
                 caption(Text("Choose a long, unique master password: it protects the entire database and cannot be recovered if forgotten."))
                 Divider()
-                LabeledContent("Key File") {
+                LabeledContent("Key file:") {
                     VStack(alignment: .leading) {
                         Text(model.keyFileSummary)
                         HStack {
@@ -68,6 +68,8 @@ struct MacNewDatabaseSheet: View {
                 }
             }
             .formStyle(.columns)
+            .frame(width: MacSheetFormMetrics.width)
+            .frame(maxWidth: .infinity)
             .padding(.vertical, 4)
         }
     }
