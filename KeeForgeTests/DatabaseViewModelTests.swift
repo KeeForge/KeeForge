@@ -5066,6 +5066,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let fixtureData = try Data(contentsOf: fixtureURL())
         try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference)
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let calls = RekeyedKeyCapture()
         let transport = CloudJournalTransport(remote: remoteData, revision: "rev-B",
             response: .init(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-C"))
         var environment = CloudDatabaseSaver.Environment.live
@@ -5079,7 +5080,8 @@ final class DatabaseViewModelTests: XCTestCase {
         let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
             CloudSyncResolution(reference: reference, localURL: cacheURL, data: fixtureData, status: .current)
         }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
-            try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+            calls.record(oldKey: key, newKey: newKey, expectedRev: rev)
+            return try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
                 openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
                 kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
         })
@@ -5093,7 +5095,8 @@ final class DatabaseViewModelTests: XCTestCase {
         try await vm.mergeAndSave()
         let mergedBytes = try Data(contentsOf: cacheURL)
         let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
-        XCTAssertEqual(marker.marker.expectedRev, "rev-A")
+        XCTAssertEqual(calls.expectedRev, "rev-A")
+        XCTAssertNil(marker.marker.expectedRev)
         XCTAssertEqual(marker.marker.remoteBaseSHA512, remoteHash)
         XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker), mergedBytes)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(mergedBytes))
