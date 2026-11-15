@@ -159,11 +159,15 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
                         isCompressed: true, keyDerivation: .aesKDF(rounds: 10)))
             }
         }
-        let reference = try reference()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("settings.kdbx")
+        try KDBXTestFixture.test.data(in: Bundle(for: Self.self)).write(to: file)
+        let reference = try TestDatabaseSupport.makeReference(for: file, autoFillEnabled: false)
         DatabaseListStore.testUpsert(reference)
         let session = DatabaseViewModel(databaseReference: reference,
-            localSaveOperation: { _, _, _, _, _, _, _ in .saved(newSHA512: Data([2])) },
-            quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })
+            localReadKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })
         await session.unlock(password: "testpassword123")
         defer { session.lock() }
         let reads = Reads()

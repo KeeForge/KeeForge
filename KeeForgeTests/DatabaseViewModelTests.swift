@@ -160,7 +160,9 @@ final class DatabaseViewModelTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let copy = directory.appendingPathComponent("icons.kdbx")
         try FileManager.default.copyItem(at: fixtureURL(), to: copy)
-        return try TestDatabaseSupport.makeReference(for: copy)
+        let reference = try TestDatabaseSupport.makeReference(for: copy)
+        DatabaseListStore.testUpsert(reference)
+        return reference
     }
 
     private let fixturePassword = "testpassword123"
@@ -9382,6 +9384,10 @@ final class DatabaseViewModelTests: XCTestCase {
            storedKeyPresenceCheck: { _ in true },
            storedKeyStoreOperation: { key, _ in effects.withLock { $0 += 1 }; storedKeys.record(oldKey: nil, newKey: key) })
         await vm.unlock(password: fixturePassword)
+        let list = DatabaseListViewModel()
+        let sessions = DatabaseSessionStore()
+        sessions.adopt(vm)
+        sessions.installListHooks(on: list)
         effects.withLock { $0 = 0 }
         let oldKey = try XCTUnwrap(vm.compositeKey)
         do {
@@ -9434,6 +9440,7 @@ final class DatabaseViewModelTests: XCTestCase {
         guard case .saved? = try CloudDatabaseSaver.recoverConfirmed(marker, reference: reference, environment: recovery) else {
             return XCTFail("Confirmed remote rekey must reconcile without upload")
         }
+        list.reload()
         let newKey = try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil)
         if scenario == .duringPublication {
             await fulfillment(of: [pause.entered], timeout: 15)

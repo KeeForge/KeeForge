@@ -3176,6 +3176,9 @@ final class DatabaseViewModel {
                    $0.id == pending.ticket.operationID && $0.marker.confirmedAt != nil && $0.marker.keyChange == pending.change
                        && $0.marker.intendedPayloadSHA512 == pending.ticket.payloadSHA
                } == true) || pending.ticket.isCompleted) {
+                if pending.cycle == lockCycleID, keyCommitPublicationActionID == actionID, case .unlocked = state {
+                    masterKeyComposition = nil
+                }
                 Task { @MainActor [weak self] in await self?.finishPendingCloudRekey() }
             } else {
                 pendingCloudRekey = nil
@@ -5654,7 +5657,9 @@ final class DatabaseViewModel {
         guard reference.id == databaseReference.id else { return }
         // Session writes reach the list store before a delayed list callback can arrive.
         var current = DatabaseListStore.databases.first { $0.id == reference.id } ?? reference
-        if !databaseReference.isCloudBacked, state == .unlocked || isSaving {
+        if state == .unlocked || isSaving {
+            let changedEpoch = current.lastMasterKeyChangeAt != databaseReference.lastMasterKeyChangeAt
+                || current.cloudSyncMetadata?.keyEpoch != databaseReference.cloudSyncMetadata?.keyEpoch
             // A list refresh cannot authenticate a different target or master-key epoch.
             current.bookmarkData = databaseReference.bookmarkData
             current.source = databaseReference.source
@@ -5663,7 +5668,7 @@ final class DatabaseViewModel {
             current.hasUnverifiedRelink = databaseReference.hasUnverifiedRelink
             current.hardwareKey = databaseReference.hardwareKey
             current.legacyKeychainFilename = databaseReference.legacyKeychainFilename
-            if isSaving || current.lastMasterKeyChangeAt != databaseReference.lastMasterKeyChangeAt {
+            if isSaving || changedEpoch {
                 current.keyFileBookmarkData = databaseReference.keyFileBookmarkData
                 current.keyFileFilename = databaseReference.keyFileFilename
             }
