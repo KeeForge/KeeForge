@@ -2955,6 +2955,21 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(EntryRowActions(entryID: target.id, session: vm).canMove)
     }
 
+    func testAnEntryInAGroupInsideTheRecycleBinIsDeletedPermanently() async throws {
+        let nested = KPEntry(title: "Nested")
+        let bin = KPGroup(name: "Recycle Bin", groups: [KPGroup(name: "Old Group", entries: [nested])])
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "Visible"), bin], recycleBinUUID: bin.id)
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        let actions = EntryRowActions(entryID: nested.id, session: vm)
+        XCTAssertTrue(actions.deletesPermanently)
+        XCTAssertEqual(actions.deleteTitle, String(localized: "Delete Permanently"))
+        XCTAssertEqual(actions.deleteAccessibilityIdentifier, "entry-row.delete-permanent")
+        guard case .entry(let deletion) = actions.pendingDeletion else { return XCTFail("Expected an entry deletion") }
+        XCTAssertFalse(deletion.sendToRecycleBin)
+        XCTAssertFalse(actions.canSelect)
+    }
+
     func testEntryRowActionsGateCopyDuplicateRestoreAndDeletePerEntry() async throws {
         let target = KPEntry(title: "Target", username: "user", password: .empty)
         let empty = KPEntry(title: "Empty")

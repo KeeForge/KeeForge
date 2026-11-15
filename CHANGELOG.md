@@ -41,6 +41,7 @@
 
 ### Fixes
 
+- On iPhone and iPad, an entry in a group inside the Recycle Bin offers Delete Permanently, as entries directly in the Recycle Bin do, instead of Delete.
 - Search finds an entry by any of its URLs, not only the first one (#289).
 - Search results follow the chosen sort order and direction instead of appearing unsorted (#290).
 - Downloaded website icons are no longer included in device backups; KeeForge fetches them again when needed.

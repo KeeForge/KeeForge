@@ -69,9 +69,11 @@ struct GroupListView: View {
         listedGroup?.entries ?? []
     }
 
+    /// The bin itself or a group inside it.
     private var isRecycleBin: Bool {
         guard let listedGroup else { return false }
         return viewModel.currentRootGroup?.recycleBinUUID == listedGroup.id
+            || viewModel.isGroupInRecycleBin(groupID: listedGroup.id)
     }
 
     private var isCompact: Bool {
@@ -817,28 +819,18 @@ struct GroupListView: View {
             if viewModel.isReadOnly == false {
                 Divider()
 
-                Button(isRecycleBin ? "Delete Permanently" : "Delete", systemImage: "trash", role: .destructive) {
-                    pendingDeletion = .entry(
-                        PendingEntryDeletion(
-                            entryID: entry.id,
-                            sendToRecycleBin: !isRecycleBin
-                        )
-                    )
+                let actions = EntryRowActions(entryID: entry.id, session: viewModel)
+                Button(actions.deleteTitle, systemImage: "trash", role: .destructive) {
+                    pendingDeletion = actions.pendingDeletion
                 }
-                .accessibilityIdentifier(
-                    isRecycleBin ? "entry-row.delete-permanent" : "entry-row.delete-context"
-                )
+                .accessibilityIdentifier(actions.deleteAccessibilityIdentifier)
             }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if viewModel.isReadOnly == false {
-                Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
-                    pendingDeletion = .entry(
-                        PendingEntryDeletion(
-                            entryID: entry.id,
-                            sendToRecycleBin: !isRecycleBin
-                        )
-                    )
+                let actions = EntryRowActions(entryID: entry.id, session: viewModel)
+                Button(actions.deleteTitle, role: .destructive) {
+                    pendingDeletion = actions.pendingDeletion
                 }
                 .tint(Theme.State.danger)
                 .accessibilityIdentifier("entry-row.delete-swipe")
