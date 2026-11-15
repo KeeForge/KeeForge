@@ -30,7 +30,7 @@ struct MacSecuritySettingsTab: View {
             }
             LabeledContent("Auto-lock:") {
                 HStack {
-                    let timed = settings.autoLockTimeout != .immediately && settings.autoLockTimeout != .never
+                    let timed = settings.autoLockTimeout != .never
                     if timed { Text("After") }
                     Picker("Auto-Lock Timeout", selection: $settings.autoLockTimeout) {
                         ForEach(SettingsService.AutoLockTimeout.allCases, id: \.self) { Text($0.title).tag($0) }

@@ -50,6 +50,7 @@
 
 ### Mac lock, window close, quick access
 
+- `AutoLockTimeout` has no Immediately case on Mac (it is `#if os(iOS)`), and the Mac default is 5 Minutes, so every Mac session has a real inactivity timer unless the user picks Never. A stored Immediately fails to decode on Mac and reads as that default; nothing rewrites it.
 - Screen lock, screensaver, sleep, and session resign request locks immediately for every session and cancel any background deadline. App deactivation locks only under the strict `MacLockPolicy`, after `macBackgroundLockDelay` (app-local, default Immediately). Activation within the delay, delay edits, stop, and the last open session locking cancel that deadline; activation once the wall-clock delay has passed locks instead; one session locking must not remove the protection of others. Authentication holds retain their independent immediate settlement.
 - Under the strict policy, a deactivation caused by the app's own authentication prompt is held, not excused: it needs both a pending request (`BiometricService.isBiometricAuthInProgress`) and the system authentication UI in front (`ForegroundApplication.isSystemAuthenticationPrompt`). Any other application coming forward locks.
 - When the last pending request ends the hold settles: KeeForge is active again within `defaultReactivationGracePeriod`, or it locks.

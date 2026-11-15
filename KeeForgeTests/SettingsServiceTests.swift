@@ -78,10 +78,32 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(SettingsService.macBackgroundLockDelay, .immediately)
     }
 
+    #if os(iOS)
     func testAutoLockTimeoutDefaultsToImmediately() {
         UserDefaults.standard.removeObject(forKey: autoLockKey)
         XCTAssertEqual(SettingsService.autoLockTimeout, .immediately)
+        XCTAssertEqual(
+            SettingsService.AutoLockTimeout.allCases,
+            [.immediately, .thirtySeconds, .oneMinute, .fiveMinutes, .never]
+        )
     }
+
+    func testStoredImmediatelyStaysImmediately() {
+        UserDefaults.standard.set("Immediately", forKey: autoLockKey)
+        XCTAssertEqual(SettingsService.autoLockTimeout, .immediately)
+    }
+    #else
+    func testMacAutoLockTimeoutDefaultsToFiveMinutesWithoutImmediately() {
+        UserDefaults.standard.removeObject(forKey: autoLockKey)
+        XCTAssertEqual(SettingsService.autoLockTimeout, .fiveMinutes)
+        XCTAssertEqual(SettingsService.AutoLockTimeout.allCases, [.thirtySeconds, .oneMinute, .fiveMinutes, .never])
+    }
+
+    func testMacStoredImmediatelyReadsAsFiveMinutes() {
+        UserDefaults.standard.set("Immediately", forKey: autoLockKey)
+        XCTAssertEqual(SettingsService.autoLockTimeout, .fiveMinutes)
+    }
+    #endif
 
     func testAuthenticationGracePeriodDefaultsToAlwaysAsk() {
         UserDefaults.standard.removeObject(forKey: authenticationGraceKey)
@@ -208,7 +230,9 @@ final class SettingsServiceTests: XCTestCase {
     // MARK: - Seconds values
 
     func testAutoLockTimeoutSeconds() {
+        #if os(iOS)
         XCTAssertEqual(SettingsService.AutoLockTimeout.immediately.seconds, 0)
+        #endif
         XCTAssertEqual(SettingsService.AutoLockTimeout.thirtySeconds.seconds, 30)
         XCTAssertEqual(SettingsService.AutoLockTimeout.oneMinute.seconds, 60)
         XCTAssertEqual(SettingsService.AutoLockTimeout.fiveMinutes.seconds, 300)
@@ -238,7 +262,7 @@ final class SettingsServiceTests: XCTestCase {
 
     func testAutoLockTimeoutFallsBackOnInvalidValue() {
         UserDefaults.standard.set("bogus", forKey: autoLockKey)
-        XCTAssertEqual(SettingsService.autoLockTimeout, .immediately)
+        XCTAssertEqual(SettingsService.autoLockTimeout, .defaultValue)
     }
 
     func testAuthenticationGracePeriodFallsBackToAlwaysAskOnInvalidValue() {

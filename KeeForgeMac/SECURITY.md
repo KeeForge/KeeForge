@@ -308,13 +308,15 @@ Settings, panels, unregistered windows, mouse movement, and other apps do not
 extend database deadlines. App activation evaluates existing timed deadlines
 without renewing them; AutoFill cache refresh and pending-upload draining remain global.
 
-**The defaults set no inactivity lock.** On Mac, Auto-Lock Timeout's default,
-Immediately, and Never start no inactivity timer, and the default lock policy
-locks only on screen lock, screensaver, sleep or a user switch. A default install
-therefore keeps unlocked databases open while the user stays logged in with the
-screen unlocked, even with KeeForge in the background, until one of those events
-or a window close. Only a 30-second, 1-minute or 5-minute timeout, or the strict
-policy, adds a lock for inactivity or for leaving the app.
+**The default inactivity lock is 5 minutes.** On Mac, Auto-Lock Timeout offers
+30 seconds, 1 minute, 5 minutes and Never, and defaults to 5 minutes. Immediately
+is iOS-only: a Mac install that stored it, or stored nothing, reads as 5 minutes
+([AutoLockTimeout](../KeeForge/Services/AppSupport/SettingsService.swift)). The
+strict policy's background delay covers locking as soon as KeeForge is left.
+Never starts no inactivity timer; with it and the default lock policy, which
+locks only on screen lock, screensaver, sleep or a user switch, unlocked
+databases stay open while the user stays logged in with the screen unlocked,
+until one of those events or a window close.
 
 **Unsaved work can defer a lock indefinitely.** An open editor or dirty draft
 keeps the session and decrypted tree available while the Save / Discard / Keep

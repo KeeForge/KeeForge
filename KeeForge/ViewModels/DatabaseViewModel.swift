@@ -3973,9 +3973,11 @@ final class DatabaseViewModel {
         switch timeout {
         case .never:
             cancelInactivityTimer()
+        #if os(iOS)
         case .immediately:
             cancelInactivityTimer()
             inactivityDeadline = nowProvider()
+        #endif
         case .thirtySeconds, .oneMinute, .fiveMinutes:
             guard let seconds = timeout.seconds else { return }
             scheduleInactivityTimer(until: nowProvider().addingTimeInterval(seconds))
@@ -4041,8 +4043,7 @@ final class DatabaseViewModel {
     func handleMacAppDidBecomeActive() {
         guard isSessionOpen, let inactivityDeadline else { return }
         switch SettingsService.autoLockTimeout {
-        // Immediately has no foreground timer on Mac; its deadline is always due.
-        case .immediately, .never:
+        case .never:
             return
         case .thirtySeconds, .oneMinute, .fiveMinutes:
             if nowProvider() >= inactivityDeadline {
@@ -4071,8 +4072,10 @@ final class DatabaseViewModel {
         switch SettingsService.autoLockTimeout {
         case .never:
             startInactivityTimer()
+        #if os(iOS)
         case .immediately:
             lockRequest(cause: .inactivity(.immediately))
+        #endif
         case .thirtySeconds, .oneMinute, .fiveMinutes:
             guard let inactivityDeadline else {
                 startInactivityTimer()

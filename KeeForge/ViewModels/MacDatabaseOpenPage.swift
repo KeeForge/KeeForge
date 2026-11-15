@@ -111,14 +111,14 @@ enum MacDatabaseOpenPage: Equatable {
         }
     }
 
-    /// Only an inactivity lock is explained; a zero or disabled timeout has no length to state.
+    /// Only an inactivity lock is explained; a disabled timeout has no length to state.
     static func footer(for cause: DatabaseViewModel.LockCause?) -> String? {
         guard case .inactivity(let timeout) = cause else { return nil }
         switch timeout {
         case .thirtySeconds: return String(localized: "Locked automatically after 30 seconds of inactivity")
         case .oneMinute: return String(localized: "Locked automatically after 1 minute of inactivity")
         case .fiveMinutes: return String(localized: "Locked automatically after 5 minutes of inactivity")
-        case .immediately, .never: return nil
+        case .never: return nil
         }
     }
 

@@ -38,16 +38,30 @@ enum SettingsService {
 
     // MARK: - Auto-Lock Timeout
 
+    /// Mac has no Immediately: its windows stay on screen with no moment to
+    /// lock at, and the Mac background-lock delay covers the strict case. A
+    /// stored "Immediately" therefore fails to decode on Mac and reads as the
+    /// Mac default.
     enum AutoLockTimeout: String, CaseIterable, Sendable {
+        #if os(iOS)
         case immediately = "Immediately"
+        #endif
         case thirtySeconds = "30 Seconds"
         case oneMinute = "1 Minute"
         case fiveMinutes = "5 Minutes"
         case never = "Never"
 
+        #if os(iOS)
+        static let defaultValue = AutoLockTimeout.immediately
+        #else
+        static let defaultValue = AutoLockTimeout.fiveMinutes
+        #endif
+
         var seconds: TimeInterval? {
             switch self {
+            #if os(iOS)
             case .immediately: 0
+            #endif
             case .thirtySeconds: 30
             case .oneMinute: 60
             case .fiveMinutes: 300
@@ -57,7 +71,9 @@ enum SettingsService {
 
         var title: String {
             switch self {
+            #if os(iOS)
             case .immediately: String(localized: "Immediately")
+            #endif
             case .thirtySeconds: String(localized: "30 Seconds")
             case .oneMinute: String(localized: "1 Minute")
             case .fiveMinutes: String(localized: "5 Minutes")
@@ -292,9 +308,9 @@ enum SettingsService {
     static var autoLockTimeout: AutoLockTimeout {
         get {
             guard let raw = UserDefaults.standard.string(forKey: Key.autoLockTimeout) else {
-                return .immediately
+                return .defaultValue
             }
-            return AutoLockTimeout(rawValue: raw) ?? .immediately
+            return AutoLockTimeout(rawValue: raw) ?? .defaultValue
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: Key.autoLockTimeout)

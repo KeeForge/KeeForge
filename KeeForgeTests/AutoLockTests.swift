@@ -169,12 +169,14 @@ final class AutoLockTests: XCTestCase {
         XCTAssertNil(vm.inactivityTimer)
     }
 
+    #if os(iOS)
     func testImmediatelySettingMeansNoForegroundTimer() async throws {
         SettingsService.autoLockTimeout = .immediately
         let vm = try await makeUnlockedViewModel()
 
         XCTAssertNil(vm.inactivityTimer)
     }
+    #endif
 
     func testResetInactivityTimerDoesNothingWhenLocked() throws {
         SettingsService.autoLockTimeout = .fiveMinutes
@@ -732,19 +734,39 @@ final class AutoLockTests: XCTestCase {
         XCTAssertEqual(second.state, .locked)
     }
 
-    func testMacActivationKeepsImmediatelyTimeoutSessionOpen() async throws {
-        SettingsService.autoLockTimeout = .immediately
+    /// An install that kept the old default (no stored value) or chose the
+    /// iOS-only Immediately reads as 5 Minutes and gets a real timer.
+    func testMacDefaultAndStoredImmediatelyStartTheFiveMinuteTimerAndLock() async throws {
+        for stored: String? in [nil, "Immediately"] {
+            if let stored {
+                UserDefaults.standard.set(stored, forKey: "KeeForge.autoLockTimeout")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "KeeForge.autoLockTimeout")
+            }
+            let vm = try await makeUnlockedViewModel()
+            defer { vm.lock() }
+
+            XCTAssertNotNil(vm.inactivityTimer, String(describing: stored))
+            XCTAssertEqual(vm.inactivityTimerInterval ?? 0, 300, accuracy: 0.001)
+
+            try await fireInactivityTimer(of: vm)
+
+            XCTAssertEqual(vm.lastLockCause, .inactivity(.fiveMinutes), String(describing: stored))
+        }
+    }
+
+    func testMacActivationLocksADefaultSessionPastItsDeadline() async throws {
+        UserDefaults.standard.removeObject(forKey: "KeeForge.autoLockTimeout")
         let clock = MutableNowProvider(now: Date(timeIntervalSince1970: 1_000))
         let vm = try await makeUnlockedViewModel(nowProvider: { clock.now })
         defer { vm.lock() }
         let store = DatabaseSessionStore()
         store.adopt(vm)
-        clock.advance(by: 60)
+        clock.advance(by: 301)
 
         store.handleAppDidBecomeActive()
 
-        XCTAssertEqual(vm.state, .unlocked)
-        XCTAssertNil(vm.inactivityTimer)
+        assertLocked(vm, "A Mac session past its default 5-minute deadline locks on activation")
     }
 
     private func assertLocked(

@@ -146,8 +146,7 @@ final class MacDatabaseOpenPageTests: XCTestCase {
         XCTAssertEqual(Page.footer(for: .inactivity(.oneMinute)),
             String(localized: "Locked automatically after 1 minute of inactivity"))
 
-        for cause: DatabaseViewModel.LockCause? in [nil, .manual, .background, .system, .inactivity(.immediately),
-                                                    .inactivity(.never)] {
+        for cause: DatabaseViewModel.LockCause? in [nil, .manual, .background, .system, .inactivity(.never)] {
             XCTAssertEqual(make(.locked, reference: local, lastLockCause: cause), .form(card: nil, footer: nil),
                 String(describing: cause))
         }

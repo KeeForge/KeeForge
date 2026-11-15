@@ -14,8 +14,10 @@ enum AppSettingsSummary {
         }
 
         let lock = switch autoLockTimeout {
+        #if os(iOS)
         case .immediately:
             String(localized: "Locks immediately")
+        #endif
         case .never:
             lockOnBackground ? String(localized: "Locks in background") : String(localized: "No auto-lock")
         case .thirtySeconds, .oneMinute, .fiveMinutes:
