@@ -706,23 +706,31 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         let reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
         let strandedBytes = Data("stranded-conflict-bytes".utf8)
         try DatabaseListStore.cacheDatabaseCopy(strandedBytes, for: reference)
-        _ = try PendingUploadQueue.enqueue(
+        let conflicted = try PendingUploadQueue.enqueue(
             makeMarker(
                 databaseId: reference.id,
                 openTimeSHA512: FileDigest.sha512(strandedBytes),
                 isConflicted: true
-            )
+            ), notifying: false
         )
         let healthyMarker = try PendingUploadQueue.enqueue(
-            makeMarker(databaseId: reference.id, openTimeSHA512: Data("other-sha".utf8))
+            makeMarker(databaseId: reference.id, openTimeSHA512: Data("other-sha".utf8)), notifying: false
         )
-
+        func describe(_ markers: [PendingUploadQueue.StoredMarker]) -> String {
+            markers.map { "id=\($0.id) generation=\($0.marker.generation) phase=\(String(describing: $0.marker.isPayloadFinalized)) bindingVersion=\(String(describing: $0.marker.binding?.version)) bindingDatabase=\(String(describing: $0.marker.binding?.databaseID)) bindingOperation=\(String(describing: $0.marker.binding?.operationID)) bindingRecognized=\($0.marker.binding?.isRecognized == true) intendedPath=\(String(describing: $0.marker.intendedPayloadPath)) confirmed=\($0.marker.confirmedAt != nil)" }.joined(separator: "; ")
+        }
+        let registryBefore = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        let before = try PendingUploadQueue.readJournal(for: reference.id)
         let discardedCount = await CloudSyncCoordinator.discardConflictedPendingUploads(for: reference)
-
+        let remaining = try PendingUploadQueue.readJournal(for: reference.id)
+        let registryAfter = DatabaseListStore.databases.first { $0.id == reference.id }
+        print("isolated discard result=\(discardedCount) before=[\(describe(before))] after=[\(describe(remaining))] registryUnchanged=\(registryAfter == registryBefore) cacheUnchanged=\((try? Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))) == strandedBytes)")
+        XCTAssertEqual(Set(before.map(\.id)), [conflicted.id, healthyMarker.id])
         XCTAssertEqual(discardedCount, 1)
         XCTAssertEqual(backupContents(for: reference), [strandedBytes])
-        let remaining = PendingUploadQueue.listMarkers(for: reference.id)
         XCTAssertEqual(remaining.map(\.id), [healthyMarker.id])
+        XCTAssertEqual(remaining.first?.marker, healthyMarker.marker)
+        XCTAssertEqual(registryAfter, registryBefore)
         XCTAssertEqual(
             try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)),
             strandedBytes

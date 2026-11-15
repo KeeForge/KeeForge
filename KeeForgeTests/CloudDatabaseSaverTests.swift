@@ -1836,26 +1836,50 @@ final class CloudDatabaseSaverTests: XCTestCase {
             await uploads.record(data: bytes, expectedRev: rev)
             return CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: Int64(bytes.count), rev: "rev-B")
         })
+        environment.queue.postDarwinNotification = {}
+        func describe(_ markers: [PendingUploadQueue.StoredMarker]) -> String {
+            markers.map { "id=\($0.id) generation=\($0.marker.generation) phase=\(String(describing: $0.marker.isPayloadFinalized)) bindingVersion=\(String(describing: $0.marker.binding?.version)) bindingDatabase=\(String(describing: $0.marker.binding?.databaseID)) bindingOperation=\(String(describing: $0.marker.binding?.operationID)) bindingRecognized=\($0.marker.binding?.isRecognized == true) intendedPath=\(String(describing: $0.marker.intendedPayloadPath)) confirmed=\($0.marker.confirmedAt != nil)" }.joined(separator: "; ")
+        }
+        func outcomeName(_ result: CloudDatabaseSaver.PendingUploadPushResult?) -> String {
+            switch result {
+            case .saved?: "saved"
+            case .retained?: "retained"
+            case .conflict?: "conflict"
+            case nil: "nil"
+            }
+        }
         _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: reference,
             compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
             expectedRev: "rev-A", kdfPolicy: .mainApp, environment: environment)
         let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
         let installed = try Data(contentsOf: cache)
+        let originalRegistry = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        print("isolated delivery initial journal=[\(describe([marker]))] registryHead=\(String(describing: originalRegistry.cloudSyncMetadata?.localHeadOperationID)) registryEpoch=\(String(describing: originalRegistry.cloudSyncMetadata?.keyEpoch))")
         let flush = environment.synchronizeCacheFile
         environment.synchronizeCacheFile = { _ in throw CocoaError(.fileWriteNoPermission) }
-        guard case .retained? = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment) else {
+        let firstResult = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment)
+        let afterFirst = try PendingUploadQueue.readJournal(for: reference.id)
+        let registryAfterFirst = DatabaseListStore.databases.first { $0.id == reference.id }
+        print("isolated delivery flush result=\(outcomeName(firstResult)) journal=[\(describe(afterFirst))] cacheMatches=\((try? Data(contentsOf: cache)) == installed) registryHead=\(String(describing: registryAfterFirst?.cloudSyncMetadata?.localHeadOperationID)) registryEpoch=\(String(describing: registryAfterFirst?.cloudSyncMetadata?.keyEpoch))")
+        guard case .retained? = firstResult else {
             return XCTFail("Observed confirmation cannot retire before cache durability")
         }
-        let confirmed = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        let confirmed = try XCTUnwrap(afterFirst.first)
+        XCTAssertEqual(confirmed.id, marker.id)
         XCTAssertNotNil(confirmed.marker.confirmedAt)
         XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(confirmed), installed)
         environment.synchronizeCacheFile = flush
-        guard case .saved? = try await CloudDatabaseSaver.deliver(confirmed, reference: reference, environment: environment) else {
+        let secondResult = try await CloudDatabaseSaver.deliver(confirmed, reference: reference, environment: environment)
+        let afterSecond = try PendingUploadQueue.readJournal(for: reference.id)
+        let registryAfterSecond = DatabaseListStore.databases.first { $0.id == reference.id }
+        print("isolated delivery reconciliation result=\(outcomeName(secondResult)) journal=[\(describe(afterSecond))] cacheMatches=\((try? Data(contentsOf: cache)) == installed) registryHead=\(String(describing: registryAfterSecond?.cloudSyncMetadata?.localHeadOperationID)) registryEpoch=\(String(describing: registryAfterSecond?.cloudSyncMetadata?.keyEpoch)) registryRev=\(String(describing: registryAfterSecond?.cloudSyncMetadata?.remoteRev))")
+        guard case .saved? = secondResult else {
             return XCTFail("Explicit reconciliation of a confirmed receipt must complete without another upload")
         }
         let calls = await uploads.callCount()
         XCTAssertEqual(calls, 1)
-        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertTrue(afterSecond.isEmpty)
+        XCTAssertEqual(registryAfterSecond?.cloudSyncMetadata?.remoteRev, "rev-B")
         XCTAssertEqual(try Data(contentsOf: cache), installed)
     }
 
