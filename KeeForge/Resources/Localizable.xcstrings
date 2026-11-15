@@ -49151,58 +49151,6 @@
         }
       }
     },
-    "Open-source components and their licenses are listed in Settings › About › Acknowledgments." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open-Source-Komponenten und ihre Lizenzen sind unter „Einstellungen“ › „Über“ › „Danksagungen“ aufgeführt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Los componentes de código abierto y sus licencias se enumeran en Ajustes › Acerca de › Agradecimientos."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les composants open source et leurs licences sont répertoriés dans Réglages › À propos › Remerciements."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I componenti open source e le relative licenze sono elencati in Impostazioni › Informazioni › Riconoscimenti."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "オープンソースコンポーネントとそのライセンスは、「設定」›「情報」›「謝辞」に記載されています。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Компоненты с открытым исходным кодом и их лицензии перечислены в разделе «Настройки» › «О программе» › «Благодарности»."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开源组件及其许可证列于“设置”›“关于”›“致谢”。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開放原始碼元件及其授權列於「設定」›「關於」›「致謝」。"
-          }
-        }
-      }
-    },
     "Open, save, and create databases on an FTP server. FTP is unencrypted, so use it only on a network you trust." : {
       "localizations" : {
         "de" : {
