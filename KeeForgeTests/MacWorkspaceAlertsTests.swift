@@ -285,7 +285,7 @@ final class MacWorkspaceAlertsTests: XCTestCase {
             await settle()
             let count = shown.count
             shown.last?.answer(retry ? .alertFirstButtonReturn : .alertThirdButtonReturn)
-            for _ in 0..<10 { await settle() }
+            try await waitUntil { !session.isLockPending && session.state == (retry ? .locked : .unlocked) }
             XCTAssertEqual(shown.count, count, "The chosen response owns the request until it settles")
             XCTAssertNil(alerts.presented)
             XCTAssertNil(session.pendingLockRequest)
