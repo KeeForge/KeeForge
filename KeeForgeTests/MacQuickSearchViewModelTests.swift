@@ -75,7 +75,77 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         XCTAssertEqual(model.results.map(\.entry.title), ["Twitter"])
         XCTAssertEqual(model.results.map(\.databaseID), [session.databaseReference.id])
         XCTAssertEqual(model.username(for: try XCTUnwrap(model.results.first)), "testuser")
-        XCTAssertEqual(model.folderPath(for: try XCTUnwrap(model.results.first)), "Social")
+    }
+
+    // MARK: - Header and rows
+
+    func testTheHeaderCountsResultsOnlyOnceAQueryIsTyped() async throws {
+        open(try await makeUnlockedSession())
+        let model = makeModel()
+        XCTAssertNil(model.resultCountText(for: model.results), "No count before a query")
+
+        model.query = "   "
+        XCTAssertNil(model.resultCountText(for: model.results))
+
+        model.query = "Twitter"
+        XCTAssertEqual(model.resultCountText(for: model.results), "1 result")
+
+        model.query = ".com"
+        let results = model.results
+        XCTAssertGreaterThan(results.count, 1)
+        XCTAssertEqual(model.resultCountText(for: results), "\(results.count) results")
+
+        model.query = "no entry has this"
+        XCTAssertEqual(model.resultCountText(for: model.results), "0 results")
+    }
+
+    func testTheLockedStateAsksToUnlockTheFocusedDatabaseByName() throws {
+        let session = open(try makeSession(nickname: "Work"))
+        let model = makeModel()
+
+        guard case .locked(let name) = model.content else { return XCTFail("Expected the locked state") }
+        XCTAssertEqual(name, session.databaseReference.displayName)
+        XCTAssertEqual(MacQuickSearchViewModel.lockedTitle(databaseName: name), "Unlock Work to search it")
+    }
+
+    func testTheRowSubtitleJoinsTheUsernameAndTheWebsiteHost() async throws {
+        let session = open(try await makeUnlockedSession())
+        try setURL("https://Accounts.Example.com/login?next=1", ofEntryTitled: "Twitter", in: session)
+        try setURL("example.org", ofEntryTitled: "Offline Key", in: session)
+        try setURL("", ofEntryTitled: "Discord", in: session)
+        let model = makeModel()
+
+        XCTAssertEqual(model.subtitle(for: try entry(titled: "Twitter", in: model)), "testuser · accounts.example.com")
+        XCTAssertEqual(model.subtitle(for: try entry(titled: "Offline Key", in: model)), "example.org", "No username, host only")
+        XCTAssertEqual(model.subtitle(for: try entry(titled: "Discord", in: model)), "gamer123", "No website, username only")
+    }
+
+    func testARowSubtitleNeverShowsAProtectedValueOrTheCurrentCode() async throws {
+        let session = open(try await makeUnlockedSession())
+        let entries = try XCTUnwrap(session.rootGroup?.allEntries)
+        let twitterEntry = try XCTUnwrap(entries.first { $0.title == "Twitter" })
+        try setURL("{REF:P@I:\(twitterEntry.id.kdbxHexString)}", ofEntryTitled: "Discord", in: session)
+        let model = makeModel()
+        let discord = try entry(titled: "Discord", in: model)
+        let config = try XCTUnwrap(discord.entry.totpConfig)
+        let sessionKey = try XCTUnwrap(session.sessionKey)
+
+        let codeBefore = TOTPGenerator.generateCode(config: config, sessionKey: sessionKey)
+        let subtitle = model.subtitle(for: discord)
+        let codeAfter = TOTPGenerator.generateCode(config: config, sessionKey: sessionKey)
+
+        XCTAssertEqual(subtitle, "gamer123", "A URL reaching a password is left out, not resolved or masked")
+        XCTAssertFalse(subtitle.contains("twitterpass123"))
+        XCTAssertFalse(subtitle.contains(codeBefore))
+        XCTAssertFalse(subtitle.contains(codeAfter))
+    }
+
+    func testThePrimaryCopyIsThePasswordOrElseTheUsername() async throws {
+        open(try await makeUnlockedSession())
+        let model = makeModel()
+
+        XCTAssertEqual(model.primaryCopyField(for: try entry(titled: "Twitter", in: model)), .password)
+        XCTAssertEqual(model.primaryCopyField(for: try entry(titled: "Public Profile", in: model)), .username)
     }
 
     func testQuickSearchDoesNotMoveTheMainWindowSearch() async throws {
@@ -735,6 +805,14 @@ final class MacQuickSearchViewModelTests: XCTestCase {
             completion?.resume(returning: true)
             completion = nil
         }
+    }
+
+    private func setURL(_ url: String, ofEntryTitled title: String, in session: DatabaseViewModel) throws {
+        let entries = try XCTUnwrap(session.rootGroup?.allEntries)
+        let entry = try XCTUnwrap(entries.first { $0.title == title })
+        let form = EntryEditViewModel(editing: entry, sessionKey: try XCTUnwrap(session.sessionKey))
+        form.url = url
+        try session.applyEntryEdit(.updateEntry(entryID: entry.id, draft: form.entryDraftPayload))
     }
 
     /// Searches for `title` and selects the one exact match.

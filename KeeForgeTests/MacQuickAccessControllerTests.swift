@@ -135,6 +135,56 @@ final class MacQuickAccessControllerTests: XCTestCase {
         XCTAssertFalse(controller.isShortcutUnavailable)
     }
 
+    func testTheSearchFieldHintsTheShortcutOnlyWhileItIsRegistered() {
+        let controller = makeStartedController(menuBarEnabled: true)
+        XCTAssertNil(controller.searchModel.shortcutHint, "No hint without a shortcut")
+
+        controller.shortcut = shortcut
+        XCTAssertEqual(controller.searchModel.shortcutHint, "⌥⌘K")
+
+        controller.isRecordingShortcut = true
+        XCTAssertNil(controller.searchModel.shortcutHint)
+        controller.isRecordingShortcut = false
+        XCTAssertEqual(controller.searchModel.shortcutHint, "⌥⌘K")
+
+        controller.isMenuBarItemEnabled = false
+        XCTAssertNil(controller.searchModel.shortcutHint)
+        controller.isMenuBarItemEnabled = true
+
+        controller.shortcut = nil
+        XCTAssertNil(controller.searchModel.shortcutHint)
+    }
+
+    func testAShortcutAnotherAppHoldsIsNotHinted() {
+        hotKey.refuses = true
+        let controller = makeStartedController(menuBarEnabled: true)
+
+        controller.shortcut = shortcut
+
+        XCTAssertNil(controller.searchModel.shortcutHint)
+    }
+
+    // MARK: - Panel chrome
+
+    func testTheStatusItemGlyphIsALabelledTemplate() {
+        let image = MacQuickSearchPanel.statusItemImage()
+
+        XCTAssertTrue(image.isTemplate, "The menu bar tints it for light, dark and highlighted")
+        XCTAssertEqual(image.size, NSSize(width: 18, height: 18))
+        XCTAssertEqual(image.accessibilityDescription, String(localized: "KeeForge Quick Search"))
+    }
+
+    func testThePanelIsAMenuMaterialCardHostingTheSearch() {
+        let content = MacQuickSearchPanel.makeContentView(searchModel: MacQuickSearchViewModel())
+
+        XCTAssertEqual(content.material, .menu)
+        XCTAssertEqual(content.blendingMode, .behindWindow)
+        XCTAssertEqual(content.layer?.cornerRadius, MacQuickSearchPanel.cornerRadius)
+        XCTAssertEqual(MacQuickSearchPanel.cornerRadius, 14)
+        XCTAssertEqual(content.frame.size, MacQuickSearchPanel.panelSize)
+        XCTAssertTrue(content.subviews.contains { String(describing: type(of: $0)).hasPrefix("NSHostingView") })
+    }
+
     // MARK: - Opening and closing the panel
 
     func testTheShortcutAndTheStatusItemToggleThePanel() {

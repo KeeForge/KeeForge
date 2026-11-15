@@ -169,9 +169,11 @@ final class MacQuickAccessController {
         guard isMenuBarItemEnabled, isRecordingShortcut == false, let shortcut else {
             hotKey.unregister()
             isShortcutUnavailable = false
+            searchModel.shortcutHint = nil
             return
         }
         isShortcutUnavailable = hotKey.register(shortcut) == false
+        searchModel.shortcutHint = isShortcutUnavailable ? nil : shortcut.displayString
     }
 }
 
@@ -185,6 +187,7 @@ final class MacQuickAccessController {
 @MainActor
 final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
     static let panelSize = NSSize(width: 380, height: 420)
+    static let cornerRadius: CGFloat = 14
 
     var onToggleRequested: (() -> Void)?
 
@@ -210,9 +213,7 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
         if visible, statusItem == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
             if let button = item.button {
-                let image = NSImage(systemSymbolName: "key.fill", accessibilityDescription: String(localized: "KeeForge Quick Search"))
-                image?.isTemplate = true
-                button.image = image
+                button.image = Self.statusItemImage()
                 button.toolTip = String(localized: "KeeForge Quick Search")
                 button.target = self
                 button.action = #selector(statusItemClicked)
@@ -287,19 +288,7 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
         // identifier of every element inside it.
         panel.setAccessibilityIdentifier("quick-search.panel")
 
-        let background = NSVisualEffectView(frame: NSRect(origin: .zero, size: Self.panelSize))
-        background.material = .popover
-        background.blendingMode = .behindWindow
-        background.state = .active
-        background.wantsLayer = true
-        background.layer?.cornerRadius = 12
-        background.layer?.masksToBounds = true
-
-        let hosting = NSHostingView(rootView: MacQuickSearchView(model: searchModel).modifier(MacHostingAppearance()))
-        hosting.frame = background.bounds
-        hosting.autoresizingMask = [.width, .height]
-        background.addSubview(hosting)
-        panel.contentView = background
+        panel.contentView = Self.makeContentView(searchModel: searchModel)
 
         resignKeyObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification,
@@ -316,6 +305,49 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
             }
         }
         return panel
+    }
+
+    /// The board's key glyph: a ring and a two-toothed shaft, as a template
+    /// so the menu bar tints it.
+    static func statusItemImage() -> NSImage {
+        let side: CGFloat = 18
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: true) { _ in
+            let scale = side / 64
+            let path = NSBezierPath()
+            path.appendOval(in: NSRect(x: 9 * scale, y: 21 * scale, width: 22 * scale, height: 22 * scale))
+            path.move(to: NSPoint(x: 31 * scale, y: 32 * scale))
+            path.line(to: NSPoint(x: 57 * scale, y: 32 * scale))
+            path.move(to: NSPoint(x: 47 * scale, y: 32 * scale))
+            path.line(to: NSPoint(x: 47 * scale, y: 42 * scale))
+            path.move(to: NSPoint(x: 56 * scale, y: 32 * scale))
+            path.line(to: NSPoint(x: 56 * scale, y: 39 * scale))
+            path.lineWidth = 6.5 * scale
+            path.lineCapStyle = .round
+            NSColor.black.setStroke()
+            path.stroke()
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = String(localized: "KeeForge Quick Search")
+        return image
+    }
+
+    /// The panel's card: menu material under a near-opaque window fill, so it
+    /// reads as the board's card over any wallpaper, in the app's appearance.
+    static func makeContentView(searchModel: MacQuickSearchViewModel) -> NSVisualEffectView {
+        let background = NSVisualEffectView(frame: NSRect(origin: .zero, size: panelSize))
+        background.material = .menu
+        background.blendingMode = .behindWindow
+        background.state = .active
+        background.wantsLayer = true
+        background.layer?.cornerRadius = cornerRadius
+        background.layer?.masksToBounds = true
+
+        let hosting = NSHostingView(rootView: MacQuickSearchView(model: searchModel).modifier(MacHostingAppearance()))
+        hosting.frame = background.bounds
+        hosting.autoresizingMask = [.width, .height]
+        background.addSubview(hosting)
+        return background
     }
 
     private func panelOrigin(for size: NSSize) -> NSPoint {

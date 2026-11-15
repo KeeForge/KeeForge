@@ -64,6 +64,8 @@ final class MacQuickSearchViewModel {
     var selectedResultID: Result.ID?
     /// Bumped on every presentation so the view refocuses its search field.
     private(set) var presentationID = 0
+    /// The global shortcut while it is registered, shown in the search field.
+    var shortcutHint: String?
 
     /// A value reached the clipboard; the panel should close.
     @ObservationIgnored var onCopied: (() -> Void)?
@@ -134,13 +136,27 @@ final class MacQuickSearchViewModel {
         return results.first { $0.id == selectedResultID } ?? results.first
     }
 
+    /// The results count beside the database name; none before a query.
+    func resultCountText(for results: [Result]) -> String? {
+        guard query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return nil }
+        return String(localized: "\(results.count) results")
+    }
+
+    static func lockedTitle(databaseName: String) -> String {
+        String(localized: "Unlock \(databaseName) to search it")
+    }
+
     /// Display values for a result row, read from the live target session.
     func username(for result: Result) -> String {
         sourceSession(for: result)?.resolvingFieldReferences(result.entry.username) ?? ""
     }
 
-    func folderPath(for result: Result) -> String? {
-        sourceSession(for: result)?.folderPath(forEntryID: result.entry.id)
+    /// "username · host", leaving out whichever the entry lacks. A URL whose
+    /// field reference reaches a protected value is left out, never shown.
+    func subtitle(for result: Result) -> String {
+        guard let session = sourceSession(for: result) else { return "" }
+        let host = session.fieldReferenceResolution(of: result.entry.url).value.flatMap(Self.host(of:))
+        return [username(for: result), host ?? ""].filter { $0.isEmpty == false }.joined(separator: " · ")
     }
 
     func customIconData(for result: Result) -> Data? {
@@ -150,6 +166,11 @@ final class MacQuickSearchViewModel {
     func canCopy(_ field: CopyField, from result: Result) -> Bool {
         guard let session = sourceSession(for: result) else { return false }
         return Self.canCopy(field, from: result.entry, in: session)
+    }
+
+    /// What Return copies: the password, or the user name when there is none.
+    func primaryCopyField(for result: Result) -> CopyField {
+        canCopy(.password, from: result) ? .password : .username
     }
 
     func prepareForPresentation() {
@@ -169,7 +190,7 @@ final class MacQuickSearchViewModel {
                 if unlockedTargetSession == nil { showDatabase() }
                 return
             }
-            let field: CopyField = canCopy(.password, from: result) ? .password : .username
+            let field = primaryCopyField(for: result)
             Task { await copy(field, from: result) }
         case .openInKeeForge:
             guard let result = selectedResult else { return }
@@ -264,6 +285,14 @@ final class MacQuickSearchViewModel {
     private var unlockedTargetSession: DatabaseViewModel? {
         guard let session = targetSession, case .unlocked = session.state else { return nil }
         return session
+    }
+
+    private static func host(of url: String) -> String? {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return nil }
+        let withScheme = trimmed.contains("://") ? trimmed : "https://" + trimmed
+        guard let host = URL(string: withScheme)?.host(percentEncoded: false), host.isEmpty == false else { return nil }
+        return host.lowercased()
     }
 
     private static func canCopy(_ field: CopyField, from entry: KPEntry, in session: DatabaseViewModel) -> Bool {
