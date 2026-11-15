@@ -251,26 +251,36 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
     func testMergePendingUploadsKeepsUnsavedEditsInTheUpload() async throws {
         let setup = try await pendingMergeSetup(sourceAfterUnlock: true)
         defer { setup.vm.lock() }
+        var phase = "remote-change"
+        do {
         _ = try setup.remote.store(mergeVariant(title: "Remote B"), expectedRev: nil)
         try setup.vm.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(setup.vm.visibleRootGroupID),
             draft: EntryDraftPayload(title: "Unsaved Local Entry", password: "C")))
+        phase = "merge"
         try await setup.vm.mergePendingUploads()
         let merged = try mergedJournal(setup, titles: ["AutoFill Entry", "Remote B", "Unsaved Local Entry"])
         XCTAssertFalse(setup.vm.isDirty)
         XCTAssertEqual(merged.marker.remoteBaseSHA512, FileDigest.sha512(setup.remote.currentBytes))
+        phase = "deliver-merged"
         guard case .saved? = try await CloudDatabaseSaver.deliver(merged, reference: setup.vm.databaseReference, environment: setup.saver) else {
             return XCTFail("Z/A/B must deliver against B")
         }
         try setup.vm.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(setup.vm.visibleRootGroupID),
             draft: EntryDraftPayload(title: "Next Explicit Save", password: "D")))
+        phase = "save-next"
         try await setup.vm.save()
         let next = try XCTUnwrap(PendingUploadQueue.readJournal(for: setup.reference.id).first)
+        phase = "deliver-next"
         guard case .saved? = try await CloudDatabaseSaver.deliver(next, reference: setup.vm.databaseReference, environment: setup.saver) else {
             return XCTFail("A subsequent explicit save must remain usable")
         }
         XCTAssertTrue(try Self.entryTitles(in: setup.remote.currentBytes, password: fixturePassword)
             .isSuperset(of: ["AutoFill Entry", "Remote B", "Unsaved Local Entry", "Next Explicit Save"]))
         XCTAssertEqual(setup.encryptions.value, 2)
+        } catch {
+            XCTFail(setup.diagnostics.failure(error, at: phase))
+            throw error
+        }
     }
 
     func testMergePendingUploadsWhenTheCloudCopyChangedAgainKeepsTheMarker() async throws {
