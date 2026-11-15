@@ -39,7 +39,7 @@
 ## Tests
 
 - `MacUnlockPasswordFieldTests` (focus, focus requests, field-editor routing, completion and pasteboard rules), `MacUnlockFilePanelTests`, `MacUnlockFormModelTests`, `MacDatabaseOpenPageTests`, `UnlockKeyFileSelectionTests`, `HardwareKeyUnlockTests`, `DatabaseOpeningStepTests`. The window's form lifetime and the missing toolbar: `DatabaseWindowControllerTests`; Remove from List: `MacWindowCoordinatorTests`.
-- UI: `UnlockFlowUITests`, `KeyFileUnlockUITests`, `LockUnlockUITests`, `BackoffUITests`; Mac: `MacSmokeUITests`.
+- UI: `UnlockFlowUITests`, `KeyFileUnlockUITests`, `LockUnlockUITests`, `BackoffUITests`; Mac: `MacSmokeUITests` (focus, Return, the key-file sheet, a wrong attempt, Escape), `MacWindowLifecycleUITests` (independent windows, Lock All), `MacDatabaseListUITests` (recovery page Remove from List), audit captures `02`–`02e`.
 - Visual: `ViewRenderTests.testUnlockFailureCards` renders `UnlockFailureCard` in each shipped language (`scripts/render-views.sh`).
 
 ## See also

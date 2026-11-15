@@ -315,7 +315,7 @@ final class MacToolbarTitleView: NSView {
     weak var centerReference: NSView?
 
     init() {
-        let label = String(localized: "Read-only")
+        let label = String(localized: "Read-Only")
         readOnlyButton = NSButton(title: label, image: NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)
             ?? NSImage(), target: nil, action: nil)
         super.init(frame: NSRect(x: 0, y: 0, width: 40, height: 28))

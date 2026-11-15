@@ -49,6 +49,16 @@ final class MacWindowLifecycleUITests: MacUITestCase {
         makeKey("Alpha")
         typeCommandShortcut("l")
         XCTAssertTrue(waitForLockedState(in: alpha), "⌘L did not lock the key window's database")
+
+        // Two locked windows unlock independently, and Lock All brings both back to an empty form.
+        unlockSuccessfully(in: alpha)
+        XCTAssertTrue(waitForLockedState(in: bravo, timeout: 2), "Unlocking one window unlocked the other")
+        chooseMenuItem("Lock All Databases", inMenu: "Database")
+        XCTAssertTrue(waitForLockedState(in: alpha), "Lock All did not lock the unlocked window")
+        XCTAssertTrue(waitForLockedState(in: bravo, timeout: 2), "Lock All changed the locked window")
+        let alphaField = alpha.secureTextFields["unlock.password.field"]
+        let typed = alphaField.value as? String ?? ""
+        XCTAssertTrue(typed.isEmpty || typed == alphaField.placeholderValue, "Lock All left text in the password field")
     }
 
     func testOpeningAMinimizedDatabaseFrontsItsWindowWithoutADuplicate() {

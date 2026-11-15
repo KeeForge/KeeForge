@@ -14,10 +14,18 @@ final class MacSmokeUITests: MacUITestCase {
     /// Only `kitchen-sink.kdbx` has tags, a Recycle Bin and attachments, which the sidebar and
     /// entry detail cases need.
     override var databaseFixtures: [DatabaseFixture] {
+        if name.contains("testUnlockFailsWithWrongPassword") {
+            return [DatabaseFixture(resourceName: "demo-keyfile", injectedFilename: "demo-keyfile.kdbx")]
+        }
         guard name.contains("testSidebarShowsItsSections") || name.contains("testEntryDetailShowsFields") else {
             return super.databaseFixtures
         }
         return [DatabaseFixture(resourceName: "kitchen-sink", injectedFilename: "kitchen-sink.kdbx")]
+    }
+
+    /// `demo-keyfile.kdbx` needs its key file, which the wrong-password case keeps across the attempt.
+    override var pickedKeyFile: (resourceName: String, resourceExtension: String)? {
+        name.contains("testUnlockFailsWithWrongPassword") ? ("demo-keyfile", "key") : nil
     }
 
     /// The popover and the panel are separate windows over the editor: only the running app shows
@@ -214,13 +222,32 @@ final class MacSmokeUITests: MacUITestCase {
 
     // MARK: - Unlock
 
+    /// A wrong attempt keeps the window on the form: the card shows, the field is empty and
+    /// focused again, and the picked key file stays, so the right password alone unlocks
+    /// (`demo-keyfile.kdbx` needs both). Return submits from the field each time. The red ring
+    /// is `MacUnlockFormModelTests` and the `02a` audit capture.
     func testUnlockFailsWithWrongPassword() {
-        unlock(password: "definitely-wrong-password")
+        openFirstDatabaseFromListIfNeeded()
+        let window = databaseWindow
+        let passwordField = window.secureTextFields["unlock.password.field"]
+        let keyFileClear = window.buttons["unlock.keyfile.clear"]
+        XCTAssertTrue(keyFileClear.waitForExistence(timeout: 10), "The picked key file is not on the form")
+        XCTAssertTrue(waitForKeyboardFocus(passwordField), "Password field was not focused after opening the database")
+        app.typeText("definitely-wrong-password")
+        app.typeKey(.return, modifierFlags: [])
 
-        let errorLabel = app.staticTexts["unlock.error.label"]
-        XCTAssertTrue(errorLabel.waitForExistence(timeout: 30), "Unlock error was not surfaced")
-        let groupLink = app.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
-        XCTAssertFalse(groupLink.exists, "Vault must not unlock with a wrong password")
+        let card = window.descendants(matching: .any).matching(identifier: "unlock.error.card").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 30), "The wrong attempt showed no failure card")
+        XCTAssertTrue(window.staticTexts["unlock.error.label"].exists, "The failure card has no summary")
+        XCTAssertFalse(rowQuery(identifier: "group.navlink").firstMatch.exists, "Vault must not unlock with a wrong password")
+        let typed = passwordField.value as? String ?? ""
+        XCTAssertTrue(typed.isEmpty || typed == passwordField.placeholderValue, "The wrong password stayed in the field")
+        XCTAssertTrue(waitForKeyboardFocus(passwordField), "The password field lost focus after the wrong attempt")
+        XCTAssertTrue(keyFileClear.exists, "The wrong attempt dropped the picked key file")
+
+        app.typeText("demo")
+        app.typeKey(.return, modifierFlags: [])
+        waitForVaultToUnlock(in: window)
     }
 
     // MARK: - Browse
@@ -238,8 +265,12 @@ final class MacSmokeUITests: MacUITestCase {
 
         for _ in 0..<3 {
             typeCommandShortcut("l")
-            XCTAssertTrue(app.secureTextFields["unlock.password.field"].waitForExistence(timeout: 15))
+            let passwordField = window.secureTextFields["unlock.password.field"]
+            XCTAssertTrue(passwordField.waitForExistence(timeout: 15))
             XCTAssertFalse(rowQuery(identifier: "group.navlink").firstMatch.exists)
+            XCTAssertTrue(waitForKeyboardFocus(passwordField), "⌘L did not return focus to the password field")
+            let typed = passwordField.value as? String ?? ""
+            XCTAssertTrue(typed.isEmpty || typed == passwordField.placeholderValue, "⌘L left text in the password field")
             unlockSuccessfully()
 
             let restored = NSPredicate { [self] _, _ in
@@ -703,6 +734,18 @@ final class MacSmokeUITests: MacUITestCase {
         let enabled = NSPredicate(format: "isEnabled == true")
         expectation(for: enabled, evaluatedWith: unlockButton)
         waitForExpectations(timeout: 5)
+
+        // The key-file panel is a sheet on this window; cancelling it hands focus back to the field.
+        let window = databaseWindow
+        let select = window.buttons["unlock.keyfile.select"]
+        XCTAssertTrue(select.waitForExistence(timeout: 5), "The key-file line offers no Select…")
+        select.click()
+        let panel = window.sheets.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 10), "Select… did not open the key-file panel as a sheet")
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(panel.waitForNonExistence(timeout: 10), "Escape did not cancel the key-file panel")
+        XCTAssertTrue(waitForKeyboardFocus(passwordField), "Cancelling the key-file panel did not return focus to the field")
+        XCTAssertTrue(unlockButton.isEnabled, "Cancelling the key-file panel changed the typed password")
     }
 
     func testEscapeInUnlockClosesTheWindowAndShowsDatabases() {
@@ -806,11 +849,14 @@ final class MacDatabaseListUITests: MacUITestCase {
         [
             DatabaseFixture(resourceName: "test", injectedFilename: "test.kdbx"),
             DatabaseFixture(resourceName: "demo", injectedFilename: "demo.kdbx"),
+            DatabaseFixture(resourceName: "test", injectedFilename: "Missing.kdbx", disposition: "documents-missing"),
         ]
     }
 
     /// A single click only selects; Return opens. Removing a database whose
-    /// window is open closes that window and leaves the other row.
+    /// window is open closes that window and leaves the other row. A database
+    /// whose file is gone fails to the recovery page, whose Remove from List
+    /// asks in that window and removes it.
     func testDatabaseListShowsSeededDatabasesAndRemovesOne() {
         let testRow = databaseRow(containing: "test")
         let demoRow = databaseRow(containing: "demo")
@@ -848,6 +894,18 @@ final class MacDatabaseListUITests: MacUITestCase {
         XCTAssertFalse(demoRow.exists, "demo.kdbx row was not removed")
         XCTAssertTrue(testRow.exists, "test.kdbx row must survive the removal")
         XCTAssertTrue(demoWindow.waitForNonExistence(timeout: 15), "The removed database's window stayed open")
+
+        let missingWindow = openDatabase(named: "Missing")
+        unlock(password: Self.fixturePassword, in: missingWindow)
+        let remove = missingWindow.buttons["unlock.remove-missing"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 30), "A missing file did not reach the recovery page's Remove from List")
+        remove.click()
+        let confirm = missingWindow.sheets.buttons["Remove"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10), "Remove from List did not ask in the database window")
+        confirm.click()
+        XCTAssertTrue(missingWindow.waitForNonExistence(timeout: 15), "Removing the missing database left its window open")
+        XCTAssertTrue(databaseRow(containing: "Missing").waitForNonExistence(timeout: 15), "The missing database's row stayed")
+        XCTAssertTrue(testRow.exists, "test.kdbx row must survive the removal")
     }
 }
 

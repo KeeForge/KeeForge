@@ -17,11 +17,15 @@ class MacUITestCase: XCTestCase {
         let resourceName: String
         let resourceExtension: String
         let injectedFilename: String
+        /// `documents-missing` registers the database, then deletes its file.
+        let disposition: String?
 
-        init(resourceName: String, resourceExtension: String = "kdbx", injectedFilename: String) {
+        init(resourceName: String, resourceExtension: String = "kdbx", injectedFilename: String,
+             disposition: String? = nil) {
             self.resourceName = resourceName
             self.resourceExtension = resourceExtension
             self.injectedFilename = injectedFilename
+            self.disposition = disposition
         }
     }
 
@@ -31,6 +35,9 @@ class MacUITestCase: XCTestCase {
     var databaseFixtures: [DatabaseFixture] {
         [DatabaseFixture(resourceName: "test", injectedFilename: "test.kdbx")]
     }
+
+    /// A key file every unlock form starts with, as if picked (`UI_TEST_KEYFILE_BASE64`).
+    var pickedKeyFile: (resourceName: String, resourceExtension: String)? { nil }
 
     override func setUp() async throws {
         continueAfterFailure = false
@@ -51,13 +58,20 @@ class MacUITestCase: XCTestCase {
                 resourceName: fixture.resourceName,
                 resourceExtension: fixture.resourceExtension
             )
-            return [
+            var payload = [
                 "filename": fixture.injectedFilename,
                 "base64": data.base64EncodedString(),
             ]
+            payload["disposition"] = fixture.disposition
+            return payload
         }
         let payloadData = try JSONSerialization.data(withJSONObject: payloads, options: [])
         app.launchEnvironment[Self.uiTestDatabasesJSONEnv] = String(decoding: payloadData, as: UTF8.self)
+        if let keyFile = pickedKeyFile {
+            let data = try fixtureData(resourceName: keyFile.resourceName, resourceExtension: keyFile.resourceExtension)
+            app.launchEnvironment[Self.uiTestKeyFileBase64Env] = data.base64EncodedString()
+            app.launchEnvironment[Self.uiTestKeyFileFilenameEnv] = "\(keyFile.resourceName).\(keyFile.resourceExtension)"
+        }
 
         try configureLaunch(app: app)
         app.launch()

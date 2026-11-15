@@ -449,9 +449,17 @@ final class TOTPEnrollmentDeepLinkUITests: TOTPEnrollmentUITestCase {
     /// together; navigation queries fired while the sheet is still animating
     /// out can bind its dying rows (hittability checks on them throw), so
     /// wait for the sheet to be fully gone before touching the vault UI.
+    /// With Choose Group pushed the sheet's bar no longer reads "Add Verification Code", so wait
+    /// for every chooser control: a group button still animating out has no hit point, and a
+    /// later row lookup that matches it throws instead of skipping it.
     private func waitForDestinationSheetGone(file: StaticString = #filePath, line: UInt = #line) {
+        let chooserControl = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'totp-enroll.'")
+        ).firstMatch
         XCTAssertTrue(
-            waitForDisappearance(of: app.navigationBars["Add Verification Code"]),
+            waitForDisappearance(of: app.navigationBars["Add Verification Code"])
+                && waitForDisappearance(of: app.navigationBars["Choose Group"])
+                && waitForDisappearance(of: chooserControl),
             "Destination sheet did not dismiss after the editor completed",
             file: file,
             line: line

@@ -48,10 +48,14 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         if name.contains("EntryVariants") {
             return [DatabaseFixture(resourceName: "kitchen-sink", injectedFilename: "Personal.kdbx")]
         }
-        return [
+        let local = [
             DatabaseFixture(resourceName: "test", injectedFilename: "Personal.kdbx"),
             DatabaseFixture(resourceName: "test", injectedFilename: "Work.kdbx"),
         ]
+        // A registered database whose file is gone, for the recovery page.
+        guard name.contains("ServerDatabases") else { return local }
+        return local + [DatabaseFixture(resourceName: "test", injectedFilename: "Archive.kdbx",
+                                        disposition: "documents-missing")]
     }
 
     private static let databaseWindowSize = NSSize(width: 1080, height: 700)
@@ -425,6 +429,17 @@ final class MacScreenshotAuditUITests: MacUITestCase {
                 _ = window.waitForNonExistence(timeout: 10)
             }
         }
+
+        // 2d. A database whose file is gone: the recovery page after the password.
+        let archive = openDatabase(named: "Archive")
+        unlock(password: Self.fixturePassword, in: archive)
+        if archive.buttons["unlock.remove-missing"].waitForExistence(timeout: 30) {
+            settle()
+            await snapWindow(archive, "02d-file-unavailable")
+        } else {
+            noteSkip("02d-file-unavailable", reason: "the missing file never reached the recovery page")
+            attachHierarchy(named: "02d-file-unavailable-hierarchy")
+        }
         attachCaptureReport()
     }
 
@@ -477,6 +492,9 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         openDatabase(named: "Personal")
         settle()
         await snap("02-unlock")
+
+        // 2a. After a wrong password: the emptied, ringed field and the failure card.
+        await captureWrongPassword(in: personalWindow, "02a-unlock-wrong-password")
 
         // 3. Unlocked vault root (sidebar / entry table / detail)
         unlockSuccessfully(in: personalWindow)
@@ -666,6 +684,24 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle()
         await snap("10b-read-only-detail")
 
+        // 10e. The title's Read-Only badge explains itself in a sheet.
+        let badge = personalWindow.buttons["toolbar.title.read-only"].firstMatch
+        XCTAssertTrue(badge.waitForExistence(timeout: 5), "A read-only database's title shows no Read-Only badge")
+        if badge.exists, badge.isHittable {
+            badge.click()
+            let ok = personalWindow.sheets.buttons["OK"].firstMatch
+            if ok.waitForExistence(timeout: 5) {
+                settle(0.6)
+                await snap("10e-read-only-explained")
+                ok.click()
+                _ = ok.waitForNonExistence(timeout: 5)
+            } else {
+                noteSkip("10e-read-only-explained", reason: "the badge opened no explanation")
+            }
+        } else {
+            noteSkip("10e-read-only-explained", reason: "the Read-Only badge was not hittable")
+        }
+
         // 10. The three columns and native toolbar at the window's
         //     minimum size (900x620), where crowding and truncation show up,
         //     with the sidebar's status card showing for a read-only database.
@@ -682,6 +718,13 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         } else {
             noteSkip("10a-minimum-width-codes", reason: "no verification-code row appeared")
         }
+
+        // 2b, 2e. A picked key file on the form, and the failure card at the minimum size.
+        relaunchLocked(contentSize: Self.databaseWindowSize, keyFile: true)
+        await snap("02b-unlock-key-file")
+        relaunchLocked(contentSize: Self.minimumContentSize, keyFile: false)
+        await captureWrongPassword(in: personalWindow, "02e-unlock-minimum-size")
+        app.launchEnvironment["UI_TEST_KEYFILE_BASE64"] = nil
 
         // 4a, 4c. The Save Conflict alert and the status card's problem states.
         //     Last, because it relaunches writable with a save conflict injected.
@@ -1013,6 +1056,41 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         openEntry(named: entry)
         XCTAssertEqual(personalWindow.frame.width, size.width, accuracy: 2)
         XCTAssertEqual(personalWindow.frame.height, size.height, accuracy: 2)
+    }
+
+    /// Relaunches writable with Personal's window at `contentSize`, left on its unlock page;
+    /// `keyFile` seeds the form with `demo-keyfile.key` as if picked.
+    private func relaunchLocked(contentSize: NSSize, keyFile: Bool) {
+        app.terminate()
+        app.launchEnvironment["UI_TEST_DATABASE_READ_ONLY"] = nil
+        app.launchEnvironment["UI_TEST_KEYFILE_BASE64"] = keyFile
+            ? (try? fixtureData(resourceName: "demo-keyfile", resourceExtension: "key"))?.base64EncodedString()
+            : nil
+        app.launchEnvironment["UI_TEST_KEYFILE_FILENAME"] = keyFile ? "personal.keyx" : nil
+        if let index = app.launchArguments.firstIndex(of: Self.windowSizeArgument) {
+            app.launchArguments[index + 1] = Self.sizeValue(contentSize)
+        }
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+        openDatabase(named: "Personal")
+        settle()
+    }
+
+    /// Submits a wrong password from the focused field and snaps the failure card.
+    private func captureWrongPassword(in window: XCUIElement, _ name: String) async {
+        let field = window.secureTextFields["unlock.password.field"]
+        guard waitForKeyboardFocus(field, timeout: 5) else {
+            noteSkip(name, reason: "the password field never had focus")
+            return
+        }
+        app.typeText("not-the-password")
+        app.typeKey(.return, modifierFlags: [])
+        guard window.descendants(matching: .any)["unlock.error.card"].waitForExistence(timeout: 30) else {
+            noteSkip(name, reason: "the wrong password showed no failure card")
+            return
+        }
+        settle()
+        await snapWindow(window, name)
     }
 
     private func captureSidebarStates() async {

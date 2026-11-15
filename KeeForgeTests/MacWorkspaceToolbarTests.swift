@@ -173,7 +173,7 @@ final class MacWorkspaceToolbarTests: XCTestCase {
             let button = toolbar.titleView.readOnlyButton
             XCTAssertEqual(button.isHidden, !readOnly)
             XCTAssertEqual(button.accessibilityIdentifier(), "toolbar.title.read-only")
-            XCTAssertEqual(button.title, localized("Read-only"))
+            XCTAssertEqual(button.title, localized("Read-Only"), "A control, so Title Case as the ReadOnly board draws it")
             XCTAssertTrue(button.target === toolbar)
             XCTAssertEqual(button.action, NSSelectorFromString("explainReadOnly:"),
                            "The glasses item's explanation, no new path")
