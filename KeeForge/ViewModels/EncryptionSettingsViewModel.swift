@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import KDBXKit
 
@@ -56,11 +57,11 @@ final class EncryptionSettingsViewModel {
         didSet { if cipher != oldValue { changeError = nil } }
     }
     var keyDerivation: KeyDerivationOption? {
-        didSet { if keyDerivation != oldValue { changeError = nil } }
+        didSet { if keyDerivation != oldValue { changeError = nil; cancelBenchmark() } }
     }
     /// Only read while `keyDerivation` is `.aesKDF`.
     var aesKDFRoundsText: String {
-        didSet { if aesKDFRoundsText != oldValue { changeError = nil } }
+        didSet { if aesKDFRoundsText != oldValue { changeError = nil; cancelBenchmark() } }
     }
     var isCompressed: Bool {
         didSet { if isCompressed != oldValue { changeError = nil } }
@@ -70,13 +71,30 @@ final class EncryptionSettingsViewModel {
     private(set) var completedWarning: String?
     private(set) var hasCompleted = false
 
+    /// Seconds one key derivation with the given parameters takes.
+    typealias Benchmark = @Sendable (KDBXVariantMap) throws -> Double
+    private(set) var isBenchmarking = false
+    private(set) var benchmarkSeconds: Double?
+    private(set) var benchmarkError: String?
+    private var benchmarkTask: Task<Void, Never>?
+    /// The one benchmark derivation running in the app. A derivation cannot stop midway, so a
+    /// cancelled one runs out before the next starts, in any sheet, and before Save re-encrypts.
+    private static var runningBenchmark: Task<Double, Error>?
+    private static var runningBenchmarkID: UUID?
+    private let measure: Benchmark
+    private let isSessionSaving: @MainActor () -> Bool
+
     let current: KDBXFileSummary
     private let initialCipher: DatabaseCreationCipher?
     private let initialKeyDerivation: EncryptionSettingsKeyDerivation?
     private let changeOperation: ChangeOperation
 
-    init(current: KDBXFileSummary, changeOperation: @escaping ChangeOperation) {
+    init(current: KDBXFileSummary, measure: @escaping Benchmark = EncryptionSettingsViewModel.measureDerivation,
+         isSessionSaving: @escaping @MainActor () -> Bool = { false },
+         changeOperation: @escaping ChangeOperation) {
         self.current = current
+        self.measure = measure
+        self.isSessionSaving = isSessionSaving
         self.changeOperation = changeOperation
         initialCipher = Self.cipher(matching: current.cipher)
         initialKeyDerivation = Self.keyDerivation(matching: current.keyDerivation)
@@ -170,14 +188,83 @@ final class EncryptionSettingsViewModel {
         hasCompleted == false && hasChanges && aesKDFRoundsError == nil
     }
 
+    var canBenchmark: Bool {
+        selectedKeyDerivation != nil && !isWorking && !isBenchmarking && !isSessionSaving()
+    }
+
+    /// Times one derivation of the selected settings off the main actor, on a throwaway key.
+    @discardableResult
+    func benchmark() -> Task<Void, Never>? {
+        guard canBenchmark, let selection = selectedKeyDerivation else { return nil }
+        let measure = measure
+        isBenchmarking = true
+        benchmarkSeconds = nil
+        benchmarkError = nil
+        let task = Task { [weak self] in
+            await Self.waitForRunningBenchmark()
+            guard !Task.isCancelled, let saving = self?.isSessionSaving() else { return }
+            guard !saving else {
+                self?.isBenchmarking = false
+                self?.benchmarkTask = nil
+                return
+            }
+            let result = await Self.startBenchmark { try measure(try selection.kdfParameters()) }.result
+            guard let self, !Task.isCancelled else { return }
+            switch result {
+            case .success(let seconds): benchmarkSeconds = seconds
+            case .failure(let error): benchmarkError = error.localizedDescription
+            }
+            isBenchmarking = false
+            benchmarkTask = nil
+        }
+        benchmarkTask = task
+        return task
+    }
+
+    private static func waitForRunningBenchmark() async {
+        while let running = runningBenchmark { _ = await running.result }
+    }
+
+    private static func startBenchmark(_ work: @escaping @Sendable () throws -> Double) -> Task<Double, Error> {
+        let id = UUID()
+        runningBenchmarkID = id
+        let worker = Task { @MainActor in
+            defer {
+                if runningBenchmarkID == id { runningBenchmark = nil; runningBenchmarkID = nil }
+            }
+            return try await Task.detached(priority: .userInitiated) { try work() }.value
+        }
+        runningBenchmark = worker
+        return worker
+    }
+
+    func cancelBenchmark() {
+        benchmarkTask?.cancel()
+        benchmarkTask = nil
+        isBenchmarking = false
+        benchmarkSeconds = nil
+        benchmarkError = nil
+    }
+
+    nonisolated static func measureDerivation(_ parameters: KDBXVariantMap) throws -> Double {
+        let start = ContinuousClock.now
+        var derived = try KDBXKeyDerivation.deriveKey(compositeKey: SymmetricKey(size: .bits256),
+                                                      parameters: parameters, policy: .mainApp)
+        let elapsed = start.duration(to: .now)
+        SecureWipe.wipe(&derived)
+        return Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
+    }
+
     func performChange() async -> Bool {
         guard hasCompleted == false, isWorking == false, canSave else { return false }
 
+        cancelBenchmark()
         isWorking = true
         defer {
             isWorking = false
         }
         changeError = nil
+        await Self.waitForRunningBenchmark()
 
         do {
             try await changeOperation(

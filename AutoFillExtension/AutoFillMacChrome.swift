@@ -45,4 +45,37 @@ struct AutoFillMacFooter<Content: View>: View {
         .background(.bar)
     }
 }
+
+/// The picker's 26 pt search field. The plain text field style drops the
+/// focus ring, so the field draws its own.
+struct AutoFillMacSearchField: View {
+    @Binding var text: String
+    @FocusState private var isFocused: Bool
+
+    private let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField("Search entries", text: $text)
+                .textFieldStyle(.plain)
+                .focused($isFocused)
+                .accessibilityIdentifier("autofill.search-field")
+        }
+        .font(.system(size: 13))
+        .padding(.horizontal, 8)
+        .frame(height: 26)
+        .background(Color(nsColor: .textBackgroundColor), in: shape)
+        .overlay {
+            shape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        }
+        .overlay {
+            if isFocused {
+                shape.stroke(Color.accentColor.opacity(0.5), lineWidth: 3)
+            }
+        }
+    }
+}
 #endif

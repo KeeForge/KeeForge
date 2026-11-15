@@ -11,6 +11,71 @@ import KDBXXML
 
 @MainActor
 final class DatabaseViewModelTests: XCTestCase {
+    func testMasterKeyCompositionIsUnknownAfterCompositeKeyOnlyUnlock() async throws {
+        let key = try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
+        let vm = try makeViewModel(biometricCompositeKeyOperation: { _, _ in QuickUnlockKeys(storedKey: key) })
+        await vm.unlock(password: fixturePassword)
+        XCTAssertNotNil(vm.masterKeyComposition)
+        vm.lock()
+        _ = await vm.unlockWithBiometrics()
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNil(vm.masterKeyComposition)
+        vm.lock()
+    }
+
+    func testMasterKeyCompositionTracksKeyOnlyAndCombinedUnlockAndClearsOnLock() async throws {
+        let vm = try makeViewModel(reference: makeIconManagementReference())
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.masterKeyComposition, .init(hasPassword: true, hasKeyFile: false))
+        let keyFile = Data(repeating: 0x42, count: 32)
+        for password in ["", "combined-password"] {
+            try await vm.changeMasterKey(newPassword: password.isEmpty ? nil : password,
+                newKeyFileData: keyFile, newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+            let expected = DatabaseViewModel.MasterKeyComposition(hasPassword: !password.isEmpty, hasKeyFile: true)
+            XCTAssertEqual(vm.masterKeyComposition, expected)
+            vm.lock()
+            XCTAssertNil(vm.masterKeyComposition)
+            await vm.unlock(password: password, keyFileData: keyFile)
+            XCTAssertEqual(vm.state, .unlocked)
+            XCTAssertEqual(vm.masterKeyComposition, expected)
+        }
+        vm.lock()
+        XCTAssertNil(vm.masterKeyComposition)
+    }
+
+    func testAKeyFileClearedByAMasterKeyChangeIsNotRequiredAgainByTheNextChange() async throws {
+        let vm = try makeViewModel(reference: makeIconManagementReference())
+        let keyFile = Data(repeating: 0x42, count: 32)
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeMasterKey(newPassword: "p1", newKeyFileData: keyFile, newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+        vm.lock()
+        await vm.unlock(password: "p1", keyFileData: keyFile)
+        XCTAssertEqual(vm.sessionKeyFileData, keyFile)
+
+        try await vm.changeMasterKey(newPassword: "p2", newKeyFileData: nil, newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+        XCTAssertNil(vm.sessionKeyFileData)
+
+        let sheet = MasterKeyChangeViewModel(
+            currentKeyFileFilename: vm.databaseReference.keyFileFilename,
+            currentKeyFileBookmarkData: vm.databaseReference.keyFileBookmarkData,
+            sessionKeyFileData: vm.sessionKeyFileData,
+            loadCurrentKeyFile: { nil },
+            changeOperation: { password, data, bookmark, filename in
+                try await vm.changeMasterKey(newPassword: password, newKeyFileData: data,
+                    newKeyFileBookmarkData: bookmark, newKeyFileFilename: filename)
+            }
+        )
+        XCTAssertFalse(sheet.hasEffectiveKeyFile)
+        sheet.newPassword = "p3"
+        sheet.confirmPassword = "p3"
+        let changed = await sheet.performChange()
+        XCTAssertTrue(changed)
+        vm.lock()
+        await vm.unlock(password: "p3")
+        XCTAssertEqual(vm.state, .unlocked)
+        vm.lock()
+    }
+
     func testCustomIconRenameDeleteSaveReopenAndNoOp() async throws {
         let vm = try makeViewModel(reference: makeIconManagementReference())
         await vm.unlock(password: fixturePassword)
@@ -174,6 +239,131 @@ final class DatabaseViewModelTests: XCTestCase {
         vm.lock()
         XCTAssertFalse(vm.hasAttemptedBiometricAutoUnlockThisLockCycle, "A new lock cycle starts without an attempt")
         XCTAssertTrue(vm.claimBiometricAutoUnlockAttempt())
+    }
+
+    func testBiometricUnlockAvailabilityNeedsAStoredKeyThatIsNotDue() throws {
+        let savedInterval = SettingsService.quickUnlockPasswordInterval
+        defer { SettingsService.quickUnlockPasswordInterval = savedInterval }
+        let reference = try makeReference()
+        let matrix: [(stored: Bool, available: Bool, due: Bool, expected: DatabaseViewModel.BiometricUnlockAvailability)] = [
+            (true, true, false, .available),
+            (true, false, false, .unavailableWithStoredKey),
+            (false, true, false, .none),
+            (false, false, false, .none),
+            (true, true, true, .none),
+            (true, false, true, .none),
+        ]
+        for row in matrix {
+            SettingsService.quickUnlockPasswordInterval = row.due ? .always : .never
+            let vm = DatabaseViewModel(
+                databaseReference: reference,
+                storedKeyPresenceCheck: { _ in row.stored },
+                quickUnlockAvailabilityCheck: { row.available }
+            )
+
+            XCTAssertEqual(vm.biometricUnlockAvailability, row.expected, "\(row)")
+            XCTAssertEqual(vm.canUseBiometrics, row.expected == .available, "\(row)")
+        }
+    }
+
+    /// The read returns a correct key's database after Cancel: it must
+    /// neither unlock nor reach the KDF, and the cancel counts as a manual lock.
+    func testCancellingAnOpenDropsItsLateSuccess() async throws {
+        let url = try fixtureURL()
+        let data = try Data(contentsOf: url)
+        let gate = OpenGate()
+        let vm = DatabaseViewModel(
+            databaseReference: try makeReference(),
+            localDatabaseReadOperation: { _ in
+                await gate.hold()
+                return DatabaseViewModel.LocalDatabaseReadResult(url: url, data: data)
+            }
+        )
+        let unlock = Task { await vm.unlock(password: fixturePassword) }
+        await gate.waitUntilHeld()
+        XCTAssertState(vm.state, is: .unlocking)
+        XCTAssertTrue(vm.canCancelUnlockAttempt)
+        let cycle = vm.lockCycleID
+
+        XCTAssertTrue(vm.cancelUnlockAttempt())
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertFalse(vm.canCancelUnlockAttempt)
+        XCTAssertTrue(vm.didManuallyLock)
+        XCTAssertEqual(vm.lockCycleID, cycle + 1)
+        XCTAssertNil(vm.lastLockCause, "A session that never opened has no lock cause")
+        await gate.release()
+        await unlock.value
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.rootGroup)
+        XCTAssertNil(vm.compositeKey)
+        XCTAssertNil(vm.sessionKey)
+        XCTAssertNil(vm.openFailure)
+        XCTAssertEqual(vm.failedAttempts, 0)
+        XCTAssertEqual(vm.lockCycleID, cycle + 1)
+    }
+
+    func testCancelUnlockAttemptIsRefusedUnlessAnOpenIsRunning() async throws {
+        let vm = try makeViewModel()
+
+        XCTAssertFalse(vm.canCancelUnlockAttempt)
+        XCTAssertFalse(vm.cancelUnlockAttempt())
+        XCTAssertFalse(vm.didManuallyLock)
+        XCTAssertEqual(vm.lockCycleID, 0)
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.cancelUnlockAttempt())
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertFalse(vm.didManuallyLock)
+
+        await vm.unlock(password: "wrong")
+        XCTAssertNotNil(vm.openFailure)
+        XCTAssertFalse(vm.canCancelUnlockAttempt)
+        XCTAssertFalse(vm.cancelUnlockAttempt())
+        XCTAssertNotNil(vm.openFailure)
+    }
+
+    func testDismissOpenFailureReturnsToTheFormOnlyFromAFailure() async throws {
+        let vm = try makeViewModel()
+        let cycle = vm.lockCycleID
+
+        vm.dismissOpenFailure()
+        XCTAssertState(vm.state, is: .locked)
+
+        await vm.unlock(password: "wrong")
+        XCTAssertNotNil(vm.openFailure)
+        vm.dismissOpenFailure()
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.openFailure)
+        XCTAssertEqual(vm.failedAttempts, 1, "Leaving the failure does not forgive the attempt")
+        XCTAssertEqual(vm.lockCycleID, cycle)
+
+        await vm.unlock(password: fixturePassword)
+        vm.dismissOpenFailure()
+        XCTAssertState(vm.state, is: .unlocked)
+    }
+
+    /// A biometric prompt answered after Cancel must not unlock either.
+    func testCancellingDuringTheBiometricPromptDropsItsLateAnswer() async throws {
+        let gate = OpenGate()
+        let vm = try makeViewModel(
+            biometricCompositeKeyOperation: { [fixturePassword] _, _ in
+                await gate.hold()
+                return QuickUnlockKeys(storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil))
+            }
+        )
+        let unlock = Task { await vm.unlockWithBiometrics() }
+        await gate.waitUntilHeld()
+
+        XCTAssertTrue(vm.cancelUnlockAttempt())
+        await gate.release()
+        let outcome = await unlock.value
+
+        XCTAssertEqual(outcome, .failed)
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.rootGroup)
+        XCTAssertNil(vm.openFailure)
+        XCTAssertTrue(vm.didManuallyLock)
     }
 
     func testUnlockWithCorrectPasswordTransitionsToUnlocked() async throws {
@@ -1482,7 +1672,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.group(withID: emptyGroup.id)?.entries.count, 0)
     }
 
-    func testSingleSelectionCommandsAreWithheldWhileEntriesAreBeingPicked() async throws {
+    func testSingleSelectionCommandsAreWithheldAndDeleteTakesThePicksWhileEntriesAreBeingPicked() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
         let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
@@ -1503,16 +1693,18 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertNil(vm.workspace.commandEntryID)
         XCTAssertFalse(vm.canEditSelectedEntry)
-        XCTAssertNil(vm.deletableSelection)
+        XCTAssertEqual(vm.deletableSelection, .entries([checked.id]), "Delete takes the picks, not the open entry")
         vm.requestEntryEdit()
         vm.requestDeleteSelection()
         XCTAssertEqual(vm.workspace.editEntryRequestID, 0)
-        XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 0)
+        XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
 
         // With no entry open, Delete must not reach for the selected group.
         vm.workspace.selectedEntryID = nil
         XCTAssertEqual(vm.workspace.selectedGroupID, socialGroup.id)
-        XCTAssertNil(vm.deletableSelection)
+        XCTAssertEqual(vm.deletableSelection, .entries([checked.id]))
+        vm.workspace.toggleEntrySelection(checked.id)
+        XCTAssertNil(vm.deletableSelection, "No picks, nothing to delete")
 
         vm.workspace.endEntrySelection()
         XCTAssertEqual(vm.deletableSelection, .group(socialGroup.id))
@@ -1717,6 +1909,28 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.group(withID: socialGroup.id))
         XCTAssertEqual(vm.folderPath(forEntryID: socialEntry.id), "Work / Social")
         XCTAssertTrue(vm.isDirty)
+    }
+
+    func testMoveGroupRefusesSelfDescendantAndRecycleBinInTheModel() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let rootID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Parent", in: rootID)
+        let parent = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Parent" })
+        try vm.createGroup(named: "Child", in: parent.id)
+        let child = try XCTUnwrap(vm.group(withID: parent.id)?.groups.first)
+        let work = try XCTUnwrap(vm.visibleRootGroup?.groups.first { $0.name == "Work" })
+        try vm.deleteEntry(try XCTUnwrap(work.entries.first).id, sendToRecycleBin: true)
+        let bin = try XCTUnwrap(vm.recycleBinGroup)
+        let revision = vm.contentRevision
+        try vm.moveGroup(groupID: parent.id, toGroupID: parent.id)
+        XCTAssertThrowsError(try vm.moveGroup(groupID: parent.id, toGroupID: child.id))
+        try vm.moveGroup(groupID: parent.id, toGroupID: bin.id)
+        XCTAssertEqual(vm.contentRevision, revision)
+        XCTAssertTrue(vm.group(withID: rootID)?.groups.contains { $0.id == parent.id } == true)
+        XCTAssertTrue(vm.group(withID: parent.id)?.groups.contains { $0.id == child.id } == true)
+        XCTAssertFalse(vm.group(withID: bin.id)?.groups.contains { $0.id == parent.id } == true)
+        vm.lockRequest(force: true)
     }
 
     func testMoveGroupToItsCurrentParentIsANoOp() async throws {
@@ -2482,6 +2696,36 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isGroupExcludedFromAutoFill(groupID: child.id))
     }
 
+    func testSearchMatchesAdditionalURLFields() async throws {
+        let entry = KPEntry(
+            title: "Router",
+            url: "https://admin.example.com",
+            customFields: ["KP2A_URL_1": "https://portal.example.net"]
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", entries: [entry]))
+
+        vm.searchText = "portal.example"
+
+        XCTAssertEqual(vm.searchResults.map(\.id), [entry.id])
+    }
+
+    func testSearchResultsFollowTheSortOrderAndResortWhenItChanges() async throws {
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "B", entries: [KPEntry(title: "Shared Zulu")]),
+            KPGroup(name: "A", entries: [KPEntry(title: "Shared Alpha"), KPEntry(title: "Shared Mike")]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+        vm.sortOrder = .title
+        vm.sortAscending = true
+
+        vm.searchText = "Shared"
+        XCTAssertEqual(vm.searchResults.map(\.title), ["Shared Alpha", "Shared Mike", "Shared Zulu"])
+
+        vm.sortAscending = false
+        XCTAssertEqual(vm.searchResults.map(\.title), ["Shared Zulu", "Shared Mike", "Shared Alpha"])
+        vm.sortAscending = true
+    }
+
     func testEntriesInGroupHiddenFromSearchAreExcludedFromSearchResults() async throws {
         let visible = KPEntry(title: "Searchable Alpha")
         let hidden = KPEntry(title: "Searchable Beta")
@@ -2607,10 +2851,81 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.workspace.selectedEntryID)
     }
 
+    func testRevealEntryLeavesASelectedCollectionForTheEntrysGroup() async throws {
+        let target = KPEntry(title: "Target")
+        let work = KPGroup(name: "Work", entries: [target])
+        let vm = try await makeInjectedViewModel(rootGroup: KPGroup(name: "Root", groups: [work]))
+        vm.workspace.selectedCollection = .allEntries
+
+        vm.revealEntry(target.id)
+
+        XCTAssertNil(vm.workspace.selectedCollection)
+        XCTAssertEqual(vm.workspace.selectedGroupID, work.id)
+        XCTAssertEqual(vm.workspace.selectedEntryID, target.id)
+    }
+
+    func testSelectedCollectionSurvivesEditsAndClearsOnLock() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Collection Selection")
+        let rootID = try XCTUnwrap(vm.visibleRootGroupID)
+        vm.workspace.selectedCollection = .verificationCodes
+        XCTAssertNil(vm.workspace.selectedGroupID)
+
+        try vm.applyEntryEdit(.createEntry(parentGroupID: rootID, draft: EntryDraftPayload(title: "Unrelated")))
+
+        XCTAssertEqual(vm.workspace.selectedCollection, .verificationCodes)
+        XCTAssertNil(vm.workspace.selectedGroupID, "The root fallback must not replace a selected collection")
+
+        vm.lock()
+        XCTAssertNil(vm.workspace.selectedCollection)
+    }
+
+    #if os(macOS)
+    func testEntriesForASidebarSelectionUseTheCollectionGroupOrTag() async throws {
+        let totpConfig = TOTPConfig(secret: EncryptedValue(sealedData: Data([0]), hasValue: true))
+        let recycleBin = KPGroup(
+            name: "Recycle Bin",
+            entries: [KPEntry(title: "Recycled Code", tags: ["Work"], totpConfig: totpConfig)]
+        )
+        let work = KPGroup(name: "Work", entries: [
+            KPEntry(title: "Zulu Code", tags: ["Work"], totpConfig: totpConfig),
+            KPEntry(title: "Alpha Plain"),
+        ])
+        let root = KPGroup(
+            name: "Root",
+            entries: [KPEntry(title: "Mike Root", tags: ["Work"])],
+            groups: [work, recycleBin],
+            recycleBinUUID: recycleBin.id
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        let all = vm.entries(for: .collection(.allEntries))
+        XCTAssertEqual(Set(all.map(\.title)), ["Zulu Code", "Alpha Plain", "Mike Root"])
+        XCTAssertEqual(all.map(\.id), vm.sortedEntries(vm.allEntries).map(\.id), "Collections follow the sort order")
+        XCTAssertEqual(vm.entries(for: .collection(.verificationCodes)).map(\.title), ["Zulu Code"])
+        XCTAssertTrue(vm.entries(for: .collection(.tags)).isEmpty)
+        XCTAssertTrue(vm.entries(for: .collection(.recycleBin)).isEmpty)
+        XCTAssertEqual(vm.entries(for: .group(work.id)).map(\.id), vm.sortedEntries(work.entries).map(\.id))
+        XCTAssertTrue(vm.entries(for: .group(UUID())).isEmpty)
+        XCTAssertEqual(Set(vm.entries(for: .tag("Work")).map(\.title)), ["Zulu Code", "Mike Root"])
+    }
+
+    func testSidebarSelectionMirrorsTheWorkspace() {
+        let workspace = DatabaseWorkspaceState()
+        XCTAssertNil(MacSidebarSelection(workspace: workspace))
+        let groupID = UUID()
+        for selection: MacSidebarSelection in [.group(groupID), .tag("Work"), .collection(.allEntries), .group(groupID)] {
+            selection.apply(to: workspace)
+            XCTAssertEqual(MacSidebarSelection(workspace: workspace), selection)
+        }
+        XCTAssertNil(workspace.selectedCollection)
+        XCTAssertNil(workspace.selectedTag)
+    }
+    #endif
+
     // MARK: - Entry row Move to Group gate (#134)
 
-    /// `EntryRowMoveAction.isAvailable` is the one gate every entry row's Move
-    /// to Group item — and, through it, Duplicate — reads, so each condition
+    /// `EntryRowActions.canMove` is the one gate every entry row's Move
+    /// to Group item — and, through it, Duplicate and Select — reads, so each condition
     /// is pinned here rather than per shell.
     func testEntryRowMoveIsOfferedForAWritableEntryOutsideTheRecycleBin() async throws {
         let target = KPEntry(title: "Movable")
@@ -2619,7 +2934,7 @@ final class DatabaseViewModelTests: XCTestCase {
         ])
         let vm = try await makeInjectedViewModel(rootGroup: root)
 
-        XCTAssertTrue(EntryRowMoveAction.isAvailable(entryID: target.id, viewModel: vm))
+        XCTAssertTrue(EntryRowActions(entryID: target.id, session: vm).canMove)
     }
 
     func testEntryRowMoveIsWithheldForARecycledEntry() async throws {
@@ -2632,7 +2947,7 @@ final class DatabaseViewModelTests: XCTestCase {
         try vm.deleteEntry(target.id, sendToRecycleBin: true)
 
         XCTAssertTrue(vm.isEntryInRecycleBin(entryID: target.id))
-        XCTAssertFalse(EntryRowMoveAction.isAvailable(entryID: target.id, viewModel: vm))
+        XCTAssertFalse(EntryRowActions(entryID: target.id, session: vm).canMove)
     }
 
     func testEntryRowMoveIsWithheldInAReadOnlyDatabase() async throws {
@@ -2646,7 +2961,70 @@ final class DatabaseViewModelTests: XCTestCase {
         vm.setReadOnly(true)
 
         XCTAssertTrue(vm.isReadOnly)
-        XCTAssertFalse(EntryRowMoveAction.isAvailable(entryID: target.id, viewModel: vm))
+        XCTAssertFalse(EntryRowActions(entryID: target.id, session: vm).canMove)
+    }
+
+    func testAnEntryInAGroupInsideTheRecycleBinIsDeletedPermanently() async throws {
+        let nested = KPEntry(title: "Nested")
+        let bin = KPGroup(name: "Recycle Bin", groups: [KPGroup(name: "Old Group", entries: [nested])])
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "Visible"), bin], recycleBinUUID: bin.id)
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        let actions = EntryRowActions(entryID: nested.id, session: vm)
+        XCTAssertTrue(actions.deletesPermanently)
+        XCTAssertEqual(actions.deleteTitle, String(localized: "Delete Permanently"))
+        XCTAssertEqual(actions.deleteAccessibilityIdentifier, "entry-row.delete-permanent")
+        guard case .entry(let deletion) = actions.pendingDeletion else { return XCTFail("Expected an entry deletion") }
+        XCTAssertFalse(deletion.sendToRecycleBin)
+        XCTAssertFalse(actions.canSelect)
+    }
+
+    func testEntryRowActionsGateCopyDuplicateRestoreAndDeletePerEntry() async throws {
+        let target = KPEntry(title: "Target", username: "user", password: .empty)
+        let empty = KPEntry(title: "Empty")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target, empty]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        let live = EntryRowActions(entryID: target.id, session: vm)
+        XCTAssertTrue(live.canCopyUsername)
+        XCTAssertFalse(live.canCopyPassword, "no password to copy")
+        XCTAssertTrue(live.canDuplicate)
+        XCTAssertTrue(live.canSelect)
+        XCTAssertFalse(live.canRestore)
+        XCTAssertTrue(live.canDelete)
+        XCTAssertEqual(live.deleteTitle, String(localized: "Delete"))
+        XCTAssertEqual(live.deleteAccessibilityIdentifier, "entry-row.delete-context")
+        guard case .entry(let deletion) = live.pendingDeletion else { return XCTFail("Expected an entry deletion") }
+        XCTAssertEqual(deletion.entryID, target.id)
+        XCTAssertTrue(deletion.sendToRecycleBin)
+        XCTAssertFalse(EntryRowActions(entryID: empty.id, session: vm).canCopyUsername)
+        let editor = try XCTUnwrap(live.makeDuplicateEditor())
+        XCTAssertEqual(editor.username, "user")
+
+        var withPassword = target
+        withPassword.password = try EncryptedValue.encrypt("secret", using: try XCTUnwrap(vm.sessionKey))
+        XCTAssertTrue(EntryRowActions(entry: withPassword, session: vm).canCopyPassword,
+                      "a row's own entry value drives the copy gates")
+
+        var copied: [String] = []
+        live.copyUsername(using: EntrySecretAction()) { copied.append($0) }
+        XCTAssertEqual(copied, ["user"])
+
+        try vm.deleteEntry(target.id, sendToRecycleBin: true)
+        let recycled = EntryRowActions(entryID: target.id, session: vm)
+        XCTAssertFalse(recycled.canDuplicate)
+        XCTAssertFalse(recycled.canSelect)
+        XCTAssertTrue(recycled.canRestore)
+        XCTAssertTrue(recycled.canDelete)
+        XCTAssertEqual(recycled.deleteTitle, String(localized: "Delete Permanently"))
+        XCTAssertEqual(recycled.deleteAccessibilityIdentifier, "entry-row.delete-permanent")
+        guard case .entry(let permanent) = recycled.pendingDeletion else { return XCTFail("Expected an entry deletion") }
+        XCTAssertFalse(permanent.sendToRecycleBin)
+
+        vm.lock()
+        XCTAssertFalse(EntryRowActions(entryID: empty.id, session: vm).canDuplicate, "duplicating needs the session key")
     }
 
     func testSearchExclusionIsInheritedBySubgroups() async throws {
@@ -4249,14 +4627,12 @@ final class DatabaseViewModelTests: XCTestCase {
             vm.requestNewGroup()
             vm.requestEntryEdit()
             vm.requestDeleteSelection()
-            vm.requestSearchFocus()
         }
         requestCommands()
         XCTAssertEqual(vm.workspace.newEntryRequestID, 1)
         XCTAssertEqual(vm.workspace.newGroupRequestID, 1)
         XCTAssertEqual(vm.workspace.editEntryRequestID, 1)
         XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
-        XCTAssertEqual(vm.workspace.searchFocusRequestID, 1)
 
         DatabaseListStore.update(vm.databaseReference)
         vm.setReadOnly(true)
@@ -4266,7 +4642,6 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.workspace.newGroupRequestID, 1)
         XCTAssertEqual(vm.workspace.editEntryRequestID, 1)
         XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
-        XCTAssertEqual(vm.workspace.searchFocusRequestID, 2)
 
         vm.lock()
         requestCommands()
@@ -4274,7 +4649,6 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.workspace.newGroupRequestID, 1)
         XCTAssertEqual(vm.workspace.editEntryRequestID, 1)
         XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
-        XCTAssertEqual(vm.workspace.searchFocusRequestID, 2)
     }
 
     func testSelectedTagAndSelectedGroupAreMutuallyExclusive() async throws {
@@ -4493,7 +4867,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertTrue(vm.isDirty)
         vm.lockRequest()
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft, cause: .system))
     }
 
     func testReloadFailingAfterLockStaysLockedWithoutAnError() async throws {
@@ -4653,6 +5027,28 @@ final class DatabaseViewModelTests: XCTestCase {
             ["team"],
             "A tag on both the entry and its group draws one chip, the entry's own"
         )
+    }
+
+    func testInheritedTagSourcesNameTheRootMostGroupCarryingEachTag() async throws {
+        let entry = KPEntry(title: "Deploy", tags: ["own", "shared"], hasTagsElement: true)
+        let atRoot = KPEntry(title: "At Root")
+        let clientWork = KPGroup(name: "Client / Work", tags: ["billable", "team", "shared"], hasTagsElement: true,
+                                 entries: [entry])
+        let projects = KPGroup(name: "Projects", tags: ["team"], hasTagsElement: true, groups: [clientWork])
+        let root = KPGroup(name: "Root", entries: [atRoot], groups: [projects])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.inheritedTagSources(forEntryID: entry.id), [
+            DatabaseViewModel.InheritedTagSource(tag: "team", groupID: projects.id, groupName: "Projects"),
+            DatabaseViewModel.InheritedTagSource(tag: "billable", groupID: clientWork.id, groupName: "Client / Work"),
+        ], "Same order as the inherited chips; a tag the entry owns is not inherited")
+        XCTAssertEqual(vm.inheritedTagSources(forEntryID: entry.id).map(\.tag), vm.detailTags(forEntryID: entry.id).inherited)
+        XCTAssertEqual(vm.inheritedTagSources(forEntryID: atRoot.id), [])
+        XCTAssertEqual(vm.inheritedTagSources(forEntryID: UUID()), [])
+        XCTAssertEqual(vm.folderPathComponents(forEntryID: entry.id), ["Projects", "Client / Work"],
+                       "A group name holding the separator stays one component")
+        XCTAssertEqual(vm.folderPath(forEntryID: entry.id), "Projects / Client / Work")
+        XCTAssertNil(vm.folderPathComponents(forEntryID: atRoot.id))
     }
 
     func testRootGroupTagReachesAllLiveEntries() async throws {
@@ -5504,6 +5900,23 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.hasPendingUploadConflict)
     }
 
+    func testAConflictTheDrainerMarksLaterIsPickedUpWithoutAReferenceChange() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8), isConflicted: false)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+        await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+
+        pending.markConflicted()
+        let listed = DatabaseListStore.databases.first { $0.id == reference.id } ?? vm.databaseReference
+        XCTAssertEqual(listed, vm.databaseReference, "the list reload carries the same reference")
+        vm.reconcileReference(listed)
+
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+    }
+
     func testLockingClearsThePendingUploadState() async throws {
         let fixtureData = try Data(contentsOf: fixtureURL())
         let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
@@ -6301,7 +6714,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertNotNil(vm.draft)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .draft))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .draft, cause: .manual))
         XCTAssertFalse(vm.pendingLockRequest?.requiresAuthenticationToContinueEditing == true)
 
         vm.lockRequest(force: true)
@@ -6347,7 +6760,11 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertNotNil(vm.draft)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
+        #if os(iOS)
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft, cause: .inactivity(.thirtySeconds)))
+        #else
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft, cause: .background))
+        #endif
         XCTAssertTrue(vm.pendingLockRequest?.requiresAuthenticationToContinueEditing == true)
     }
 
@@ -6364,7 +6781,7 @@ final class DatabaseViewModelTests: XCTestCase {
         vm.lockRequest()
 
         XCTAssertState(vm.state, is: .unlocked)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .openEditor))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .openEditor, cause: .system))
     }
 
     func testForcedLockStillLocksWithAnUnsavedEditor() async throws {
@@ -6409,7 +6826,7 @@ final class DatabaseViewModelTests: XCTestCase {
         vm.resumeLockRequest(request)
 
         XCTAssertState(vm.state, is: .unlocked)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft, cause: .system))
     }
 
     func testSaveAndLockAfterLockRequestLocksWhenTheRetrySucceeds() async throws {
@@ -6467,7 +6884,7 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.saveAndLockAfterLockRequest()
 
         XCTAssertState(vm.state, is: .unlocked)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft, cause: .system))
         XCTAssertNotNil(vm.draft)
     }
 
@@ -6483,6 +6900,54 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertState(vm.state, is: .locked)
         XCTAssertNil(vm.pendingLockRequest)
         XCTAssertNil(vm.draft)
+    }
+
+    func testSaveAndLockCompletionCannotLockTheNextCycle() async throws {
+        let gate = SaveGate()
+        let vm = try makeViewModel(localSaveOperation: { _, _, _, _, _, _, _ in
+            await gate.signalStarted()
+            await gate.waitUntilOpen()
+            return .saved(newSHA512: Data([1]))
+        })
+        await vm.unlock(password: fixturePassword)
+        try vm.createGroup(named: "Old Draft", in: try XCTUnwrap(vm.visibleRootGroupID))
+        vm.lockRequest(manuallyTriggered: true)
+        let save = Task { await vm.saveAndLockAfterLockRequest() }
+        await gate.waitUntilStarted()
+        vm.lockRequest(force: true)
+        await vm.unlock(password: fixturePassword)
+        await gate.open()
+        await save.value
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNil(vm.pendingLockRequest)
+        vm.lockRequest(force: true)
+    }
+
+    func testKeepEditingAuthenticationCannotLockOrDismissARequestInTheNextCycle() async throws {
+        let gate = SaveGate()
+        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        let vm = DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false),
+            quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false },
+            deviceOwnerAuthAvailabilityCheck: { true }, secretAccess: SecretAccessGate(prompt: { _ in
+                await gate.signalStarted()
+                await gate.waitUntilOpen()
+            }))
+        await vm.unlock(password: fixturePassword)
+        try vm.createGroup(named: "Old Draft", in: try XCTUnwrap(vm.visibleRootGroupID))
+        vm.lockRequest()
+        let resume = Task { await vm.continueEditingAfterLockRequest() }
+        await gate.waitUntilStarted()
+        vm.lockRequest(force: true)
+        await vm.unlock(password: fixturePassword)
+        try vm.createGroup(named: "New Draft", in: try XCTUnwrap(vm.visibleRootGroupID))
+        vm.lockRequest()
+        let request = vm.pendingLockRequest
+        await gate.open()
+        await resume.value
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertEqual(vm.pendingLockRequest, request)
+        XCTAssertTrue(vm.isDirty)
+        vm.lockRequest(force: true)
     }
 
     func testKeepEditingAfterManualLockNeedsNoOwnerAuthentication() async throws {
@@ -6501,6 +6966,190 @@ final class DatabaseViewModelTests: XCTestCase {
     #if os(macOS)
 
     // MARK: - Window Close (macOS)
+
+    func testCommittedWindowCloseEndsOpeningAndLocksOnlyItsSession() async throws {
+        let held = HeldQuickUnlockKeys()
+        let keys = QuickUnlockKeys(storedKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil))
+        let opening = try makeViewModel(biometricCompositeKeyOperation: { _, _ in try await held.keys() })
+        let other = try makeViewModel()
+        await other.unlock(password: fixturePassword)
+        defer { opening.lock(); other.lock() }
+        let store = DatabaseSessionStore()
+        store.adopt(opening)
+        store.adopt(other)
+        store.activeSessionID = other.databaseReference.id
+        let registry = MacDatabaseWindowRegistry(sessionStore: store)
+        let window = NSWindow()
+        let otherWindow = NSWindow()
+        registry.register(window, databaseID: opening.databaseReference.id)
+        registry.register(otherWindow, databaseID: other.databaseReference.id)
+        let guardUnderTest = MacWindowCloseGuard(registry: registry)
+        let attempt = Task { await opening.unlockWithBiometrics() }
+        var waiting = false
+        for _ in 0..<100 {
+            waiting = await held.isWaiting
+            if waiting { break }
+            await Task.yield()
+        }
+        XCTAssertTrue(waiting)
+        XCTAssertEqual(opening.state, .unlocking)
+
+        XCTAssertTrue(guardUnderTest.windowShouldClose(window))
+        guardUnderTest.windowWillClose(window)
+        XCTAssertEqual(opening.state, .locked)
+
+        // The prompt answering after the close must not open the database.
+        await held.finish(with: keys)
+        let result = await attempt.value
+        XCTAssertEqual(result, .failed)
+        XCTAssertEqual(opening.state, .locked)
+        XCTAssertNil(opening.sessionKey)
+        XCTAssertNil(opening.rootGroup)
+        XCTAssertNil(registry.registration(for: window))
+        XCTAssertTrue(store.session(for: opening.databaseReference.id) === opening)
+        XCTAssertEqual(other.state, .unlocked)
+        XCTAssertNotNil(other.sessionKey)
+        XCTAssertTrue(registry.session(for: otherWindow) === other)
+    }
+
+    func testFailedWindowCloseSaveKeepsRegistrationSessionAndSecrets() async throws {
+        let vm = try makeViewModel(localSaveOperation: { _, _, _, _, _, _, _ in
+            throw SaveError.saveContextUnavailable
+        })
+        await vm.unlock(password: fixturePassword)
+        defer { vm.lock() }
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved")
+        let store = DatabaseSessionStore()
+        store.adopt(vm)
+        let registry = MacDatabaseWindowRegistry(sessionStore: store)
+        let window = NSWindow()
+        registry.register(window, databaseID: vm.databaseReference.id)
+        var closed = false
+        let guardUnderTest = MacWindowCloseGuard(registry: registry,
+            prompt: { _, _ in .save }, closeWindow: { _ in closed = true })
+        XCTAssertFalse(guardUnderTest.windowShouldClose(window))
+        for _ in 0..<100 where vm.pendingLockRequest == nil { await Task.yield() }
+        XCTAssertNotNil(vm.pendingLockRequest)
+        XCTAssertFalse(closed)
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNotNil(vm.sessionKey)
+        XCTAssertTrue(registry.session(for: window) === vm)
+        XCTAssertTrue(store.session(for: vm.databaseReference.id) === vm)
+        registry.unregister(window)
+    }
+
+    func testCancelledCloseDoesNotLockAfterAnInFlightSaveFinishes() async throws {
+        actor HeldSave {
+            var continuation: CheckedContinuation<SaveResult, Never>?
+            var waiting: Bool { continuation != nil }
+            func save() async -> SaveResult {
+                await withCheckedContinuation { continuation = $0 }
+            }
+            func finish() {
+                continuation?.resume(returning: .saved(newSHA512: Data("saved".utf8)))
+                continuation = nil
+            }
+        }
+        let held = HeldSave()
+        let vm = try makeViewModel(localSaveOperation: { _, _, _, _, _, _, _ in await held.save() })
+        await vm.unlock(password: fixturePassword)
+        defer { vm.lock() }
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Saving")
+        XCTAssertEqual(vm.requestWindowClose(), .promptForUnsavedDraft)
+        let save = Task { await vm.saveAndCloseWindow() }
+        var waiting = false
+        for _ in 0..<100 {
+            waiting = await held.waiting
+            if waiting { break }
+            await Task.yield()
+        }
+        XCTAssertTrue(waiting)
+        vm.cancelWindowClose()
+        await held.finish()
+        await save.value
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNotNil(vm.sessionKey)
+        XCTAssertFalse(vm.isLockPending)
+    }
+
+    /// A clean session's close waits out its encryption-settings write, so
+    /// the session is never retired under that write; then it closes.
+    func testWindowCloseWaitsForASettingsWriteThenCloses() async throws {
+        let held = HeldSettingsWrite()
+        let (vm, window, guardUnderTest, closes) = try await makeSettingsWriteClose(held)
+        defer { vm.lock() }
+        let write = Task { try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil) }
+        await held.waitUntilWriting()
+        vm.lockRequest(force: true)
+
+        XCTAssertEqual(vm.requestWindowClose(), .waitForSave, "Locked or not, the write holds the close")
+        XCTAssertFalse(guardUnderTest.windowShouldClose(window))
+        XCTAssertFalse(guardUnderTest.windowShouldClose(window), "A repeated close does not stack")
+        for _ in 0..<5 { await Task.yield() }
+        XCTAssertEqual(closes.value, 0)
+
+        await held.finish(.success(.saved(newSHA512: Data("saved".utf8))))
+        try await write.value
+        for _ in 0..<100 where closes.value == 0 { await Task.yield() }
+        XCTAssertEqual(closes.value, 1)
+    }
+
+    /// A failed key or settings change reports only in its window, so the window stays.
+    func testWindowCloseKeepsTheWindowWhenItsSettingsWriteFails() async throws {
+        let held = HeldSettingsWrite()
+        let (vm, window, guardUnderTest, closes) = try await makeSettingsWriteClose(held)
+        defer { vm.lock() }
+        let write = Task { try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil) }
+        await held.waitUntilWriting()
+
+        XCTAssertFalse(guardUnderTest.windowShouldClose(window))
+        await held.finish(.failure(SaveError.saveContextUnavailable))
+        do {
+            try await write.value
+            XCTFail("The write was held to fail")
+        } catch {}
+        for _ in 0..<20 { await Task.yield() }
+
+        XCTAssertEqual(closes.value, 0)
+        XCTAssertEqual(vm.failedSettingsWriteCount, 1)
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNil(vm.onWindowCloseGranted)
+        XCTAssertTrue(guardUnderTest.windowShouldClose(window), "Closing again is the user's own choice")
+    }
+
+    private actor HeldSettingsWrite {
+        private var continuation: CheckedContinuation<SaveResult, Error>?
+        func write() async throws -> SaveResult {
+            try await withCheckedThrowingContinuation { continuation = $0 }
+        }
+        func waitUntilWriting() async {
+            while continuation == nil { await Task.yield() }
+        }
+        func finish(_ result: Result<SaveResult, Error>) {
+            continuation?.resume(with: result)
+            continuation = nil
+        }
+    }
+
+    @MainActor
+    private final class CloseCounter {
+        var value = 0
+    }
+
+    private func makeSettingsWriteClose(_ held: HeldSettingsWrite) async throws
+        -> (DatabaseViewModel, NSWindow, MacWindowCloseGuard, CloseCounter) {
+        let vm = try makeViewModel(localSaveOperation: { _, _, _, _, _, _, _ in try await held.write() })
+        await vm.unlock(password: fixturePassword)
+        let store = DatabaseSessionStore()
+        store.adopt(vm)
+        let registry = MacDatabaseWindowRegistry(sessionStore: store)
+        let window = NSWindow()
+        registry.register(window, databaseID: vm.databaseReference.id)
+        let closes = CloseCounter()
+        let guardUnderTest = MacWindowCloseGuard(registry: registry, prompt: { _, _ in .cancel },
+            closeWindow: { _ in closes.value += 1 })
+        return (vm, window, guardUnderTest, closes)
+    }
 
     func testWindowCloseIsAllowedWhileLocked() throws {
         let vm = try makeViewModel()
@@ -6527,7 +7176,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.requestWindowClose(), .waitForEditorPrompt)
 
         XCTAssertState(vm.state, is: .unlocked)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .openEditor))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .openEditor, cause: .manual))
     }
 
     func testWindowCloseIsGrantedOnceTheEditorPromptEndsInALock() async throws {
@@ -6617,7 +7266,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertNotNil(vm.draft)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .draft))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .draft, cause: .manual))
         XCTAssertEqual(grantCount, 0)
 
         // Answering that prompt with Lock and Discard finishes the close.
@@ -7228,7 +7877,11 @@ final class DatabaseViewModelTests: XCTestCase {
         try first.applyEntryEdit(.createEntry(parentGroupID: root, draft: EntryDraftPayload(title: "New Edit After Unknown", password: "two")))
         await first.saveHandlingError()
         XCTAssertTrue(first.isDirty)
+        #if os(iOS)
         XCTAssertTrue(DatabaseDetailsView(reference: reference, sessionViewModel: first).showsLocalDraftExport)
+        #else
+        XCTAssertTrue(MacDatabaseSettingsModel(reference: reference, session: first).showsLocalDraftExport)
+        #endif
         let exported = try await first.makeLocalRecoveryExport()
         let reopened = try KDBXParser.parse(data: exported.data, compositeKey: XCTUnwrap(first.compositeKey), sessionKey: XCTUnwrap(first.sessionKey))
         XCTAssertTrue(reopened.allEntries.contains { $0.title == "Unknown First Write" })
@@ -8056,7 +8709,11 @@ final class DatabaseViewModelTests: XCTestCase {
                 stage = "remove-primary"
                 try FileManager.default.removeItem(at: cache)
                 XCTAssertTrue(vm.canExportLocalRecoveryDraft)
+                #if os(iOS)
                 XCTAssertTrue(DatabaseDetailsView(reference: created.reference, sessionViewModel: vm).showsLocalDraftExport)
+                #else
+                XCTAssertTrue(MacDatabaseSettingsModel(reference: created.reference, session: vm).showsLocalDraftExport)
+                #endif
                 stage = "export-draft"
                 let copy = try await vm.makeLocalRecoveryExport()
                 stage = "reparse-export"
@@ -8178,7 +8835,11 @@ final class DatabaseViewModelTests: XCTestCase {
             try writeAtomicallyAndDurably(Data("{unreadable owner".utf8), to: owner)
             XCTAssertTrue(try PendingLocalSaveStore.recovery(for: reference.id).ownerUnavailable)
             XCTAssertTrue(vm.canExportLocalRecoveryDraft)
+            #if os(iOS)
             XCTAssertTrue(DatabaseDetailsView(reference: reference, sessionViewModel: vm).showsLocalDraftExport)
+            #else
+            XCTAssertTrue(MacDatabaseSettingsModel(reference: reference, session: vm).showsLocalDraftExport)
+            #endif
             let exported = try await vm.makeLocalRecoveryExport()
             let parsed = try KDBXParser.parse(data: exported.data, compositeKey: XCTUnwrap(vm.compositeKey),
                 sessionKey: draft.writerSessionKey, kdfPolicy: .mainApp)
@@ -8190,7 +8851,11 @@ final class DatabaseViewModelTests: XCTestCase {
             XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
             vm.lock()
             XCTAssertFalse(vm.canExportLocalRecoveryDraft)
+            #if os(iOS)
             XCTAssertFalse(DatabaseDetailsView(reference: reference, sessionViewModel: vm).showsLocalDraftExport)
+            #else
+            XCTAssertFalse(MacDatabaseSettingsModel(reference: reference, session: vm).showsLocalDraftExport)
+            #endif
         } catch {
             await gate.releaseFirstCall()
             _ = await save.result
@@ -8599,6 +9264,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         await vm.unlock(password: fixturePassword)
         let oldCompositeKey = try XCTUnwrap(vm.compositeKey)
+        XCTAssertEqual(vm.masterKeyComposition, .init(hasPassword: true, hasKeyFile: false))
 
         if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
 
@@ -8612,6 +9278,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let expectedNewKey = try KDBXCrypto.compositeKey(password: "rotated-master", keyFileData: nil)
         XCTAssertEqual(capturedKeys.oldKey, oldCompositeKey)
         XCTAssertEqual(capturedKeys.newKey, expectedNewKey)
+        XCTAssertEqual(vm.masterKeyComposition, .init(hasPassword: true, hasKeyFile: false))
         XCTAssertEqual(vm.compositeKey, expectedNewKey)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(try Data(contentsOf: fixtureURL())))
         XCTAssertNil(vm.draft)
@@ -8622,6 +9289,8 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyAddingKeyFilePersistsAssociationOnReference() async throws {
         let keyFileData = Data("rekey key file bytes".utf8)
         let bookmarkData = Data("rekey-bookmark".utf8)
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
         let vm = try makeViewModel(
         )
 
@@ -8642,9 +9311,26 @@ final class DatabaseViewModelTests: XCTestCase {
         )
         XCTAssertEqual(vm.databaseReference.keyFileBookmarkData, bookmarkData)
         XCTAssertEqual(vm.databaseReference.keyFileFilename, "vault.key")
+        XCTAssertEqual(vm.masterKeyComposition, .init(hasPassword: true, hasKeyFile: true))
         let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == vm.databaseReference.id }))
         XCTAssertEqual(stored.keyFileBookmarkData, bookmarkData)
         XCTAssertEqual(stored.keyFileFilename, "vault.key")
+    }
+
+    func testAMasterKeyChangeFinishingAfterRemovalDoesNotAddTheDatabaseBack() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(
+            reference: reference,
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                await MainActor.run { DatabaseListStore.remove(id: reference.id) }
+                return .saved(newSHA512: Data("rekeyed-hash".utf8))
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeMasterKey(newPassword: "rotated", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
     }
 
     func testChangeMasterKeyRemovingKeyFileClearsAssociationOnReference() async throws {
@@ -9055,6 +9741,7 @@ final class DatabaseViewModelTests: XCTestCase {
             oldCompositeKey,
             "The session keeps the key matching the still-old local cache"
         )
+        XCTAssertNil(vm.masterKeyComposition, "The summary must not name the old key the remote no longer takes")
     }
 
     func testChangeMasterKeySavesDraftThatGrewDuringRekey() async throws {
@@ -10197,6 +10884,13 @@ private final class PendingUploadFake: @unchecked Sendable {
         lock.withLock { markers.removeAll() }
     }
 
+    /// What the drainer does when the cloud copy moved on: the marker changes, the reference does not.
+    func markConflicted() {
+        lock.withLock {
+            for index in markers.indices { markers[index].marker.isConflicted = true }
+        }
+    }
+
     var environment: PendingUploadRecovery.Environment {
         PendingUploadRecovery.Environment(
             listMarkers: { databaseId in
@@ -10406,4 +11100,45 @@ private final class KeyPublicationPause: @unchecked Sendable {
         guard proceed.wait(timeout: .now() + 5) == .success else { throw CocoaError(.fileReadUnknown) }
     }
     func resume() { proceed.signal() }
+}
+
+#if os(macOS)
+private actor HeldQuickUnlockKeys {
+    private var continuation: CheckedContinuation<QuickUnlockKeys, Error>?
+    var isWaiting: Bool { continuation != nil }
+
+    func keys() async throws -> QuickUnlockKeys {
+        try await withCheckedThrowingContinuation { continuation = $0 }
+    }
+
+    func finish(with keys: QuickUnlockKeys) {
+        continuation?.resume(returning: keys)
+        continuation = nil
+    }
+}
+#endif
+
+/// Holds an injected operation until the test releases it, however the two race.
+private actor OpenGate {
+    private var isHeld = false
+    private var isReleased = false
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func hold() async {
+        isHeld = true
+        guard isReleased == false else { return }
+        await withCheckedContinuation { waiter = $0 }
+    }
+
+    func waitUntilHeld() async {
+        while isHeld == false {
+            await Task.yield()
+        }
+    }
+
+    func release() {
+        isReleased = true
+        waiter?.resume()
+        waiter = nil
+    }
 }

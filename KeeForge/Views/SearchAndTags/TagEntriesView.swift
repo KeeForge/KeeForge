@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// The entries carrying one tag.
@@ -10,14 +11,15 @@ import SwiftUI
 struct TagEntriesView: View {
     let tag: String
     @Bindable var viewModel: DatabaseViewModel
-    /// Set by the shells that select an entry instead of pushing it (the iPad
-    /// workspace and macOS), matching `EntryListView`'s own contract.
+    /// Set by the shell that selects an entry instead of pushing it (the iPad
+    /// workspace), matching `EntryListView`'s own contract.
     var onSelectEntry: ((KPEntry) -> Void)? = nil
     /// Set by shells that render this screen inline inside a container which
-    /// already hosts a `PendingDeletion` — the macOS workspace content column.
-    /// The stack shells push this screen, so they leave it nil and the list
-    /// hosts its own. See `../Entry/PendingRowActions.swift`.
+    /// already hosts a `PendingDeletion`. The stack shells push this screen, so
+    /// they leave it nil and the list hosts its own. See
+    /// `../Entry/PendingRowActions.swift`.
     var onRequestDeletion: ((PendingDeletion) -> Void)? = nil
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         let entries = viewModel.sortedEntries(viewModel.entries(withTag: tag))
@@ -40,14 +42,17 @@ struct TagEntriesView: View {
                 .accessibilityIdentifier("tag-entries.list")
             }
         }
-        .modifier(TagEntriesTitle(tag: tag, entryCount: entries.count, viewModel: viewModel))
+        .navigationTitle(tag)
+        .navigationBarTitleDisplayMode(.large)
+        .modifier(EntryCountSubtitle(entryCount: entries.count))
+        .toolbar {
+            ToolbarItem(placement: .databaseActions) {
+                DatabaseLockButton(viewModel: viewModel, isCompact: horizontalSizeClass == .compact)
+            }
+        }
     }
 }
 
-/// The tag's entries, per shell — the same split `SearchView` makes, and for
-/// the same reason: macOS selects an entry in the content column rather than
-/// pushing it, so the column needs the native `List(selection:)` that carries
-/// arrow keys and type-select.
 private struct TagEntriesList: View {
     let entries: [KPEntry]
     @Bindable var viewModel: DatabaseViewModel
@@ -55,55 +60,15 @@ private struct TagEntriesList: View {
     let onRequestDeletion: ((PendingDeletion) -> Void)?
 
     var body: some View {
-        #if os(macOS)
-        MacEntriesList(
-            viewModel: viewModel,
-            entries: entries,
-            onRequestDeletion: onRequestDeletion
-        )
-        #else
         EntryListView(
             entries: entries,
             viewModel: viewModel,
             onSelectEntry: onSelectEntry,
             onRequestDeletion: onRequestDeletion
         )
-        #endif
     }
 }
 
-/// Titles the tag-filtered list per shell: iOS pushes it, so the tag becomes the
-/// navigation title (standard truncation for long names) with the entry count
-/// under it and Lock in the bar, as on the other vault screens; macOS renders
-/// it in the split view's content column, where the window title belongs to
-/// the database and Lock to the sidebar, so the tag becomes the subtitle the
-/// way the group name does in `MacEntriesColumn`.
-private struct TagEntriesTitle: ViewModifier {
-    let tag: String
-    let entryCount: Int
-    let viewModel: DatabaseViewModel
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #endif
-
-    func body(content: Content) -> some View {
-        #if os(macOS)
-        content.navigationSubtitle(tag)
-        #else
-        content
-            .navigationTitle(tag)
-            .navigationBarTitleDisplayMode(.large)
-            .modifier(EntryCountSubtitle(entryCount: entryCount))
-            .toolbar {
-                ToolbarItem(placement: .databaseActions) {
-                    DatabaseLockButton(viewModel: viewModel, isCompact: horizontalSizeClass == .compact)
-                }
-            }
-        #endif
-    }
-}
-
-#if os(iOS)
 /// The count under the large title from iOS 26, like the group screens.
 private struct EntryCountSubtitle: ViewModifier {
     let entryCount: Int

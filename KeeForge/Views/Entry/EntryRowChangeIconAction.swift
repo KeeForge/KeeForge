@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// Identifies the entry whose icon picker is showing, so `sheet(item:)` has an
@@ -17,11 +18,11 @@ struct EntryRowChangeIconAction: View {
     let onChangeIcon: (PendingEntryIconChange) -> Void
 
     var body: some View {
-        if EntryRowMoveAction.isAvailable(entryID: entryID, viewModel: viewModel) {
+        if EntryRowActions(entryID: entryID, session: viewModel).canChangeIcon {
             Button("Change Icon", systemImage: "photo") {
                 onChangeIcon(PendingEntryIconChange(entryID: entryID))
             }
-            .accessibilityIdentifier("entry-row.change-icon-context")
+            .accessibilityIdentifier(EntryRowActions.changeIconIdentifier)
         }
     }
 }
@@ -74,3 +75,4 @@ struct EntryIconChangeSheet: View {
         }
     }
 }
+#endif

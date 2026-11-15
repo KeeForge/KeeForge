@@ -11,15 +11,19 @@ final class EntrySecretAction {
         let lockCycleID = viewModel.lockCycleID
         let contentRevision = viewModel.contentRevision
         let selectedEntryID = viewModel.workspace.selectedEntryID
+        let entrySelection = viewModel.workspace.entrySelection
         let selectedGroupID = viewModel.workspace.selectedGroupID
         let selectedTag = viewModel.workspace.selectedTag
+        let selectedCollection = viewModel.workspace.selectedCollection
         let navigationPath = viewModel.workspace.navigationPath
         return {
             viewModel.state == .unlocked && viewModel.sessionKey != nil && viewModel.lockCycleID == lockCycleID
                 && viewModel.contentRevision == contentRevision
                 && viewModel.workspace.selectedEntryID == selectedEntryID
+                && viewModel.workspace.entrySelection == entrySelection
                 && viewModel.workspace.selectedGroupID == selectedGroupID
                 && viewModel.workspace.selectedTag == selectedTag
+                && viewModel.workspace.selectedCollection == selectedCollection
                 && viewModel.workspace.navigationPath == navigationPath
         }
     }

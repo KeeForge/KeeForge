@@ -7,7 +7,7 @@
 
 ## Running
 
-Base commands and repo-wide policy (`-only-testing:` always, no full UI suite unless asked, RC failures on the iOS 18 iPhone SE simulator) are in `../AGENTS.md`. Specific to this target:
+Base commands and repo-wide policy (`-only-testing:` always, no full UI suite unless asked) are in `../AGENTS.md`. Specific to this target:
 
 - Run one class per invocation. `-only-testing:KeeForgeUITests/<Class>` takes the class name, not the file name, and several files hold many classes, so grep for the class.
 - Pass `-test-timeouts-enabled YES` locally. `KeeForgeUITestCase` sets a 300 s per-test allowance that is enforced only with it; Xcode Cloud already enables it.
@@ -122,7 +122,7 @@ A test selects a bundled fixture by overriding `databaseFixtureName`, or `databa
 | Fixture | Password | Used by |
 | --- | --- | --- |
 | `test.kdbx` | `testpassword123` | Default for every class not listed here |
-| `demo.kdbx` | `demo` | `AppStoreScreenshots` |
+| `demo.kdbx` | `demo` | `AppStoreScreenshots`, and `MacAppStoreScreenshots` in the Mac suite |
 | `demo-keyfile.kdbx` + `demo-keyfile.key` | `demo` | `KeyFileUnlockUITests` |
 | `invalid-xml.keyx` | none | `KeyFileUITests` malformed-key rejection |
 | `kitchen-sink.kdbx` | `testpassword123` | `TagBrowserUITests`, `InheritedTagsUITests`, `VaultHomeUITests`, `VaultLargeTextUITests`, `EntryAttachmentsSmokeUITests`, `SaveConflictMergeDeclineUITests`, `ProtectedCustomFieldUITests`, `ProtectedCustomFieldEditorAuthUITests`, `EntryCustomIconPickerUITests`, `EntryCreateFocusUITests` |

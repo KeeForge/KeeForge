@@ -1,5 +1,7 @@
 import SwiftUI
 
+#if os(iOS)
+
 struct CompactDatabaseHost: View {
     @Bindable var listViewModel: DatabaseListViewModel
     @Bindable var viewModel: DatabaseViewModel
@@ -68,7 +70,6 @@ struct CompactDatabaseHost: View {
             }
 
             if hasUnlockedInThisSession, case .locked = newValue {
-                #if os(iOS)
                 // Manual locks only. An automatic lock can fire as the app is
                 // being backgrounded, and a snapshot added at that moment is
                 // exactly what iOS would capture for the app switcher — the
@@ -77,18 +78,10 @@ struct CompactDatabaseHost: View {
                 if viewModel.didManuallyLock {
                     VaultCloseTransition.coverCurrentFrame()
                 }
-                #endif
                 onReturnToList()
             }
         }
     }
-}
-
-/// Offered by the opening screen only while a YubiKey challenge is outstanding.
-@MainActor
-private func hardwareKeyCancelAction(for viewModel: DatabaseViewModel) -> (() -> Void)? {
-    guard viewModel.isAwaitingHardwareKey else { return nil }
-    return { viewModel.cancelHardwareKeyRequest() }
 }
 
 private struct CompactUnlockScene: View {
@@ -125,9 +118,7 @@ private struct CompactUnlockScene: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: viewModel.state)
-        #if os(iOS)
         .biometricAutoUnlock(viewModel)
-        #endif
     }
 }
 
@@ -139,16 +130,12 @@ struct RegularDatabaseScene: View {
         Group {
             switch viewModel.state {
             case .locked:
-                #if os(macOS)
-                unlockView
-                #else
                 if viewModel.isAwaitingBiometricAutoUnlock {
                     DatabaseOpeningView(viewModel: viewModel)
                     .transition(.opacity)
                 } else {
                     unlockView
                 }
-                #endif
             case .error:
                 unlockView
             case .unlocking:
@@ -160,9 +147,7 @@ struct RegularDatabaseScene: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: viewModel.state)
-        #if os(iOS)
         .biometricAutoUnlock(viewModel)
-        #endif
     }
 
     private var unlockView: some View {
@@ -175,7 +160,14 @@ struct RegularDatabaseScene: View {
     }
 }
 
-#if os(iOS)
+
+/// Offered by the opening screen only while a YubiKey challenge is outstanding.
+@MainActor
+func hardwareKeyCancelAction(for viewModel: DatabaseViewModel) -> (() -> Void)? {
+    guard viewModel.isAwaitingHardwareKey else { return nil }
+    return { viewModel.cancelHardwareKeyRequest() }
+}
+
 /// Runs the opt-in biometric auto-unlock at most once per lock cycle, and only
 /// while the scene is foreground-active. Platform exclusions live in
 /// `BiometricAutoUnlockPolicy`, folded into the view model's eligibility.

@@ -34,7 +34,11 @@ struct TipJarView: View {
         } header: {
             Text("Tip Jar")
         } footer: {
+            #if os(macOS)
+            Text("KeeForge is free and open source. Tips help support development.")
+            #else
             Text("KeeForge is free and open source. Tips help support development. ❤️")
+            #endif
         }
         .task {
             await store.loadProducts()
@@ -59,7 +63,7 @@ struct TipJarView: View {
                 break
             }
         }
-        .alert("Thank You! 🎉", isPresented: $showThankYou) {
+        .alert(thankYouTitle, isPresented: $showThankYou) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Your support means the world. Thank you for helping keep KeeForge alive!")
@@ -71,6 +75,14 @@ struct TipJarView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+    }
+
+    private var thankYouTitle: LocalizedStringKey {
+        #if os(macOS)
+        "Thank You!"
+        #else
+        "Thank You! 🎉"
+        #endif
     }
 
     @ViewBuilder

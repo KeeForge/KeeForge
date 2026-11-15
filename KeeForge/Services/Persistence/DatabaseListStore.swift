@@ -304,6 +304,13 @@ enum DatabaseListStore {
         try validateAppOnlyCreatedLocal(reference, in: loadDatabases())
     }
 
+    /// Refuses a new database's destination when a listed database already lives there.
+    static func validateCreatedLocalDestination(_ url: URL) throws {
+        if let duplicate = existingLocalReference(matching: url, in: loadDatabases()) {
+            throw AddDatabaseError.duplicateFile(existingReferenceID: duplicate.id, filename: duplicate.displayName)
+        }
+    }
+
     static func validateCreatedCloud(
         provider: String,
         accountId: String,
@@ -785,6 +792,14 @@ enum DatabaseListStore {
         withStateLock {
             guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
             updatedReference.isReadOnly = isReadOnly
+            update(updatedReference)
+        }
+    }
+
+    static func setNickname(_ nickname: String?, for reference: DatabaseReference) {
+        withStateLock {
+            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
+            updatedReference.nickname = nickname
             update(updatedReference)
         }
     }

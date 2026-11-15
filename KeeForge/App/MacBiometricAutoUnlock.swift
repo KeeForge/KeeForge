@@ -2,6 +2,21 @@
 import AppKit
 import SwiftUI
 
+/// Admits one automatic Touch ID prompt at a time across all windows.
+@MainActor
+final class MacBiometricAutoUnlockGate {
+    static let shared = MacBiometricAutoUnlockGate()
+    private var isPrompting = false
+
+    func claim() -> Bool {
+        guard !isPrompting else { return false }
+        isPrompting = true
+        return true
+    }
+
+    func release() { isPrompting = false }
+}
+
 @MainActor
 final class MacBiometricAutoUnlockController {
     struct NotificationCenters {
@@ -12,12 +27,15 @@ final class MacBiometricAutoUnlockController {
 
     static let lockRequestedNotification = Notification.Name("KeeForge.macAutoUnlockLockRequested")
     static let screenIsUnlockedNotification = Notification.Name("com.apple.screenIsUnlocked")
+    /// Posted with the window when the user first turns to a restored window, which may already be key.
+    static let restorationEndedNotification = Notification.Name("KeeForge.macWindowRestorationEnded")
 
     private(set) var latestAttempt: Task<Void, Never>?
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private let isEligible: () -> Bool
     private let lockCycleID: () -> Int
     private let isForeground: () -> Bool
+    private let gate: MacBiometricAutoUnlockGate
     private let unlock: () async -> DatabaseViewModel.BiometricUnlockOutcome
     private var attemptedLockCycle: Int?
     private var pendingRequest = 0
@@ -27,11 +45,13 @@ final class MacBiometricAutoUnlockController {
         isEligible: @escaping () -> Bool,
         lockCycleID: @escaping () -> Int,
         isForeground: @escaping () -> Bool,
+        gate: MacBiometricAutoUnlockGate = .shared,
         unlock: @escaping () async -> DatabaseViewModel.BiometricUnlockOutcome
     ) {
         self.isEligible = isEligible
         self.lockCycleID = lockCycleID
         self.isForeground = isForeground
+        self.gate = gate
         self.unlock = unlock
     }
 
@@ -44,7 +64,9 @@ final class MacBiometricAutoUnlockController {
         let attempt = Task { @MainActor [weak self] in
             guard let self, self.pendingRequest == request,
                   self.lockCycleID() == cycle, self.isForeground(), self.isEligible(),
-                  self.attemptedLockCycle != cycle, !self.isUnlocking else { return }
+                  self.attemptedLockCycle != cycle, !self.isUnlocking,
+                  self.gate.claim() else { return }
+            defer { self.gate.release() }
             self.attemptedLockCycle = cycle
             self.isUnlocking = true
             let outcome = await self.unlock()
@@ -62,13 +84,15 @@ final class MacBiometricAutoUnlockController {
     }
 
     /// Prompts on opening and on each return to the window: app activation,
-    /// the window becoming key, or the screen unlocking or the login session
-    /// returning while KeeForge stays the active app, which post neither.
+    /// the window becoming key or ending its restoration, or the screen
+    /// unlocking or the login session returning while KeeForge stays the
+    /// active app, which post neither.
     func startObserving(window: AnyObject?, centers: NotificationCenters = NotificationCenters()) {
         stopObserving()
         let attemptTriggers: [(NotificationCenter, Notification.Name, AnyObject?)] = [
             (centers.app, NSApplication.didBecomeActiveNotification, nil),
             (centers.app, NSWindow.didBecomeKeyNotification, window),
+            (centers.app, Self.restorationEndedNotification, window),
             (centers.distributed, Self.screenIsUnlockedNotification, nil),
             (centers.workspace, NSWorkspace.sessionDidBecomeActiveNotification, nil),
         ]
@@ -105,11 +129,38 @@ final class MacBiometricAutoUnlockController {
     }
 }
 
+/// Whether an automatic prompt may start over a database window now. Any
+/// attached sheet refuses: an open panel, an alert, or Send Feedback.
+struct MacBiometricAutoUnlockForeground: Equatable {
+    var isAdmitted: Bool
+    var isAppActive: Bool
+    var isKeyWindow: Bool
+    var isVisible: Bool
+    var isMiniaturized: Bool
+    var hasAttachedSheet: Bool
+    var isFrontmostProcess: Bool
+
+    var allowsPrompt: Bool {
+        isAdmitted && isAppActive && isKeyWindow && isVisible && !isMiniaturized && !hasAttachedSheet
+            && isFrontmostProcess
+    }
+}
+
+extension MacBiometricAutoUnlockForeground {
+    @MainActor
+    init(window: NSWindow, isAdmitted: Bool, isAppActive: Bool, isFrontmostProcess: Bool) {
+        self.init(isAdmitted: isAdmitted, isAppActive: isAppActive, isKeyWindow: window.isKeyWindow,
+                  isVisible: window.isVisible, isMiniaturized: window.isMiniaturized,
+                  hasAttachedSheet: window.attachedSheet != nil, isFrontmostProcess: isFrontmostProcess)
+    }
+}
+
 struct MacBiometricAutoUnlockObserver: NSViewRepresentable {
     let viewModel: DatabaseViewModel
+    @Environment(MacDatabaseWindowRegistry.self) private var registry: MacDatabaseWindowRegistry?
 
     func makeNSView(context: Context) -> ObserverView {
-        ObserverView(viewModel: viewModel)
+        ObserverView(viewModel: viewModel, registry: registry)
     }
 
     func updateNSView(_ nsView: ObserverView, context: Context) {}
@@ -120,15 +171,19 @@ struct MacBiometricAutoUnlockObserver: NSViewRepresentable {
 
     final class ObserverView: NSView {
         private let viewModel: DatabaseViewModel
+        private let registry: MacDatabaseWindowRegistry?
         private lazy var controller = MacBiometricAutoUnlockController(
             isEligible: { [weak self] in self?.viewModel.isEligibleForBiometricAutoUnlock == true },
             lockCycleID: { [weak self] in self?.viewModel.lockCycleID ?? -1 },
             isForeground: { [weak self] in
-                guard let window = self?.window else { return false }
-                return NSApp.isActive && window.isKeyWindow && window.isVisible
-                    && !window.isMiniaturized && window.attachedSheet == nil
-                    && NSWorkspace.shared.frontmostApplication?.processIdentifier
+                guard let self, let window = self.window else { return false }
+                return MacBiometricAutoUnlockForeground(
+                    window: window,
+                    isAdmitted: self.registry?.admitsAutomaticUnlock(for: self.viewModel, in: window) == true,
+                    isAppActive: NSApp.isActive,
+                    isFrontmostProcess: NSWorkspace.shared.frontmostApplication?.processIdentifier
                         == ProcessInfo.processInfo.processIdentifier
+                ).allowsPrompt
             },
             unlock: { [weak self] in
                 guard let self else { return .failed }
@@ -136,7 +191,8 @@ struct MacBiometricAutoUnlockObserver: NSViewRepresentable {
             }
         )
 
-        init(viewModel: DatabaseViewModel) {
+        init(viewModel: DatabaseViewModel, registry: MacDatabaseWindowRegistry?) {
+            self.registry = registry
             self.viewModel = viewModel
             super.init(frame: .zero)
         }

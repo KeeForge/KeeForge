@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// Change the cipher, key derivation, and compression of the unlocked
@@ -127,11 +128,7 @@ struct EncryptionSettingsView: View {
     }
 
     private var encryptionFooter: String {
-        #if os(macOS)
-        let warning = String(localized: "Stronger settings take longer to unlock.")
-        #else
         let warning = String(localized: "Stronger settings take longer to unlock and may exceed AutoFill's memory limit on some devices.")
-        #endif
         guard viewModel.showsAESKDFRounds else {
             return viewModel.keyDerivationSummary + " " + warning
         }
@@ -162,3 +159,4 @@ struct EncryptionSettingsView: View {
         .accessibilityIdentifier("encryption-settings.error")
     }
 }
+#endif

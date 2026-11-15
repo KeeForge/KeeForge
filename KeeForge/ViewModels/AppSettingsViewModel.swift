@@ -109,6 +109,13 @@ final class AppSettingsViewModel {
             SettingsService.macLockPolicy = macLockPolicy
         }
     }
+    var macBackgroundLockDelay = SettingsService.macBackgroundLockDelay {
+        didSet {
+            guard !isReloading, oldValue != macBackgroundLockDelay else { return }
+            SettingsService.macBackgroundLockDelay = macBackgroundLockDelay
+            backgroundLockDelayDidChange()
+        }
+    }
     var blockScreenCapture = SettingsService.blockScreenCapture {
         didSet {
             guard !isReloading, oldValue != blockScreenCapture else { return }
@@ -117,6 +124,9 @@ final class AppSettingsViewModel {
         }
     }
     private(set) var cloudAccounts: [CloudAccount] = []
+    var macServerAccounts: [CloudAccount] {
+        cloudAccounts.filter { $0.providerKind == .webDAV || $0.providerKind == .ftp }
+    }
 
     @ObservationIgnored private var isReloading = false
     @ObservationIgnored private var resetInactivityTimer: () -> Void
@@ -128,6 +138,7 @@ final class AppSettingsViewModel {
     @ObservationIgnored private let capturePolicyDidChange: () -> Void
     @ObservationIgnored private let authenticationGracePeriodDidChange: () -> Void
     @ObservationIgnored private let quickUnlockPasswordIntervalDidChange: () -> Void
+    @ObservationIgnored private let backgroundLockDelayDidChange: () -> Void
     @ObservationIgnored private let loadCloudAccounts: () -> [CloudAccount]
     @ObservationIgnored private let signOutOperation: (CloudAccount) -> Void
 
@@ -154,6 +165,11 @@ final class AppSettingsViewModel {
         quickUnlockPasswordIntervalDidChange: @escaping () -> Void = {
             QuickUnlockKeychain.expireDueKeys()
         },
+        backgroundLockDelayDidChange: @escaping () -> Void = {
+            #if os(macOS)
+            NotificationCenter.default.post(name: MacLockMonitor.backgroundDelayDidChangeNotification, object: nil)
+            #endif
+        },
         loadCloudAccounts: @escaping () -> [CloudAccount] = { CloudAccountStore.accounts },
         signOut: @escaping (CloudAccount) -> Void = {
             CloudProviderRegistry.provider(for: $0.provider)?.signOut(accountId: $0.id)
@@ -168,6 +184,7 @@ final class AppSettingsViewModel {
         self.capturePolicyDidChange = capturePolicyDidChange
         self.authenticationGracePeriodDidChange = authenticationGracePeriodDidChange
         self.quickUnlockPasswordIntervalDidChange = quickUnlockPasswordIntervalDidChange
+        self.backgroundLockDelayDidChange = backgroundLockDelayDidChange
         self.loadCloudAccounts = loadCloudAccounts
         self.signOutOperation = signOut
         cloudAccounts = loadCloudAccounts()
@@ -199,6 +216,7 @@ final class AppSettingsViewModel {
         autoFillCopyTOTP = SettingsService.autoFillCopyTOTP
         sortOrder = DatabaseViewModel.savedSortOrder()
         sortAscending = DatabaseViewModel.savedSortAscending()
+        macBackgroundLockDelay = SettingsService.macBackgroundLockDelay
         macLockPolicy = SettingsService.macLockPolicy
         blockScreenCapture = SettingsService.blockScreenCapture
         cloudAccounts = loadCloudAccounts()

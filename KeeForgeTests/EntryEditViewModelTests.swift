@@ -904,6 +904,103 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.entryDraftPayload.totpConfig?.otpauthURI)
     }
 
+    func testSetupInputTakesALinkAndKeepsItForVerbatimStorage() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.title = "Code"
+        let link = "otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP&digits=8&period=60&algorithm=SHA256"
+
+        XCTAssertNil(viewModel.applySetupInput("  \(link)\n"))
+
+        XCTAssertEqual(viewModel.totpSecret, "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(viewModel.totpDigits, 8)
+        XCTAssertEqual(viewModel.totpPeriod, 60)
+        XCTAssertEqual(viewModel.totpAlgorithm, .sha256)
+        XCTAssertNotNil(viewModel.totpPreview)
+        XCTAssertEqual(viewModel.entryDraftPayload.totpConfig?.otpauthURI, link)
+    }
+
+    /// The Mac editor's Set Up Verification Code sheet goes through `applySetupInput`.
+    func testSetupInputLinkFillsAnEmptyTitleAndUsernameButAKeyDoesNot() {
+        let keyOnly = EntryEditViewModel(createIn: UUID())
+        XCTAssertNil(keyOnly.applySetupInput("JBSWY3DPEHPK3PXP"))
+        XCTAssertEqual(keyOnly.title, "")
+        XCTAssertEqual(keyOnly.username, "")
+
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        XCTAssertNil(viewModel.applySetupInput(" otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&issuer=GitHub\n"))
+        XCTAssertEqual(viewModel.title, "GitHub")
+        XCTAssertEqual(viewModel.username, "alice")
+    }
+
+    func testSetupInputTakesTextWithoutASchemeAsAKeyInCanonicalForm() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.title = "Code"
+        XCTAssertNil(viewModel.applySetupLink("otpauth://totp/Example:x?secret=GEZDGNBVGY3TQOJQ"))
+
+        XCTAssertNil(viewModel.applySetupInput(" jbsw y3dp ehpk 3pxp "))
+
+        XCTAssertEqual(viewModel.totpSecret, "JBSWY3DPEHPK3PXP")
+        XCTAssertNotNil(viewModel.totpPreview)
+        XCTAssertNil(viewModel.entryDraftPayload.totpConfig?.otpauthURI, "A key replaces the link entered before it")
+        XCTAssertEqual(viewModel.entryDraftPayload.totpConfig?.secret, "JBSWY3DPEHPK3PXP")
+
+        XCTAssertNil(viewModel.applySetupInput("JBSWY3DPEHPK3PXP===="))
+        XCTAssertEqual(viewModel.totpSecret, "JBSWY3DPEHPK3PXP", "Padding is dropped")
+    }
+
+    func testAnInvalidSetupKeyIsKeptAsTypedSoThePreviewReportsIt() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.title = "Code"
+
+        XCTAssertNil(viewModel.applySetupInput("not a key 1!"))
+
+        XCTAssertEqual(viewModel.totpSecret, "notakey1!")
+        XCTAssertTrue(viewModel.hasTOTPSecret)
+        XCTAssertNil(viewModel.totpPreview, "The row asks for a valid secret key")
+    }
+
+    func testAnInvalidSetupLinkReturnsItsReasonAndLeavesTheFormAlone() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.title = "Code"
+        XCTAssertNil(viewModel.applySetupInput("JBSWY3DPEHPK3PXP"))
+
+        let cases: [(String, OTPAuthURIError, String)] = [
+            ("https://example.com/setup", .notAnOTPAuthURI, "This isn't an otpauth:// setup link."),
+            ("otpauth://hotp/Example:x?secret=GEZDGNBVGY3TQOJQ&counter=1", .unsupportedType,
+             "This setup link uses an unsupported code type. Only time-based (TOTP) codes are supported."),
+            ("otpauth://totp/Example:x?secret=1", .missingOrInvalidSecret, "This setup link doesn't contain a valid secret."),
+            ("otpauth://totp/Example:x?secret=GEZDGNBVGY3TQOJQ&period=0", .invalidParameter,
+             "This setup link contains an invalid parameter."),
+        ]
+        for (text, error, message) in cases {
+            XCTAssertEqual(viewModel.applySetupInput(text), error, text)
+            XCTAssertEqual(EntryEditViewModel.setupLinkMessage(for: error), String(localized: String.LocalizationValue(message)))
+            XCTAssertEqual(viewModel.totpSecret, "JBSWY3DPEHPK3PXP", text)
+            XCTAssertEqual(viewModel.totpPeriod, 30, text)
+        }
+
+        XCTAssertNil(viewModel.applySetupInput("   "), "Blank text changes nothing")
+        XCTAssertEqual(viewModel.totpSecret, "JBSWY3DPEHPK3PXP")
+    }
+
+    func testASetupLinkWithAnUnsupportedDigitCountIsFlaggedOnAKeeOTPEntry() throws {
+        let entry = KPEntry(
+            title: "Legacy",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey),
+                keeOTPSource: KeeOTPSource(fieldName: "OTP", rawQuery: "key=JBSWY3DPEHPK3PXP")
+            )
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        XCTAssertNil(viewModel.applySetupInput("otpauth://totp/Example:x?secret=GEZDGNBVGY3TQOJQ&digits=7"))
+
+        XCTAssertEqual(viewModel.supportedTOTPDigits, [6, 8])
+        XCTAssertEqual(viewModel.unsupportedTOTPDigitsMessage, String(localized: "This entry stores its code in the legacy KeeOTP format, which only supports 6- or 8-digit codes."))
+        XCTAssertNil(viewModel.entryDraftPayload.totpConfig?.otpauthURI, "A KeeOTP entry keeps its legacy query")
+        XCTAssertFalse(viewModel.canSave)
+    }
+
     func testANewFieldCannotTakeANameTheParserReadsAsKeeOTP() {
         for key in ["OTP", "Otp"] {
             let viewModel = EntryEditViewModel(editing: KPEntry(title: "Codes"), sessionKey: sessionKey)
@@ -1097,6 +1194,82 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertEqual(payload.totpConfig?.digits, 8)
         XCTAssertEqual(payload.totpConfig?.algorithm, .sha256)
         XCTAssertNil(payload.totpConfig?.keeOTPSource)
+    }
+
+    func testApplyOTPAuthURIFillsEmptyTitleAndUsernameFromIssuerAndAccount() throws {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        viewModel.applyOTPAuthURI(try OTPAuthURI(
+            string: "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&issuer=GitHub"
+        ))
+
+        XCTAssertEqual(viewModel.title, "GitHub")
+        XCTAssertEqual(viewModel.username, "alice")
+    }
+
+    func testApplyOTPAuthURIUsesAccountNameAsTitleWithoutIssuer() throws {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        viewModel.applyOTPAuthURI(try OTPAuthURI(string: "otpauth://totp/alice@example.com?secret=JBSWY3DPEHPK3PXP"))
+
+        XCTAssertEqual(viewModel.title, "alice@example.com")
+        XCTAssertEqual(viewModel.username, "alice@example.com")
+    }
+
+    func testApplyOTPAuthURIKeepsTitleAndUsernameTheUserTyped() throws {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.title = "Work GitHub"
+        viewModel.username = "alice.work"
+
+        viewModel.applyOTPAuthURI(try OTPAuthURI(
+            string: "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&issuer=GitHub"
+        ))
+
+        XCTAssertEqual(viewModel.title, "Work GitHub")
+        XCTAssertEqual(viewModel.username, "alice.work")
+    }
+
+    func testApplyOTPAuthURIFillsOnlyTheEmptyFieldOfAnExistingEntry() throws {
+        let entry = KPEntry(title: "Bank")
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        viewModel.applyOTPAuthURI(try OTPAuthURI(
+            string: "otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP&issuer=Example"
+        ))
+
+        XCTAssertEqual(viewModel.title, "Bank")
+        XCTAssertEqual(viewModel.username, "alice")
+    }
+
+    func testApplySetupLinkFillsEmptyTitleAndUsername() throws {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        XCTAssertNil(viewModel.applySetupLink("otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&issuer=GitHub"))
+
+        XCTAssertEqual(viewModel.title, "GitHub")
+        XCTAssertEqual(viewModel.username, "alice")
+    }
+
+    func testApplyOTPAuthURIDropsFieldReferencesTheLinkSupplies() throws {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        viewModel.applyOTPAuthURI(try OTPAuthURI(
+            string: "otpauth://totp/Bank:%7BREF:U@T:Bank%7D?secret=JBSWY3DPEHPK3PXP&issuer=%7BREF:P@T:Bank%7D"
+        ))
+
+        XCTAssertEqual(viewModel.title, "")
+        XCTAssertEqual(viewModel.username, "")
+    }
+
+    func testApplyOTPAuthURIKeepsTheAccountNameWhenOnlyTheIssuerHasAFieldReference() throws {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        viewModel.applyOTPAuthURI(try OTPAuthURI(
+            string: "otpauth://totp/alice?secret=JBSWY3DPEHPK3PXP&issuer=%7BREF:P@T:Bank%7D"
+        ))
+
+        XCTAssertEqual(viewModel.title, "alice")
+        XCTAssertEqual(viewModel.username, "alice")
     }
 
     func testEditingPeriodAfterApplyDropsOTPAuthURIButKeepsEditedValues() throws {

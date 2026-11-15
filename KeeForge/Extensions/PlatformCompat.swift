@@ -149,23 +149,6 @@ private struct MacHoverHighlightModifier: ViewModifier {
             }
     }
 }
-
-private struct MacSelectableRowHoverModifier: ViewModifier {
-    @State private var isHovered = false
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-                if isHovered {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.primary.opacity(0.06))
-                }
-            }
-            .onHover { hovering in
-                isHovered = hovering
-            }
-    }
-}
 #endif
 
 extension View {
@@ -174,22 +157,6 @@ extension View {
     func macHoverHighlight() -> some View {
         #if os(macOS)
         modifier(MacHoverHighlightModifier())
-        #else
-        self
-        #endif
-    }
-
-    /// Hover highlight for a row inside a `List(selection:)` on macOS; no-op on
-    /// iOS.
-    ///
-    /// Separate from `macHoverHighlight()` because that one tints through
-    /// `listRowBackground`, which is also what such a list paints its selection
-    /// with — a selected row would lose its highlight. This draws behind the
-    /// row's own content instead, where the two can coexist.
-    @ViewBuilder
-    func macSelectableRowHover() -> some View {
-        #if os(macOS)
-        modifier(MacSelectableRowHoverModifier())
         #else
         self
         #endif
@@ -292,8 +259,8 @@ enum MacSheetMetrics {
     /// Capping the height here keeps the form scrolling inside a sheet that
     /// fits, which is also what a fixed-size AppKit sheet does.
     ///
-    /// Sized to fit the window's minimum height (`KeeForgeApp`) with the
-    /// toolbar above it; raising one means raising the other.
+    /// Sized to fit the database and Databases windows' minimum heights with the
+    /// toolbar above them; raising one means raising the others.
     static let maxHeight: CGFloat = 560
 }
 #endif
@@ -348,6 +315,33 @@ enum PlatformDesign {
         true
         #else
         false
+        #endif
+    }
+}
+
+// MARK: - Activation
+
+extension View {
+    func onAppDidBecomeActive(perform: @escaping @MainActor () -> Void) -> some View {
+        modifier(AppActivationModifier(perform: perform))
+    }
+}
+
+private struct AppActivationModifier: ViewModifier {
+    let perform: @MainActor () -> Void
+    #if os(iOS)
+    @Environment(\.scenePhase) private var scenePhase
+    #endif
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.onChange(of: scenePhase) { _, phase in
+            if phase == .active { perform() }
+        }
+        #else
+        content.onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            perform()
+        }
         #endif
     }
 }

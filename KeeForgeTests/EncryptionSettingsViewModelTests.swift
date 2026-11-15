@@ -307,6 +307,163 @@ final class EncryptionSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(Set(parameters.entries.keys), ["$UUID", "R", "S"])
     }
 
+    // MARK: - Benchmark
+
+    private final class BenchmarkProbe: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _calls = 0
+        private var _onMain: [Bool] = []
+        private var _running = 0
+        private var _maxRunning = 0
+        let release = DispatchSemaphore(value: 0)
+        var holds = false
+        var calls: Int { lock.withLock { _calls } }
+        var onMain: [Bool] { lock.withLock { _onMain } }
+        var maxRunning: Int { lock.withLock { _maxRunning } }
+
+        func measure(_ parameters: KDBXVariantMap) throws -> Double {
+            lock.withLock {
+                _calls += 1
+                _onMain.append(Thread.isMainThread)
+                _running += 1
+                _maxRunning = max(_maxRunning, _running)
+            }
+            if holds { release.wait() }
+            lock.withLock { _running -= 1 }
+            XCTAssertNotNil(parameters.bytes("$UUID"))
+            return 0.64
+        }
+    }
+
+    private func makeBenchmarkViewModel(_ probe: BenchmarkProbe) -> EncryptionSettingsViewModel {
+        EncryptionSettingsViewModel(current: summary(), measure: { try probe.measure($0) }) { _, _, _ in }
+    }
+
+    func testBenchmarkRunsOffTheMainThreadOnlyWhenAsked() async {
+        let probe = BenchmarkProbe()
+        let viewModel = makeBenchmarkViewModel(probe)
+        viewModel.keyDerivation = .argon2id(.strong)
+        viewModel.keyDerivation = .aesKDF
+        viewModel.aesKDFRoundsText = "2000"
+        for _ in 0..<5 { await Task.yield() }
+        XCTAssertEqual(probe.calls, 0, "Nothing runs without the button")
+        XCTAssertFalse(viewModel.isBenchmarking)
+
+        let task = viewModel.benchmark()
+        XCTAssertTrue(viewModel.isBenchmarking)
+        XCTAssertFalse(viewModel.canBenchmark)
+        await task?.value
+
+        XCTAssertEqual(probe.calls, 1)
+        XCTAssertEqual(probe.onMain, [false])
+        XCTAssertEqual(viewModel.benchmarkSeconds, 0.64)
+        XCTAssertFalse(viewModel.isBenchmarking)
+        XCTAssertTrue(viewModel.hasChanges, "The benchmark does not undo the edit")
+    }
+
+    func testBenchmarkIsRefusedForInvalidRoundsOrTheCurrentOption() {
+        let probe = BenchmarkProbe()
+        let viewModel = makeBenchmarkViewModel(probe)
+        viewModel.keyDerivation = .aesKDF
+        viewModel.aesKDFRoundsText = "0"
+        XCTAssertFalse(viewModel.canBenchmark)
+        XCTAssertNil(viewModel.benchmark())
+
+        let current = EncryptionSettingsViewModel(current: summary(keyDerivation: .argon2d(iterations: 2, memoryBytes: 64 << 20, parallelism: 2)),
+                                                  measure: { try probe.measure($0) }) { _, _, _ in }
+        XCTAssertFalse(current.canBenchmark, "\"(Current)\" is not a setting KeeForge writes")
+        XCTAssertEqual(current.currentKDFOptionTitle, "Argon2d (Current)")
+        XCTAssertEqual(probe.calls, 0)
+    }
+
+    func testCancelledBenchmarkDiscardsItsResultAndTheNextWaitsForIt() async {
+        let probe = BenchmarkProbe()
+        probe.holds = true
+        let viewModel = makeBenchmarkViewModel(probe)
+        let first = viewModel.benchmark()
+        while probe.calls == 0 { await Task.yield() }
+
+        viewModel.keyDerivation = .argon2id(.maximum)
+        XCTAssertFalse(viewModel.isBenchmarking)
+        let second = viewModel.benchmark()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(probe.calls, 1, "A derivation cannot stop midway, so the next waits for it")
+
+        probe.release.signal()
+        await first?.value
+        while probe.calls < 2 { await Task.yield() }
+        viewModel.cancelBenchmark()
+        probe.release.signal()
+        await second?.value
+
+        XCTAssertNil(viewModel.benchmarkSeconds, "A cancelled measurement is never shown")
+        XCTAssertFalse(viewModel.isBenchmarking)
+        XCTAssertEqual(probe.maxRunning, 1)
+    }
+
+    func testSavingCancelsABenchmark() async {
+        let probe = BenchmarkProbe()
+        probe.holds = true
+        let recorder = ChangeRecorder()
+        let viewModel = EncryptionSettingsViewModel(current: summary(), measure: { try probe.measure($0) }) { cipher, kdf, compressed in
+            recorder.calls.append((cipher, kdf, compressed))
+        }
+        viewModel.cipher = .chacha20
+        let benchmark = viewModel.benchmark()
+        while probe.calls == 0 { await Task.yield() }
+
+        let save = Task { await viewModel.performChange() }
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertTrue(viewModel.isWorking)
+        XCTAssertEqual(recorder.calls.count, 0, "Save re-encrypts only once the benchmark's derivation has run out")
+        probe.release.signal()
+        await benchmark?.value
+        let saved = await save.value
+
+        XCTAssertTrue(saved)
+        XCTAssertEqual(recorder.calls.count, 1)
+        XCTAssertNil(viewModel.benchmarkSeconds)
+        XCTAssertFalse(viewModel.isBenchmarking)
+    }
+
+    func testBenchmarksInDifferentSheetsNeverDeriveAtOnce() async {
+        let probe = BenchmarkProbe()
+        probe.holds = true
+        let first = makeBenchmarkViewModel(probe)
+        let second = makeBenchmarkViewModel(probe)
+        let firstRun = first.benchmark()
+        while probe.calls == 0 { await Task.yield() }
+        first.cancelBenchmark()
+        let secondRun = second.benchmark()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(probe.calls, 1, "The other sheet waits for the running derivation")
+        probe.release.signal()
+        await firstRun?.value
+        while probe.calls < 2 { await Task.yield() }
+        probe.release.signal()
+        await secondRun?.value
+        XCTAssertEqual(probe.maxRunning, 1)
+        XCTAssertEqual(second.benchmarkSeconds, 0.64)
+    }
+
+    func testNoBenchmarkWhileTheDatabaseIsSaving() async {
+        let probe = BenchmarkProbe()
+        var saving = true
+        let viewModel = EncryptionSettingsViewModel(current: summary(), measure: { try probe.measure($0) },
+                                                    isSessionSaving: { saving }) { _, _, _ in }
+        XCTAssertFalse(viewModel.canBenchmark)
+        XCTAssertNil(viewModel.benchmark())
+        saving = false
+        XCTAssertTrue(viewModel.canBenchmark)
+        await viewModel.benchmark()?.value
+        XCTAssertEqual(probe.calls, 1)
+    }
+
+    func testRealMeasurementDerivesTheSelectedParameters() throws {
+        let parameters = try EncryptionSettingsKeyDerivation.aesKDF(rounds: 1_000).kdfParameters()
+        XCTAssertGreaterThanOrEqual(try EncryptionSettingsViewModel.measureDerivation(parameters), 0)
+    }
+
     // MARK: - Helpers
 
     private func makeViewModel(

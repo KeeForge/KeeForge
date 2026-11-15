@@ -7,7 +7,13 @@ import Foundation
 /// and are tracked so they can be removed as soon as a preview/share sheet
 /// dismisses or the database locks.
 @MainActor
-enum AttachmentPreviewFileStore {
+protocol AttachmentPreviewFileStoring {
+    static func write(_ data: Data, suggestedName: String, owner: UUID) throws -> URL
+    static func remove(_ url: URL, owner: UUID)
+}
+
+@MainActor
+enum AttachmentPreviewFileStore: AttachmentPreviewFileStoring {
     private static let subdirectoryName = "attachment-previews"
     private static var trackedURLs: [UUID: Set<URL>] = [:]
 
@@ -54,6 +60,12 @@ enum AttachmentPreviewFileStore {
     /// from any current session is live.
     static func purgeOrphanedFiles() {
         guard trackedURLs.isEmpty else { return }
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    /// Removes every preview file on a normal quit, whichever session wrote it.
+    static func removeAll() {
+        trackedURLs = [:]
         try? FileManager.default.removeItem(at: directory)
     }
 

@@ -5,6 +5,7 @@ Static app resources live here.
 ## Current Contents
 
 - `Assets.xcassets` — colors and image assets
+- `Theme.xcassets` — the design-system color tokens behind `../Views/Components/Theme.swift`; also compiled into both AutoFill extensions
 - `LaunchScreen.storyboard` — launch screen UI
 - `Localizable.xcstrings` — String Catalog (source language `en`, plus `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, `ja`, `it`, and `ru`) shared by the iOS and macOS app targets
 - `InfoPlist.xcstrings` — localized Info.plist values (usage descriptions, bundle name) for both app targets

@@ -11,7 +11,28 @@ import Foundation
 /// resolve — unknown codes, no match, undecryptable password — stay literal,
 /// as KeePass does. Never run this on an edit or save path: a resolved value
 /// written back would replace the reference with the value it pointed at.
+///
+/// A reference that reads or matches a protected value (a password, or a
+/// string field the entry marks protected) resolves only with
+/// `.protectedValues` clearance, which callers claim after the device-owner
+/// gate or inside AutoFill's own authentication. Without it nothing protected
+/// is decrypted or read and the whole value comes back `.needsProtectedValue`.
 struct FieldReferenceResolver: Sendable {
+    enum Clearance: Sendable {
+        case unprotectedValues
+        case protectedValues
+    }
+
+    enum Resolution: Equatable, Sendable {
+        case resolved(String)
+        case needsProtectedValue
+
+        var value: String? {
+            if case .resolved(let value) = self { return value }
+            return nil
+        }
+    }
+
     static let maxDepth = 10
 
     private static let marker = "{REF:"
@@ -26,29 +47,44 @@ struct FieldReferenceResolver: Sendable {
         self.sessionKey = sessionKey
     }
 
-    static func resolve(_ value: String, in rootGroup: KPGroup?, sessionKey: SymmetricKey?) -> String {
-        guard Self.containsReference(value) else { return value }
-        return FieldReferenceResolver(entries: rootGroup?.allEntries ?? [], sessionKey: sessionKey).resolve(value)
+    static func resolve(
+        _ value: String,
+        in rootGroup: KPGroup?,
+        sessionKey: SymmetricKey?,
+        clearance: Clearance = .unprotectedValues
+    ) -> Resolution {
+        guard Self.containsReference(value) else { return .resolved(value) }
+        return FieldReferenceResolver(entries: rootGroup?.allEntries ?? [], sessionKey: sessionKey)
+            .resolve(value, clearance: clearance)
     }
 
     static func containsReference(_ value: String) -> Bool {
         value.range(of: marker, options: .caseInsensitive) != nil
     }
 
-    func resolve(_ value: String) -> String {
+    func resolve(_ value: String, clearance: Clearance = .unprotectedValues) -> Resolution {
         var current = value
         for _ in 0..<Self.maxDepth {
-            guard Self.containsReference(current) else { return current }
-            let (next, substituted) = substituteReferences(in: current)
-            guard substituted else { return current }
+            guard Self.containsReference(current) else { return .resolved(current) }
+            guard let (next, substituted) = substituteReferences(in: current, clearance: clearance) else {
+                return .needsProtectedValue
+            }
+            guard substituted else { return .resolved(current) }
             current = next
         }
-        return current
+        return .resolved(current)
     }
 
     // MARK: - Substitution
 
-    private func substituteReferences(in value: String) -> (String, Bool) {
+    private enum Lookup {
+        case value(String)
+        case unresolved
+        case protected
+    }
+
+    /// Nil when a reference needs a protected value `clearance` does not cover.
+    private func substituteReferences(in value: String, clearance: Clearance) -> (String, Bool)? {
         var output = ""
         var substituted = false
         var cursor = value.startIndex
@@ -60,11 +96,14 @@ struct FieldReferenceResolver: Sendable {
                 return (output, substituted)
             }
             let spec = value[markerRange.upperBound..<closing]
-            if let resolved = resolveReference(spec) {
+            switch resolveReference(spec, clearance: clearance) {
+            case .value(let resolved):
                 output += resolved
                 substituted = true
-            } else {
+            case .unresolved:
                 output += value[markerRange.lowerBound...closing]
+            case .protected:
+                return nil
             }
             cursor = value.index(after: closing)
         }
@@ -73,37 +112,60 @@ struct FieldReferenceResolver: Sendable {
     }
 
     /// `spec` is the text between `{REF:` and `}`: `W@S:Text`.
-    private func resolveReference(_ spec: Substring) -> String? {
+    private func resolveReference(_ spec: Substring, clearance: Clearance) -> Lookup {
         var header = spec.makeIterator()
         guard let wantedCode = header.next(), let wanted = FieldCode(wantedCode), wanted != .customFields,
               header.next() == "@",
               let searchCode = header.next(), let searchIn = FieldCode(searchCode),
               header.next() == ":"
-        else { return nil }
+        else { return .unresolved }
         let text = String(spec.dropFirst(4))
-        guard text.isEmpty == false, let entry = findEntry(searchIn: searchIn, text: text) else { return nil }
-        return value(of: wanted, in: entry)
+        guard text.isEmpty == false else { return .unresolved }
+        let cleared = clearance == .protectedValues
+        // Matching passwords means decrypting them.
+        if searchIn == .password, cleared == false { return .protected }
+        guard let (entry, matchedProtected) = findEntry(searchIn: searchIn, text: text) else { return .unresolved }
+        if matchedProtected, cleared == false { return .protected }
+        if isProtected(wanted, in: entry), cleared == false { return .protected }
+        return value(of: wanted, in: entry).map(Lookup.value) ?? .unresolved
     }
 
-    private func findEntry(searchIn: FieldCode, text: String) -> KPEntry? {
+    /// The first entry that matches, and whether only protected values matched in it.
+    private func findEntry(searchIn: FieldCode, text: String) -> (KPEntry, Bool)? {
         if searchIn == .uuid {
             guard let id = UUID(kdbxHexString: text) else { return nil }
-            return entriesByID[id]
+            return entriesByID[id].map { ($0, false) }
         }
-        return entries.first { entry in
-            candidateValues(of: searchIn, in: entry).contains { $0.range(of: text, options: .caseInsensitive) != nil }
+        for entry in entries {
+            let matches = candidateValues(of: searchIn, in: entry).filter {
+                $0.value.range(of: text, options: .caseInsensitive) != nil
+            }
+            if matches.isEmpty == false {
+                return (entry, matches.allSatisfy(\.isProtected))
+            }
+        }
+        return nil
+    }
+
+    private func candidateValues(of code: FieldCode, in entry: KPEntry) -> [(value: String, isProtected: Bool)] {
+        let protected = isProtected(code, in: entry)
+        switch code {
+        case .title: return [(entry.title, protected)]
+        case .username: return [(entry.username, protected)]
+        case .url: return [(entry.url, protected)]
+        case .notes: return [(entry.notes, protected)]
+        case .customFields:
+            return entry.customFields.map { ($0.value, entry.protectedStringKeys.contains($0.key)) }
+        case .password: return decryptedPassword(of: entry).map { [($0, true)] } ?? []
+        case .uuid: return []
         }
     }
 
-    private func candidateValues(of code: FieldCode, in entry: KPEntry) -> [String] {
+    private func isProtected(_ code: FieldCode, in entry: KPEntry) -> Bool {
         switch code {
-        case .title: return [entry.title]
-        case .username: return [entry.username]
-        case .url: return [entry.url]
-        case .notes: return [entry.notes]
-        case .customFields: return Array(entry.customFields.values)
-        case .password: return decryptedPassword(of: entry).map { [$0] } ?? []
-        case .uuid: return []
+        case .password: return entry.hasPassword
+        case .title, .username, .url, .notes: return code.standardKey.map(entry.protectedStringKeys.contains) ?? false
+        case .uuid, .customFields: return false
         }
     }
 
@@ -138,6 +200,17 @@ struct FieldReferenceResolver: Sendable {
             case "I": self = .uuid
             case "O": self = .customFields
             default: return nil
+            }
+        }
+
+        /// The KDBX `<String>` key, for the standard fields.
+        var standardKey: String? {
+            switch self {
+            case .title: "Title"
+            case .username: "UserName"
+            case .url: "URL"
+            case .notes: "Notes"
+            case .password, .uuid, .customFields: nil
             }
         }
     }

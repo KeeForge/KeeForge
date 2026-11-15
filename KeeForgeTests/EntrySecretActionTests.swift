@@ -187,6 +187,10 @@ final class EntrySecretActionTests: XCTestCase {
         let session = DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: url))
         await session.unlock(password: "testpassword123")
         defer { session.lockRequest(force: true) }
+        session.workspace.selectedCollection = .allEntries
+        let beforeCollectionChange = EntrySecretAction.currentSession(session)
+        session.workspace.selectedCollection = .verificationCodes
+        XCTAssertFalse(beforeCollectionChange())
         let current = EntrySecretAction.currentSession(session)
         XCTAssertTrue(current())
 
@@ -229,10 +233,11 @@ final class EntrySecretActionTests: XCTestCase {
         let action = EntrySecretAction()
         let authentication = SuspendedAuthentication()
         var copied: [String] = []
-        let task = try XCTUnwrap(DatabaseCommands.copySelectedEntryPassword(
+        let task = try XCTUnwrap(DatabaseCommands.copyEntryPassword(
+            entryID: try XCTUnwrap(session.workspace.selectedEntryID),
             in: session,
             action: action,
-            activeSession: { session },
+            currentSession: { session },
             authenticate: authentication.authenticate,
             copy: { copied.append($0) }
         ))
@@ -253,10 +258,11 @@ final class EntrySecretActionTests: XCTestCase {
             let action = EntrySecretAction()
             let authentication = SuspendedAuthentication()
             var copied: [String] = []
-            let task = try XCTUnwrap(DatabaseCommands.copySelectedEntryPassword(
+            let task = try XCTUnwrap(DatabaseCommands.copyEntryPassword(
+                entryID: try XCTUnwrap(session.workspace.selectedEntryID),
                 in: session,
                 action: action,
-                activeSession: { activeSession },
+                currentSession: { activeSession },
                 authenticate: authentication.authenticate,
                 copy: { copied.append($0) }
             ))
@@ -287,6 +293,118 @@ final class EntrySecretActionTests: XCTestCase {
         }
     }
 
+    func testEntryPasswordCopyDisclosesAnUnselectedEntryOnlyAfterAuthentication() async throws {
+        let session = try await makeCommandSession()
+        defer { session.lockRequest(force: true) }
+        let entry = try XCTUnwrap(session.rootGroup?.allEntries.first { $0.hasPassword })
+        session.workspace.selectedEntryID = nil
+        session.workspace.beginEntrySelection(with: entry.id)
+        let expected = session.resolvedPassword(for: entry)
+        let action = EntrySecretAction()
+        let authentication = SuspendedAuthentication()
+        var copied: [String] = []
+        let task = try XCTUnwrap(DatabaseCommands.copyEntryPassword(
+            entryID: entry.id,
+            in: session,
+            action: action,
+            currentSession: { session },
+            authenticate: authentication.authenticate,
+            copy: { copied.append($0) }
+        ))
+        await authentication.waitUntilRequested()
+        XCTAssertTrue(copied.isEmpty)
+        XCTAssertFalse(DatabaseCommands(session: session, passwordCopyAction: action).canCopyPassword(entryID: entry.id))
+
+        authentication.complete()
+        await task.value
+
+        XCTAssertEqual(copied, [expected])
+        XCTAssertNil(DatabaseCommands.copyEntryPassword(
+            entryID: UUID(), in: session, action: action, currentSession: { session }, copy: { copied.append($0) }
+        ), "an unknown entry starts no prompt")
+    }
+
+    func testEntryPasswordCopyRejectsChangedSelectionLockSessionOrRemovedEntry() async throws {
+        for change in EntryChange.allCases {
+            let session = try await makeCommandSession()
+            defer { session.lockRequest(force: true) }
+            let entry = try XCTUnwrap(session.rootGroup?.allEntries.first { $0.hasPassword })
+            session.workspace.selectedEntryID = nil
+            var activeSession: DatabaseViewModel? = session
+            let action = EntrySecretAction()
+            let authentication = SuspendedAuthentication()
+            var copied: [String] = []
+            let task = try XCTUnwrap(DatabaseCommands.copyEntryPassword(
+                entryID: entry.id,
+                in: session,
+                action: action,
+                currentSession: { activeSession },
+                authenticate: authentication.authenticate,
+                copy: { copied.append($0) }
+            ))
+            await authentication.waitUntilRequested()
+
+            switch change {
+            case .selection:
+                session.workspace.selectedEntryID = entry.id
+            case .nativeSelection:
+                let other = try XCTUnwrap(session.rootGroup?.allEntries.first { $0.id != entry.id })
+                session.workspace.setEntrySelection([entry.id, other.id])
+                XCTAssertNil(session.workspace.selectedEntryID, "Only the multiple selection changes")
+            case .lock:
+                session.lockRequest(force: true)
+            case .lockCycle:
+                session.lockRequest(force: true)
+                await session.unlock(password: "testpassword123")
+            case .activeSession:
+                activeSession = nil
+            case .removedEntry:
+                try session.deleteEntry(entry.id, sendToRecycleBin: false)
+            }
+            authentication.complete()
+            await task.value
+
+            XCTAssertTrue(copied.isEmpty, "A changed \(change) must not disclose the entry's password")
+            XCTAssertFalse(action.isAuthenticating)
+        }
+    }
+
+    func testDiscloseEntrySecretAlsoNeedsTheCallersCheckAndAValueAfterAuthentication() async throws {
+        let session = try await makeCommandSession()
+        defer { session.lockRequest(force: true) }
+        let entryID = try XCTUnwrap(session.workspace.selectedEntryID)
+        let action = EntrySecretAction()
+        var stillShown = true
+        var disclosed: [String] = []
+        func disclose(value: String?, duringPrompt: () -> Void = {}) async throws -> Task<Void, Never> {
+            let authentication = SuspendedAuthentication()
+            let task = try XCTUnwrap(DatabaseCommands.discloseEntrySecret(
+                entryID: entryID, in: session, action: action, reason: "Test",
+                currentSession: { session }, authenticate: authentication.authenticate,
+                isCurrent: { stillShown }, value: { _ in value }, disclose: { disclosed.append($0) }
+            ))
+            await authentication.waitUntilRequested()
+            XCTAssertTrue(disclosed.isEmpty, "Nothing before authentication")
+            duringPrompt()
+            authentication.complete()
+            return task
+        }
+
+        try await disclose(value: "secret", duringPrompt: { stillShown = false }).value
+        XCTAssertTrue(disclosed.isEmpty, "The caller's own check failing after the prompt discloses nothing")
+        stillShown = true
+        try await disclose(value: nil).value
+        XCTAssertTrue(disclosed.isEmpty, "A value that is gone by then discloses nothing")
+        try await disclose(value: "secret").value
+        XCTAssertEqual(disclosed, ["secret"])
+        XCTAssertFalse(action.isAuthenticating)
+        stillShown = false
+        XCTAssertNil(DatabaseCommands.discloseEntrySecret(
+            entryID: entryID, in: session, action: action, reason: "Test", currentSession: { session },
+            authenticate: {}, isCurrent: { stillShown }, value: { _ in "secret" }, disclose: { disclosed.append($0) }
+        ), "A failing check starts no prompt")
+    }
+
     private func makeCommandSession() async throws -> DatabaseViewModel {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
         let session = DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: url))
@@ -297,6 +415,10 @@ final class EntrySecretActionTests: XCTestCase {
 
     private enum CommandChange: CaseIterable {
         case selection, draft, lockCycle, activeSession
+    }
+
+    private enum EntryChange: CaseIterable {
+        case selection, nativeSelection, lock, lockCycle, activeSession, removedEntry
     }
 
     private enum AuthenticationError: Error {

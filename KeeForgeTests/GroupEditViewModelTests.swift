@@ -278,6 +278,17 @@ final class GroupEditViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.makeDraftPayload().searchingEnabled, .inherit)
     }
 
+    func testPendingParentCountsAsDirtyAndReturningToOriginalClearsIt() {
+        let form = GroupEditViewModel(editing: makeGroup(), isHiddenFromAutoFill: false)
+        XCTAssertNil(form.pendingParentGroupID)
+        let parent = UUID()
+        form.parentGroupID = parent
+        XCTAssertEqual(form.pendingParentGroupID, parent)
+        XCTAssertTrue(form.canSave)
+        form.parentGroupID = nil
+        XCTAssertFalse(form.isDirty)
+    }
+
     // MARK: - Identity
 
     func testEachEditorHasItsOwnIdentity() {

@@ -52,14 +52,6 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
         return stem.isEmpty ? filename : stem
     }
 
-    var showsFilenameSubtitle: Bool {
-        let trimmedNickname = nickname?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let trimmedNickname, !trimmedNickname.isEmpty else {
-            return false
-        }
-        return trimmedNickname != filename && trimmedNickname != (filename as NSString).deletingPathExtension
-    }
-
     var hasAssociatedKeyFile: Bool {
         keyFileBookmarkData != nil || keyFileFilename != nil
     }

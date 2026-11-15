@@ -26,6 +26,57 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         XCTAssertNil(workspace.selectedEntryID)
     }
 
+    func testCollectionIsExclusiveWithGroupAndTagAndClearsTheEntry() {
+        let workspace = DatabaseWorkspaceState()
+        let groupID = UUID()
+        let entryID = UUID()
+        workspace.selectedGroupID = groupID
+        workspace.selectedEntryID = entryID
+
+        workspace.selectedCollection = .allEntries
+        XCTAssertNil(workspace.selectedGroupID)
+        XCTAssertNil(workspace.selectedEntryID)
+        workspace.selectedEntryID = entryID
+        workspace.selectedCollection = .allEntries
+        XCTAssertEqual(workspace.selectedEntryID, entryID, "Reselecting the same collection keeps the entry")
+
+        workspace.selectedCollection = .verificationCodes
+        XCTAssertNil(workspace.selectedEntryID)
+
+        workspace.selectedTag = "Work"
+        XCTAssertNil(workspace.selectedCollection)
+        workspace.selectedCollection = .allEntries
+        XCTAssertNil(workspace.selectedTag)
+        workspace.selectedGroupID = groupID
+        XCTAssertNil(workspace.selectedCollection)
+    }
+
+    func testReconciliationKeepsACollectionAndClearSelectionDropsIt() {
+        let workspace = DatabaseWorkspaceState()
+        let rootID = UUID()
+        workspace.selectedCollection = .verificationCodes
+        workspace.reconcileSelection(
+            visibleRootGroupID: rootID,
+            groupExists: { $0 == rootID },
+            tagExists: { _ in false },
+            entryIsSelectable: { _ in true }
+        )
+        XCTAssertEqual(workspace.selectedCollection, .verificationCodes)
+        XCTAssertNil(workspace.selectedGroupID, "A collection is a selection; the root fallback must not replace it")
+
+        workspace.reconcileSelection(
+            visibleRootGroupID: nil,
+            groupExists: { _ in false },
+            tagExists: { _ in false },
+            entryIsSelectable: { _ in true }
+        )
+        XCTAssertNil(workspace.selectedCollection)
+
+        workspace.selectedCollection = .allEntries
+        workspace.resetForLock()
+        XCTAssertNil(workspace.selectedCollection)
+    }
+
     func testReconciliationPreservesTagUntilItsLastCarrierDisappears() {
         let workspace = DatabaseWorkspaceState()
         let rootID = UUID()
@@ -108,6 +159,33 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         XCTAssertNil(workspace.entrySelection)
     }
 
+    func testSettingTheEntrySelectionEntersAndReplacesSelectionMode() {
+        let workspace = DatabaseWorkspaceState()
+        let first = UUID()
+        let second = UUID()
+        let third = UUID()
+        workspace.selectedEntryID = first
+        XCTAssertEqual(workspace.commandEntryID, first)
+
+        workspace.setEntrySelection([first, second])
+        XCTAssertEqual(workspace.entrySelection, [first, second])
+        XCTAssertNil(workspace.commandEntryID, "bulk selection disables the single-entry commands")
+        XCTAssertEqual(workspace.selectedEntryID, first, "the detail keeps its entry")
+
+        workspace.setEntrySelection([third])
+        XCTAssertEqual(workspace.entrySelection, [third], "the set replaces, it does not merge")
+        workspace.toggleEntrySelection(first)
+        XCTAssertEqual(workspace.entrySelection, [first, third])
+        workspace.setEntrySelection([])
+        XCTAssertEqual(workspace.entrySelection, [], "an empty set keeps the mode")
+
+        workspace.endEntrySelection()
+        XCTAssertEqual(workspace.commandEntryID, first)
+        workspace.setEntrySelection([second, third])
+        workspace.resetForLock()
+        XCTAssertNil(workspace.entrySelection)
+    }
+
     func testReconciliationDropsEntriesThatCanNoLongerBeSelected() {
         let workspace = DatabaseWorkspaceState()
         let rootID = UUID()
@@ -150,7 +228,6 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         workspace.isSearchActive = true
         workspace.request(.newEntry)
         workspace.request(.newEntry)
-        workspace.request(.searchFocus)
         workspace.request(.newGroup)
         workspace.request(.editEntry)
         workspace.request(.deleteSelection)
@@ -164,7 +241,6 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         XCTAssertNil(workspace.entrySelection)
         XCTAssertFalse(workspace.isSearchActive)
         XCTAssertEqual(workspace.newEntryRequestID, 2)
-        XCTAssertEqual(workspace.searchFocusRequestID, 1)
         XCTAssertEqual(workspace.newGroupRequestID, 1)
         XCTAssertEqual(workspace.editEntryRequestID, 1)
         XCTAssertEqual(workspace.deleteSelectionRequestID, 1)
@@ -195,6 +271,7 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
             { workspace.beginEntrySelection(with: UUID()) },
             { workspace.beginEntrySelection() },
             { workspace.toggleEntrySelection(UUID()) },
+            { workspace.setEntrySelection([UUID(), UUID()]) },
             { workspace.endEntrySelection() },
         ]
         for action in actions {

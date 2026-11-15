@@ -1,52 +1,20 @@
+#if os(iOS)
 import StoreKit
 import SwiftUI
-
-#if os(macOS)
-/// Keeps the menu bar quick search on the app's active session, and lets it
-/// front this window, or open a new one once it has been closed: `openWindow`
-/// only exists inside a scene.
-struct MacQuickAccessMainWindowHookup: ViewModifier {
-    let controller: MacQuickAccessController
-    let sshAgent: MacSSHAgentController
-    let activeSession: DatabaseViewModel?
-    @Environment(\.openWindow) private var openWindow
-
-    func body(content: Content) -> some View {
-        content
-            .background(MacWindowReader { window in
-                if let window { controller.mainWindow = window }
-            })
-            .onAppear {
-                controller.openMainWindow = { openWindow(id: KeeForgeApp.mainWindowID) }
-            }
-            .onChange(of: activeSession.map(ObjectIdentifier.init), initial: true) {
-                controller.activeSession = activeSession
-                sshAgent.activeSessionDidChange()
-            }
-    }
-}
-#endif
 
 struct AppRootView: View {
     @Bindable var listViewModel: DatabaseListViewModel
     let sessionStore: DatabaseSessionStore
-    #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #elseif !KEEFORGE_DIRECT_DOWNLOAD
-    @Environment(\.requestReview) private var requestReview
-    #endif
     @Environment(\.scenePhase) private var scenePhase
     let routing: AppRoutingCoordinator
-    #if os(macOS)
-    @State private var showsMacTransitionNotice = false
-    #else
     /// The layout on screen. It trails the size class by one update so the
     /// workspace is carried over before the other layout is built.
     @State private var appliedRegularLayout: Bool?
-    #endif
 
     var body: some View {
         @Bindable var routing = routing
+        @Bindable var enrollmentCoordinator = routing.enrollment
         Group {
             if !routing.didResolveInitialRoute {
                 LaunchRoutingView()
@@ -54,7 +22,6 @@ struct AppRootView: View {
                 rootContent
             }
         }
-        #if os(iOS)
         .environment(\.horizontalSizeClass, usesRegularLayout ? .regular : .compact)
         .onAppear {
             appliedRegularLayout = horizontalSizeClass == .regular
@@ -70,73 +37,29 @@ struct AppRootView: View {
                 .accessibilityIdentifier("ui-testing.switch-layout")
             }
         }
-        #endif
         .task {
-            let sessionStore = self.sessionStore
-            listViewModel.autoFillEnabledRefreshHandler = { databaseID in
-                sessionStore.session(for: databaseID)?.populateCredentialStoreIfUnlocked()
-            }
-            #if os(macOS) && !KEEFORGE_DIRECT_DOWNLOAD
-            // macOS has no scene-based StoreKit review entry point; inject the
-            // SwiftUI RequestReviewAction so ReviewPromptService can present the
-            // modern prompt without a view dependency.
-            ReviewPromptService.requestReviewHandler = { requestReview() }
-            #endif
             await resolveInitialExperienceIfNeeded()
         }
         .onOpenURL { url in
             handleOpenURL(url)
         }
-        #if os(macOS)
-        // Above the locked/unlocked switch: a lock must not remount it, since
-        // mounting counts as opening the session and prompts.
-        .background {
-            if let activeSession = sessionStore.activeSession {
-                MacBiometricAutoUnlockObserver(viewModel: activeSession)
-                    .id(ObjectIdentifier(activeSession))
-            }
-        }
-        .sheet(isPresented: $showsMacTransitionNotice) {
-            MacTransitionNoticeView()
-                .frame(
-                    minWidth: 520,
-                    idealWidth: 560,
-                    maxWidth: 640,
-                    minHeight: 500,
-                    maxHeight: MacSheetMetrics.maxHeight
-                )
-        }
-        #endif
         .sheet(item: $routing.whatsNewRelease, onDismiss: finishWhatsNewPresentation) { release in
             WhatsNewView(release: release)
-                #if os(macOS)
-                .frame(
-                    minWidth: 520,
-                    idealWidth: 560,
-                    maxWidth: 640,
-                    minHeight: 500,
-                    maxHeight: MacSheetMetrics.maxHeight
-                )
-                #else
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
-                #endif
         }
         .sheet(item: enrollmentPresentation) { enrollment in
             // The session is re-read at presentation time; when it vanished in
             // between (locked or closed), the `onChange` below re-parks.
-            if let activeSession = sessionStore.activeSession {
-                let enrollmentSession = AppRoutingCoordinator.Session(
-                    identity: ObjectIdentifier(activeSession),
-                    lockCycleID: activeSession.lockCycleID,
-                    isUnlocked: activeSession.state == .unlocked
-                )
+            if let activeSession = sessionStore.activeSession,
+               let enrollmentSession = routingSession,
+               routing.enrollment.canApplyEnrollment(id: enrollment.id, session: enrollmentSession) {
                 TOTPEnrollmentDestinationView(
                     databaseViewModel: activeSession,
                     uri: enrollment.uri
                 ) {
-                    routing.updateSession(routingSession)
-                    routing.cancelEnrollment(
+                    routing.enrollment.updateSession(routingSession)
+                    routing.enrollment.cancelEnrollment(
                         id: enrollment.id,
                         session: enrollmentSession
                     )
@@ -144,8 +67,8 @@ struct AppRootView: View {
                 // The parked copy is only released once the sheet is actually
                 // on screen; until then it is the retry path.
                 .onAppear {
-                    routing.updateSession(routingSession)
-                    routing.enrollmentDidAppear(
+                    routing.enrollment.updateSession(routingSession)
+                    routing.enrollment.enrollmentDidAppear(
                         id: enrollment.id,
                         session: enrollmentSession
                     )
@@ -157,16 +80,12 @@ struct AppRootView: View {
                 // otherwise keep enrolling the old secret into the old
                 // database.
                 .id("\(enrollment.id)-\(enrollmentSession.identity)-\(enrollmentSession.lockCycleID)")
-                #if os(macOS)
-                .macSheetFrame()
-                #else
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
-                #endif
             }
         }
         .onChange(of: routingSession, initial: true) { _, session in
-            routing.updateSession(session)
+            routing.enrollment.updateSession(session)
         }
         .onChange(of: routing.databaseTransition?.id, initial: true) { _, _ in
             finishDatabaseTransitionIfReady()
@@ -174,29 +93,26 @@ struct AppRootView: View {
         .onChange(of: databaseTransitionState) { _, _ in
             finishDatabaseTransitionIfReady()
         }
-        .task(id: routing.deferredPresentation?.id) {
-            guard let requestID = routing.deferredPresentation?.id else { return }
+        .task(id: routing.enrollment.deferredPresentation?.id) {
+            guard let requestID = routing.enrollment.deferredPresentation?.id else { return }
             // SwiftUI drops presentations raised during another sheet's dismissal.
             do {
                 try await Task.sleep(for: .milliseconds(450))
             } catch {
                 return
             }
-            routing.completeDeferredPresentation(id: requestID)
+            routing.enrollment.completeDeferredPresentation(id: requestID)
         }
         .onChange(of: scenePhase) { _, _ in
-            routing.discardExpiredEnrollment()
+            routing.enrollment.discardExpiredEnrollment()
         }
-        .onChange(of: listViewModel.databases.map(\.id)) { _, identifiers in
-            sessionStore.retireSessionsMissingFromDatabaseList(identifiers)
-        }
-        .alert(item: $routing.enrollmentAlert, content: totpEnrollmentAlertContent)
+        .alert(item: $enrollmentCoordinator.enrollmentAlert) { $0.alertContent }
     }
 
-    private var routingSession: AppRoutingCoordinator.Session? {
+    private var routingSession: TOTPEnrollmentCoordinator.Session? {
         sessionStore.activeSession.map {
-            AppRoutingCoordinator.Session(
-                identity: ObjectIdentifier($0), lockCycleID: $0.lockCycleID, isUnlocked: $0.state == .unlocked
+            TOTPEnrollmentCoordinator.Session(
+                databaseID: $0.databaseReference.id, identity: ObjectIdentifier($0), lockCycleID: $0.lockCycleID, isUnlocked: $0.state == .unlocked
             )
         }
     }
@@ -206,45 +122,16 @@ struct AppRootView: View {
     }
 
     private var enrollmentPresentation: Binding<PendingTOTPEnrollment?> {
-        let enrollmentID = routing.presentedEnrollment?.id
+        let enrollmentID = routing.enrollment.presentedEnrollment?.id
         let session = routingSession
         return Binding(
-            get: { routing.presentedEnrollment },
+            get: { routing.enrollment.presentedEnrollment },
             set: { enrollment in
                 guard enrollment == nil, let enrollmentID else { return }
-                routing.updateSession(routingSession)
-                routing.cancelEnrollment(id: enrollmentID, session: session)
+                routing.enrollment.updateSession(routingSession)
+                routing.enrollment.cancelEnrollment(id: enrollmentID, session: session)
             }
         )
-    }
-
-    private func totpEnrollmentAlertContent(for alert: TOTPEnrollmentAlert) -> Alert {
-        switch alert {
-        case .unsupportedLink:
-            Alert(
-                title: Text("Couldn’t Add Verification Code"),
-                message: Text("This setup link uses an unsupported code type. Only time-based (TOTP) codes are supported."),
-                dismissButton: .default(Text("OK"))
-            )
-        case .invalidLink:
-            Alert(
-                title: Text("Couldn’t Add Verification Code"),
-                message: Text("The verification code setup link is invalid or incomplete."),
-                dismissButton: .default(Text("OK"))
-            )
-        case .unlockNeeded:
-            Alert(
-                title: Text("Unlock a Database"),
-                message: Text("Open and unlock a database, and KeeForge will then add the verification code."),
-                dismissButton: .default(Text("OK"))
-            )
-        case .linkExpired:
-            Alert(
-                title: Text("Couldn’t Add Verification Code"),
-                message: Text("This setup link expired. Open it again from the service to add the verification code."),
-                dismissButton: .default(Text("OK"))
-            )
-        }
     }
 
     @ViewBuilder
@@ -277,16 +164,9 @@ struct AppRootView: View {
                             )
                         }
                     }
-                    #if os(iOS)
                     .appSettingsToolbarButton()
-                    #endif
                 }
                 .navigationSplitViewStyle(.balanced)
-                #if os(macOS)
-                // Window title stays "KeeForge" until a database is unlocked;
-                // the unlocked workspace sets the title to the database name.
-                .navigationTitle("KeeForge")
-                #endif
             }
         } else {
             if let activeSession = sessionStore.activeSession {
@@ -308,16 +188,9 @@ struct AppRootView: View {
     }
 
     private var usesRegularLayout: Bool {
-        // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
-        // uses the regular (split-view) layout.
-        #if os(iOS)
         appliedRegularLayout ?? (horizontalSizeClass == .regular)
-        #else
-        true
-        #endif
     }
 
-    #if os(iOS)
     /// iPhone Duo opening or closing, or an iPad window resizing.
     private func applyLayout(regular: Bool) {
         guard regular != usesRegularLayout else { return }
@@ -335,21 +208,13 @@ struct AppRootView: View {
         false
         #endif
     }()
-    #endif
 
     private func resolveInitialExperienceIfNeeded() async {
         guard !routing.didResolveInitialRoute else { return }
-        var showsTransitionNotice = false
-        #if os(macOS)
-        if sessionStore.activeSession == nil {
-            showsTransitionNotice = MacTransitionNoticeService.claimPresentation()
-            showsMacTransitionNotice = showsTransitionNotice
-        }
-        #endif
-        let mayAutoOpen = sessionStore.activeSession == nil && !showsTransitionNotice
+        let mayAutoOpen = sessionStore.activeSession == nil
         if let reference = routing.resolveInitialRoute(
             hasActiveSession: sessionStore.activeSession != nil,
-            showsTransitionNotice: showsTransitionNotice,
+            showsTransitionNotice: false,
             release: mayAutoOpen ? WhatsNewPresentationService.releaseToPresent() : nil,
             autoOpenReference: mayAutoOpen ? listViewModel.databaseToAutoOpenOnLaunch() : nil
         ) {
@@ -373,7 +238,7 @@ struct AppRootView: View {
         case .close:
             returnToDatabaseList()
         }
-        routing.updateSession(routingSession)
+        routing.enrollment.updateSession(routingSession)
     }
 
     private func openDatabaseAfterLaunchPresentation(_ reference: DatabaseReference) {
@@ -386,8 +251,8 @@ struct AppRootView: View {
         if let reference = routing.finishLaunchPresentation() {
             openDatabase(reference)
         }
-        routing.updateSession(routingSession)
-        routing.resumeEnrollmentAfterLaunchPresentation()
+        routing.enrollment.updateSession(routingSession)
+        routing.enrollment.resumeEnrollmentAfterLaunchPresentation()
     }
 
     private func openCreatedDatabase(_ createdDatabase: CreatedDatabase) {
@@ -411,13 +276,13 @@ struct AppRootView: View {
             return
         }
 
-        routing.updateSession(routingSession)
+        routing.enrollment.updateSession(routingSession)
         switch AppRoutingCoordinator.classify(url) {
         case .enrollment(let uri):
-            routing.receiveEnrollment(uri)
+            routing.enrollment.receiveEnrollment(uri, destination: routingSession)
             return
         case .invalidEnrollment(let alert):
-            routing.enrollmentAlert = alert
+            routing.enrollment.enrollmentAlert = alert
             return
         case .database:
             break
@@ -466,4 +331,4 @@ private struct LaunchRoutingView: View {
         }
     }
 }
-
+#endif
