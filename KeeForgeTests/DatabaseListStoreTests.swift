@@ -85,6 +85,41 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertTrue(stored.hasUnverifiedRelink)
     }
 
+    func testHardwarePreferenceRejectsStaleTargetWithoutKeyDeletion() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "hardware-old.kdbx"))
+        let replacement = try makeTemporaryFileURL(name: "hardware-new.kdbx")
+        _ = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: original.id, to: replacement))
+        var deletes = 0
+        let desired = HardwareKeyConfiguration(transport: .nfc, slot: .one)
+        XCTAssertEqual(DatabaseListStore.setHardwareKey(desired, for: original, deleteKeys: { _, _ in deletes += 1 }), .rejected)
+        XCTAssertEqual(deletes, 0)
+        XCTAssertTrue(DatabaseListStore.remove(id: original.id))
+        XCTAssertEqual(DatabaseListStore.setHardwareKey(desired, for: original, deleteKeys: { _, _ in deletes += 1 }), .rejected)
+        XCTAssertEqual(deletes, 0)
+    }
+
+    func testHardwarePreferenceReportsKeyEffectWhenRegistryWriteFails() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "hardware-fault.kdbx"))
+        var io = DurableFileWriteIO()
+        io.synchronizeFile = { _ in throw POSIXError(.EIO) }
+        var deletes = 0
+        let desired = HardwareKeyConfiguration(transport: .nfc, slot: .one)
+        XCTAssertEqual(DatabaseListStore.setHardwareKey(desired, for: reference, io: io, deleteKeys: { _, _ in deletes += 1 }), .keyEffectUnconfirmed)
+        XCTAssertEqual(deletes, 1)
+        XCTAssertNil(DatabaseListStore.databases.first?.hardwareKey)
+    }
+
+    func testHardwarePreferenceReportsVisibleUnconfirmed() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "hardware-visible.kdbx"))
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        var deletes = 0
+        let desired = HardwareKeyConfiguration(transport: .nfc, slot: .one)
+        XCTAssertEqual(DatabaseListStore.setHardwareKey(desired, for: reference, io: io, deleteKeys: { _, _ in deletes += 1 }), .visibleUnconfirmed)
+        XCTAssertEqual(deletes, 1)
+        XCTAssertEqual(DatabaseListStore.databases.first?.hardwareKey, desired)
+    }
+
     func testKeyAssociationRejectsStaleObservationAndMissingRow() throws {
         let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "association-old.kdbx"))
         let replacement = try makeTemporaryFileURL(name: "association-new.kdbx")

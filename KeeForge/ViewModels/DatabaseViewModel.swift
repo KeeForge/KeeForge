@@ -961,9 +961,11 @@ final class DatabaseViewModel {
         hardwareKeyTransportsProvider()
     }
 
-    func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?) {
-        DatabaseListStore.setHardwareKey(hardwareKey, for: databaseReference)
-        refreshDatabaseReference()
+    func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?) async -> DatabaseListStore.HardwarePreferenceOutcome {
+        let observed = databaseReference
+        let outcome = await Task.detached { DatabaseListStore.setHardwareKey(hardwareKey, for: observed) }.value
+        if databaseReference == observed { refreshDatabaseReference() }
+        return outcome
     }
 
     func cancelHardwareKeyRequest() {

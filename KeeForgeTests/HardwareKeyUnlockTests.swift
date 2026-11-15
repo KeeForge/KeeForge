@@ -458,10 +458,12 @@ final class HardwareKeyUnlockTests: XCTestCase {
         XCTAssertFalse(KeychainService.hasStoredKey(for: reference.id), "Turning the YubiKey on changes what the item means")
 
         try requireStoredKey(for: reference.id)
-        DatabaseListStore.setHardwareKey(HardwareKeyConfiguration(transport: .nfc, slot: .one), for: reference)
+        let withHardware = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        DatabaseListStore.setHardwareKey(HardwareKeyConfiguration(transport: .nfc, slot: .one), for: withHardware)
         XCTAssertTrue(KeychainService.hasStoredKey(for: reference.id), "A slot change keeps the pre-key")
 
-        DatabaseListStore.setHardwareKey(nil, for: reference)
+        let withOtherSlot = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        DatabaseListStore.setHardwareKey(nil, for: withOtherSlot)
         XCTAssertFalse(KeychainService.hasStoredKey(for: reference.id), "Turning the YubiKey off changes what the item means")
         XCTAssertNil(DatabaseListStore.databases.first { $0.id == reference.id }?.hardwareKey)
     }

@@ -1066,20 +1066,42 @@ enum DatabaseListStore {
     /// Adding or removing the hardware key changes what the stored Quick
     /// Launch key means (composite key vs. pre-key), so that key is dropped
     /// and the next successful unlock stores the right one.
-    static func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?, for reference: DatabaseReference) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            guard updatedReference.hardwareKey != hardwareKey else { return }
+    enum HardwarePreferenceOutcome: Equatable, Sendable {
+        case saved, unchanged, rejected, notPublished, visibleUnconfirmed, keyEffectUnconfirmed
+    }
 
-            if (updatedReference.hardwareKey == nil) != (hardwareKey == nil) {
-                KeychainService.deleteCompositeKey(for: updatedReference.id)
-                if let legacyFilename = updatedReference.legacyKeychainFilename {
-                    KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-                    updatedReference.legacyKeychainFilename = nil
-                }
+    @discardableResult
+    static func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?, for reference: DatabaseReference,
+                               io: DurableFileWriteIO = .init(),
+                               deleteKeys: (UUID, String?) -> Void = { id, legacy in
+                                   KeychainService.deleteCompositeKey(for: id)
+                                   if let legacy { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
+                               }) -> HardwarePreferenceOutcome {
+        guard let token = try? PendingLocalSaveStore.capturePreference(.init(reference)) else { return .rejected }
+        var keyEffect = false
+        let result = mutateRegistry(io: io, authorize: { operation in
+            try PendingLocalSaveStore.withIdlePreferenceAuthorization(token, nonBlocking: true, operation)
+        }) { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == reference.id }) else { return .missing }
+            guard token.observation.matches(rows[index]), rows[index].hardwareKey == reference.hardwareKey,
+                  rows[index].legacyKeychainFilename == reference.legacyKeychainFilename else { return .rejected }
+            guard rows[index].hardwareKey != hardwareKey else { return .noop(()) }
+            if (rows[index].hardwareKey == nil) != (hardwareKey == nil) {
+                let legacy = rows[index].legacyKeychainFilename
+                let sharedLegacy = legacy.map { name in rows.contains { $0.id != reference.id && $0.legacyKeychainFilename == name } } ?? false
+                deleteKeys(reference.id, sharedLegacy ? nil : legacy)
+                keyEffect = true
+                rows[index].legacyKeychainFilename = nil
             }
-            updatedReference.hardwareKey = hardwareKey
-            update(updatedReference)
+            rows[index].hardwareKey = hardwareKey
+            return .write(())
+        }
+        switch result {
+        case .durable: return .saved
+        case .noop: return .unchanged
+        case .missing, .rejected: return .rejected
+        case .notPublished: return keyEffect ? .keyEffectUnconfirmed : .notPublished
+        case .visibleUnconfirmed: return .visibleUnconfirmed
         }
     }
 
