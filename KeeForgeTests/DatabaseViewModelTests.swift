@@ -3518,8 +3518,11 @@ final class DatabaseViewModelTests: XCTestCase {
         let remoteHash = "hash-abcdefghijklmnop"
         let lastSyncedAt = Date(timeIntervalSince1970: 123)
         let invalidData = Data("not-a-kdbx".utf8)
+        let observedReference = makeCloudReference()
+        DatabaseListStore.update(observedReference)
         let resolvedReference = {
-            var reference = makeCloudReference(remoteRev: remoteRev)
+            var reference = observedReference
+            reference.updateCloudSyncMetadata { $0.remoteRev = remoteRev }
             reference.updateCloudSyncMetadata { metadata in
                 metadata.remoteContentHash = remoteHash
                 metadata.lastSyncedAt = lastSyncedAt
@@ -3528,9 +3531,6 @@ final class DatabaseViewModelTests: XCTestCase {
         }()
         let cacheURL = DatabaseListStore.cacheLocation(for: resolvedReference)
 
-        let observedReference = makeCloudReference()
-        print("diagnostic 12 sameIdentity=\(observedReference.id == resolvedReference.id) registryPresent=\(DatabaseListStore.databases.contains { $0.id == observedReference.id })")
-        TestDatabaseSupport.cloudDiagnosticSnapshot("12 before", reference: observedReference, savedSHA: nil, openSHA: nil)
         let vm = DatabaseViewModel(
             databaseReference: observedReference,
             cloudSyncOperation: { _, _ in
@@ -3562,6 +3562,31 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(diagnostics.details.contains("/Vaults/vault.kdbx"))
         XCTAssertFalse(diagnostics.details.contains("acct-1"))
         XCTAssertFalse(diagnostics.details.contains("fileId"))
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == observedReference.id })
+        XCTAssertEqual(current.cloudSyncMetadata?.remoteRev, remoteRev)
+        XCTAssertEqual(current.cloudSyncMetadata?.remoteContentHash, remoteHash)
+        XCTAssertEqual(current.cloudSyncMetadata?.lastSyncedAt, lastSyncedAt)
+    }
+
+    func testCloudParseFailureRejectsForeignResolutionMetadata() async throws {
+        let observed = makeCloudReference(remoteRev: "observed-revision")
+        DatabaseListStore.update(observed)
+        var foreign = makeCloudReference(remoteRev: "foreign-revision-private")
+        foreign.updateCloudSyncMetadata { $0.remoteContentHash = "foreign-hash-private" }
+        let cacheURL = DatabaseListStore.cacheLocation(for: observed)
+        let invalidData = Data("not-a-kdbx".utf8)
+        let resolved = foreign
+        let vm = DatabaseViewModel(databaseReference: observed, cloudSyncOperation: { _, _ in
+            CloudSyncResolution(reference: resolved, localURL: cacheURL, data: invalidData, status: .downloaded)
+        })
+        await vm.unlock(password: fixturePassword)
+        guard case .error(let failure) = vm.state else { return XCTFail("Expected parse failure") }
+        let details = try XCTUnwrap(failure.diagnostics).details
+        XCTAssertFalse(details.contains("foreign-revi"))
+        XCTAssertFalse(details.contains("foreign-hash"))
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == observed.id })
+        XCTAssertEqual(current.cloudSyncMetadata, observed.cloudSyncMetadata)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == resolved.id })
     }
 
     func testBiometricFailureDiagnosticsDescribeBiometricMethodWithoutPasswordOrKeyFileData() throws {
