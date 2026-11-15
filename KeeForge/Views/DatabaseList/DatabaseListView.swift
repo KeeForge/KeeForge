@@ -70,6 +70,7 @@ struct DatabaseListView: View {
         .onAppear {
             refreshUsageStatsVisibility()
             viewModel.reload()
+            showRegistryReadError(viewModel.registryReadError)
         }
         .task {
             await viewModel.refreshAutoFillStatus()
@@ -81,6 +82,9 @@ struct DatabaseListView: View {
         }
         .onChange(of: showDatabaseUsageStats) { _, _ in
             viewModel.reload()
+        }
+        .onChange(of: viewModel.registryReadError) { _, error in
+            showRegistryReadError(error)
         }
         .fileImporter(
             isPresented: Binding(
@@ -766,6 +770,11 @@ struct DatabaseListView: View {
             title: String(localized: "Couldn’t Open \(provider.displayName)"),
             message: error.localizedDescription
         )
+    }
+
+    private func showRegistryReadError(_ message: String?) {
+        guard let message else { return }
+        selectionAlert = .init(title: String(localized: "Databases"), message: message)
     }
 
 }

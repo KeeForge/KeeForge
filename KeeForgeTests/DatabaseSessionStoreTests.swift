@@ -362,6 +362,46 @@ final class DatabaseSessionStoreTests: XCTestCase {
         XCTAssertNotNil(retained.sessionKey)
     }
 
+    func testUnavailableRegistryPreservesDirtySessionUntilValidRemoval() async throws {
+        let session = try await makeUnlockedSession()
+        defer { session.lock() }
+        DatabaseListStore.update(session.databaseReference)
+        let list = DatabaseListViewModel()
+        let store = DatabaseSessionStore()
+        store.adopt(session)
+        store.activeSessionID = session.databaseReference.id
+        let root = try XCTUnwrap(session.rootGroup)
+        session.draft = try DatabaseDraft(rootGroup: root, meta: KPMeta(recycleBin: root.recycleBinUUID.map { .group($0) }),
+                                          sessionKey: XCTUnwrap(session.sessionKey)).apply(.createEntry(
+            parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: root), draft: EntryDraftPayload(title: "Unsaved", password: "secret")))
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let valid = try Data(contentsOf: url)
+        try Data("{broken".utf8).write(to: url)
+        list.reload()
+        XCTAssertNotNil(list.registryReadError)
+        store.retireSessionsMissingFromDatabaseList(list.databases.map(\.id))
+        XCTAssertTrue(store.session(for: session.databaseReference.id) === session)
+        XCTAssertEqual(session.state, .unlocked)
+        XCTAssertNotNil(session.draft)
+        try FileManager.default.removeItem(at: url)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+        list.reload()
+        XCTAssertNotNil(list.registryReadError)
+        store.retireSessionsMissingFromDatabaseList(list.databases.map(\.id))
+        XCTAssertNotNil(session.draft)
+        try FileManager.default.removeItem(at: url)
+        try valid.write(to: url)
+        list.reload()
+        XCTAssertNil(list.registryReadError)
+        XCTAssertNotNil(session.draft)
+        try Data("[]".utf8).write(to: url)
+        list.reload()
+        XCTAssertNil(list.registryReadError)
+        store.retireSessionsMissingFromDatabaseList(list.databases.map(\.id))
+        XCTAssertNil(store.session(for: session.databaseReference.id))
+        XCTAssertEqual(session.state, .locked)
+    }
+
     private func makeReference() throws -> DatabaseReference {
         try TestDatabaseSupport.makeReference(
             for: KDBXTestFixture.test.url(in: Bundle(for: Self.self)),

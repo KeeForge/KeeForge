@@ -86,17 +86,26 @@ enum DatabaseListStore {
         }
     }
 
+    static func readDatabasesStrict() throws -> [DatabaseReference] {
+        guard let rows = try readRegistry(at: databaseListURL) else { throw CocoaError(.fileReadNoSuchFile) }
+        return rows
+    }
+
     private static func mutateRegistry<T>(onMissing: (() -> [DatabaseReference])? = nil, io: DurableFileWriteIO = .init(),
+                                          readingTarget: URL? = nil, validateTarget: ((URL) throws -> Bool)? = nil,
                                           authorize: (((() throws -> RegistryResult<T>) throws -> RegistryResult<T>))? = nil,
                                           _ body: (inout [DatabaseReference]) throws -> RegistryDecision<T>) -> RegistryResult<T> {
         guard let anchor = AppGroupContainer.resolvedURL else { return .notPublished(CocoaError(.fileWriteNoPermission)) }
         var coordinationError: NSError?
         var result: RegistryResult<T>?
-        NSFileCoordinator().coordinate(writingItemAt: databaseListURL, options: [], error: &coordinationError) { url in
+        func access(_ url: URL, _ target: URL?) {
             guard stateLock.try() else { result = .notPublished(PendingLocalSaveStore.OwnershipError.recoveryRequired); return }
             defer { stateLock.unlock() }
             do {
                 let mutate = { () throws -> RegistryResult<T> in
+                    if let validateTarget {
+                        guard let target, try validateTarget(target) else { return .rejected }
+                    }
                     var rows: [DatabaseReference]
                     if let existing = try readRegistry(at: url) { rows = existing }
                     else if let onMissing { rows = onMissing() }
@@ -118,6 +127,12 @@ enum DatabaseListStore {
                 }
                 result = try authorize?(mutate) ?? mutate()
             } catch { result = .notPublished(error) }
+        }
+        let coordinator = NSFileCoordinator()
+        if let readingTarget {
+            coordinator.coordinate(readingItemAt: readingTarget, options: [], writingItemAt: databaseListURL, options: [], error: &coordinationError) { target, url in access(url, target) }
+        } else {
+            coordinator.coordinate(writingItemAt: databaseListURL, options: [], error: &coordinationError) { url in access(url, nil) }
         }
         if let error = coordinationError {
             if case .durable(let value) = result { return .visibleUnconfirmed(value, error) }
@@ -1707,7 +1722,7 @@ enum DatabaseListStore {
     /// cloud-backed, or has no bookmark (a KeeForge-only database lives in
     /// that cache, so reseeding it would overwrite the database itself).
     @discardableResult
-    static func relinkLocalDatabase(id: UUID, to url: URL) throws -> DatabaseReference? {
+    static func relinkLocalDatabase(observed: DatabaseReference, to url: URL, io: DurableFileWriteIO = .init()) throws -> DatabaseReference? {
         let accessed = url.startAccessingSecurityScopedResource()
         defer {
             if accessed {
@@ -1719,32 +1734,40 @@ enum DatabaseListStore {
             throw LocalDatabaseFileError.databaseInTrash
         }
         let bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
-
-        let relinked = try withStateLock { () throws -> DatabaseReference? in
-            var currentDatabases = loadDatabases()
-            guard let index = currentDatabases.firstIndex(where: { $0.id == id }),
-                  currentDatabases[index].cloudSyncMetadata == nil,
-                  currentDatabases[index].bookmarkData != nil else {
-                return nil
-            }
-            if let duplicate = existingLocalReference(matching: url, in: currentDatabases.filter { $0.id != id }) {
+        let target = try PendingLocalSaveStore.targetIdentity(at: url)
+        guard let snapshot = try readRegistry(at: databaseListURL) else { return nil }
+        let duplicate = existingLocalReference(matching: url, in: snapshot.filter { $0.id != observed.id })
+        let result = mutateRegistry(io: io, readingTarget: url, validateTarget: { try PendingLocalSaveStore.targetIdentity(at: $0) == target }, authorize: { operation in
+            try PendingLocalSaveStore.withRelinkAuthorization(for: observed.id, operation)
+        }) { rows -> RegistryDecision<DatabaseReference> in
+            guard let index = rows.firstIndex(where: { $0.id == observed.id }) else { return .missing }
+            guard rows.count == snapshot.count, zip(rows, snapshot).allSatisfy({ current, previous in
+                current.id == previous.id && current.bookmarkData == previous.bookmarkData && current.isCloudBacked == previous.isCloudBacked
+            }), PendingLocalSaveStore.PreferenceObservation(observed).matches(rows[index]),
+                rows[index].hardwareKey == observed.hardwareKey,
+                rows[index].legacyKeychainFilename == observed.legacyKeychainFilename,
+                rows[index].cloudSyncMetadata == nil, rows[index].bookmarkData != nil else { return .rejected }
+            if let duplicate {
                 throw AddDatabaseError.duplicateFile(
                     existingReferenceID: duplicate.id,
                     filename: duplicate.displayName
                 )
             }
-            currentDatabases[index].bookmarkData = bookmarkData
-            currentDatabases[index].filename = filename(for: url)
-            currentDatabases[index].isDocumentsResident = isTopLevelDocumentsFile(url)
-            currentDatabases[index].hasUnverifiedRelink = true
-            guard saveDatabases(currentDatabases) else { return nil }
-            return currentDatabases[index]
+            rows[index].bookmarkData = bookmarkData
+            rows[index].filename = filename(for: url)
+            rows[index].isDocumentsResident = isTopLevelDocumentsFile(url)
+            rows[index].hasUnverifiedRelink = true
+            return .write(rows[index])
         }
-
-        if relinked != nil {
-            cacheInitialCopyIfPossible(from: url, for: id)
+        switch result {
+        case .durable(let relinked):
+            cacheInitialCopyIfPossible(from: url, for: relinked.id)
+            return relinked
+        case .noop(let reference): return reference
+        case .notPublished(let error): throw error
+        case .visibleUnconfirmed(_, let error): throw RegistryWriteError.visibleUnconfirmed(error)
+        case .missing, .rejected: return nil
         }
-        return relinked
     }
 
     static func resolveKeyFileURL(

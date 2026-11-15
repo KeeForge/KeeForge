@@ -16,6 +16,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `EntrySecretAction`: every reveal/copy disclosure that follows device-owner authentication.
 - `DatabaseCommands`: platform-neutral database command enablement, delete-title variant, and actions; presentation and app routing stay in the shell.
 - `DatabaseListViewModel`: the database list and all pending-upload draining (`drainPendingUploadsOnAppActive()`); a session never drains. Drain outcomes refresh local pending and conflict state only for affected open sessions.
+- Registry reload retains the last confirmed list on read failure; lifecycle consumers must not retire sessions from an unavailable registry projection.
 
 ## Invariants
 

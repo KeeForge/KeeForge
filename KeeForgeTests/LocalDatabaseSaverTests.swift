@@ -588,7 +588,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
         let other = setup.directory.appendingPathComponent("relinked.kdbx")
         try setup.oldData.write(to: other)
-        XCTAssertNotNil(try DatabaseListStore.relinkLocalDatabase(id: resident.id, to: other))
+        XCTAssertNotNil(try DatabaseListStore.relinkLocalDatabase(observed: resident, to: other))
         XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
         XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber, before)
         let copy = try await LocalDatabaseSaver.exportKeyEpochCopy(XCTUnwrap(setup.snapshot.admission), for: resident)

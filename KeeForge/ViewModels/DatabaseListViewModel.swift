@@ -47,6 +47,8 @@ final class DatabaseListViewModel {
     }()
 
     private(set) var databases: [DatabaseReference] = []
+    private(set) var registryReadError: String?
+    private var initializationUnconfirmed = false
     private(set) var rowStatuses: [UUID: DatabaseRowStatus] = [:]
     private(set) var pendingUploadAlert: PendingUploadAlert?
     private(set) var isAutoFillProviderEnabled: Bool?
@@ -87,13 +89,25 @@ final class DatabaseListViewModel {
         self.pendingUploadDrainer = pendingUploadDrainer
         self.keyFileBookmarkOperation = keyFileBookmarkOperation
         self.keyFilePreferenceIO = keyFilePreferenceIO
-        _ = DatabaseListStore.initializeRegistry()
-        reload()
+        switch DatabaseListStore.initializeRegistry() {
+        case .initialized, .alreadyPresent: reload()
+        case .notPublished(let error): registryReadError = error.localizedDescription
+        case .visibleUnconfirmed(let error):
+            initializationUnconfirmed = true
+            registryReadError = error.localizedDescription
+        }
     }
 
     func reload() {
-        databases = DatabaseListStore.databases
-        refreshRowStatuses()
+        guard !initializationUnconfirmed else { return }
+        do {
+            let snapshot = try DatabaseListStore.readDatabasesStrict()
+            databases = snapshot
+            registryReadError = nil
+            refreshRowStatuses()
+        } catch {
+            registryReadError = error.localizedDescription
+        }
     }
 
     /// macOS File ▸ New Database…: signals the list view to present its
@@ -105,7 +119,8 @@ final class DatabaseListViewModel {
     func databaseToAutoOpenOnLaunch() -> DatabaseReference? {
         guard didConsumeInitialLaunchSelection == false else { return nil }
         didConsumeInitialLaunchSelection = true
-        return DatabaseListStore.quickLaunchDatabase
+        guard registryReadError == nil else { return nil }
+        return databases.first(where: \.isQuickLaunch)
     }
 
     func addDatabase(from url: URL) throws -> DatabaseReference {

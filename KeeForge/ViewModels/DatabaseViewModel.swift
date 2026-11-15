@@ -1068,7 +1068,7 @@ final class DatabaseViewModel {
     func relinkDatabaseFile(to url: URL) throws {
         guard canRelinkDatabaseFile,
               let relinkedReference = try DatabaseListStore.relinkLocalDatabase(
-                id: databaseReference.id,
+                observed: databaseReference,
                 to: url
               ) else {
             return

@@ -76,7 +76,7 @@ final class DatabaseListStoreTests: XCTestCase {
     func testReadOnlyRejectsReferenceObservedBeforeRelink() throws {
         let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "before.kdbx"))
         let replacement = try makeTemporaryFileURL(name: "after.kdbx")
-        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: original.id, to: replacement))
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement))
 
         XCTAssertFalse(DatabaseListStore.setReadOnly(true, for: original))
         let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == original.id }))
@@ -88,7 +88,7 @@ final class DatabaseListStoreTests: XCTestCase {
     func testHardwarePreferenceRejectsStaleTargetWithoutKeyDeletion() throws {
         let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "hardware-old.kdbx"))
         let replacement = try makeTemporaryFileURL(name: "hardware-new.kdbx")
-        _ = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: original.id, to: replacement))
+        _ = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement))
         var deletes = 0
         let desired = HardwareKeyConfiguration(transport: .nfc, slot: .one)
         XCTAssertEqual(DatabaseListStore.setHardwareKey(desired, for: original, deleteKeys: { _, _ in deletes += 1 }), .rejected)
@@ -123,7 +123,7 @@ final class DatabaseListStoreTests: XCTestCase {
     func testKeyAssociationRejectsStaleObservationAndMissingRow() throws {
         let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "association-old.kdbx"))
         let replacement = try makeTemporaryFileURL(name: "association-new.kdbx")
-        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: original.id, to: replacement))
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement))
         XCTAssertEqual(DatabaseListStore.setKeyFileAssociation(for: original, bookmarkData: Data("key".utf8), filename: "key", masterKeyChangedAt: .now), .rejected)
         XCTAssertEqual(DatabaseListStore.databases.first?.bookmarkData, relinked.bookmarkData)
         XCTAssertTrue(DatabaseListStore.remove(id: original.id))
@@ -143,7 +143,7 @@ final class DatabaseListStoreTests: XCTestCase {
     func testDocumentsIdentityRejectsStaleObservationAndMissingRow() throws {
         let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "before-identity.kdbx"))
         let replacement = try makeTemporaryFileURL(name: "after-identity.kdbx")
-        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: original.id, to: replacement))
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement))
         XCTAssertFalse(DatabaseListStore.rederiveDocumentsIdentity(for: original, filename: "stale.kdbx", isDocumentsResident: true))
         XCTAssertFalse(DatabaseListStore.rebindBookmarkData(Data("stale".utf8), for: original, toFileAt: replacement))
         XCTAssertEqual(DatabaseListStore.databases.first?.filename, relinked.filename)
@@ -1377,7 +1377,7 @@ final class DatabaseListStoreTests: XCTestCase {
         let currentBytes = Data("current provider copy".utf8)
         let currentURL = try makeTemporaryFileURL(name: "vault (synced).kdbx", contents: currentBytes)
 
-        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: reference.id, to: currentURL))
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: reference, to: currentURL))
 
         let stored = try XCTUnwrap(DatabaseListStore.databases.first)
         XCTAssertEqual(DatabaseListStore.databases.count, 1)
@@ -1397,7 +1397,7 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertFalse(reference.hasUnverifiedRelink)
 
         try DatabaseListStore.relinkLocalDatabase(
-            id: reference.id,
+            observed: reference,
             to: makeTemporaryFileURL(name: "picked.kdbx")
         )
         XCTAssertEqual(DatabaseListStore.databases.first?.hasUnverifiedRelink, true)
@@ -1412,7 +1412,7 @@ final class DatabaseListStoreTests: XCTestCase {
         DatabaseListStore.update(reference)
         let trashedURL = try makeTemporaryFileURL(name: ".Trash/vault.kdbx")
 
-        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(id: reference.id, to: trashedURL)) { error in
+        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(observed: reference, to: trashedURL)) { error in
             XCTAssertEqual(error as? DatabaseListStore.LocalDatabaseFileError, .databaseInTrash)
         }
         XCTAssertEqual(DatabaseListStore.databases.first?.bookmarkData, reference.bookmarkData)
@@ -1423,7 +1423,7 @@ final class DatabaseListStoreTests: XCTestCase {
         let other = try DatabaseListStore.add(url: otherURL)
         let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "vault.kdbx"))
 
-        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(id: reference.id, to: otherURL)) { error in
+        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(observed: reference, to: otherURL)) { error in
             guard case DatabaseListStore.AddDatabaseError.duplicateFile(let existingReferenceID, _) = error else {
                 XCTFail("Expected duplicateFile, got \(error)")
                 return
@@ -1438,10 +1438,33 @@ final class DatabaseListStoreTests: XCTestCase {
         let url = try makeTemporaryFileURL(name: "vault.kdbx")
         let reference = try DatabaseListStore.add(url: url)
 
-        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: reference.id, to: url))
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: reference, to: url))
 
         XCTAssertEqual(relinked.id, reference.id)
         XCTAssertEqualFilePaths(DatabaseListStore.resolveDatabaseURL(for: relinked), url)
+    }
+
+    func testRelinkRejectsStaleObservedReference() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "relink-stale.kdbx"))
+        let firstURL = try makeTemporaryFileURL(name: "relink-first.kdbx")
+        let first = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: firstURL))
+        let secondURL = try makeTemporaryFileURL(name: "relink-second.kdbx")
+        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(observed: original, to: secondURL))
+        XCTAssertEqual(DatabaseListStore.databases.first?.bookmarkData, first.bookmarkData)
+    }
+
+    func testRelinkReportsVisibleUnconfirmedWithoutCacheReseed() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "relink-uncertain.kdbx", contents: Data("old".utf8)))
+        let cache = DatabaseListStore.cacheLocation(for: original)
+        let before = try Data(contentsOf: cache)
+        let replacement = try makeTemporaryFileURL(name: "relink-new.kdbx", contents: Data("new".utf8))
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement, io: io)) { error in
+            guard case DatabaseListStore.RegistryWriteError.visibleUnconfirmed = error else { return XCTFail("Expected unconfirmed registry: \(error)") }
+        }
+        XCTAssertEqual(try Data(contentsOf: cache), before)
+        XCTAssertTrue(DatabaseListStore.databases.first?.hasUnverifiedRelink == true)
     }
 
     func testRelinkLocalDatabaseLeavesKeeForgeOnlyDatabaseAndItsCacheAlone() throws {
@@ -1453,7 +1476,7 @@ final class DatabaseListStoreTests: XCTestCase {
         try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: appOnlyBytes)
         let pickedURL = try makeTemporaryFileURL(name: "picked.kdbx", contents: Data("picked".utf8))
 
-        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(id: reference.id, to: pickedURL))
+        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(observed: reference, to: pickedURL))
 
         let stored = try XCTUnwrap(DatabaseListStore.databases.first)
         XCTAssertNil(stored.bookmarkData)
@@ -1519,7 +1542,8 @@ final class DatabaseListStoreTests: XCTestCase {
     func testRelinkLocalDatabaseIgnoresUnlistedID() throws {
         let pickedURL = try makeTemporaryFileURL(name: "picked.kdbx")
 
-        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(id: UUID(), to: pickedURL))
+        let absent = try TestDatabaseSupport.makeReference(for: pickedURL)
+        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(observed: absent, to: pickedURL))
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
     }
 
