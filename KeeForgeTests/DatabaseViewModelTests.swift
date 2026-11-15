@@ -8741,8 +8741,17 @@ final class DatabaseViewModelTests: XCTestCase {
         case .otherAction:
             vm.discardDraft()
         case .changedEpoch:
-            let observed = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata)
-            DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed) { $0.keyEpoch = UUID() }
+            let observedReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            let observed = try XCTUnwrap(observedReference.cloudSyncMetadata)
+            let foreignEpoch = UUID()
+            guard case .published = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id,
+                ifUnchangedFrom: observed, mutate: { $0.keyEpoch = foreignEpoch }) else {
+                return XCTFail("The competing epoch must be durably published")
+            }
+            let changed = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            XCTAssertEqual(changed.cloudSyncMetadata?.keyEpoch, foreignEpoch)
+            XCTAssertEqual(changed.cloudSyncMetadata?.localHeadOperationID, observed.localHeadOperationID)
+            XCTAssertEqual(changed.lastMasterKeyChangeAt, observedReference.lastMasterKeyChangeAt)
             XCTAssertThrowsError(try CloudDatabaseSaver.recoverConfirmed(marker, reference: reference, environment: recovery))
             XCTAssertNil(storedKeys.newKey)
             XCTAssertEqual(vm.compositeKey, oldKey)
