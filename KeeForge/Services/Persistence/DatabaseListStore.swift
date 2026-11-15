@@ -86,7 +86,9 @@ enum DatabaseListStore {
         }
     }
 
-    private static func mutateRegistry<T>(onMissing: (() -> [DatabaseReference])? = nil, io: DurableFileWriteIO = .init(), _ body: (inout [DatabaseReference]) throws -> RegistryDecision<T>) -> RegistryResult<T> {
+    private static func mutateRegistry<T>(onMissing: (() -> [DatabaseReference])? = nil, io: DurableFileWriteIO = .init(),
+                                          authorize: (((() throws -> RegistryResult<T>) throws -> RegistryResult<T>))? = nil,
+                                          _ body: (inout [DatabaseReference]) throws -> RegistryDecision<T>) -> RegistryResult<T> {
         guard let anchor = AppGroupContainer.resolvedURL else { return .notPublished(CocoaError(.fileWriteNoPermission)) }
         var coordinationError: NSError?
         var result: RegistryResult<T>?
@@ -94,24 +96,27 @@ enum DatabaseListStore {
             guard stateLock.try() else { result = .notPublished(PendingLocalSaveStore.OwnershipError.recoveryRequired); return }
             defer { stateLock.unlock() }
             do {
-                var rows: [DatabaseReference]
-                if let existing = try readRegistry(at: url) { rows = existing }
-                else if let onMissing { rows = onMissing() }
-                else { result = .missing; return }
-                switch try body(&rows) {
-                case .noop(let value): result = .noop(value)
-                case .rejected: result = .rejected
-                case .missing: result = .missing
-                case .write(let value):
-                    let encoder = JSONEncoder()
-                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                    let bytes = try encoder.encode(normalized(rows))
-                    switch writeWithDurabilityOutcome(bytes, to: url, directoryAnchor: anchor, io: io) {
-                    case .durable: result = .durable(value)
-                    case .notPublished(let error): result = .notPublished(error)
-                    case .publishedWithoutConfirmedDurability(let error): result = .visibleUnconfirmed(value, error)
+                let mutate = { () throws -> RegistryResult<T> in
+                    var rows: [DatabaseReference]
+                    if let existing = try readRegistry(at: url) { rows = existing }
+                    else if let onMissing { rows = onMissing() }
+                    else { return .missing }
+                    switch try body(&rows) {
+                    case .noop(let value): return .noop(value)
+                    case .rejected: return .rejected
+                    case .missing: return .missing
+                    case .write(let value):
+                        let encoder = JSONEncoder()
+                        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                        let bytes = try encoder.encode(normalized(rows))
+                        switch writeWithDurabilityOutcome(bytes, to: url, directoryAnchor: anchor, io: io) {
+                        case .durable: return .durable(value)
+                        case .notPublished(let error): return .notPublished(error)
+                        case .publishedWithoutConfirmedDurability(let error): return .visibleUnconfirmed(value, error)
+                        }
                     }
                 }
+                result = try authorize?(mutate) ?? mutate()
             } catch { result = .notPublished(error) }
         }
         if let error = coordinationError {
@@ -130,6 +135,13 @@ enum DatabaseListStore {
     enum RegistryWriteError: Error {
         case unavailable
         case visibleUnconfirmed(Error)
+        case appOnlyCacheUnconfirmed(id: UUID, sha512: Data, underlying: Error)
+        case appOnlyCacheInstalled(id: UUID, sha512: Data, underlying: Error)
+        case appOnlyRegistryUnconfirmed(id: UUID, sha512: Data, underlying: Error)
+    }
+
+    private enum AppOnlyResult {
+        case durable, rejected, notPublished(Error), cacheUnconfirmed(Error), cacheInstalled(Error), registryUnconfirmed(Error)
     }
 
     private static func requireRegistryInitialization() throws {
@@ -377,13 +389,60 @@ enum DatabaseListStore {
         }
     }
 
-    static func addAppOnlyCreatedLocal(_ reference: DatabaseReference, encryptedBytes: Data) throws {
-        try withStateLock {
-            var currentDatabases = loadDatabases()
-            try validateAppOnlyCreatedLocal(reference, in: currentDatabases)
-            try cacheDatabaseCopy(encryptedBytes, for: reference)
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
+    static func addAppOnlyCreatedLocal(_ reference: DatabaseReference, encryptedBytes: Data,
+                                       cacheIO: DurableFileWriteIO = .init(), registryIO: DurableFileWriteIO = .init()) throws {
+        guard !reference.isCloudBacked, reference.bookmarkData == nil else { throw RegistryWriteError.unavailable }
+        try requireRegistryInitialization()
+        guard let anchor = AppGroupContainer.resolvedURL else { throw CocoaError(.fileWriteNoPermission) }
+        let lease = try PendingLocalSaveStore.captureCacheReadLease(for: reference)
+        let cache = cacheLocation(for: reference)
+        try createDurableDirectory(at: cache.deletingLastPathComponent(), anchor: anchor)
+        let sha = FileDigest.sha512(encryptedBytes)
+        var coordinationError: NSError?
+        var result: AppOnlyResult?
+        NSFileCoordinator().coordinate(writingItemAt: cache, options: [], writingItemAt: databaseListURL, options: [], error: &coordinationError) { target, registry in
+            guard stateLock.try() else { result = .notPublished(PendingLocalSaveStore.OwnershipError.recoveryRequired); return }
+            defer { stateLock.unlock() }
+            do {
+                guard var rows = try readRegistry(at: registry) else { result = .rejected; return }
+                guard !rows.contains(where: { $0.id == reference.id }) else { result = .registryUnconfirmed(CocoaError(.fileWriteUnknown)); return }
+                try validateAppOnlyCreatedLocal(reference, in: rows)
+                rows.append(reference)
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let registryBytes = try encoder.encode(normalized(rows))
+                result = try PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: sha, lease: lease, nonBlocking: true) {
+                    if FileManager.default.fileExists(atPath: target.path) { return .cacheUnconfirmed(CocoaError(.fileWriteFileExists)) }
+                    switch writeWithDurabilityOutcome(encryptedBytes, to: target, directoryAnchor: anchor, publication: .exclusive, io: cacheIO) {
+                    case .notPublished(let error):
+                        if let posix = error as? POSIXError, posix.code == .EEXIST { return .cacheUnconfirmed(error) }
+                        return .notPublished(error)
+                    case .publishedWithoutConfirmedDurability(let error): return .cacheUnconfirmed(error)
+                    case .durable:
+                        switch writeWithDurabilityOutcome(registryBytes, to: registry, directoryAnchor: anchor, io: registryIO) {
+                        case .durable: return .durable
+                        case .notPublished(let error): return .cacheInstalled(error)
+                        case .publishedWithoutConfirmedDurability(let error): return .registryUnconfirmed(error)
+                        }
+                    }
+                }
+            } catch { result = .notPublished(error) }
+        }
+        if let error = coordinationError {
+            switch result {
+            case .durable, .registryUnconfirmed: throw RegistryWriteError.appOnlyRegistryUnconfirmed(id: reference.id, sha512: sha, underlying: error)
+            case .cacheInstalled: throw RegistryWriteError.appOnlyCacheInstalled(id: reference.id, sha512: sha, underlying: error)
+            case .cacheUnconfirmed: throw RegistryWriteError.appOnlyCacheUnconfirmed(id: reference.id, sha512: sha, underlying: error)
+            default: throw error
+            }
+        }
+        switch result {
+        case .durable: return
+        case .notPublished(let error): throw error
+        case .cacheUnconfirmed(let error): throw RegistryWriteError.appOnlyCacheUnconfirmed(id: reference.id, sha512: sha, underlying: error)
+        case .cacheInstalled(let error): throw RegistryWriteError.appOnlyCacheInstalled(id: reference.id, sha512: sha, underlying: error)
+        case .registryUnconfirmed(let error): throw RegistryWriteError.appOnlyRegistryUnconfirmed(id: reference.id, sha512: sha, underlying: error)
+        default: throw RegistryWriteError.unavailable
         }
     }
 
@@ -1082,28 +1141,21 @@ enum DatabaseListStore {
         if case .durable(true) = result { activeAutoFillDatabaseID = id }
     }
 
-    static func clearLegacyKeychainFilename(for id: UUID) {
-        withStateLock {
-            guard var reference = loadDatabases().first(where: { $0.id == id }) else { return }
-            guard reference.legacyKeychainFilename != nil else { return }
-            reference.legacyKeychainFilename = nil
-            update(reference)
-        }
-    }
-
     @discardableResult
-    static func clearLegacyKeychainFilename(for expected: DatabaseReference) -> Bool {
-        withStateLock {
-            do {
-                guard let legacy = expected.legacyKeychainFilename, !PendingLocalSaveStore.isRevoked(expected.id) else { return false }
-                var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
-                guard let index = references.firstIndex(where: { $0.id == expected.id }),
-                      references[index].legacyKeychainFilename == legacy,
-                      PendingLocalSaveStore.PreferenceObservation(expected).matches(references[index]) else { return false }
-                references[index].legacyKeychainFilename = nil
-                return saveDatabases(references)
-            } catch { return false }
+    static func clearLegacyKeychainFilename(for expected: DatabaseReference, io: DurableFileWriteIO = .init()) -> Bool {
+        guard let legacy = expected.legacyKeychainFilename else { return false }
+        let result = mutateRegistry(io: io, authorize: { operation in
+            try PendingLocalSaveStore.withLegacyFilenameCleanupAuthorization(for: expected.id, operation)
+        }) { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == expected.id }) else { return .missing }
+            guard rows[index].legacyKeychainFilename == legacy,
+                  rows[index].hardwareKey == expected.hardwareKey,
+                  PendingLocalSaveStore.PreferenceObservation(expected).matches(rows[index]) else { return .rejected }
+            rows[index].legacyKeychainFilename = nil
+            return .write(())
         }
+        if case .durable = result { return true }
+        return false
     }
 
     final class KeyCommitPublicationPermit: @unchecked Sendable {

@@ -1415,6 +1415,52 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.databases.first?.id, reference.id)
     }
 
+    func testAppOnlyRegistryPrepublicationFailureRetainsCacheAndRefusesRetry() throws {
+        var reference = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "app-only-fault.kdbx"))
+        reference.bookmarkData = nil
+        let bytes = Data("encrypted fixture".utf8)
+        var io = DurableFileWriteIO()
+        io.synchronizeFile = { _ in throw POSIXError(.EIO) }
+        XCTAssertThrowsError(try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: bytes, registryIO: io)) { error in
+            guard case DatabaseListStore.RegistryWriteError.appOnlyCacheInstalled(let id, let sha, _) = error else { return XCTFail("Expected installed cache: \(error)") }
+            XCTAssertEqual(id, reference.id)
+            XCTAssertEqual(sha, FileDigest.sha512(bytes))
+        }
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+        XCTAssertThrowsError(try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: bytes))
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+    }
+
+    func testAppOnlyDuplicateDoesNotPublishCache() throws {
+        var first = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "app-only-duplicate.kdbx"))
+        first.bookmarkData = nil
+        try DatabaseListStore.addAppOnlyCreatedLocal(first, encryptedBytes: Data("first".utf8))
+        var second = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: first.filename))
+        second.bookmarkData = nil
+        XCTAssertThrowsError(try DatabaseListStore.addAppOnlyCreatedLocal(second, encryptedBytes: Data("second".utf8)))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: DatabaseListStore.cacheLocation(for: second).path))
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: first)), Data("first".utf8))
+    }
+
+    func testAppOnlyRegistryVisibleUnconfirmedKeepsCacheAndIdentity() throws {
+        var reference = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "app-only-visible.kdbx"))
+        reference.bookmarkData = nil
+        let bytes = Data("encrypted fixture".utf8)
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        XCTAssertThrowsError(try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: bytes, registryIO: io)) { error in
+            guard case DatabaseListStore.RegistryWriteError.appOnlyRegistryUnconfirmed(let id, let sha, _) = error else { return XCTFail("Expected visible registry: \(error)") }
+            XCTAssertEqual(id, reference.id)
+            XCTAssertEqual(sha, FileDigest.sha512(bytes))
+        }
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+        XCTAssertTrue(DatabaseListStore.databases.contains { $0.id == reference.id })
+        XCTAssertThrowsError(try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: bytes))
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+    }
+
     func testRelinkLocalDatabaseIgnoresUnlistedID() throws {
         let pickedURL = try makeTemporaryFileURL(name: "picked.kdbx")
 

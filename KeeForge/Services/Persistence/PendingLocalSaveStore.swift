@@ -1356,6 +1356,13 @@ enum PendingLocalSaveStore {
         catch { return true }
     }
 
+    static func withLegacyFilenameCleanupAuthorization<T>(for databaseID: UUID, _ body: () throws -> T) throws -> T {
+        try withLock(for: databaseID, nonBlocking: true) {
+            try requireNotRemoved(databaseID)
+            return try body()
+        }
+    }
+
     static func moveToBackups(_ save: PendingSave, for reference: DatabaseReference) throws -> URL {
         // Resolve the backup location before acquiring flock (list-lock order).
         let backupDirectory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
