@@ -1110,6 +1110,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
             try TestDatabaseSupport.cacheLocalSnapshotDiagnosingFailure(data, for: reference)
         }
 
+        TestDatabaseSupport.cloudDiagnosticSnapshot("3 before", reference: reference, savedSHA: nil, openSHA: context.openTimeSHA512)
         let result = try await LocalDatabaseSaver.save(
             draft: context.draft,
             reference: reference,
@@ -1118,6 +1119,12 @@ final class LocalDatabaseSaverTests: XCTestCase {
             environment: environment
         )
 
+        let resultSHA: Data?
+        switch result {
+        case .saved(let sha, _, _), .committedWithoutConfirmedDurability(let sha, _, _, _): resultSHA = sha
+        case .indeterminate, .conflict: resultSHA = nil
+        }
+        TestDatabaseSupport.cloudDiagnosticSnapshot("3 after", reference: reference, savedSHA: resultSHA, openSHA: context.openTimeSHA512)
         let resultKind: String
         switch result {
         case .saved: resultKind = "saved"

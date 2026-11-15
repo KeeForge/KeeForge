@@ -1516,10 +1516,13 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 delivery.getMetadata = { _ in remote.currentMetadata }
                 delivery.downloadRemoteData = { _ in remote.currentBytes }
                 delivery.upload = { _, bytes, rev, _ in try remote.store(bytes, expectedRev: rev) }
+                print("diagnostic 7 before firstPending=\(first.hasPendingCloudUploads) secondPending=\(second.hasPendingCloudUploads)")
                 guard case .conflict? = try await CloudDatabaseSaver.deliver(marker, reference: firstReference, environment: delivery) else {
                     return XCTFail("Remote divergence must retain the first session's encrypted output")
                 }
                 print("diagnostic 7 firstPending=\(first.hasPendingCloudUploads) secondPending=\(second.hasPendingCloudUploads) journalCount=\((try? PendingUploadQueue.readJournal(for: firstReference.id).count) ?? -1)")
+                let observedJournal = try? PendingUploadQueue.readJournal(for: firstReference.id)
+                print("diagnostic 7 conflictMarker=\(observedJournal?.contains { $0.marker.isConflicted } ?? false) journalReadable=\(observedJournal != nil)")
                 XCTAssertTrue(first.hasPendingCloudUploads)
                 XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker),
                     try Data(contentsOf: DatabaseListStore.cacheLocation(for: firstReference)))
@@ -1817,6 +1820,11 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         )
         await vm.unlock(password: fixturePassword)
 
+        let historicalReference = vm.databaseReference
+        let historicalSHA = vm.openTimeSHA512
+        TestDatabaseSupport.cloudDiagnosticSnapshot("8 before", reference: historicalReference, savedSHA: savedSHA512, openSHA: historicalSHA)
+        defer { TestDatabaseSupport.cloudDiagnosticSnapshot("8 after", reference: historicalReference, savedSHA: savedSHA512, openSHA: historicalSHA) }
+
         let syncTask = Task { await vm.syncCloudNow() }
         await gate.waitUntilStarted()
         let parentGroupID = try XCTUnwrap(vm.visibleRootGroup?.id)
@@ -1931,6 +1939,11 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
             localPublicationFailure: { trace.record($0, $1) }
         )
         await vm.unlock(password: fixturePassword)
+
+        let historicalReference = vm.databaseReference
+        let historicalSHA = vm.openTimeSHA512
+        TestDatabaseSupport.cloudDiagnosticSnapshot("5 before", reference: historicalReference, savedSHA: savedSHA512, openSHA: historicalSHA)
+        defer { TestDatabaseSupport.cloudDiagnosticSnapshot("5 after", reference: historicalReference, savedSHA: savedSHA512, openSHA: historicalSHA) }
 
         let syncTask = Task { await vm.syncCloudNow() }
         await refreshGate.waitUntilStarted()

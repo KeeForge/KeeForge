@@ -3530,6 +3530,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         let observedReference = makeCloudReference()
         print("diagnostic 12 sameIdentity=\(observedReference.id == resolvedReference.id) registryPresent=\(DatabaseListStore.databases.contains { $0.id == observedReference.id })")
+        TestDatabaseSupport.cloudDiagnosticSnapshot("12 before", reference: observedReference, savedSHA: nil, openSHA: nil)
         let vm = DatabaseViewModel(
             databaseReference: observedReference,
             cloudSyncOperation: { _, _ in
@@ -5071,6 +5072,9 @@ final class DatabaseViewModelTests: XCTestCase {
         try await vm.save()
         XCTAssertNotNil(vm.saveConflict)
 
+        let historicalSHA = vm.openTimeSHA512
+        TestDatabaseSupport.cloudDiagnosticSnapshot("13 before", reference: reference, savedSHA: mergedHash, openSHA: historicalSHA)
+        defer { TestDatabaseSupport.cloudDiagnosticSnapshot("13 after", reference: reference, savedSHA: mergedHash, openSHA: historicalSHA) }
         do {
             try await vm.mergeAndSave()
             print("diagnostic 13 operation=returned; boundaries=\(trace.summary)")
@@ -9029,6 +9033,9 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
+        let historicalSHA = vm.openTimeSHA512
+        TestDatabaseSupport.cloudDiagnosticSnapshot("9 before", reference: reference, savedSHA: Data("cloud-re-encrypted-hash".utf8), openSHA: historicalSHA)
+        defer { TestDatabaseSupport.cloudDiagnosticSnapshot("9 after", reference: reference, savedSHA: Data("cloud-re-encrypted-hash".utf8), openSHA: historicalSHA) }
         do {
             try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
             print("diagnostic 9 operation=returned; boundaries=\(trace.summary)")
