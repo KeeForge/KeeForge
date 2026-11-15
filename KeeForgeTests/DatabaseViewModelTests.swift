@@ -8745,7 +8745,7 @@ final class DatabaseViewModelTests: XCTestCase {
             let observed = try XCTUnwrap(observedReference.cloudSyncMetadata)
             let foreignEpoch = UUID()
             guard case .published = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id,
-                ifUnchangedFrom: observed, mutate: { $0.keyEpoch = foreignEpoch }) else {
+                ifUnchangedFrom: observed, observedReference: observedReference, mutate: { $0.keyEpoch = foreignEpoch }) else {
                 return XCTFail("The competing epoch must be durably published")
             }
             let changed = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
@@ -9235,9 +9235,10 @@ final class DatabaseViewModelTests: XCTestCase {
                     throw SaveError.saveContextUnavailable
                 }
                 if foreignHead {
-                    let observed = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata)
+                    let observedReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+                    let observed = try XCTUnwrap(observedReference.cloudSyncMetadata)
                     guard case .published = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id,
-                        ifUnchangedFrom: observed, mutate: { $0.localHeadOperationID = UUID() }) else {
+                        ifUnchangedFrom: observed, observedReference: observedReference, mutate: { $0.localHeadOperationID = UUID() }) else {
                         throw SaveError.saveContextUnavailable
                     }
                 }

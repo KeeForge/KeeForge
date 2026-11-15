@@ -92,6 +92,7 @@ enum DatabaseListStore {
     }
 
     private static func mutateRegistry<T>(onMissing: (() -> [DatabaseReference])? = nil, io: DurableFileWriteIO = .init(),
+                                          confirmUnchanged: Bool = false,
                                           readingTarget: URL? = nil, validateTarget: ((URL) throws -> Bool)? = nil,
                                           authorize: (((() throws -> RegistryResult<T>) throws -> RegistryResult<T>))? = nil,
                                           _ body: (inout [DatabaseReference]) throws -> RegistryDecision<T>) -> RegistryResult<T> {
@@ -111,7 +112,14 @@ enum DatabaseListStore {
                     else if let onMissing { rows = onMissing() }
                     else { return .missing }
                     switch try body(&rows) {
-                    case .noop(let value): return .noop(value)
+                    case .noop(let value):
+                        if confirmUnchanged {
+                            let handle = try FileHandle(forUpdating: url)
+                            defer { try? handle.close() }
+                            try io.synchronizeFile(handle.fileDescriptor)
+                            try io.synchronizeParent(url.deletingLastPathComponent())
+                        }
+                        return .noop(value)
                     case .rejected: return .rejected
                     case .missing: return .missing
                     case .write(let value):
@@ -939,10 +947,11 @@ enum DatabaseListStore {
     /// revision that never reached disk must not be acted on.
     @discardableResult
     static func updateCloudSyncMetadata(for id: UUID, ifUnchangedFrom observed: CloudSyncMetadata,
+        observedReference: DatabaseReference,
         mutate: (inout CloudSyncMetadata) -> Void) -> DatabaseReference? {
-        switch compareAndUpdateCloudSyncMetadata(for: id, ifUnchangedFrom: observed, mutate: mutate) {
+        switch compareAndUpdateCloudSyncMetadata(for: id, ifUnchangedFrom: observed, observedReference: observedReference, mutate: mutate) {
         case .published(let reference), .mismatch(let reference): reference
-        case .removed, .writeFailed: nil
+        case .removed, .writeFailed, .visibleUnconfirmed: nil
         }
     }
 
@@ -962,7 +971,7 @@ enum DatabaseListStore {
         }
     }
 
-    enum CloudMetadataUpdateResult { case published(DatabaseReference), mismatch(DatabaseReference), removed, writeFailed }
+    enum CloudMetadataUpdateResult { case published(DatabaseReference), mismatch(DatabaseReference), removed, writeFailed, visibleUnconfirmed(DatabaseReference) }
     private static func saveCloudRegistryDurably(_ references: [DatabaseReference], io: DurableFileWriteIO = .init()) -> Bool {
         guard let anchor = AppGroupContainer.resolvedURL, let data = try? JSONEncoder().encode(references) else { return false }
         if case .durable = writeWithDurabilityOutcome(data, to: databaseListURL, directoryAnchor: anchor, io: io) { return true }
@@ -972,31 +981,35 @@ enum DatabaseListStore {
     static func compareAndUpdateCloudSyncMetadata(
         for id: UUID,
         ifUnchangedFrom observed: CloudSyncMetadata,
+        observedReference: DatabaseReference,
+        confirmUnchanged: Bool = false,
         io: DurableFileWriteIO = .init(),
         mutate: (inout CloudSyncMetadata) -> Void
     ) -> CloudMetadataUpdateResult {
-        withStateLock {
-            guard var currentDatabases = try? JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL)) else { return .writeFailed }
-            guard let index = currentDatabases.firstIndex(where: { $0.id == id }),
-                  let storedMetadata = currentDatabases[index].cloudSyncMetadata else {
-                return .removed
+        var mismatched: DatabaseReference?
+        let result = mutateRegistry(io: io, confirmUnchanged: confirmUnchanged) { rows -> RegistryDecision<DatabaseReference> in
+            guard let index = rows.firstIndex(where: { $0.id == id }), let stored = rows[index].cloudSyncMetadata else { return .missing }
+            guard stored.provider == observed.provider, stored.accountId == observed.accountId, stored.fileId == observed.fileId,
+                  stored.remoteRev == observed.remoteRev, stored.remoteContentHash == observed.remoteContentHash,
+                  stored.localHeadOperationID == observed.localHeadOperationID, stored.keyEpoch == observed.keyEpoch,
+                  observedReference.id == id, PendingLocalSaveStore.PreferenceObservation(observedReference).matches(rows[index]),
+                  observedReference.hardwareKey == rows[index].hardwareKey,
+                  observedReference.legacyKeychainFilename == rows[index].legacyKeychainFilename else {
+                mismatched = rows[index]
+                return .rejected
             }
-
-            guard cloudRevisionIdentity(storedMetadata) == cloudRevisionIdentity(observed) else {
-                return .mismatch(currentDatabases[index])
-            }
-
-            currentDatabases[index].updateCloudSyncMetadata(mutate)
-            guard saveCloudRegistryDurably(currentDatabases, io: io) else { return .writeFailed }
-            return .published(currentDatabases[index])
+            rows[index].updateCloudSyncMetadata(mutate)
+            guard let updated = rows[index].cloudSyncMetadata else { return .rejected }
+            if updated == stored { return .noop(rows[index]) }
+            return .write(rows[index])
         }
-    }
-
-    /// Identity for the compare-and-skip above. Revision alone is not enough:
-    /// references predating rev tracking carry only a content hash, which is
-    /// then the entire signal that the remote moved.
-    private static func cloudRevisionIdentity(_ metadata: CloudSyncMetadata) -> String {
-        "\(metadata.remoteRev ?? "")\u{1F}\(metadata.remoteContentHash ?? "")\u{1F}\(metadata.localHeadOperationID?.uuidString ?? "")\u{1F}\(metadata.keyEpoch?.uuidString ?? "")"
+        switch result {
+        case .durable(let reference), .noop(let reference): return .published(reference)
+        case .visibleUnconfirmed(let reference, _): return .visibleUnconfirmed(reference)
+        case .missing: return .removed
+        case .rejected: return mismatched.map(CloudMetadataUpdateResult.mismatch) ?? .writeFailed
+        case .notPublished: return .writeFailed
+        }
     }
 
     /// Caller holds the database commit lock; only local publication fields may change.

@@ -41,7 +41,7 @@
 - `downloadLatestCopy` pins the existing cache with a hard link before the transfer and before listing markers, then publishes with a coordinated replace conditioned on the pinned inode. A save that lands mid-download then makes the sync fall back to the cache instead of reverting it.
 - Do not move the pin after the download (it would pin the newer save and replace it), and do not use a rename-aside (the cache path would be empty during the transfer).
 - Cache replacement backs up the superseded bytes before overwrite when pending work needs protection. Confirmed journal recovery only restores a verified predecessor or missing cache; unrelated divergent bytes remain untouched. A failed backup aborts replacement.
-- Cloud state learned across an `await` is written with `DatabaseListStore.updateCloudSyncMetadata(for:ifUnchangedFrom:mutate:)`, not `update(_:)`, which would roll back a save or drain that finished inside the window.
+- Cloud state learned across an `await` is written with the captured reference and metadata through `DatabaseListStore.updateCloudSyncMetadata`, not `update(_:)`. Its coordinated CAS preserves unrelated fields, rejects a changed target, factors, head or epoch, and reports a visible but unconfirmed publication separately.
 
 ### Durable cloud journal
 

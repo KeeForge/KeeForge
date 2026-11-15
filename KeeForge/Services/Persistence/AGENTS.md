@@ -24,7 +24,7 @@
 ### Database list
 
 - Mutate the list through `DatabaseListStore`'s methods, which serialize under one lock. A field-specific setter rereads the stored reference first; a new one must too, or it rolls back a concurrent change to another field.
-- Code that learns cloud state across an `await` writes it with `updateCloudSyncMetadata(for:ifUnchangedFrom:mutate:)`, never `update(_:)` (`../Cloud/AGENTS.md`).
+- Code that learns cloud state across an `await` passes the captured reference and metadata to `updateCloudSyncMetadata`, never `update(_:)` (`../Cloud/AGENTS.md`).
 - `remove(id:)` owns removal: Keychain item, cached copy, backups, upload markers, AutoFill pointer, and the database's published identities. `setAutoFillEnabled` owns the same for disabling. Do not repeat parts of either elsewhere.
 - A database with AutoFill disabled can never be `activeAutoFillDatabaseID` or `defaultAutoFillDatabase`; the setter refuses it.
 - AutoFill participation compares the observed reference before publishing and enqueues identity removal only after a confirmed durable disable; the system index is asynchronous and is not a cross-process registry transaction.

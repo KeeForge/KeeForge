@@ -731,7 +731,7 @@ enum PendingUploadQueue {
             let stored = try recoverPrepared(snapshot, environment: environment)
             switch try recoverLocalCommit(stored, environment: environment) {
             case .published, nil: break
-            case .mismatch, .removed, .writeFailed: throw SaveError.saveContextUnavailable
+            case .mismatch, .removed, .writeFailed, .visibleUnconfirmed: throw SaveError.saveContextUnavailable
             }
         }
     }

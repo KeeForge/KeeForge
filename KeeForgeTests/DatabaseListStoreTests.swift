@@ -193,6 +193,41 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.databases.first?.cloudSyncMetadata?.fileId, file.id)
     }
 
+    func testCloudMetadataCASRejectsRevisionCollisionAndStaleFactors() throws {
+        var original = makeStoredCloudReference(remoteRev: "a\u{1F}b", remoteContentHash: "c")
+        let observed = try XCTUnwrap(original.cloudSyncMetadata)
+        var current = original
+        current.updateCloudSyncMetadata { $0.remoteRev = "a"; $0.remoteContentHash = "b\u{1F}c" }
+        DatabaseListStore.update(current)
+        if case .mismatch = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: original.id, ifUnchangedFrom: observed, observedReference: original, mutate: { $0.lastSyncedAt = .now }) {} else { XCTFail("Expected revision mismatch") }
+        original = current
+        let metadata = try XCTUnwrap(original.cloudSyncMetadata)
+        current.keyFileFilename = "new-key"
+        DatabaseListStore.update(current)
+        if case .mismatch = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: original.id, ifUnchangedFrom: metadata, observedReference: original, mutate: { $0.lastSyncedAt = .now }) {} else { XCTFail("Expected factor mismatch") }
+        XCTAssertNil(DatabaseListStore.databases.first?.cloudSyncMetadata?.lastSyncedAt)
+    }
+
+    func testCloudMetadataReportsVisibleUnconfirmedPublication() throws {
+        let reference = makeStoredCloudReference(remoteRev: "rev", remoteContentHash: "hash")
+        let observed = try XCTUnwrap(reference.cloudSyncMetadata)
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        if case .visibleUnconfirmed = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed, observedReference: reference, io: io, mutate: { $0.lastSyncedAt = Date(timeIntervalSince1970: 123) }) {} else { XCTFail("Expected visible-unconfirmed publication") }
+        XCTAssertEqual(DatabaseListStore.databases.first?.cloudSyncMetadata?.lastSyncedAt, Date(timeIntervalSince1970: 123))
+    }
+
+    func testCloudMetadataNoopDoesNotWriteAndExplicitConfirmationCanFail() throws {
+        let reference = makeStoredCloudReference(remoteRev: "rev", remoteContentHash: "hash")
+        let observed = try XCTUnwrap(reference.cloudSyncMetadata)
+        var io = DurableFileWriteIO()
+        io.write = { _, _, _ in XCTFail("No-op must not write"); return -1 }
+        if case .published = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed, observedReference: reference, io: io, mutate: { _ in }) {} else { XCTFail("Expected no-op") }
+        io.synchronizeFile = { _ in throw POSIXError(.EIO) }
+        if case .writeFailed = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed, observedReference: reference, confirmUnchanged: true, io: io, mutate: { _ in }) {} else { XCTFail("Expected failed durability confirmation") }
+        XCTAssertEqual(DatabaseListStore.databases.first?.cloudSyncMetadata, observed)
+    }
+
     func testAddRejectsSameLocalFileTwice() throws {
         let url = try makeTemporaryFileURL(name: "duplicate.kdbx")
         let firstReference = try DatabaseListStore.add(url: url)
@@ -455,6 +490,7 @@ final class DatabaseListStoreTests: XCTestCase {
 
     func testUpdateCloudSyncMetadataMergesSyncFieldsWithoutTouchingOtherFields() throws {
         var reference = makeStoredCloudReference(remoteRev: "rev-A", remoteContentHash: "hash-A")
+        let observedReference = reference
         let observed = try XCTUnwrap(reference.cloudSyncMetadata)
 
         // A rename lands while the refresh is out on the network. The refresh
@@ -464,7 +500,8 @@ final class DatabaseListStoreTests: XCTestCase {
 
         let merged = DatabaseListStore.updateCloudSyncMetadata(
             for: reference.id,
-            ifUnchangedFrom: observed
+            ifUnchangedFrom: observed,
+            observedReference: observedReference
         ) { metadata in
             metadata.remoteRev = "rev-B"
             metadata.remoteContentHash = "hash-B"
@@ -480,6 +517,7 @@ final class DatabaseListStoreTests: XCTestCase {
 
     func testUpdateCloudSyncMetadataSkipsWhenStoredRevisionMovedOnUnderneath() throws {
         var reference = makeStoredCloudReference(remoteRev: "rev-A", remoteContentHash: "hash-A")
+        let observedReference = reference
         let observed = try XCTUnwrap(reference.cloudSyncMetadata)
 
         // A save (or a pending-upload drain) completes while the refresh is in
@@ -492,7 +530,8 @@ final class DatabaseListStoreTests: XCTestCase {
 
         let merged = DatabaseListStore.updateCloudSyncMetadata(
             for: reference.id,
-            ifUnchangedFrom: observed
+            ifUnchangedFrom: observed,
+            observedReference: observedReference
         ) { metadata in
             metadata.remoteRev = "rev-A"
             metadata.remoteContentHash = "hash-A"
@@ -516,6 +555,7 @@ final class DatabaseListStoreTests: XCTestCase {
     /// hash alone has to be able to block a stale merge.
     func testUpdateCloudSyncMetadataSkipsWhenOnlyContentHashMovedOn() throws {
         var reference = makeStoredCloudReference(remoteRev: nil, remoteContentHash: "hash-A")
+        let observedReference = reference
         let observed = try XCTUnwrap(reference.cloudSyncMetadata)
 
         reference.updateCloudSyncMetadata { metadata in
@@ -525,7 +565,8 @@ final class DatabaseListStoreTests: XCTestCase {
 
         DatabaseListStore.updateCloudSyncMetadata(
             for: reference.id,
-            ifUnchangedFrom: observed
+            ifUnchangedFrom: observed,
+            observedReference: observedReference
         ) { metadata in
             metadata.remoteContentHash = "hash-A"
         }
@@ -541,7 +582,7 @@ final class DatabaseListStoreTests: XCTestCase {
         DatabaseListStore.remove(id: reference.id)
 
         let merged = observed.flatMap { observed in
-            DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed) { metadata in
+            DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed, observedReference: reference) { metadata in
                 metadata.remoteRev = "rev-B"
             }
         }

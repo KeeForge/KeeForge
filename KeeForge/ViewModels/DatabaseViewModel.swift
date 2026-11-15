@@ -5504,7 +5504,7 @@ final class DatabaseViewModel {
         guard resolution.pendingUploadSources.isEmpty, resolution.reference.id == observed.id,
               let baseline = observed.cloudSyncMetadata,
               let learned = resolution.reference.cloudSyncMetadata else { return nil }
-        let update = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: observed.id, ifUnchangedFrom: baseline, io: io) {
+        let update = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: observed.id, ifUnchangedFrom: baseline, observedReference: observed, io: io) {
             $0.remoteContentHash = learned.remoteContentHash
             $0.remoteModifiedAt = learned.remoteModifiedAt
             $0.remoteRev = learned.remoteRev
@@ -5522,7 +5522,7 @@ final class DatabaseViewModel {
                 $0.lastSyncIssue = learned.lastSyncIssue
             }
             return reference
-        case .mismatch, .removed, .writeFailed:
+        case .mismatch, .removed, .writeFailed, .visibleUnconfirmed:
             // Bytes already read cannot borrow a newer reference's authority after a rejected CAS.
             return nil
         }

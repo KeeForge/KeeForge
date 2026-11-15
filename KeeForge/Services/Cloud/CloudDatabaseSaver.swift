@@ -649,9 +649,8 @@ enum CloudDatabaseSaver {
     }
 
     private static func recordIssue(_ error: Error, reference: DatabaseReference) {
-        guard let current = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
-              let metadata = current.cloudSyncMetadata else { return }
-        DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: metadata) {
+        guard let metadata = reference.cloudSyncMetadata else { return }
+        DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: metadata, observedReference: reference) {
             $0.lastSyncIssue = CloudProviderError.issue(for: error)
             $0.lastSyncedAt = nil
         }
@@ -871,7 +870,7 @@ enum CloudDatabaseSaver {
                         guard let observed = current.cloudSyncMetadata,
                               observed.localHeadOperationID == stored.id,
                               case .published(let durable) = DatabaseListStore.compareAndUpdateCloudSyncMetadata(
-                                for: current.id, ifUnchangedFrom: observed, mutate: { _ in }
+                                for: current.id, ifUnchangedFrom: observed, observedReference: current, confirmUnchanged: true, mutate: { _ in }
                               ) else { throw SaveError.rekeyAppliedRemotely }
                         current = durable
                     }
@@ -924,7 +923,7 @@ enum CloudDatabaseSaver {
                 if cacheSHA == payloadSHA, current.cloudSyncMetadata?.localHeadOperationID == stored.id,
                    let observed = current.cloudSyncMetadata {
                     let remaining = PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).filter { $0.id != stored.id }
-                    let publication = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: current.id, ifUnchangedFrom: observed, mutate: {
+                    let publication = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: current.id, ifUnchangedFrom: observed, observedReference: current, mutate: {
                         if let rev = stored.marker.confirmedRemoteRev { $0.remoteRev = rev }
                         if let hash = stored.marker.confirmedRemoteHash { $0.remoteContentHash = hash }
                         $0.remoteModifiedAt = stored.marker.confirmedAt
