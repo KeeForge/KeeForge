@@ -1516,13 +1516,20 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 delivery.getMetadata = { _ in remote.currentMetadata }
                 delivery.downloadRemoteData = { _ in remote.currentBytes }
                 delivery.upload = { _, bytes, rev, _ in try remote.store(bytes, expectedRev: rev) }
-                print("diagnostic 7 before firstPending=\(first.hasPendingCloudUploads) secondPending=\(second.hasPendingCloudUploads)")
-                guard case .conflict? = try await CloudDatabaseSaver.deliver(marker, reference: firstReference, environment: delivery) else {
-                    return XCTFail("Remote divergence must retain the first session's encrypted output")
+                var drainerEnvironment = PendingUploadDrainer.Environment.live
+                drainerEnvironment.beginBackgroundTask = { _ in .invalid }
+                drainerEnvironment.endBackgroundTask = { _ in }
+                let liveDelivery = delivery
+                drainerEnvironment.deliverMarker = { marker, reference in
+                    try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: liveDelivery)
                 }
-                print("diagnostic 7 firstPending=\(first.hasPendingCloudUploads) secondPending=\(second.hasPendingCloudUploads) journalCount=\((try? PendingUploadQueue.readJournal(for: firstReference.id).count) ?? -1)")
-                let observedJournal = try? PendingUploadQueue.readJournal(for: firstReference.id)
-                print("diagnostic 7 conflictMarker=\(observedJournal?.contains { $0.marker.isConflicted } ?? false) journalReadable=\(observedJournal != nil)")
+                let list = DatabaseListViewModel(pendingUploadDrainer: PendingUploadDrainer(environment: drainerEnvironment))
+                store.handleAppDidBecomeActive()
+                await list.drainPendingUploadsOnAppActive()
+                let observedJournal = try PendingUploadQueue.readJournal(for: firstReference.id)
+                XCTAssertEqual(observedJournal.count, 1)
+                XCTAssertTrue(try XCTUnwrap(observedJournal.first).marker.isConflicted)
+                XCTAssertEqual(list.rowStatuses[firstReference.id]?.pendingUploadConflictCount, 1)
                 XCTAssertTrue(first.hasPendingCloudUploads)
                 XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker),
                     try Data(contentsOf: DatabaseListStore.cacheLocation(for: firstReference)))
