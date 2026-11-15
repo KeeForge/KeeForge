@@ -35,6 +35,7 @@ final class PendingUploadQueueTests: XCTestCase {
         var receipt = reference
         receipt.source = .cloud(CloudSyncMetadata(provider: "webdav", accountId: "account", fileId: "created-id", displayPath: "/vault.kdbx",
             remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil))
+        receipt.updateCloudSyncMetadata { $0.localHeadOperationID = prepared.intent.operationID }
         let confirmed = try PendingUploadQueue.transitionCreation(attempting, to: .confirmed, receipt: receipt, environment: environment)
         let completed = try PendingUploadQueue.transitionCreation(confirmed, to: .completed, environment: environment)
         XCTAssertEqual(completed.intent.receipt, receipt)

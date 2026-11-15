@@ -966,8 +966,12 @@ extension PendingUploadQueue {
         creationDirectory(environment).appendingPathComponent(id.uuidString + ".creation")
     }
 
-    private static func creationPayloadURL(_ id: UUID, _ environment: Environment) -> URL {
+    static func creationPayloadURL(_ id: UUID, _ environment: Environment) -> URL {
         creationDirectory(environment).appendingPathComponent(id.uuidString + ".kdbx")
+    }
+
+    static func creationStageURL(_ id: UUID, _ environment: Environment) -> URL {
+        creationDirectory(environment).appendingPathComponent(id.uuidString + ".stage")
     }
 
     private static func decodeCreation(_ data: Data, id: UUID) throws -> CreationIntent {
@@ -987,7 +991,8 @@ extension PendingUploadQueue {
               metadata.accountId == intent.accountID, !metadata.fileId.isEmpty else { return false }
         var original = receipt
         original.source = intent.referenceTemplate.source
-        return original == intent.referenceTemplate
+        guard original == intent.referenceTemplate else { return false }
+        return metadata.localHeadOperationID == intent.operationID
     }
 
     static func listCreations(environment: Environment = .live) throws -> [StoredCreation] {
@@ -1038,7 +1043,10 @@ extension PendingUploadQueue {
             let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
             let data = try encoder.encode(intent)
             _ = try decodeCreation(data, id: operationID)
+            let stageURL = creationStageURL(operationID, environment)
+            guard !(try environment.listDirectory(creationDirectory(environment))).contains(where: { $0.lastPathComponent == stageURL.lastPathComponent }) else { throw CreationError.changed }
             try environment.writeMarkerAtomically(payload, payloadURL)
+            try environment.writeMarkerAtomically(payload, stageURL)
             try environment.writeMarkerAtomically(data, creationURL(operationID, environment))
             return StoredCreation(intent: intent, serialized: data)
         }
@@ -1048,6 +1056,15 @@ extension PendingUploadQueue {
         let bytes = try environment.readData(creationPayloadURL(stored.intent.operationID, environment))
         guard FileDigest.sha512(bytes) == stored.intent.payloadSHA512 else { throw CreationError.invalid }
         return bytes
+    }
+
+    static func withConfirmedCreation<T>(_ stored: StoredCreation, environment: Environment = .live, _ body: () throws -> T) throws -> T {
+        try withCreationLocks(stored.intent, environment: environment) {
+            guard stored.intent.phase == .confirmed,
+                  try environment.readData(creationURL(stored.intent.operationID, environment)) == stored.serialized,
+                  try decodeCreation(stored.serialized, id: stored.intent.operationID) == stored.intent else { throw CreationError.changed }
+            return try body()
+        }
     }
 
     // Only these edges are permitted: prepared -> attempting -> confirmed -> completed.
