@@ -27,6 +27,7 @@
 - Code that learns cloud state across an `await` writes it with `updateCloudSyncMetadata(for:ifUnchangedFrom:mutate:)`, never `update(_:)` (`../Cloud/AGENTS.md`).
 - `remove(id:)` owns removal: Keychain item, cached copy, backups, upload markers, AutoFill pointer, and the database's published identities. `setAutoFillEnabled` owns the same for disabling. Do not repeat parts of either elsewhere.
 - A database with AutoFill disabled can never be `activeAutoFillDatabaseID` or `defaultAutoFillDatabase`; the setter refuses it.
+- AutoFill participation compares the observed reference before publishing and enqueues identity removal only after a confirmed durable disable; the system index is asynchronous and is not a cross-process registry transaction.
 - Legacy keychain-filename cleanup compares the captured preference under registry coordination and a nonblocking pending-local owner lock; an unconfirmed publication does not report success.
 - The fallback key-file association writer compares the captured preference and hardware configuration under an idle owner authorization; it reports unconfirmed registry publication separately from rejection.
 - Hardware-key changes compare the captured preference and hardware setting under an idle owner authorization; any old quick-unlock deletion happens inside that authorization before the registry write and a later failure reports the possible key effect.

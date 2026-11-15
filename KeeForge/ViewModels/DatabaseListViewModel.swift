@@ -192,12 +192,14 @@ final class DatabaseListViewModel {
     /// database is disabled. Enabling is lazy in the store; when the toggled
     /// database is the currently unlocked session, the app-root-installed
     /// `autoFillEnabledRefreshHandler` republishes its identities immediately.
-    func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) {
-        DatabaseListStore.setAutoFillEnabled(isEnabled, for: reference)
+    @discardableResult
+    func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) async -> DatabaseListStore.AutoFillPreferenceOutcome {
+        let outcome = await Task.detached { DatabaseListStore.setAutoFillEnabled(isEnabled, for: reference) }.value
         reload()
-        if isEnabled {
+        if isEnabled && outcome == .saved {
             autoFillEnabledRefreshHandler?(reference.id)
         }
+        return outcome
     }
 
     func isChangingKeyFile(for id: UUID) -> Bool { keyFileRequests[id] != nil }

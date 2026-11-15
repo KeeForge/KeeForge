@@ -120,6 +120,25 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.databases.first?.hardwareKey, desired)
     }
 
+    func testAutoFillRejectionAndUnconfirmedWriteDoNotQueueRemoval() async throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "autofill-old.kdbx"))
+        let replacement = try makeTemporaryFileURL(name: "autofill-new.kdbx")
+        let current = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement))
+        let removal = expectation(description: "No identity removal")
+        removal.isInverted = true
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in removal.fulfill() }
+        XCTAssertEqual(DatabaseListStore.setAutoFillEnabled(false, for: original), .rejected)
+        var beforeWriteIO = DurableFileWriteIO()
+        beforeWriteIO.synchronizeFile = { _ in throw POSIXError(.EIO) }
+        XCTAssertEqual(DatabaseListStore.setAutoFillEnabled(false, for: current, io: beforeWriteIO), .notPublished)
+        XCTAssertTrue(try XCTUnwrap(DatabaseListStore.databases.first).autoFillEnabled)
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        XCTAssertEqual(DatabaseListStore.setAutoFillEnabled(false, for: current, io: io), .visibleUnconfirmed)
+        await fulfillment(of: [removal], timeout: 0.2)
+        XCTAssertFalse(try XCTUnwrap(DatabaseListStore.databases.first).autoFillEnabled)
+    }
+
     func testKeyAssociationRejectsStaleObservationAndMissingRow() throws {
         let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "association-old.kdbx"))
         let replacement = try makeTemporaryFileURL(name: "association-new.kdbx")

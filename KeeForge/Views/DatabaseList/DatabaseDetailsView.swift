@@ -440,7 +440,14 @@ struct DatabaseDetailsView: View {
                 "Include in AutoFill",
                 isOn: Binding(
                     get: { currentReference.autoFillEnabled },
-                    set: { listViewModel.setAutoFillEnabled($0, for: reference) }
+                    set: { enabled in
+                        Task {
+                            let outcome = await listViewModel.setAutoFillEnabled(enabled, for: currentReference)
+                            if outcome != .saved && outcome != .unchanged {
+                                selectionAlert = .init(title: String(localized: "AutoFill"), message: CocoaError(.fileWriteUnknown).localizedDescription)
+                            }
+                        }
+                    }
                 )
             )
             .accessibilityIdentifier("database-details.autofill-toggle")

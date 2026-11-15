@@ -1140,24 +1140,49 @@ enum DatabaseListStore {
     /// the registry alone). The immediate-refresh-when-already-unlocked path
     /// lives at the view-model layer (`DatabaseListViewModel.setAutoFillEnabled`),
     /// which can see the open session; this store cannot.
-    static func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            guard updatedReference.autoFillEnabled != isEnabled else { return }
+    enum AutoFillPreferenceOutcome: Sendable, Equatable { case saved, unchanged, rejected, notPublished, visibleUnconfirmed }
+    private struct AutoFillChange {
+        let reference: DatabaseReference
+        let wasActive: Bool
+        let previousPointer: UUID?
+        let nextPointer: UUID?
+    }
 
-            let wasActive = activeAutoFillDatabase?.id == reference.id
-            updatedReference.autoFillEnabled = isEnabled
-            update(updatedReference)
-
-            guard isEnabled == false else { return }
-
-            if wasActive {
-                activeAutoFillDatabaseID = nextActiveAutoFillDatabaseID(excluding: reference.id)
+    @discardableResult
+    static func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference,
+                                   io: DurableFileWriteIO = .init()) -> AutoFillPreferenceOutcome {
+        let result = mutateRegistry(io: io) { rows -> RegistryDecision<AutoFillChange> in
+            guard let index = rows.firstIndex(where: { $0.id == reference.id }) else { return .missing }
+            guard PendingLocalSaveStore.PreferenceObservation(reference).matches(rows[index]),
+                  rows[index].hardwareKey == reference.hardwareKey,
+                  rows[index].autoFillEnabled == reference.autoFillEnabled else { return .rejected }
+            let wasActive = activeAutoFillDatabase(in: rows)?.id == reference.id
+            let pointer = activeAutoFillDatabaseID
+            let captured = rows[index]
+            let next = rows.filter { $0.id != reference.id && $0.autoFillEnabled && $0.lastOpenedAt != nil }
+                .max { ($0.lastOpenedAt ?? .distantPast) < ($1.lastOpenedAt ?? .distantPast) }?.id
+            let change = AutoFillChange(reference: captured, wasActive: wasActive, previousPointer: pointer, nextPointer: next)
+            guard captured.autoFillEnabled != isEnabled else { return .noop(change) }
+            rows[index].autoFillEnabled = isEnabled
+            return .write(change)
+        }
+        switch result {
+        case .durable(let change):
+            if !isEnabled {
+                if change.wasActive && activeAutoFillDatabaseID == change.previousPointer {
+                    if let next = change.nextPointer {
+                        if (try? readDatabasesStrict().contains { $0.id == next && $0.autoFillEnabled }) == true {
+                            activeAutoFillDatabaseID = next
+                        }
+                    } else { activeAutoFillDatabaseID = nil }
+                }
+                CredentialIdentityStoreManager.removeIdentities(forDatabase: change.reference.id, includingLegacyIdentifiers: change.wasActive)
             }
-            CredentialIdentityStoreManager.removeIdentities(
-                forDatabase: reference.id,
-                includingLegacyIdentifiers: wasActive
-            )
+            return .saved
+        case .noop: return .unchanged
+        case .missing, .rejected: return .rejected
+        case .notPublished: return .notPublished
+        case .visibleUnconfirmed: return .visibleUnconfirmed
         }
     }
 

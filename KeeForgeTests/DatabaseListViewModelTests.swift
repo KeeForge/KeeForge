@@ -519,12 +519,12 @@ final class DatabaseListViewModelTests: XCTestCase {
     /// only proves the view model delegates to
     /// `DatabaseListStore.setAutoFillEnabled` and that `reload()` refreshes
     /// its own `databases` copy of the persisted flag.
-    func testSetAutoFillEnabledFalseDelegatesToStoreAndReloadsDatabases() throws {
+    func testSetAutoFillEnabledFalseDelegatesToStoreAndReloadsDatabases() async throws {
         let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "autofill-off.kdbx"))
         let viewModel = DatabaseListViewModel()
         XCTAssertEqual(viewModel.databases.first(where: { $0.id == reference.id })?.autoFillEnabled, true)
 
-        viewModel.setAutoFillEnabled(false, for: reference)
+        await viewModel.setAutoFillEnabled(false, for: reference)
 
         let storedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
         XCTAssertFalse(storedReference.autoFillEnabled, "setAutoFillEnabled must delegate to DatabaseListStore")
@@ -532,15 +532,15 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertFalse(reloadedReference.autoFillEnabled, "reload() should refresh the view model's copy of the flag")
     }
 
-    func testSetAutoFillEnabledTrueInvokesRefreshHandlerWithDatabaseID() throws {
+    func testSetAutoFillEnabledTrueInvokesRefreshHandlerWithDatabaseID() async throws {
         let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "refresh-on-enable.kdbx"))
         let viewModel = DatabaseListViewModel()
 
         var refreshedDatabaseIDs: [UUID] = []
         viewModel.autoFillEnabledRefreshHandler = { refreshedDatabaseIDs.append($0) }
 
-        viewModel.setAutoFillEnabled(false, for: reference)
-        viewModel.setAutoFillEnabled(true, for: reference)
+        await viewModel.setAutoFillEnabled(false, for: reference)
+        await viewModel.setAutoFillEnabled(true, for: try XCTUnwrap(viewModel.databases.first { $0.id == reference.id }))
 
         XCTAssertEqual(
             refreshedDatabaseIDs,
@@ -549,7 +549,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         )
     }
 
-    func testSetAutoFillEnabledFalseDoesNotInvokeRefreshHandler() throws {
+    func testSetAutoFillEnabledFalseDoesNotInvokeRefreshHandler() async throws {
         let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "no-refresh-on-disable.kdbx"))
         let viewModel = DatabaseListViewModel()
 
@@ -557,7 +557,7 @@ final class DatabaseListViewModelTests: XCTestCase {
             XCTFail("Disable is removal-only; there is nothing to republish, so the refresh handler must stay silent")
         }
 
-        viewModel.setAutoFillEnabled(false, for: reference)
+        await viewModel.setAutoFillEnabled(false, for: reference)
 
         let storedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
         XCTAssertFalse(storedReference.autoFillEnabled)
@@ -581,7 +581,7 @@ final class DatabaseListViewModelTests: XCTestCase {
             removalExpectation.fulfill()
         }
 
-        viewModel.setAutoFillEnabled(false, for: first)
+        await viewModel.setAutoFillEnabled(false, for: first)
 
         await fulfillment(of: [removalExpectation], timeout: 1)
         XCTAssertEqual(
@@ -925,10 +925,10 @@ final class DatabaseListViewModelTests: XCTestCase {
         let viewModel = DatabaseListViewModel()
         await viewModel.refreshAutoFillStatus()
 
-        viewModel.setAutoFillEnabled(false, for: second)
+        await viewModel.setAutoFillEnabled(false, for: second)
         XCTAssertFalse(viewModel.isAutoFillLimitedToOneDatabase)
 
-        viewModel.setAutoFillEnabled(true, for: second)
+        await viewModel.setAutoFillEnabled(true, for: try XCTUnwrap(viewModel.databases.first { $0.id == second.id }))
         XCTAssertTrue(viewModel.isAutoFillLimitedToOneDatabase)
     }
 

@@ -3403,8 +3403,8 @@ final class DatabaseViewModelTests: XCTestCase {
             refreshExpectation.fulfill()
         }
 
-        listViewModel.setAutoFillEnabled(false, for: reference)
-        listViewModel.setAutoFillEnabled(true, for: reference)
+        await listViewModel.setAutoFillEnabled(false, for: reference)
+        await listViewModel.setAutoFillEnabled(true, for: try XCTUnwrap(listViewModel.databases.first { $0.id == reference.id }))
 
         await fulfillment(of: [refreshExpectation], timeout: 30)
         XCTAssertEqual(observedDatabaseID, reference.id)
@@ -3432,7 +3432,7 @@ final class DatabaseViewModelTests: XCTestCase {
             XCTFail("Enabling a database that is not the open session must stay lazy")
         }
 
-        listViewModel.setAutoFillEnabled(true, for: backgroundReference)
+        await listViewModel.setAutoFillEnabled(true, for: backgroundReference)
 
         try? await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(handlerInvocations, [backgroundReference.id])
@@ -3473,7 +3473,7 @@ final class DatabaseViewModelTests: XCTestCase {
             removalExpectation.fulfill()
         }
 
-        listViewModel.setAutoFillEnabled(false, for: backgroundReference)
+        await listViewModel.setAutoFillEnabled(false, for: backgroundReference)
 
         await fulfillment(of: [removalExpectation], timeout: 30)
         try? await Task.sleep(for: .milliseconds(100))

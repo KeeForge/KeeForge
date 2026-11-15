@@ -18,6 +18,7 @@
 - A new entry never goes into the synthetic KDBX Root: other KeePass apps cannot read entries there. The fallback is the first top-level group, and the configured group is used only while it exists outside the recycle bin. A group that stops resolving is not cleared from the setting.
 - `saveNewEntry` delegates cloud journal publication and cache replacement to `LocalDatabaseSaver` with its AutoFill environment; it never orchestrates markers itself.
 - After a save, identities are published and the active AutoFill pointer moves only if the reference has AutoFill enabled.
+- Disabling a database schedules identity removal only after confirmed registry publication. The system index update is asynchronous and best effort; its non-incremental fallback can remove other databases' suggestions and is not atomic with the registry across processes.
 - The extension saves with `KDFExecutionPolicy.autoFillExtension`.
 
 ### Credential identities
