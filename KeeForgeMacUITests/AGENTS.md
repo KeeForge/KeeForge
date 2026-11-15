@@ -1,6 +1,6 @@
 # KeeForgeMacUITests
 
-**Scope:** XCUITest smoke suite for the native macOS app (scheme `KeeForgeMac`). It is a thin layer by design; see "macOS tests" in `../AGENTS.md`. The fix workflow, launch environment, and fixtures are shared with `../KeeForgeUITests/AGENTS.md`.
+**Scope:** an XCUITest smoke suite for the native macOS app (scheme `KeeForgeMac`), plus two opt-in capture classes, `MacScreenshotAuditUITests` and `MacAppStoreScreenshots`, that skip unless their environment variable is set. It is a thin layer by design; see "macOS tests" in `../AGENTS.md`. The fix workflow, launch environment, and fixtures are shared with `../KeeForgeUITests/AGENTS.md`.
 
 ## Running
 
@@ -37,7 +37,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - `-ApplePersistenceIgnoreState YES` stays in the base launch. Without it state restoration can restore a session with no windows and no main window ever appears.
 - Never pass `-AppleLanguages` / `-AppleLocale` on macOS: on macOS 27.2 the app then launches with no window at all (cause unknown), and every query fails as "Database list did not appear". The Mac suite relies on the session's English locale.
 - To capture the app's own windows, launch with `-KeeForge.blockScreenCapture NO`, placed as above. The app excludes its windows from capture by default, so a capture is blank or shows whatever is behind the app.
-- Under `-ui-testing`, revealing or copying a protected value never asks for Touch ID or the login password: `BiometricService.canAuthenticateDeviceOwner` reports no device-owner authentication, so the gate is skipped, because XCUITest cannot answer the system prompt. A reveal that shows nothing in a test is therefore never a pending prompt; look for a click that missed. A boundary test launches with `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1`, which re-arms the gate with an authentication that never completes. Without it, immediate disclosure reads as a leak.
+- Under `-ui-testing`, revealing or copying a protected value never asks for Touch ID or the login password: `BiometricService.canAuthenticateDeviceOwner` reports no device-owner authentication, so the gate is skipped, because XCUITest cannot answer the system prompt. A reveal that shows nothing in a test is therefore never a pending prompt; look for a click that missed. `MacPasswordAuthBoundaryUITests` launches with `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1`, which re-arms the gate with an authentication that never completes. Without it, immediate disclosure reads as a leak.
 - `MacScreenshotAuditUITests` opens database windows at 1080×700 pt content, then relaunches with the 900×620 minimum for its minimum-width capture and asserts the resulting frame. Corner drags do not resize windows on macOS 27.
 - Under `-ui-testing` the app restores no windows on launch and records no window topology, so one test's windows never reappear in the next (`MacWindowLaunchOptions`). Each database window it opens starts at 1080 x 700 pt content, or at the size given by `-ui-testing-database-window-size <width>x<height>` (for example `1440x900`); a malformed value is ignored. A second window cascades from the frontmost one.
 

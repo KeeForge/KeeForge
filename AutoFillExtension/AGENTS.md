@@ -5,8 +5,8 @@
 ## Ownership
 
 - `CredentialProviderCoordinator` owns a request end to end: vault access, unlock, matching, passkey assertion, completion. It stays free of UIKit and AppKit and talks to the shell only through `CredentialProviderPresenting`.
-- `CredentialProviderViewController` (iOS) and `CredentialProviderViewControllerMac` are thin shells with no matching or vault logic.
-- Both extension targets compile this whole folder, each file gated by `#if os()`. `../project.yml` also compiles the coordinator into the `KeeForge` app target, and the coordinator, Mac shell, `AutoFillSearchView`, `AutoFillPasskeyCreatorView`, and `AutoFillMacChrome` into `KeeForgeMac`, so unit tests can drive them.
+- `CredentialProviderViewController`, one class per platform (`CredentialProviderViewController.swift` on iOS, `CredentialProviderViewControllerMac.swift` on Mac), is a thin shell with no matching or vault logic.
+- Both extension targets compile this whole folder, each file gated by `#if os()`. `../project.yml` also compiles the coordinator and `AutoFillSearchView` (for the DEBUG picker harness) into the `KeeForge` app target, and the coordinator, Mac shell, `AutoFillSearchView`, `AutoFillPasskeyCreatorView`, and `AutoFillMacChrome` into `KeeForgeMac`, so unit tests can drive them.
 - The extensions share one allow-listed set of files from outside this folder; the two lists in `../project.yml` must stay byte-identical (rule in `../KeeForge/Services/AGENTS.md`).
 
 ## Invariants
