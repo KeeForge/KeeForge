@@ -44,6 +44,7 @@ final class MacWorkspaceAlerts {
     private var lockResponseID: UUID?
     private var endingSheet: NSWindow?
     private var sheetEndObserver: NSObjectProtocol?
+    private var recoveryObservers: [NSObjectProtocol] = []
     private var presentedDeletion: PendingDeletion?
 
     init(session: DatabaseViewModel, presentation: MacWorkspacePresentation, window: @escaping @MainActor () -> NSWindow?) {
@@ -57,10 +58,16 @@ final class MacWorkspaceAlerts {
     isolated deinit {
         observation.cancel()
         if let sheetEndObserver { NotificationCenter.default.removeObserver(sheetEndObserver) }
+        for observer in recoveryObservers { NotificationCenter.default.removeObserver(observer) }
         dismissPresented()
     }
 
     func start() {
+        for name in [PendingLocalSaveStore.didChange, NSApplication.didBecomeActiveNotification] {
+            recoveryObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                Task { @MainActor [weak self] in await self?.session.refreshLocalConflictRecovery() }
+            })
+        }
         sheetEndObserver = NotificationCenter.default.addObserver(forName: NSWindow.didEndSheetNotification, object: nil, queue: nil) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
@@ -139,6 +146,7 @@ final class MacWorkspaceAlerts {
             switch presented.kind {
             case .deletion(let id) where id != state.deletionID: dismissPresented()
             case .saveError(let error) where error != state.saveError: dismissPresented()
+            case .saveConflict where presentedConflict != state.conflict: dismissPresented()
             case .lockDraft(let request, let readOnly) where request != state.lockRequest || readOnly != state.readOnly: dismissPresented()
             default: break
             }
@@ -229,12 +237,18 @@ final class MacWorkspaceAlerts {
             addButton(String(localized: "Keep Editing"), identifier: "workspace.lock.cancel", to: alert).keyEquivalent = "\u{1b}"
         case .saveConflict:
             alert.messageText = String(localized: "Save Conflict")
-            alert.informativeText = String(localized: "The database changed outside KeeForge. Merge both sets of changes, reload it, or save your draft as a sibling conflict copy.")
-            addButton(String(localized: "Merge Changes"), identifier: "save-conflict.merge", to: alert)
-            addButton(String(localized: "Reload and Re-edit"), identifier: "save-conflict.reload", to: alert)
-            addButton(String(localized: "Save as Conflict Copy"), identifier: "save-conflict.save-as-copy", to: alert)
-            let cancel = addButton(String(localized: "Cancel"), identifier: "save-conflict.cancel", to: alert)
-            cancel.keyEquivalent = "\u{1b}"
+            if session.saveConflict?.requiresLocalRecovery == true {
+                alert.informativeText = String(localized: "Local recovery is still pending. Keep your draft and open Database Details to export unsaved changes and review recovery actions.")
+                addButton(String(localized: "Database Details"), identifier: "save-conflict.recovery", to: alert)
+                addButton(String(localized: "Cancel"), identifier: "save-conflict.cancel", to: alert).keyEquivalent = "\u{1b}"
+            } else {
+                alert.informativeText = String(localized: "The database changed outside KeeForge. Merge both sets of changes, reload it, or save your draft as a sibling conflict copy.")
+                addButton(String(localized: "Merge Changes"), identifier: "save-conflict.merge", to: alert)
+                addButton(String(localized: "Reload and Re-edit"), identifier: "save-conflict.reload", to: alert)
+                addButton(String(localized: "Save as Conflict Copy"), identifier: "save-conflict.save-as-copy", to: alert)
+                let cancel = addButton(String(localized: "Cancel"), identifier: "save-conflict.cancel", to: alert)
+                cancel.keyEquivalent = "\u{1b}"
+            }
         case .mergeFailure:
             alert.messageText = String(localized: "Couldn't Merge Changes")
             alert.informativeText = session.mergeFailure?.message ?? ""
@@ -350,6 +364,10 @@ final class MacWorkspaceAlerts {
                 runLockResponse { await session.continueEditingAfterLockRequest() }
             }
         case .saveConflict:
+            if session.saveConflict?.requiresLocalRecovery == true {
+                if response == .alertFirstButtonReturn { presentation.isShowingDatabaseDetails = true }
+                break
+            }
             switch Self.conflictChoice(for: response) {
             case .merge: run { try await session.mergeAndSave() }
             case .reload: run { try await session.reloadDiscardingDraft() }
@@ -421,6 +439,8 @@ final class MacWorkspaceAlerts {
         observation.cancel()
         if let sheetEndObserver { NotificationCenter.default.removeObserver(sheetEndObserver) }
         sheetEndObserver = nil
+        for observer in recoveryObservers { NotificationCenter.default.removeObserver(observer) }
+        recoveryObservers = []
         lockResponseID = nil
         dismissPresented()
         presentation.pendingDeletion = nil
