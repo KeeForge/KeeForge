@@ -1556,6 +1556,25 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         }
     }
 
+    func testDrainStateRefreshDoesNotReviveLockedOrRetiredSessions() async throws {
+        let reference = try makeStoredManualReference()
+        let openedData = try fixtureData()
+        let vm = makeViewModel(reference: reference, openedData: openedData,
+            pendingUploadMarkerCheck: { _ in true })
+        let store = DatabaseSessionStore()
+        store.adopt(vm)
+        await vm.unlock(password: fixturePassword)
+        vm.lock()
+        store.refreshPendingUploads(for: [reference.id])
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertFalse(vm.hasPendingCloudUploads)
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+        XCTAssertTrue(store.retire(reference.id, force: true))
+        store.refreshPendingUploads(for: [reference.id])
+        XCTAssertNil(store.session(for: reference.id))
+        XCTAssertEqual(vm.state, .locked)
+    }
+
     func testManualPolicyOpenFlagsTheSkippedRefreshWithoutAWarning() async throws {
         let openedData = try fixtureData()
         let vm = makeViewModel(reference: try makeStoredManualReference(), openedData: openedData)

@@ -138,17 +138,12 @@ final class PendingUploadDrainer {
         inFlightDrains[scope] = task
         drainChainTail = Task { @MainActor in _ = await task.value }
 
-        let outcome = await task.value
+        var outcome = await task.value
         // A same-scope request only registers a new task once this entry is
         // cleared, so the stored task is still ours to remove here.
         inFlightDrains[scope] = nil
-        // A request slipping in between the loop's final check and the line
-        // above already got this outcome without its extra pass; run it in the
-        // background rather than swallowing it.
         if rerunRequestedScopes.contains(scope) {
-            Task { @MainActor in
-                _ = await self.drain(databaseId: databaseId)
-            }
+            outcome.merge(await drain(databaseId: databaseId))
         }
         return outcome
     }
