@@ -8654,6 +8654,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testConfirmedCloudRekeyRecoveryDoesNotResurrectLockedOrRetiredSessions() async throws {
         try await exerciseConfirmedCloudRekeyRecovery(.locked)
+        DatabaseListStore.clearAll()
         try await exerciseConfirmedCloudRekeyRecovery(.retired)
     }
 
