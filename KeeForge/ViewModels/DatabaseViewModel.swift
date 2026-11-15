@@ -5180,7 +5180,7 @@ final class DatabaseViewModel {
 
         quickUnlockItemHoldsSessionKey = false
         if !databaseReference.isCloudBacked, localRead == nil {
-            DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
+            DatabaseListStore.markDatabaseOpened(id: databaseReference.id, observed: databaseReference)
             refreshDatabaseReference()
         }
         refreshPendingUploadConflict()
@@ -5259,7 +5259,7 @@ final class DatabaseViewModel {
             if pendingBookmarkRead?.actionID == actionID { pendingBookmarkRead = nil }
         }
         quickUnlockItemHoldsSessionKey = stored && !sessionUsesHardwareKey
-        DatabaseListStore.markDatabaseOpened(id: reference.id)
+        DatabaseListStore.markDatabaseOpened(id: reference.id, observed: databaseReference)
         if let current = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
            PendingLocalSaveStore.PreferenceObservation(databaseReference).matches(current),
            databaseReference.hardwareKey == current.hardwareKey,

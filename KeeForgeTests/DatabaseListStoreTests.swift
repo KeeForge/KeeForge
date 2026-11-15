@@ -924,7 +924,9 @@ final class DatabaseListStoreTests: XCTestCase {
             XCTFail("Enabling must not trigger targeted identity removal")
         }
 
-        DatabaseListStore.setAutoFillEnabled(true, for: disabled)
+        XCTAssertEqual(DatabaseListStore.setAutoFillEnabled(true, for: disabled), .rejected)
+        let currentDisabled = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == disabled.id })
+        XCTAssertEqual(DatabaseListStore.setAutoFillEnabled(true, for: currentDisabled), .saved)
 
         try? await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(DatabaseListStore.databases.first(where: { $0.id == disabled.id })?.autoFillEnabled, true)
@@ -1201,7 +1203,12 @@ final class DatabaseListStoreTests: XCTestCase {
             let registry = AppGroupContainer.url.appendingPathComponent("database-list.json")
             let owner = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(reference.id.uuidString)")
             let registryBefore = try Data(contentsOf: registry)
-            XCTAssertFalse(FileManager.default.fileExists(atPath: owner.path))
+            func ownerSnapshot() throws -> [String: Data]? {
+                guard FileManager.default.fileExists(atPath: owner.path) else { return nil }
+                return try Dictionary(uniqueKeysWithValues: FileManager.default.contentsOfDirectory(at: owner, includingPropertiesForKeys: nil)
+                    .map { ($0.lastPathComponent, try Data(contentsOf: $0)) })
+            }
+            let ownerBefore = try ownerSnapshot()
             var receipt: DatabaseListStore.DatabaseBookmarkRenewal?
             let resolver: (Data) -> (url: URL, isStale: Bool)? = { _ in
                 mode == "broken" ? nil : (observedURL, true)
@@ -1220,7 +1227,8 @@ final class DatabaseListStoreTests: XCTestCase {
             XCTAssertNil(receipt)
             XCTAssertEqual(try Data(contentsOf: registry), registryBefore)
             XCTAssertEqual(try Data(contentsOf: cache), oldCache)
-            XCTAssertFalse(FileManager.default.fileExists(atPath: owner.path), "No-renew resolution must not create owner locks or records")
+            XCTAssertEqual(try ownerSnapshot(), ownerBefore,
+                           "No-renew resolution must not change owner locks or records")
             XCTAssertEqual(try Data(contentsOf: observedURL), original)
             if mode == "trash" { XCTAssertEqual(try Data(contentsOf: originalURL), replacement) }
 
@@ -1462,7 +1470,10 @@ final class DatabaseListStoreTests: XCTestCase {
         )
         XCTAssertEqual(DatabaseListStore.databases.first?.hasUnverifiedRelink, true)
 
-        DatabaseListStore.markDatabaseOpened(id: reference.id)
+        DatabaseListStore.markDatabaseOpened(id: reference.id, observed: reference)
+        XCTAssertEqual(DatabaseListStore.databases.first?.hasUnverifiedRelink, true)
+        let relinked = try XCTUnwrap(DatabaseListStore.databases.first)
+        DatabaseListStore.markDatabaseOpened(id: reference.id, observed: relinked)
         XCTAssertEqual(DatabaseListStore.databases.first?.hasUnverifiedRelink, false)
     }
 

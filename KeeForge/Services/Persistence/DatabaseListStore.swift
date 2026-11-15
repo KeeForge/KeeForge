@@ -1395,10 +1395,14 @@ enum DatabaseListStore {
         })
     }
 
-    static func markDatabaseOpened(id: UUID, at date: Date = .now) {
+    static func markDatabaseOpened(id: UUID, observed: DatabaseReference? = nil, at date: Date = .now) {
         let result = mutateRegistry { rows -> RegistryDecision<Bool> in
             guard let index = rows.firstIndex(where: { $0.id == id }) else { return .missing }
             rows[index].lastOpenedAt = date
+            if let observed, observed.id == id, observed.bookmarkData == rows[index].bookmarkData,
+               PendingLocalSaveStore.PreferenceObservation(observed).matches(rows[index]) {
+                rows[index].hasUnverifiedRelink = false
+            }
             return .write(rows[index].autoFillEnabled)
         }
         if case .durable(true) = result { activeAutoFillDatabaseID = id }

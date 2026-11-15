@@ -8698,7 +8698,7 @@ final class DatabaseViewModelTests: XCTestCase {
         environment.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
         environment.revisionIdentifiesContent = { _, _ in false }
         let recovery = environment
-        environment.replaceFile = { _, _, _, _ in throw CocoaError(.fileWriteNoPermission) }
+        environment.rekeyReplacementIO.stage = { _, _ in throw CocoaError(.fileWriteNoPermission) }
         let faulty = environment
         let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
             CloudSyncResolution(reference: reference, localURL: cacheURL, data: original, status: .current)
@@ -8718,7 +8718,9 @@ final class DatabaseViewModelTests: XCTestCase {
             try await vm.changeMasterKey(newPassword: "cloud-rotated", newKeyFileData: nil,
                 newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
             XCTFail("Expected local reconciliation failure")
-        } catch is CloudSaveRecoveryWarning { }
+        } catch let error as SaveError {
+            XCTAssertEqual(error, .rekeyAppliedRemotely)
+        }
         let oldSHA = vm.openTimeSHA512
         let oldReference = vm.databaseReference
         let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)

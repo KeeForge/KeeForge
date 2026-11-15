@@ -331,13 +331,13 @@ final class PendingUploadQueueTests: XCTestCase {
         let databaseId = UUID()
         let supersededSHA = Data("base-sha".utf8)
 
-        let superseded = try PendingUploadQueue.enqueue(
+        var superseded = try PendingUploadQueue.enqueue(
             makeMarker(databaseId: databaseId, createdAt: Date(timeIntervalSince1970: 10), openTimeSHA512: supersededSHA),
             environment: environment
         )
         // A conflicted marker with the same recorded payload is equally
         // superseded — the SHA equality is the proof the conflict was spurious.
-        let conflicted = try PendingUploadQueue.enqueue(
+        var conflicted = try PendingUploadQueue.enqueue(
             makeMarker(
                 databaseId: databaseId,
                 createdAt: Date(timeIntervalSince1970: 20),
@@ -346,6 +346,15 @@ final class PendingUploadQueueTests: XCTestCase {
             ),
             environment: environment
         )
+        let metadata = CloudSyncMetadata(provider: "webdav", accountId: "account", fileId: "vault", displayPath: "vault",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)
+        let reference = DatabaseReference(id: databaseId, nickname: nil, filename: "vault.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil, addedAt: .now,
+            colorTag: nil, legacyKeychainFilename: nil, source: .cloud(metadata))
+        superseded.marker.binding = try PendingUploadQueue.JournalBinding.capture(reference: reference, operationID: superseded.id)
+        conflicted.marker.binding = try PendingUploadQueue.JournalBinding.capture(reference: reference, operationID: conflicted.id)
+        superseded = try PendingUploadQueue.update(superseded, environment: environment)
+        conflicted = try PendingUploadQueue.update(conflicted, environment: environment)
         let differentPayload = try PendingUploadQueue.enqueue(
             makeMarker(databaseId: databaseId, createdAt: Date(timeIntervalSince1970: 30), openTimeSHA512: Data("other-sha".utf8)),
             environment: environment
