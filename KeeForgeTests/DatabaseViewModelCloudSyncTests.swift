@@ -1921,6 +1921,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         try vm.applyEntryEdit(.createEntry(parentGroupID: parent, draft: EntryDraftPayload(title: "Saved Mid-Sync", password: "p")))
         let saveTask = Task { try await vm.save() }
         await saveGate.waitUntilStarted()
+        try vm.applyEntryEdit(.createEntry(parentGroupID: parent, draft: EntryDraftPayload(title: "Late Edit", password: "p")))
         await refreshGate.open()
         try await Task.sleep(for: .milliseconds(200))
         XCTAssertNil(vm.cloudSyncOutcome, "Sync Now must wait for the in-flight save")
@@ -1928,14 +1929,20 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         try await saveTask.value
         await syncTask.value
         let saved = try Data(contentsOf: cacheURL)
-        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        let journal = try PendingUploadQueue.readJournal(for: reference.id)
+        XCTAssertEqual(journal.count, 2)
+        let first = try XCTUnwrap(journal.first)
+        let marker = try XCTUnwrap(journal.last)
         XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker), saved)
+        XCTAssertNotEqual(try PendingUploadQueue.readImmutablePayload(first), saved)
+        XCTAssertEqual(marker.marker.predecessorOperationID, first.id)
         XCTAssertEqual(marker.marker.expectedRev, reference.expectedCloudRevision)
         XCTAssertEqual(refreshRecorder.references.count, 2)
         XCTAssertEqual(vm.cloudSyncOutcome, .updateWaitsForSave)
         XCTAssertNotNil(vm.saveConflict)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(saved))
-        XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
+        XCTAssertTrue(entryTitles(in: vm).isSuperset(of: ["Saved Mid-Sync", "Late Edit"]))
+        XCTAssertTrue(try Self.entryTitles(in: saved, password: fixturePassword).isSuperset(of: ["Saved Mid-Sync", "Late Edit"]))
         XCTAssertEqual(vm.databaseReference.expectedCloudRevision, reference.expectedCloudRevision)
         XCTAssertFalse(vm.isSyncingCloud)
     }
