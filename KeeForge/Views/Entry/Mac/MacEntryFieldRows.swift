@@ -222,7 +222,7 @@ extension MacCopyFeedback.Field {
 // MARK: - Field row
 
 /// A field from `MacEntryDetailModel.fields`: plain text, a concealed mask, a revealed value,
-/// a website link or the verification code, with the buttons the field allows.
+/// a website link (only for a website that opens) or the verification code, with the buttons the field allows.
 struct MacEntryFieldRow: View {
     let field: MacEntryField
     let model: MacEntryDetailModel
@@ -255,8 +255,8 @@ struct MacEntryFieldRow: View {
     private var value: some View {
         switch field.display {
         case .plain(let text):
-            if field.kind.isWebsite {
-                websiteLink(text)
+            if field.kind.isWebsite, let link = field.openableURL {
+                websiteLink(text, opening: link)
             } else {
                 Text(text)
                     .font(field.kind.isCustom ? .body.monospaced() : .body)
@@ -274,8 +274,8 @@ struct MacEntryFieldRow: View {
         case .revealed(let text):
             // Never selectable: the copy button is the only copy path for a secret.
             HStack(spacing: 14) {
-                if field.kind.isWebsite {
-                    websiteLink(text)
+                if field.kind.isWebsite, let link = field.openableURL {
+                    websiteLink(text, opening: link)
                 } else {
                     PasswordDisplayText(text)
                         .lineLimit(1)
@@ -290,9 +290,9 @@ struct MacEntryFieldRow: View {
         }
     }
 
-    private func websiteLink(_ url: String) -> some View {
+    private func websiteLink(_ url: String, opening link: URL) -> some View {
         Button {
-            if let link = field.openableURL { openURL(link) }
+            openURL(link)
         } label: {
             Text(MacEntryFormatting.website(url))
                 .foregroundStyle(.tint)
@@ -300,7 +300,6 @@ struct MacEntryFieldRow: View {
                 .truncationMode(.middle)
         }
         .buttonStyle(.plain)
-        .disabled(field.openableURL == nil)
         .macHelp(url)
     }
 

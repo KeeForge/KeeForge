@@ -1,5 +1,6 @@
 #if os(iOS)
 import CryptoKit
+import SiteMatching
 import SwiftUI
 
 /// The iPhone and iPad entry detail. The Mac detail is `MacEntryDetailView`.
@@ -504,7 +505,7 @@ struct URLFieldRow: View {
                 .foregroundStyle(Theme.labelSecondary)
             HStack(spacing: 0) {
                 Text(url)
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(link == nil ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
                     .textSelection(.enabled)
                 Spacer(minLength: Theme.Spacing.iconText)
                 actions
@@ -512,9 +513,12 @@ struct URLFieldRow: View {
         }
     }
 
+    /// Only an `http` or `https` URL opens; anything else is text to copy.
+    var link: URL? { SiteHost.openableURL(url) }
+
     @ViewBuilder
     private var actions: some View {
-        if let link = URL(string: url) {
+        if let link {
             Button {
                 HapticService.tap()
                 openURL(link)

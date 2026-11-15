@@ -369,6 +369,11 @@ and on a failed or cancelled prompt, and is not extended by using it. Under the
 default lock policy, switching to another app does not lock and therefore does
 not end the period either; the strict policy ends it with the lock.
 
+A website field opens only an `http` or `https` URL with a host, or a bare host
+read as `https://<value>`, the reading AutoFill matching uses; any other value
+(`file:`, `javascript:`, custom app schemes) is shown as text to copy, with no
+link or open button ([SiteHost.openableURL](../Packages/SiteMatching/Sources/SiteMatching/SiteHost.swift)).
+
 The opt-in Auto-Unlock with Touch ID setting prompts when a database opens in
 its foreground key window or the user returns to that window: app or window
 activation, or the screen unlocking or login session returning while KeeForge

@@ -1,6 +1,7 @@
 #if os(macOS)
 import Foundation
 import Observation
+import SiteMatching
 
 /// Which entry a Mac detail shows: the live entry, or one of its stored versions.
 enum EntrySource: Hashable {
@@ -74,11 +75,11 @@ struct MacEntryField: Identifiable, Equatable {
         case .website, .custom, .notes: String(localized: "Copy \(label)")
         }
     }
-    /// A concealed website opens only once revealed.
+    /// Only an `http` or `https` website opens, and a concealed one only once revealed.
     var openableURL: URL? {
         guard case .website = kind else { return nil }
         switch display {
-        case .plain(let value), .revealed(let value): return URL(string: value)
+        case .plain(let value), .revealed(let value): return SiteHost.openableURL(value)
         case .concealed, .verificationCode: return nil
         }
     }

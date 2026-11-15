@@ -55,6 +55,31 @@ final class SiteHostTests: XCTestCase {
         }
     }
 
+    func testO1OpensOnlyHTTPAndHTTPSURLsWithAHost() {
+        let opened: [(input: String, url: String)] = [
+            ("https://example.com/login", "https://example.com/login"),
+            ("HTTP://Example.com", "HTTP://Example.com"),
+            ("  https://example.com \n", "https://example.com"),
+            ("example.com", "https://example.com"),
+            ("example.com/path?q=1", "https://example.com/path?q=1"),
+            ("localhost:8080", "https://localhost:8080"),
+            ("http://user:secret@example.com:8443/", "http://user:secret@example.com:8443/"),
+            ("https://example.com\\@evil.example", "https://example.com/@evil.example"),
+        ]
+        for testCase in opened {
+            XCTAssertEqual(SiteHost.openableURL(testCase.input)?.absoluteString, testCase.url, testCase.input)
+        }
+
+        let refused = [
+            "", "   ", "https:", "https://", "https:/", "http:example.com", "file:///etc/hosts", "file:/etc/hosts",
+            "javascript:alert(1)", "JavaScript:alert(1)", "ssh://host.example", "smb://server/share",
+            "mailto:a@b.com", "myapp://open?id=1", "ftp://example.com", "not a url", "user:pass@example.com",
+        ]
+        for input in refused {
+            XCTAssertNil(SiteHost.openableURL(input), input.debugDescription)
+        }
+    }
+
     func testH1BackslashIsReadAsASlashAsInBrowsers() {
         let cases: [(input: String, host: String)] = [
             ("https://example.com\\@evil.example", "example.com"),

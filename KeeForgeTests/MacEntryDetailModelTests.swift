@@ -39,6 +39,24 @@ final class MacEntryDetailModelTests: XCTestCase {
         XCTAssertEqual(model.historyCount, 1)
     }
 
+    func testOnlyHTTPAndHTTPSWebsitesOfferAnOpenAction() async throws {
+        let entry = KPEntry(
+            title: "Links", url: "file:///etc/hosts",
+            customFields: ["KP2A_URL_1": "example.com", "KP2A_URL_2": "javascript:alert(1)", "KP2A_URL_3": "smb://nas/share"]
+        )
+        let session = try await makeSession(entries: [entry])
+        defer { session.lockRequest(force: true) }
+        let model = makeModel(.live(entry.id), session: session)
+        model.appeared()
+        let websites = model.fields.filter { if case .website = $0.kind { true } else { false } }
+
+        XCTAssertEqual(websites.map(\.display), [
+            .plain("file:///etc/hosts"), .plain("example.com"), .plain("javascript:alert(1)"), .plain("smb://nas/share"),
+        ])
+        XCTAssertEqual(websites.map(\.openableURL), [nil, URL(string: "https://example.com"), nil, nil])
+        XCTAssertTrue(websites.allSatisfy(\.canCopy), "A website that cannot open can still be copied")
+    }
+
     func testMaskedFieldsReadAsHiddenAndTheirButtonsNameTheField() async throws {
         let entry = try fullEntry()
         let session = try await makeSession(entries: [entry])

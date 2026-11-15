@@ -1,6 +1,6 @@
 # SiteMatching
 
-**Scope:** which stored credentials a credential request matches, as a standalone Swift package: host parsing and normalization, registrable domains from the Public Suffix List, the publishable-host check for suggestions shown outside the vault, the strict and interactive match tiers, and the passkey relying-party comparison key. Requests from `AuthenticationServices`, entries, expiry, and what to do with a match live in the app (`../../KeeForge/Services/AutoFill/AGENTS.md`).
+**Scope:** which stored credentials a credential request matches, as a standalone Swift package: host parsing and normalization, the URL a stored website opens, registrable domains from the Public Suffix List, the publishable-host check for suggestions shown outside the vault, the strict and interactive match tiers, and the passkey relying-party comparison key. Requests from `AuthenticationServices`, entries, expiry, and what to do with a match live in the app (`../../KeeForge/Services/AutoFill/AGENTS.md`).
 
 ## Invariants
 
@@ -58,6 +58,10 @@ Passwords and one-time codes use the same tiers; the app decides which tier a fl
 
 A rule change that alters published identities takes effect at each database's next unlock, which republishes its identities. The app owns that refresh and its test (`../../KeeForge/Services/AutoFill/AGENTS.md`).
 
+### Opening
+
+- **O1 Openable URL.** A stored website value opens as the URL H1 reads, and only when H1 names a site with it. A value that starts with another scheme and a `:` not followed by `//` opens nothing, although H1 would read it as `https://<value>`: `mailto:a@b.com`, `javascript:…`, `file:/etc/hosts`, and a bare `https:`. A `host:port` value is not a scheme and opens as `https://host:port`. User info and odd ports stay in the opened URL: it is still `http` or `https`.
+
 ## Accepted divergences
 
 The known-answer suites list only these, each with its reason in the test. A vector joining or leaving a list is a rule change to review.
@@ -72,7 +76,7 @@ The known-answer suites list only these, each with its reason in the test. A vec
 
 ## Public surface
 
-- `SiteHost` (parsing, `isPublishable`, `init?(publishableWebURL:)`, `sharesRegistrableDomain(with:)`, `relyingPartyKey(_:)`), `SiteRequest` (`host`, `website`), `SiteCandidate`, and `SiteMatcher` (`interactiveMatches`, `strictMatches`, `firstWebHost`, `isStoredAppIdentifier`). Registrable-domain lookups, the possible tier, and prioritization stay internal; widen the surface only for a caller that needs it.
+- `SiteHost` (parsing, `openableURL(_:)`, `isPublishable`, `init?(publishableWebURL:)`, `sharesRegistrableDomain(with:)`, `relyingPartyKey(_:)`), `SiteRequest` (`host`, `website`), `SiteCandidate`, and `SiteMatcher` (`interactiveMatches`, `strictMatches`, `firstWebHost`, `isStoredAppIdentifier`). Registrable-domain lookups, the possible tier, and prioritization stay internal; widen the surface only for a caller that needs it.
 
 ## Tests
 

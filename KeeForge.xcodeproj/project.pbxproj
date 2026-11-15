@@ -334,6 +334,7 @@
 		40513FE7EBB0EC663F345EEC /* KDBXXML in Frameworks */ = {isa = PBXBuildFile; productRef = F6B488156617224AF7765D6B /* KDBXXML */; };
 		405BB7E00382B59A2001D207 /* RemoteFileTransports in Frameworks */ = {isa = PBXBuildFile; productRef = 02636CD8EC0C7C10D04F7BA2 /* RemoteFileTransports */; };
 		409624686F6CA07B71E78B8F /* SettingsWindowControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 258E9033890361829DDCA7CA /* SettingsWindowControllerTests.swift */; };
+		40C0BC3CDEF0D61C6A8062B6 /* URLFieldRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54959D74AFC947FAB6E92D86 /* URLFieldRowTests.swift */; };
 		40D9BA930E63C126D6B96ECA /* EncryptionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73293357D30932DF886D469A /* EncryptionSettingsView.swift */; };
 		41162494DE9804B24B6029A8 /* SecretAccessGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB544D0D840063C593A3CB55 /* SecretAccessGate.swift */; };
 		41535CAB09A7DDDB076AB221 /* MacAttachmentPreviewControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC443719350E528D09F8072 /* MacAttachmentPreviewControllerTests.swift */; };
@@ -1050,6 +1051,7 @@
 		D9B5C6935DE04E5E6E264FF6 /* MacDatabaseSettingsModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD9475B55554B3289A06A58F /* MacDatabaseSettingsModelTests.swift */; };
 		D9BA1A855C5E14A6B9D0FF3C /* SecureRandom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F135327240ED1387C8003A4 /* SecureRandom.swift */; };
 		D9DEA9F0DDD8BF48FADC5772 /* CredentialProviderRegistrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76C796B02FF415E49F0E10C /* CredentialProviderRegistrationTests.swift */; };
+		DA0D521D59A908D003C18506 /* URLFieldRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54959D74AFC947FAB6E92D86 /* URLFieldRowTests.swift */; };
 		DA12EB074EE6D41AE75BE44F /* MacUnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D6DA9D6452B23D7951B9368 /* MacUnlockView.swift */; };
 		DA24CE2E7798DDF2FABF78CB /* AutoFillStoreUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72C52BFD92487327FDD249DC /* AutoFillStoreUITests.swift */; };
 		DA2B6F83E90095061ADE571C /* FTPCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C7CE4528F3ACC4647DE8A6 /* FTPCloudProvider.swift */; };
@@ -1523,6 +1525,7 @@
 		5335012167FBEBF40FE67EC7 /* OneDriveCloudProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneDriveCloudProviderTests.swift; sourceTree = "<group>"; };
 		53D911AF6B24C434C35185D9 /* MacWorkspaceToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWorkspaceToolbar.swift; sourceTree = "<group>"; };
 		54287F21355680F91063AD3F /* FTPConnectViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPConnectViewModel.swift; sourceTree = "<group>"; };
+		54959D74AFC947FAB6E92D86 /* URLFieldRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLFieldRowTests.swift; sourceTree = "<group>"; };
 		549786F507C78652231994C1 /* CredentialProviderPresentingSpy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderPresentingSpy.swift; sourceTree = "<group>"; };
 		553C63DEBDFFD48E4FC4646E /* AutoFillSaveCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillSaveCoordinator.swift; sourceTree = "<group>"; };
 		55A816F201ACBFFF092A5731 /* DatabaseCreationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseCreationView.swift; sourceTree = "<group>"; };
@@ -2815,6 +2818,7 @@
 				A3660A7394A4B715ECCC64FF /* TOTPViewModelTests.swift */,
 				C0D923EB4B018FB500295E74 /* TwofishTests.swift */,
 				F715BA635B9236867617D7B7 /* UnlockKeyFileSelectionTests.swift */,
+				54959D74AFC947FAB6E92D86 /* URLFieldRowTests.swift */,
 				81B2FABC051E0E4F1B4BCFBE /* URLSchemeFormatTests.swift */,
 				2B68782805C5052F4BAE7FBD /* ViewRenderTests.swift */,
 				D9B34D490C64CC4D568F1384 /* WebDAVCloudProviderTests.swift */,
@@ -3609,6 +3613,7 @@
 				C41B33D4701327ACF71FE19B /* TagNormalizerTests.swift in Sources */,
 				FAAB1B02D30635B3168A6953 /* TestDatabaseSupport.swift in Sources */,
 				776466A679F17BCB1E7E3762 /* TwofishTests.swift in Sources */,
+				DA0D521D59A908D003C18506 /* URLFieldRowTests.swift in Sources */,
 				598299941927D52B73BA73BE /* URLSchemeFormatTests.swift in Sources */,
 				5AF9ADE29B060A8896200120 /* UnlockKeyFileSelectionTests.swift in Sources */,
 				9B1939BCDA3D7C1CE39BF57F /* ViewRenderTests.swift in Sources */,
@@ -4433,6 +4438,7 @@
 				7C1313797A4F63554877CC8B /* TagNormalizerTests.swift in Sources */,
 				3920E54729304CAD61317922 /* TestDatabaseSupport.swift in Sources */,
 				D8AF5DE599A6ADBBC0E7FDF6 /* TwofishTests.swift in Sources */,
+				40C0BC3CDEF0D61C6A8062B6 /* URLFieldRowTests.swift in Sources */,
 				62CA3AEDAB00085F6AE84636 /* URLSchemeFormatTests.swift in Sources */,
 				7CF90C24F7268C81A32BEA9C /* UnlockKeyFileSelectionTests.swift in Sources */,
 				8C7848AC6BED7B981DABB30D /* ViewRenderTests.swift in Sources */,
