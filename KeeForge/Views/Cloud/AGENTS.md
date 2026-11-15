@@ -20,4 +20,4 @@
 
 - `../AGENTS.md`, `../../Services/Cloud/AGENTS.md`
 
-- Cloud Recovery is accessible from Cloud account settings even while databases are locked. Export verifies retained ciphertext without restoring secrets or granting deletion consent. Unknown remote attempts have no Retry/Forget action. Export errors retain every record and payload.
+- Cloud Recovery is accessible from Cloud account settings even while databases are locked. Export verifies retained ciphertext without restoring secrets or granting deletion consent. Before listing, it preserves byte-verified finalized legacy payloads under the journal commit lock so the existing export action can read them. Unknown remote attempts have no Retry/Forget action. Export errors retain every record and payload.

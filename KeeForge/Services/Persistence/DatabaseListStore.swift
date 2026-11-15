@@ -97,59 +97,61 @@ enum DatabaseListStore {
                                           readingTarget: URL? = nil, validateTarget: ((URL) throws -> Bool)? = nil,
                                           authorize: (((() throws -> RegistryResult<T>) throws -> RegistryResult<T>))? = nil,
                                           _ body: (inout [DatabaseReference]) throws -> RegistryDecision<T>) -> RegistryResult<T> {
-        guard let anchor = AppGroupContainer.resolvedURL else { return .notPublished(CocoaError(.fileWriteNoPermission)) }
-        var coordinationError: NSError?
-        var result: RegistryResult<T>?
-        func access(_ url: URL, _ target: URL?) {
-            guard stateLock.try() else { result = .notPublished(PendingLocalSaveStore.OwnershipError.recoveryRequired); return }
-            defer { stateLock.unlock() }
-            do {
-                let mutate = { () throws -> RegistryResult<T> in
-                    if let validateTarget {
-                        guard let target, try validateTarget(target) else { return .rejected }
-                    }
-                    var rows: [DatabaseReference]
-                    if let existing = try readRegistry(at: url) { rows = existing }
-                    else if let onMissing { rows = onMissing() }
-                    else { return .missing }
-                    switch try body(&rows) {
-                    case .noop(let value):
-                        if confirmUnchanged {
-                            let handle = try FileHandle(forUpdating: url)
-                            defer { try? handle.close() }
-                            try io.synchronizeFile(handle.fileDescriptor)
-                            try io.synchronizeParent(url.deletingLastPathComponent())
+        return withoutActuallyEscaping(body) { body in
+            guard let anchor = AppGroupContainer.resolvedURL else { return .notPublished(CocoaError(.fileWriteNoPermission)) }
+            var coordinationError: NSError?
+            var result: RegistryResult<T>?
+            func access(_ url: URL, _ target: URL?) {
+                guard stateLock.try() else { result = .notPublished(PendingLocalSaveStore.OwnershipError.recoveryRequired); return }
+                defer { stateLock.unlock() }
+                do {
+                    let mutate = { () throws -> RegistryResult<T> in
+                        if let validateTarget {
+                            guard let target, try validateTarget(target) else { return .rejected }
                         }
-                        return .noop(value)
-                    case .rejected: return .rejected
-                    case .missing: return .missing
-                    case .write(let value):
-                        let encoder = JSONEncoder()
-                        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                        let bytes = try encoder.encode(normalized(rows))
-                        switch writeWithDurabilityOutcome(bytes, to: url, directoryAnchor: anchor, io: io) {
-                        case .durable: return .durable(value)
-                        case .notPublished(let error): return .notPublished(error)
-                        case .publishedWithoutConfirmedDurability(let error): return .visibleUnconfirmed(value, error)
+                        var rows: [DatabaseReference]
+                        if let existing = try readRegistry(at: url) { rows = existing }
+                        else if let onMissing { rows = onMissing() }
+                        else { return .missing }
+                        switch try body(&rows) {
+                        case .noop(let value):
+                            if confirmUnchanged {
+                                let handle = try FileHandle(forUpdating: url)
+                                defer { try? handle.close() }
+                                try io.synchronizeFile(handle.fileDescriptor)
+                                try io.synchronizeParent(url.deletingLastPathComponent())
+                            }
+                            return .noop(value)
+                        case .rejected: return .rejected
+                        case .missing: return .missing
+                        case .write(let value):
+                            let encoder = JSONEncoder()
+                            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                            let bytes = try encoder.encode(normalized(rows))
+                            switch writeWithDurabilityOutcome(bytes, to: url, directoryAnchor: anchor, io: io) {
+                            case .durable: return .durable(value)
+                            case .notPublished(let error): return .notPublished(error)
+                            case .publishedWithoutConfirmedDurability(let error): return .visibleUnconfirmed(value, error)
+                            }
                         }
                     }
-                }
-                result = try authorize?(mutate) ?? mutate()
-            } catch { result = .notPublished(error) }
+                    result = try authorize?(mutate) ?? mutate()
+                } catch { result = .notPublished(error) }
+            }
+            let coordinator = NSFileCoordinator()
+            if let readingTarget {
+                coordinator.coordinate(readingItemAt: readingTarget, options: [], writingItemAt: databaseListURL, options: [], error: &coordinationError) { target, url in access(url, target) }
+            } else {
+                coordinator.coordinate(writingItemAt: databaseListURL, options: [], error: &coordinationError) { url in access(url, nil) }
+            }
+            if let error = coordinationError {
+                if case .durable(let value) = result { return .visibleUnconfirmed(value, error) }
+                if case .noop = result { return .notPublished(error) }
+                if let result { return result }
+                return .notPublished(error)
+            }
+            return result ?? .notPublished(CocoaError(.fileWriteUnknown))
         }
-        let coordinator = NSFileCoordinator()
-        if let readingTarget {
-            coordinator.coordinate(readingItemAt: readingTarget, options: [], writingItemAt: databaseListURL, options: [], error: &coordinationError) { target, url in access(url, target) }
-        } else {
-            coordinator.coordinate(writingItemAt: databaseListURL, options: [], error: &coordinationError) { url in access(url, nil) }
-        }
-        if let error = coordinationError {
-            if case .durable(let value) = result { return .visibleUnconfirmed(value, error) }
-            if case .noop = result { return .notPublished(error) }
-            if let result { return result }
-            return .notPublished(error)
-        }
-        return result ?? .notPublished(CocoaError(.fileWriteUnknown))
     }
 
     private static func succeeded<T>(_ result: RegistryResult<T>) -> Bool {

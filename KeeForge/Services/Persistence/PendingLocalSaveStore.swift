@@ -870,7 +870,7 @@ enum PendingLocalSaveStore {
         rekeyRecovery: CloudRekeyRecoveryEpoch? = nil, _ publish: () throws -> T
     ) throws -> T {
         try withCachePublicationOwner(for: databaseID, sha512: sha512, lease: lease, nonBlocking: nonBlocking,
-                                      rekeyRecovery: rekeyRecovery) { _ in try publish() }
+                                      rekeyRecovery: rekeyRecovery, cloudProof: nil) { _ in try publish() }
     }
 
     static func withCloudRekeyPublicationAuthorization<T>(
@@ -878,21 +878,22 @@ enum PendingLocalSaveStore {
         binding: PendingUploadQueue.JournalBinding, operationID: UUID, change: PendingUploadQueue.KeyChange, committedAt: Date,
         _ publish: (_ handoff: (DatabaseReference) throws -> Void) throws -> T
     ) throws -> T {
-        try withCachePublicationOwner(for: databaseID, sha512: sha512, lease: lease, nonBlocking: true,
-                                      rekeyRecovery: rekeyRecovery) { handoff in
-            try publish { reference in
-                guard binding.matchesInstalled(reference: reference, operationID: operationID, keyChange: change, committedAt: committedAt) else {
-                    throw OwnershipError.sourceChanged
-                }
-                try handoff(binding.baseline?.lastMasterKeyChangeAt, committedAt, operationID)
-            }
-        }
+        let proof = CloudRekeyOwnerProof(binding: binding, operationID: operationID, change: change, committedAt: committedAt)
+        return try withCachePublicationOwner(for: databaseID, sha512: sha512, lease: lease, nonBlocking: true,
+                                             rekeyRecovery: rekeyRecovery, cloudProof: proof, publish)
+    }
+
+    private struct CloudRekeyOwnerProof {
+        let binding: PendingUploadQueue.JournalBinding
+        let operationID: UUID
+        let change: PendingUploadQueue.KeyChange
+        let committedAt: Date
     }
 
     private static func withCachePublicationOwner<T>(
         for databaseID: UUID, sha512: Data, lease: CacheReadLease?, nonBlocking: Bool,
-        rekeyRecovery: CloudRekeyRecoveryEpoch?,
-        _ publish: (_ handoff: (Date?, Date, UUID) throws -> Void) throws -> T
+        rekeyRecovery: CloudRekeyRecoveryEpoch?, cloudProof: CloudRekeyOwnerProof?,
+        _ publish: (_ handoff: (DatabaseReference) throws -> Void) throws -> T
     ) throws -> T {
         try withLock(for: databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(databaseID)
@@ -927,7 +928,13 @@ enum PendingLocalSaveStore {
                     guard evidence.sha512 == sha512 || evidence.pending?.sha512 == sha512 else { throw OwnershipError.targetChanged }
                 }
             }
-            return try publish { previousDate, committedAt, operationID in
+            return try publish { reference in
+                guard let proof = cloudProof,
+                      proof.binding.matchesInstalled(reference: reference, operationID: proof.operationID,
+                          keyChange: proof.change, committedAt: proof.committedAt) else { throw OwnershipError.sourceChanged }
+                let previousDate = proof.binding.baseline?.lastMasterKeyChangeAt
+                let committedAt = proof.committedAt
+                let operationID = proof.operationID
                 guard state.operation == .idle, state.retirementID == nil, state.sources.isEmpty,
                       try sourceURLs(databaseID).isEmpty, state.keyEvidence == nil else { throw OwnershipError.recoveryRequired }
                 if case .known(let date, let epochID) = state.epoch {

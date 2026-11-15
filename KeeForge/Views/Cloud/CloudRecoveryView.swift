@@ -42,8 +42,23 @@ struct CloudRecoveryView: View {
         references = await Task.detached {
             Dictionary(uniqueKeysWithValues: DatabaseListStore.databases.map { ($0.id, $0) })
         }.value
-        do { uploads = try await Task.detached { try PendingUploadQueue.readJournal() }.value }
-        catch {
+        do {
+            let available = references
+            uploads = try await Task.detached {
+                let records = try PendingUploadQueue.readJournal()
+                let legacyIDs = Set(records.filter {
+                    $0.marker.journalVersion == nil && $0.marker.binding == nil
+                        && $0.marker.isPayloadFinalized == true && $0.marker.intendedPayloadPath == nil
+                }.map { $0.marker.databaseId })
+                for id in legacyIDs {
+                    guard let reference = available[id] else { continue }
+                    try PendingUploadQueue.withCommitLock(for: id) {
+                        try PendingUploadQueue.preserveLegacyPayloads(for: reference)
+                    }
+                }
+                return try PendingUploadQueue.readJournal()
+            }.value
+        } catch {
             failure = error.localizedDescription
             uploads = await Task.detached {
                 PendingUploadQueue.listMarkers().filter { CloudJournalDecision.state(of: $0.marker) != .invalid }

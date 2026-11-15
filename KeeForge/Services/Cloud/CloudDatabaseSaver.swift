@@ -624,9 +624,14 @@ enum CloudDatabaseSaver {
             }
             switch result {
             case .saved: break
-            case .retained:
+            case .retained(let updated):
                 let observed = try PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first { $0.id == intent.id }
-                guard observed?.marker.confirmedAt != nil,
+                let installed = keyChange.flatMap { change in
+                    updated.lastMasterKeyChangeAt.map { date in
+                        intent.marker.binding?.matchesInstalled(reference: updated, operationID: intent.id, keyChange: change, committedAt: date) == true
+                    }
+                } == true
+                guard (observed?.marker.confirmedAt != nil || installed),
                       (try? environment.readData(cacheURL)).map(FileDigest.sha512) == FileDigest.sha512(newData) else {
                     return .indeterminate(scope: .sharedCopy)
                 }

@@ -1391,6 +1391,133 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertTrue(try Self.entryTitles(in: Data(contentsOf: cache), password: newPassword).contains("After rekey restart"))
     }
 
+    func testUncertainRekeyRetirementKeepsPayloadAndAllowsFreshUnlock() async throws {
+        let base = try fixtureData()
+        let reference = try makeStoredManualReference(fileID: "/rekey-reopen-\(UUID().uuidString).kdbx", autoFillEnabled: false)
+        try DatabaseListStore.cacheDatabaseCopy(base, for: reference)
+        _ = try PendingLocalSaveStore.prepareSource(base, for: reference.id,
+            masterKeyChangedAt: reference.lastMasterKeyChangeAt, baseCacheSHA512: FileDigest.sha512(base))
+        XCTAssertEqual(try PendingLocalSaveStore.discard(PendingLocalSaveStore.recovery(for: reference.id)), .resolved)
+        let key = try KDBXTestFixture.test.compositeKey(in: Bundle(for: Self.self))
+        let session = SymmetricKey(size: .bits256)
+        let opened = try KDBXParser.parseWithMeta(data: base, compositeKey: key, sessionKey: session)
+        let draft = DatabaseDraft(rootGroup: opened.rootGroup, meta: opened.meta, sessionKey: session)
+        let newPassword = "new-cloud-rekey-password"
+        let newKey = try KDBXCrypto.compositeKey(password: newPassword, keyFileData: nil)
+        let remote = InMemoryRemoteProvider(bytes: base, rev: "rev-A")
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in remote.currentMetadata }
+        environment.downloadRemoteData = { _ in remote.currentBytes }
+        environment.upload = { _, bytes, rev, _ in try remote.store(bytes, expectedRev: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        environment.writeGuarantee = { _, _, _ in .preflightOnly }
+        let failedRetirement = CloudJournalEffectCounter()
+        environment.queue.synchronizeRetirementDirectory = { _ in
+            failedRetirement.record()
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let writeMarker = environment.queue.writeMarkerAtomically
+        environment.queue.writeMarkerAtomically = { bytes, url in
+            if failedRetirement.value > 0 { throw CocoaError(.fileWriteUnknown) }
+            try writeMarker(bytes, url)
+        }
+        let saver = environment
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: nil)
+        let result = try await CloudDatabaseSaver.$keyChange.withValue(change) {
+            try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: FileDigest.sha512(base), expectedRev: "rev-A", kdfPolicy: .mainApp,
+                newCompositeKey: newKey, environment: saver)
+        }
+        guard case .committedWithoutConfirmedDurability = result else { return XCTFail("Expected uncertain retirement") }
+        XCTAssertEqual(failedRetirement.value, 1)
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: current.id).isEmpty)
+        let cache = DatabaseListStore.cacheLocation(for: current)
+        let directory = AppGroupContainer.url.appendingPathComponent("pending-uploads").appendingPathComponent(current.id.uuidString)
+        let payloads = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "kdbx" }
+        XCTAssertEqual(payloads.count, 1)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(payloads.first)), try Data(contentsOf: cache))
+        var resumedSaver = environment
+        resumedSaver.queue = .live
+        let normalSaver = resumedSaver
+        let vm = DatabaseViewModel(databaseReference: current, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: cache, data: try Data(contentsOf: cache), status: .current)
+        }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+            try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: normalSaver)
+        }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in })
+        await vm.unlock(password: newPassword)
+        defer { vm.lock() }
+        XCTAssertEqual(vm.state, .unlocked)
+        try vm.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(vm.visibleRootGroupID),
+            draft: EntryDraftPayload(title: "After rekey restart", password: "new")))
+        try await vm.save()
+        let pending = try XCTUnwrap(PendingUploadQueue.readJournal(for: current.id).first)
+        XCTAssertNotNil(pending.marker.binding)
+        XCTAssertTrue(try Self.entryTitles(in: Data(contentsOf: cache), password: newPassword).contains("After rekey restart"))
+    }
+
+    func testOfflineBoundDescendantsSurviveReopenAndDeliverInOrder() async throws {
+        let base = try fixtureData()
+        let reference = try makeStoredManualReference(fileID: "/offline-chain-\(UUID().uuidString).kdbx", autoFillEnabled: false)
+        try DatabaseListStore.cacheDatabaseCopy(base, for: reference)
+        let remote = InMemoryRemoteProvider(bytes: base, rev: "rev-A")
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in remote.currentMetadata }
+        environment.downloadRemoteData = { _ in remote.currentBytes }
+        environment.upload = { _, bytes, rev, _ in try remote.store(bytes, expectedRev: rev) }
+        environment.writeGuarantee = { _, _, _ in .preflightOnly }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        let saver = environment
+        func open(_ reference: DatabaseReference) async -> DatabaseViewModel {
+            let vm = DatabaseViewModel(databaseReference: reference, cloudSyncOperation: { reference, _ in
+                let cache = DatabaseListStore.cacheLocation(for: reference)
+                return CloudSyncResolution(reference: reference, localURL: cache, data: try Data(contentsOf: cache), status: .current)
+            }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+                try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                    openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                    kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+            }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in })
+            await vm.unlock(password: fixturePassword)
+            return vm
+        }
+        let first = await open(reference)
+        XCTAssertEqual(first.state, .unlocked)
+        try first.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(first.visibleRootGroupID),
+            draft: EntryDraftPayload(title: "Offline A", password: "A")))
+        try await first.save()
+        first.lock()
+        let reloaded = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        let second = await open(reloaded)
+        defer { second.lock() }
+        XCTAssertEqual(second.state, .unlocked)
+        for title in ["Offline B", "Offline C"] {
+            try second.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(second.visibleRootGroupID),
+                draft: EntryDraftPayload(title: title, password: title)))
+            try await second.save()
+        }
+        let chain = try PendingUploadQueue.readJournal(for: reference.id)
+        XCTAssertEqual(chain.count, 3)
+        XCTAssertTrue(chain.allSatisfy { $0.marker.binding != nil })
+        XCTAssertEqual(chain[1].marker.predecessorOperationID, chain[0].id)
+        XCTAssertEqual(chain[2].marker.predecessorOperationID, chain[1].id)
+        for marker in chain {
+            let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            let latest = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first { $0.id == marker.id })
+            guard case .saved? = try await CloudDatabaseSaver.deliver(latest, reference: current, environment: saver) else {
+                return XCTFail("Bound descendant delivery failed")
+            }
+        }
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertTrue(try Self.entryTitles(in: remote.currentBytes, password: fixturePassword).isSuperset(of: ["Offline A", "Offline B", "Offline C"]))
+    }
+
     func testOfflineKnownSaveCompletesSessionBookkeepingWithoutOptionalKeyPublicationOrRepeatedEncryption() async throws {
         let bytes = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         let reference = try makeStoredManualReference(fileID: "/queued-save.kdbx", autoFillEnabled: false)
