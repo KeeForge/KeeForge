@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// Manual connect form for WebDAV servers (Nextcloud, Synology, Apache mod_dav,
@@ -142,3 +143,4 @@ struct WebDAVConnectView: View {
         }
     }
 }
+#endif

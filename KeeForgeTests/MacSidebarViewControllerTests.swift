@@ -101,6 +101,7 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertFalse(headerCell.isFolded)
         XCTAssertTrue(headerCell.showButton.isHidden)
         XCTAssertEqual(headerCell.disclosureButton.accessibilityLabel(), String(localized: "Hide"))
+        XCTAssertEqual(headerCell.disclosureButton.toolTip, String(localized: "Hide"))
         for item in [group, tag] {
             XCTAssertFalse(controller.outlineView(outline, isGroupItem: item))
             XCTAssertTrue(controller.outlineView(outline, shouldSelectItem: item))
@@ -280,6 +281,7 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertTrue(headerCell.isFolded)
         XCTAssertFalse(headerCell.showButton.isHidden, "A folded section says Show")
         XCTAssertEqual(headerCell.showButton.title, String(localized: "Show"))
+        XCTAssertEqual(headerCell.disclosureButton.toolTip, String(localized: "Show"))
         XCTAssertEqual(session.workspace.selectedTag, "Work", "Folding keeps the list")
         XCTAssertEqual(outline.selectedRow, -1, "The folded row is not replaced by another")
         XCTAssertEqual(visibleRowIDs(outline), expectedVisibleIDs(session, collapsed: [], sections: [.tags]))
@@ -585,7 +587,50 @@ final class MacSidebarViewControllerTests: MacSidebarSessionTestCase {
         let (controller, _, _) = try await makeController(tree, readOnly: true)
         XCTAssertFalse(controller.statusCard.readOnlyBadge.isHidden)
         XCTAssertEqual(controller.statusCard.readOnlyBadge.accessibilityLabel(), String(localized: "Read-only database"))
+        XCTAssertEqual(controller.statusCard.readOnlyBadge.toolTip, String(localized: "Read-only database"))
+        let card = controller.statusCard
+        for (button, label) in [(card.settingsButton, "Database Settings"), (card.syncButton, "Sync Now"),
+                                (card.lockButton, "Lock Database")] {
+            XCTAssertEqual(button.accessibilityLabel(), String(localized: String.LocalizationValue(label)), label)
+            XCTAssertEqual(button.toolTip, String(localized: String.LocalizationValue(label)), label)
+        }
         XCTAssertEqual(controller.contextMenuItems(forGroupID: tree.work.id), [])
+    }
+
+    func testAmberAndSecondaryTextOnTheCardKeepTheirContrastInBothThemes() throws {
+        for name in [NSAppearance.Name.aqua, .darkAqua] {
+            let appearance = try XCTUnwrap(NSAppearance(named: name))
+            var resolved: (card: NSColor?, amber: NSColor?, secondary: NSColor?) = (nil, nil, nil)
+            appearance.performAsCurrentDrawingAppearance {
+                let base = NSColor.windowBackgroundColor.usingColorSpace(.sRGB)
+                resolved = (base.flatMap { Self.composite(MacSidebarStatusCardView.fillColor, over: $0) },
+                            MacStatusPalette.warning.usingColorSpace(.sRGB),
+                            NSColor.secondaryLabelColor.usingColorSpace(.sRGB))
+            }
+            let card = try XCTUnwrap(resolved.card)
+            let amber = try XCTUnwrap(resolved.amber)
+            let secondary = try XCTUnwrap(Self.composite(try XCTUnwrap(resolved.secondary), over: card))
+            XCTAssertGreaterThanOrEqual(Self.contrast(amber, card), 4.5, "Amber warning text, \(name.rawValue)")
+            XCTAssertGreaterThanOrEqual(Self.contrast(secondary, card), 3, "Secondary text, \(name.rawValue)")
+        }
+    }
+
+    private static func composite(_ color: NSColor, over base: NSColor) -> NSColor? {
+        guard let top = color.usingColorSpace(.sRGB) else { return nil }
+        let a = top.alphaComponent
+        return NSColor(srgbRed: top.redComponent * a + base.redComponent * (1 - a),
+                       green: top.greenComponent * a + base.greenComponent * (1 - a),
+                       blue: top.blueComponent * a + base.blueComponent * (1 - a), alpha: 1)
+    }
+
+    private static func contrast(_ first: NSColor, _ second: NSColor) -> CGFloat {
+        func luminance(_ color: NSColor) -> CGFloat {
+            func linear(_ c: CGFloat) -> CGFloat { c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+            return 0.2126 * linear(color.redComponent) + 0.7152 * linear(color.greenComponent)
+                + 0.0722 * linear(color.blueComponent)
+        }
+        let (high, low) = (max(luminance(first), luminance(second)), min(luminance(first), luminance(second)))
+        return (high + 0.05) / (low + 0.05)
     }
 
     // MARK: - Cells

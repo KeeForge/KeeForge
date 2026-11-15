@@ -167,6 +167,30 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         XCTAssertNil(toolbar)
     }
 
+    func testTabRunsSidebarSearchListDetailThenTheToolbarButtonsAndRoundAgain() throws {
+        let session = try makeSession()
+        let workspace = MacWindowWorkspace(presentation: MacWorkspacePresentation(),
+                                           attachmentPreview: .unshown(session), currentSession: { nil })
+        workspace.show(session)
+        let split = try XCTUnwrap(workspace.splitViewController)
+        let toolbar = try XCTUnwrap(workspace.toolbar)
+        let buttons = toolbar.keyViewButtons
+        XCTAssertEqual(buttons.map { $0.accessibilityIdentifier() }, [
+            "sidebar.left", "entry-list.add-entry", "database.read-only-indicator",
+            "database-details.button", "database.cloud-sync-now", "lock.button",
+        ])
+        let outline: NSView = split.sidebar.outlineView
+        let expected: [NSView] = [outline, toolbar.searchItem.searchField, split.entryList.tableView,
+                                  split.splitViewItems[2].viewController.view] + buttons + [outline]
+        var chain: [NSView] = []
+        var view: NSView? = outline
+        while let current = view, chain.count < expected.count {
+            chain.append(current)
+            view = current.nextKeyView
+        }
+        XCTAssertEqual(chain.map(ObjectIdentifier.init), expected.map(ObjectIdentifier.init))
+    }
+
     func testTheSplitRunsUnderTheTitlebarAndColumnsTakeTheirInsetFromTheSafeArea() async throws {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
         let session = DatabaseViewModel(

@@ -270,8 +270,7 @@ struct MacEntryFieldRow: View {
                 .kerning(1)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .accessibilityLabel(field.kind == .password ? String(localized: "Hidden password")
-                                    : String(localized: "Hidden protected field"))
+                .accessibilityLabel(field.concealedAccessibilityLabel)
         case .revealed(let text):
             // Never selectable: the copy button is the only copy path for a secret.
             HStack(spacing: 14) {
@@ -311,7 +310,7 @@ struct MacEntryFieldRow: View {
             let revealed = model.isRevealed(field.kind)
             MacDetailIconButton(
                 systemImage: revealed ? "eye.slash" : "eye",
-                label: revealed ? String(localized: "Hide \(field.label)") : String(localized: "Show \(field.label)"),
+                label: field.revealLabel(isRevealed: revealed),
                 isOn: revealed
             ) {
                 model.toggleReveal(field.kind)
@@ -354,7 +353,7 @@ struct MacEntryFieldRow: View {
     }
 
     private var copyButton: some View {
-        MacCopyButton(kind: field.kind, label: copyLabel, identifier: copyIdentifier, model: model)
+        MacCopyButton(kind: field.kind, label: field.copyLabel, identifier: copyIdentifier, model: model)
     }
 
     private var normalizedLabel: String {
@@ -378,17 +377,6 @@ struct MacEntryFieldRow: View {
         case .passkeyRelyingParty: "entry.copy.relying_party"
         case .passkeyUsername: "entry.copy.passkey_username"
         case .website, .custom, .notes: "entry.copy.\(normalizedLabel)"
-        }
-    }
-
-    private var copyLabel: String {
-        switch field.kind {
-        case .username: String(localized: "Copy Username")
-        case .password: String(localized: "Copy Password")
-        case .verificationCode: String(localized: "Copy Verification Code")
-        case .passkeyRelyingParty: String(localized: "Copy Relying Party")
-        case .passkeyUsername: String(localized: "Copy Passkey Username")
-        case .website, .custom, .notes: String(localized: "Copy \(field.label)")
         }
     }
 }
@@ -564,7 +552,7 @@ struct MacNotesRow: View {
                     Text(PasswordVisualStyle.concealedText)
                         .font(.system(size: 14, design: .monospaced))
                         .foregroundStyle(.secondary)
-                        .accessibilityLabel(String(localized: "Hidden protected field"))
+                        .accessibilityLabel(field.concealedAccessibilityLabel)
                 }
                 if isExpanded || isTruncated || revealedIsLong {
                     Button(isExpanded ? String(localized: "Show Less") : String(localized: "Show More")) {
@@ -579,7 +567,7 @@ struct MacNotesRow: View {
                 let revealed = model.isRevealed(field.kind)
                 MacDetailIconButton(
                     systemImage: revealed ? "eye.slash" : "eye",
-                    label: revealed ? String(localized: "Hide \(field.label)") : String(localized: "Show \(field.label)"),
+                    label: field.revealLabel(isRevealed: revealed),
                     isOn: revealed
                 ) {
                     model.toggleReveal(field.kind)

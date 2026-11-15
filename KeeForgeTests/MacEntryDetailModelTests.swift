@@ -39,6 +39,30 @@ final class MacEntryDetailModelTests: XCTestCase {
         XCTAssertEqual(model.historyCount, 1)
     }
 
+    func testMaskedFieldsReadAsHiddenAndTheirButtonsNameTheField() async throws {
+        let entry = try fullEntry()
+        let session = try await makeSession(entries: [entry])
+        defer { session.lockRequest(force: true) }
+        let model = makeModel(.live(entry.id), session: session)
+        model.appeared()
+        let password = try XCTUnwrap(model.fields.first { $0.kind == .password })
+        let token = try XCTUnwrap(model.fields.first { $0.kind == .custom("Deploy Token") })
+
+        XCTAssertEqual(password.concealedAccessibilityLabel, String(localized: "Hidden password"))
+        XCTAssertEqual(token.concealedAccessibilityLabel, String(localized: "Hidden protected field"))
+        for (field, secret) in [(password, "hunter2"), (token, "tok-123")] {
+            let spoken = [field.concealedAccessibilityLabel, field.revealLabel(isRevealed: false),
+                          field.revealLabel(isRevealed: true), field.copyLabel]
+            XCTAssertFalse(spoken.contains { $0.contains(secret) }, "Labels and help never carry the secret")
+        }
+        XCTAssertEqual(password.revealLabel(isRevealed: false), String(localized: "Show \(password.label)"))
+        XCTAssertEqual(password.revealLabel(isRevealed: true), String(localized: "Hide \(password.label)"))
+        XCTAssertEqual(password.copyLabel, String(localized: "Copy Password"))
+        XCTAssertEqual(token.copyLabel, String(localized: "Copy \("Deploy Token")"))
+        XCTAssertEqual(model.fields.first { $0.kind == .verificationCode }?.copyLabel,
+                       String(localized: "Copy Verification Code"))
+    }
+
     func testAFieldReferenceReachingAProtectedValueIsConcealedInEveryKind() async throws {
         let source = KPEntry(title: "Source", username: "plain", password: try EncryptedValue.encrypt("hunter2", using: key))
         let alias = KPEntry(

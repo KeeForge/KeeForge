@@ -206,8 +206,29 @@ final class MacDatabasesAlerts {
         let alert = NSAlert()
         alert.messageText = String(localized: "Discard Pending Upload?")
         alert.informativeText = String(localized: "The pending change for “\(reference.displayName)” could not be uploaded because the copy in the cloud changed. KeeForge keeps a timestamped backup on this device before discarding it.")
-        alert.addButton(withTitle: String(localized: "Discard Upload")).hasDestructiveAction = true
-        alert.addButton(withTitle: String(localized: "Cancel")).keyEquivalent = "\u{1b}"
+        let discard = alert.addButton(withTitle: String(localized: "Discard Upload"))
+        discard.hasDestructiveAction = true
+        discard.keyEquivalent = ""
+        discard.setAccessibilityIdentifier("pending-upload-discard.confirm")
+        // Cancel is the default (SyncProblems board), so Return never discards.
+        let cancel = alert.addButton(withTitle: String(localized: "Cancel"))
+        cancel.keyEquivalent = "\r"
+        cancel.setAccessibilityIdentifier("pending-upload-discard.cancel")
+        MacAlertEscapeKey.install(in: alert, clicking: cancel)
         return alert
+    }
+}
+
+/// Escape for an alert whose Cancel button holds Return: NSAlert gives a button only one key.
+@MainActor
+enum MacAlertEscapeKey {
+    static func install(in alert: NSAlert, clicking cancel: NSButton) {
+        let escape = NSButton(title: "", target: cancel, action: #selector(NSButton.performClick(_:)))
+        escape.keyEquivalent = "\u{1b}"
+        // A hidden button takes no key equivalents; a zero-size one draws nothing.
+        escape.frame = .zero
+        escape.isBordered = false
+        escape.setAccessibilityElement(false)
+        alert.window.contentView?.addSubview(escape)
     }
 }

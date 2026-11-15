@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// Manual connect form for FTP servers, presented in place of a hosted OAuth
@@ -141,3 +142,4 @@ struct FTPConnectView: View {
         }
     }
 }
+#endif

@@ -753,6 +753,7 @@ final class MacSidebarHeaderCellView: NSTableCellView {
         disclosureButton.image = NSImage(systemSymbolName: isFolded ? "chevron.right" : "chevron.down",
                                          accessibilityDescription: title)
         disclosureButton.setAccessibilityLabel(title)
+        disclosureButton.toolTip = title
         showButton.isHidden = isFolded == false
     }
 

@@ -551,6 +551,11 @@ final class MacRemoteBrowserModelTests: XCTestCase {
         let folders = try XCTUnwrap(views.first { $0.accessibilityIdentifier() == "remote-browser.folder" })
         XCTAssertTrue(label.superview?.superview === folders.superview, "The account shares the folder pop-up's row")
         XCTAssertEqual(label.convert(label.bounds, to: controller.view).maxX, 600, accuracy: 3)
+        for (identifier, title) in [("remote-browser.back", "Back"), ("remote-browser.forward", "Forward")] {
+            let button = try XCTUnwrap(views.first { $0.accessibilityIdentifier() == identifier } as? NSButton)
+            XCTAssertEqual(button.accessibilityLabel(), String(localized: String.LocalizationValue(title)), identifier)
+            XCTAssertEqual(button.toolTip, String(localized: String.LocalizationValue(title)), identifier)
+        }
     }
 
     func testHistoryAncestorsAndNewVisitClearsForward() async {

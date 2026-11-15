@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// Change the master key (password and/or key file) of the unlocked database.
@@ -284,3 +285,4 @@ private struct MasterKeyErrorBanner: View {
         .accessibilityIdentifier("master-key.error")
     }
 }
+#endif

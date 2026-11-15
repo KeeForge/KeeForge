@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -315,3 +316,4 @@ struct PasswordImportView: View {
         .accessibilityIdentifier("password-import.error")
     }
 }
+#endif

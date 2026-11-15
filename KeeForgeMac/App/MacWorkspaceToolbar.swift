@@ -73,6 +73,11 @@ final class MacWorkspaceToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDeleg
         }
     }
 
+    /// The toolbar's buttons after the search field, in toolbar order, for the window's key-view loop.
+    var keyViewButtons: [NSView] {
+        Self.itemIdentifiers.filter { $0 != Item.search }.compactMap { items[$0]?.view as? NSButton }
+    }
+
     func focusSearch() {
         if toolbar.isVisible == false { toolbar.isVisible = true }
         searchItem.beginSearchInteraction()

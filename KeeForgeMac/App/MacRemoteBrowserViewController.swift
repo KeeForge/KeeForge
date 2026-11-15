@@ -31,6 +31,7 @@ final class MacRemoteBrowserViewController: NSViewController, NSTableViewDataSou
         back.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: back.title)
         forward.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: forward.title)
         back.setAccessibilityLabel(back.title); forward.setAccessibilityLabel(forward.title)
+        back.toolTip = back.title; forward.toolTip = forward.title
         back.imagePosition = .imageOnly; forward.imagePosition = .imageOnly
         back.target = self; back.action = #selector(goBack)
         forward.target = self; forward.action = #selector(goForward)

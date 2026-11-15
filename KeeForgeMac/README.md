@@ -204,12 +204,12 @@ The status card is always shown for an unlocked database: its name (with the
 Read-Only badge), Database Settings, Sync Now (cloud only) and Lock, the
 storage and state line from `MacDatabaseStatus`, and the state's one recovery
 action (Retry Save, Resolve…, Reconnect, Push Pending Changes); Reconnect also
-covers a cached copy opened while the server rejects the saved sign-in. Sync and upload
+covers a cached copy opened while the server rejects the saved sign-in, then syncs it. Sync and upload
 notices sit above the entry list (`MacWorkspaceNoticesView`). Both act through
 `MacDatabaseStatusActions`; pending upload counts, Push and the discard come from the
 database list through `MacWorkspacePresentation.pendingUploads`. Database ▸
 Discard Pending Upload… asks in the window through `MacWorkspaceAlerts` (Cancel is
-the default) and is dimmed without a conflicted upload or with an unsaved draft,
+the default and Escape also cancels, as in the Databases window) and is dimmed without a conflicted upload or with an unsaved draft,
 save, open editor or sheet. The
 outline is disabled while saving and takes its appearance from the app:
 `MacAppAppearance` (owned by `AppDelegate`) sets `NSApp.appearance` from the

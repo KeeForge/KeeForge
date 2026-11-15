@@ -55,6 +55,25 @@ struct MacEntryField: Identifiable, Equatable {
     var canReveal: Bool { isProtected }
     var canCopy: Bool { kind != .notes }
     var canShowInLargeType: Bool { kind == .password }
+    /// What VoiceOver reads for the mask: that the value is hidden, never the value.
+    var concealedAccessibilityLabel: String {
+        kind == .password ? String(localized: "Hidden password") : String(localized: "Hidden protected field")
+    }
+    /// The reveal button's label and help.
+    func revealLabel(isRevealed: Bool) -> String {
+        isRevealed ? String(localized: "Hide \(label)") : String(localized: "Show \(label)")
+    }
+    /// The copy button's label and help.
+    var copyLabel: String {
+        switch kind {
+        case .username: String(localized: "Copy Username")
+        case .password: String(localized: "Copy Password")
+        case .verificationCode: String(localized: "Copy Verification Code")
+        case .passkeyRelyingParty: String(localized: "Copy Relying Party")
+        case .passkeyUsername: String(localized: "Copy Passkey Username")
+        case .website, .custom, .notes: String(localized: "Copy \(label)")
+        }
+    }
     /// A concealed website opens only once revealed.
     var openableURL: URL? {
         guard case .website = kind else { return nil }

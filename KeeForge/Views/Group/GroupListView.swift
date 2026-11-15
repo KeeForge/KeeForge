@@ -1086,8 +1086,6 @@ struct GroupRow: View {
     }
 }
 
-#endif
-
 struct EntryRow: View {
     let entry: KPEntry
     /// The subtitle to show; callers pass the entry's username with field
@@ -1098,19 +1096,11 @@ struct EntryRow: View {
 
     @ScaledMetric(relativeTo: .body) private var iconSize = Theme.Size.entryIcon
 
-    var body: some View {
-        if PlatformDesign.followsIOSDesign {
-            designedRow
-        } else {
-            macRow
-        }
-    }
-
     private var title: String {
         entry.title.isEmpty ? String(localized: "(untitled)") : entry.title
     }
 
-    private var designedRow: some View {
+    var body: some View {
         HStack(spacing: Theme.Spacing.iconText) {
             FaviconEntryIconView(entry: entry, customIconData: customIconData, size: iconSize)
 
@@ -1155,63 +1145,6 @@ struct EntryRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
-
-    private var macRow: some View {
-        HStack {
-            FaviconView(url: entry.url, iconID: entry.iconID, size: 24, customIconData: customIconData)
-                .frame(width: 28)
-
-            VStack(alignment: .leading) {
-                Text(title)
-                    .font(.body)
-                if !username.isEmpty {
-                    Text(username)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let folderPath, folderPath.isEmpty == false {
-                    HStack(spacing: 4) {
-                        Image(systemName: "folder")
-                            .accessibilityHidden(true)
-                        Text(folderPath)
-                            .lineLimit(1)
-                            .truncationMode(.head)
-                            .accessibilityIdentifier("entry-row.folder")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            if entry.isExpired() {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .accessibilityLabel("Expired")
-                    .accessibilityIdentifier("entry-row.expired")
-            }
-
-            if entry.hasPasskey {
-                Image(systemName: "person.badge.key.fill")
-                    .font(.caption)
-                    .foregroundStyle(.purple)
-                    .accessibilityLabel("Has a passkey")
-                    .accessibilityIdentifier("entry-row.passkey")
-            }
-
-            if entry.totpConfig != nil {
-                Image(systemName: "clock")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-                    .accessibilityLabel("Has a verification code")
-                    .accessibilityIdentifier("entry-row.totp")
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-    }
 }
 
 /// A tinted circle on an entry row saying what the entry carries.
@@ -1228,3 +1161,4 @@ private struct EntryRowBadge: View {
             .background(Theme.accentSoft, in: Circle())
     }
 }
+#endif

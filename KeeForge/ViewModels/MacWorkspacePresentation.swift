@@ -331,6 +331,10 @@ final class MacWorkspacePresentation {
                 guard self.lifetimeID == lifetimeID, database.lockCycleID == lockCycleID else { return }
                 database.clearSaveError()
                 if database.isDirty { await database.saveHandlingError() }
+                guard self.lifetimeID == lifetimeID, database.lockCycleID == lockCycleID else { return }
+                if database.cloudSyncBannerText == CloudSyncResolution.disconnectedCachedBannerMessage {
+                    await database.syncCloudNow()
+                }
             } catch let error as CloudProviderError where error == .authenticationCancelled {
                 return
             } catch {

@@ -269,13 +269,7 @@ final class MacWorkspaceAlerts {
                 addButton(String(localized: "OK"), identifier: "pending-upload-push.ok", to: alert)
             }
         case .discardPendingUpload:
-            // The Databases window's wording; Cancel is the default here (SyncProblems board).
-            alert.messageText = String(localized: "Discard Pending Upload?")
-            alert.informativeText = String(localized: "The pending change for “\(session.databaseReference.displayName)” could not be uploaded because the copy in the cloud changed. KeeForge keeps a timestamped backup on this device before discarding it.")
-            let discard = addButton(String(localized: "Discard Upload"), identifier: "pending-upload-discard.confirm", to: alert)
-            discard.hasDestructiveAction = true
-            discard.keyEquivalent = ""
-            addButton(String(localized: "Cancel"), identifier: "pending-upload-discard.cancel", to: alert).keyEquivalent = "\r"
+            return MacDatabasesAlerts.makeDiscardAlert(for: session.databaseReference)
         }
         return alert
     }

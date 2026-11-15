@@ -633,6 +633,36 @@ final class MacWorkspacePresentationTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
+    func testReconnectFromTheCachedCopySyncsSoTheCardStopsAskingForIt() async throws {
+        DatabaseListStore.clearAll()
+        defer { DatabaseListStore.clearAll() }
+        let file = CloudFile(id: "/Vaults/cached.kdbx", name: "cached.kdbx", path: "/Vaults/cached.kdbx",
+                             isFolder: false, modifiedDate: Date(timeIntervalSince1970: 100), size: 128)
+        let reference = DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue, accountId: "acct-1", file: file)
+        let fixture = KDBXTestFixture.test
+        let data = try fixture.data(in: Bundle(for: Self.self))
+        let resolution: @Sendable (DatabaseReference, CloudSyncResolution.Status) -> CloudSyncResolution = { reference, status in
+            CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference),
+                                data: data, status: status)
+        }
+        let database = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, _ in resolution(reference, .disconnectedCached) },
+            cloudRefreshOperation: { reference, _ in resolution(reference, .current) }
+        )
+        await database.unlock(password: fixture.password)
+        defer { database.lock() }
+        let presentation = MacWorkspacePresentation()
+        XCTAssertEqual(MacDatabaseStatus.State(session: database, presentation: presentation).cachedCopy, .disconnected)
+
+        let task = try XCTUnwrap(presentation.reconnectCloud(in: database) {})
+        await task.value
+
+        XCTAssertNil(database.cloudSyncBannerText)
+        XCTAssertEqual(database.cloudSyncOutcome, .upToDate)
+        XCTAssertNil(MacDatabaseStatus.State(session: database, presentation: presentation).cachedCopy)
+    }
+
     func testResetClosesAnOpenReconnectForm() async {
         let presentation = MacWorkspacePresentation()
         let form = MacServerCredentialForm.ftp(FTPConnectViewModel(connector: FTPCloudProvider()))

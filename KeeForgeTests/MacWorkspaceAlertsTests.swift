@@ -291,6 +291,7 @@ final class MacWorkspaceAlertsTests: XCTestCase {
         XCTAssertTrue(alert.buttons[0].hasDestructiveAction)
         XCTAssertEqual(alert.buttons[0].keyEquivalent, "", "Return never discards")
         XCTAssertEqual(alert.buttons[1].keyEquivalent, "\r", "Cancel is the default")
+        try assertEscapeCancels(alert)
 
         shown.last?.answer(.alertSecondButtonReturn)
         await settle()
@@ -338,7 +339,40 @@ final class MacWorkspaceAlertsTests: XCTestCase {
         XCTAssertEqual(discarded, 0)
     }
 
+    func testTheDatabasesWindowDiscardAlertMatchesWithCancelOnReturnAndEscape() throws {
+        let reference = DatabaseReference(
+            id: UUID(), nickname: "Vault", filename: "vault.kdbx", bookmarkData: nil, keyFileBookmarkData: nil,
+            keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil, addedAt: Date(timeIntervalSince1970: 0),
+            colorTag: nil, legacyKeychainFilename: nil)
+        let alert = MacDatabasesAlerts.makeDiscardAlert(for: reference)
+        XCTAssertEqual(alert.buttons.map(\.title), [String(localized: "Discard Upload"), String(localized: "Cancel")])
+        XCTAssertTrue(alert.buttons[0].hasDestructiveAction)
+        XCTAssertEqual(alert.buttons[0].keyEquivalent, "", "Return never discards")
+        XCTAssertEqual(alert.buttons[1].keyEquivalent, "\r", "Cancel is the default")
+        try assertEscapeCancels(alert)
+    }
+
     // MARK: - Helpers
+
+    private final class ClickRecorder: NSObject {
+        var clicks = 0
+        @objc func click(_ sender: Any?) { clicks += 1 }
+    }
+
+    /// Escape reaches the alert's last button (Cancel) even though Cancel holds Return.
+    private func assertEscapeCancels(_ alert: NSAlert, file: StaticString = #filePath, line: UInt = #line) throws {
+        alert.layout()
+        let cancel = try XCTUnwrap(alert.buttons.last, file: file, line: line)
+        let recorder = ClickRecorder()
+        cancel.target = recorder
+        cancel.action = #selector(ClickRecorder.click(_:))
+        let escape = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: alert.window.windowNumber,
+            context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53),
+            file: file, line: line)
+        XCTAssertTrue(alert.window.performKeyEquivalent(with: escape), "Escape is handled", file: file, line: line)
+        XCTAssertEqual(recorder.clicks, 1, "Escape clicks Cancel", file: file, line: line)
+    }
 
     private func makeAlerts(
         save: @escaping DatabaseViewModel.LocalSaveOperation = { _, _, _, _, _, _, _ in

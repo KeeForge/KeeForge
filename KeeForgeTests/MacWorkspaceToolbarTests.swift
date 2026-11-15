@@ -35,6 +35,8 @@ final class MacWorkspaceToolbarTests: XCTestCase {
             XCTAssertEqual(item.label, localized(label), identifier)
             XCTAssertEqual(item.toolTip, localized(label), identifier)
             XCTAssertEqual(item.view?.accessibilityIdentifier(), identifier)
+            XCTAssertEqual(item.view?.accessibilityLabel(), localized(label), identifier)
+            XCTAssertEqual(item.view?.toolTip, localized(label), identifier)
             XCTAssertEqual(item.menuFormRepresentation?.title, localized(label), identifier)
             XCTAssertFalse(item.isNavigational, identifier)
         }

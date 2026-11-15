@@ -49,6 +49,9 @@ final class MacWindowWorkspace {
         toolbar = controller.map {
             MacWorkspaceToolbar(session: $0.session, presentation: presentation, splitView: $0.splitView)
         }
+        if let controller, let toolbar {
+            controller.connectKeyViewLoop(search: toolbar.searchItem.searchField, toolbarButtons: toolbar.keyViewButtons)
+        }
         splitViewController = controller
     }
 }
@@ -57,6 +60,7 @@ final class MacWindowWorkspace {
 final class MacWorkspaceSplitViewController: NSSplitViewController {
     let session: DatabaseViewModel
     let entryList: MacEntryListViewController
+    let sidebar: MacSidebarViewController
     private let presentation: MacWorkspacePresentation
     private var sidebarCollapseObservation: NSKeyValueObservation?
     private var statusClock: Timer?
@@ -88,17 +92,18 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         self.session = session
         self.presentation = presentation
         entryList = MacEntryListViewController(session: session, presentation: presentation, currentSession: currentSession)
+        sidebar = MacSidebarViewController(session: session, presentation: presentation)
         super.init(nibName: nil, bundle: nil)
         splitView.isVertical = true
         splitView.dividerStyle = .thin
 
-        let sidebar = NSSplitViewItem(sidebarWithViewController: MacSidebarViewController(session: session, presentation: presentation))
-        sidebar.canCollapse = true
-        sidebar.minimumThickness = 200
-        sidebar.maximumThickness = 340
-        sidebar.preferredThicknessFraction = 240.0 / 1080.0
-        addSplitViewItem(sidebar)
-        sidebarCollapseObservation = sidebar.observe(\.isCollapsed, options: [.initial, .new]) { [weak self] _, _ in
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
+        sidebarItem.canCollapse = true
+        sidebarItem.minimumThickness = 200
+        sidebarItem.maximumThickness = 340
+        sidebarItem.preferredThicknessFraction = 240.0 / 1080.0
+        addSplitViewItem(sidebarItem)
+        sidebarCollapseObservation = sidebarItem.observe(\.isCollapsed, options: [.initial, .new]) { [weak self] _, _ in
             MainActor.assumeIsolated { self?.noteSidebarCollapse() }
         }
 
@@ -130,6 +135,16 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         statusClock?.invalidate()
         listFrameObservers.forEach(NotificationCenter.default.removeObserver)
         hiddenListObserver.map(NotificationCenter.default.removeObserver)
+    }
+
+    /// Tab moves sidebar → search → list → detail → toolbar buttons and round again; set explicitly
+    /// because the panes live in separate hosts and the search field in the toolbar. A hidden sidebar is skipped.
+    func connectKeyViewLoop(search: NSView, toolbarButtons: [NSView]) {
+        guard splitViewItems.count > 2 else { return }
+        let loop: [NSView] = [sidebar.outlineView, search, entryList.tableView, splitViewItems[2].viewController.view] + toolbarButtons
+        for (view, next) in zip(loop, loop.dropFirst() + [sidebar.outlineView]) {
+            view.nextKeyView = next
+        }
     }
 
     /// Alerts wait for a window to attach to.

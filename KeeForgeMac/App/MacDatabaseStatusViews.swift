@@ -149,6 +149,7 @@ final class MacSidebarStatusCardView: NSView {
             attributes: [.font: NSFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor.controlAccentColor]
         )
         readOnlyBadge.setAccessibilityLabel(String(localized: "Read-only database"))
+        readOnlyBadge.toolTip = String(localized: "Read-only database")
         readOnlyBadge.setAccessibilityIdentifier("sidebar.status-card.read-only")
         readOnlyBadge.setContentHuggingPriority(.required, for: .horizontal)
         readOnlyBadge.setContentCompressionResistancePriority(.required, for: .horizontal)
