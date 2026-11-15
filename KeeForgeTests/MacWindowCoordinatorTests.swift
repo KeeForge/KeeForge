@@ -790,6 +790,35 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: clean.path), "A clean quit removes them too")
     }
 
+    func testAQuitClearsKeeForgesClipboardCopyOnlyOnceItGoesAhead() async throws {
+        makeRestoringCoordinator()
+        start()
+        coordinator.open(references[0])
+        let controller = try XCTUnwrap(coordinator.databaseWindows[references[0].id])
+        await controller.session.unlock(password: "testpassword123")
+        defer { ClipboardService.clearOwnedContents() }
+        ClipboardService.copy("COPY-PROBE-QUIT")
+        try makeDirty(controller.session, title: "Unsaved")
+        prompts.choices = [.cancel]
+
+        let cancelled = try await terminate()
+        XCTAssertEqual(cancelled, false)
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "COPY-PROBE-QUIT", "A cancelled quit keeps the copy")
+
+        prompts.choices = [.discard]
+        let settled = try await terminate()
+        XCTAssertEqual(settled, true)
+        XCTAssertNil(NSPasteboard.general.string(forType: .string))
+
+        controller.session.lockRequest(force: true)
+        ClipboardService.copy("COPY-PROBE-OWNED")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString("copied elsewhere", forType: .string)
+        XCTAssertEqual(coordinator.requestTermination { _ in XCTFail("No reply for an immediate quit") }, .terminateNow)
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "copied elsewhere",
+                       "A quit never clears what the user copied after KeeForge")
+    }
+
     func testQuitAsksAnUnsavedEditorAndGoesAheadOnlyOnceItIsSettled() async throws {
         start()
         coordinator.open(references[0])

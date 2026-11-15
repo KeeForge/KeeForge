@@ -666,13 +666,15 @@ final class MacWindowCoordinator {
         return .terminateLater
     }
 
-    /// Also removes the plaintext attachment previews: a quit does not close the windows, so their
-    /// own cleanup never runs.
+    /// Also removes the plaintext attachment previews and KeeForge's clipboard copy: a quit does
+    /// not close the windows or lock the sessions, so neither cleanup would otherwise run, and the
+    /// clear timer dies with the process.
     private func prepareForTermination() {
         recordTopology()
         restorationStore?.beginTermination()
         for controller in databaseWindows.values { controller.attachmentPreview.windowClosed() }
         AttachmentPreviewFileStore.removeAll()
+        ClipboardService.clearOwnedContents()
     }
 
     /// Every answer is collected before anything is written, so a later

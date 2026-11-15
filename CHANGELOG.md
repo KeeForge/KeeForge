@@ -42,6 +42,7 @@
 ### Fixes
 
 - Creating a database on an FTP server that answers a missing file with a temporary error (such as `rclone serve ftp`) no longer fails as temporarily unavailable.
+- On Mac, quitting KeeForge (including at logout or restart) now clears a password or other value it copied, instead of leaving it on the clipboard until the clear timeout would have run.
 - On iPhone and iPad, an entry in a group inside the Recycle Bin offers Delete Permanently, as entries directly in the Recycle Bin do, instead of Delete.
 - Search finds an entry by any of its URLs, not only the first one (#289).
 - Search results follow the chosen sort order and direction instead of appearing unsorted (#290).
