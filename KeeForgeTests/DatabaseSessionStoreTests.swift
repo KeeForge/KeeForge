@@ -540,7 +540,7 @@ final class DatabaseSessionStoreTests: XCTestCase {
     }
 
     func testStaleListCallbackPreservesMetadataWrittenBySessionSync() async throws {
-        var reference = DatabaseListStore.addCloud(
+        var reference = try DatabaseListStore.addCloud(
             provider: CloudProviderKind.webDAV.rawValue,
             accountId: "account",
             file: CloudFile(id: "/cloud.kdbx", name: "cloud.kdbx", path: "/cloud.kdbx",
