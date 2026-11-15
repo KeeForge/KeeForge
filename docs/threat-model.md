@@ -55,6 +55,8 @@ Arrows mark data or authority crossings, not blanket trust. Cloud storage, impor
 
 The per-database AutoFill toggle commits its registry change before scheduling identity removal. The system suggestion index is an asynchronous best-effort derivative, not authority to authenticate or fill; its existing non-incremental fallback may clear suggestions belonging to other databases. Registry publication and the system index are not an atomic cross-process transaction.
 
+Database removal revokes the pending-local owner before publishing the registry change. If registry publication fails or is unconfirmed, KeeForge retains the cache, keys, pending sources and suggestion identities; an observed revocation is not proof that removal completed or that an unresolved owner is usable. An idle owner can be retried with the same captured database identity.
+
 Cloud metadata learned across an await is published only if the captured cloud identity, revision, local head, epoch and reference preferences still match inside coordinated registry access. A visible but unconfirmed registry publication is not a durable receipt for the caller.
 
 App-global activation, background/system-lock requests, user activity, and live Settings effects reach every session retained by [DatabaseSessionStore](../KeeForge/ViewModels/DatabaseSessionStore.swift), regardless of active selection. Each session applies its existing lock policy and unsaved-work deferral. Activity resets every session's inactivity timer until monitors have window identity; removing a database from the list force-retires its session and clears its secrets.

@@ -790,6 +790,57 @@ final class PendingLocalSaveTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: url), original)
     }
 
+    func testRemovalRegistryFailureRetainsDataAndSameIDRetryCompletes() async throws {
+        let url = try makeScratchDatabaseCopy()
+        let reference = try DatabaseListStore.add(url: url)
+        let cache = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
+        let cached = try Data(contentsOf: cache)
+        try KeychainService.storeCompositeKey(SymmetricKey(size: .bits256), for: reference.id)
+        defer { KeychainService.deleteCompositeKey(for: reference.id) }
+        let noRemoval = expectation(description: "No identity removal before registry publication")
+        noRemoval.isInverted = true
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in noRemoval.fulfill() }
+        var io = DurableFileWriteIO()
+        io.synchronizeFile = { _ in throw POSIXError(.EIO) }
+        XCTAssertEqual(DatabaseListStore.remove(observed: reference, io: io), .revokedRegistryNotPublished)
+        XCTAssertTrue(PendingLocalSaveStore.isRevoked(reference.id))
+        XCTAssertTrue(DatabaseListStore.databases.contains { $0.id == reference.id })
+        XCTAssertEqual(try Data(contentsOf: cache), cached)
+        XCTAssertTrue(KeychainService.hasStoredKey(for: reference.id))
+        let original = try Data(contentsOf: url)
+        XCTAssertThrowsError(try LocalDatabaseSaver.replaceFileAtomically(Data("late".utf8), at: url,
+            expectedSHA512: FileDigest.sha512(original), authorization: .init(databaseID: reference.id)))
+        await fulfillment(of: [noRemoval], timeout: 0.2)
+        let removed = expectation(description: "Identity removal after durable registry publication")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { id, _ in XCTAssertEqual(id, reference.id); removed.fulfill() }
+        XCTAssertEqual(DatabaseListStore.remove(observed: reference), .removed)
+        await fulfillment(of: [removed], timeout: 1)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cache.path))
+        XCTAssertFalse(KeychainService.hasStoredKey(for: reference.id))
+    }
+
+    func testRemovalVisibleUnconfirmedKeepsCacheAndDoesNotEnqueueCleanup() async throws {
+        let url = try makeScratchDatabaseCopy()
+        let reference = try DatabaseListStore.add(url: url)
+        let cache = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
+        let bytes = try Data(contentsOf: cache)
+        try KeychainService.storeCompositeKey(SymmetricKey(size: .bits256), for: reference.id)
+        defer { KeychainService.deleteCompositeKey(for: reference.id); try? FileManager.default.removeItem(at: cache) }
+        let noRemoval = expectation(description: "No identity removal after unconfirmed registry publication")
+        noRemoval.isInverted = true
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in noRemoval.fulfill() }
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        XCTAssertEqual(DatabaseListStore.remove(observed: reference, io: io), .visibleUnconfirmed)
+        XCTAssertTrue(PendingLocalSaveStore.isRevoked(reference.id))
+        XCTAssertEqual(try Data(contentsOf: cache), bytes)
+        XCTAssertTrue(KeychainService.hasStoredKey(for: reference.id))
+        XCTAssertEqual(DatabaseListStore.remove(observed: reference), .alreadyMissing)
+        XCTAssertEqual(try Data(contentsOf: cache), bytes)
+        await fulfillment(of: [noRemoval], timeout: 0.2)
+    }
+
     func testRealStagingFailureReleasesAdmissionForOneExplicitSuccessfulRetry() async throws {
         let url = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: url)

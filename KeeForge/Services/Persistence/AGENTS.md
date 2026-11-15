@@ -25,7 +25,7 @@
 
 - Mutate the list through `DatabaseListStore`'s methods, which serialize under one lock. A field-specific setter rereads the stored reference first; a new one must too, or it rolls back a concurrent change to another field.
 - Code that learns cloud state across an `await` passes the captured reference and metadata to `updateCloudSyncMetadata`, never `update(_:)` (`../Cloud/AGENTS.md`).
-- `remove(id:)` owns removal: Keychain item, cached copy, backups, upload markers, AutoFill pointer, and the database's published identities. `setAutoFillEnabled` owns the same for disabling. Do not repeat parts of either elsewhere.
+- `remove(observed:)` owns removal: it validates the captured reference under coordinated registry access and revokes the local owner before publishing removal. A failed or unconfirmed registry publication retains keys, cache, sources and identities, even when the protective revocation is already visible; an idle owner can retry the same ID. Only confirmed registry removal permits cleanup. The system identity index is asynchronous and best effort.
 - A database with AutoFill disabled can never be `activeAutoFillDatabaseID` or `defaultAutoFillDatabase`; the setter refuses it.
 - AutoFill participation compares the observed reference before publishing and enqueues identity removal only after a confirmed durable disable; the system index is asynchronous and is not a cross-process registry transaction.
 - Legacy keychain-filename cleanup compares the captured preference under registry coordination and a nonblocking pending-local owner lock; an unconfirmed publication does not report success.

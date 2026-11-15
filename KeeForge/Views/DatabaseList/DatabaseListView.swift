@@ -463,10 +463,15 @@ struct DatabaseListView: View {
             presenting: pendingRemoval
         ) { target in
             Button("Remove", role: .destructive) {
-                if viewModel.removeDatabase(target) == false {
-                    Task { @MainActor in
+                Task { @MainActor in
+                    let outcome = await viewModel.removeDatabase(target)
+                    switch outcome {
+                    case .removed, .alreadyMissing: break
+                    case .revokedRecoveryRequired, .revokedRegistryNotPublished:
                         await Task.yield()
                         detailsReference = target
+                    case .rejected, .notPublished, .revocationUnconfirmed, .visibleUnconfirmed:
+                        selectionAlert = .init(title: String(localized: "Databases"), message: CocoaError(.fileWriteUnknown).localizedDescription)
                     }
                 }
                 pendingRemoval = nil

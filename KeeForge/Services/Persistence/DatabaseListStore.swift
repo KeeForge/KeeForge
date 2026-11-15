@@ -494,58 +494,83 @@ enum DatabaseListStore {
         )
     }
 
+    enum RemovalOutcome: Sendable, Equatable {
+        case removed, alreadyMissing, rejected, notPublished, revocationUnconfirmed
+        case revokedRecoveryRequired, revokedRegistryNotPublished, visibleUnconfirmed
+    }
+
+    private struct RemovalReceipt {
+        let reference: DatabaseReference
+        let wasActive: Bool
+        let sharedLegacy: Bool
+    }
+
+    @discardableResult
+    static func remove(observed: DatabaseReference, io: DurableFileWriteIO = .init()) -> RemovalOutcome {
+        var revocationAttempted = false
+        var revocationObserved = false
+        var recoveryRequired = false
+        var rowMissing = false
+        do {
+            return try PendingUploadQueue.withCommitLock(for: observed.id, nonBlocking: true) {
+                let result = mutateRegistry(io: io) { rows -> RegistryDecision<RemovalReceipt> in
+                    guard let index = rows.firstIndex(where: { $0.id == observed.id }) else { rowMissing = true; return .missing }
+                    let current = rows[index]
+                    guard PendingLocalSaveStore.PreferenceObservation(observed).matches(current),
+                          current.hardwareKey == observed.hardwareKey,
+                          current.autoFillEnabled == observed.autoFillEnabled,
+                          current.legacyKeychainFilename == observed.legacyKeychainFilename,
+                          current.cloudSyncMetadata?.localHeadOperationID == observed.cloudSyncMetadata?.localHeadOperationID,
+                          current.cloudSyncMetadata?.keyEpoch == observed.cloudSyncMetadata?.keyEpoch,
+                          current.cloudSyncMetadata?.remoteRev == observed.cloudSyncMetadata?.remoteRev,
+                          current.cloudSyncMetadata?.remoteContentHash == observed.cloudSyncMetadata?.remoteContentHash else { return .rejected }
+                    if current.isCloudBacked {
+                        guard try PendingUploadQueue.readJournal(for: current.id).isEmpty else { return .rejected }
+                    }
+                    revocationAttempted = true
+                    let ready = try PendingLocalSaveStore.revokeForRemoval(current.id, nonBlocking: true)
+                    revocationObserved = true
+                    guard ready else { recoveryRequired = true; return .rejected }
+                    let sharedLegacy = current.legacyKeychainFilename.map { name in
+                        rows.contains { $0.id != current.id && $0.legacyKeychainFilename == name }
+                    } ?? false
+                    let receipt = RemovalReceipt(reference: current, wasActive: activeAutoFillDatabase(in: rows)?.id == current.id, sharedLegacy: sharedLegacy)
+                    rows.remove(at: index)
+                    return .write(receipt)
+                }
+                switch result {
+                case .durable(let receipt):
+                    let removed = receipt.reference
+                    KeychainService.deleteCompositeKey(for: removed.id)
+                    if let legacy = removed.legacyKeychainFilename, !receipt.sharedLegacy { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
+                    QuickUnlockKeychain.removeMasterKeyEntry(for: removed.id)
+                    try? FileManager.default.removeItem(at: cacheLocation(for: removed))
+                    try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removed))
+                    if activeAutoFillDatabaseID == removed.id { activeAutoFillDatabaseID = nil }
+                    CredentialIdentityStoreManager.removeIdentities(forDatabase: removed.id, includingLegacyIdentifiers: receipt.wasActive)
+                    return .removed
+                case .visibleUnconfirmed: return .visibleUnconfirmed
+                case .missing: return rowMissing ? .alreadyMissing : .notPublished
+                case .rejected: return recoveryRequired ? .revokedRecoveryRequired : .rejected
+                case .notPublished:
+                    if revocationObserved { return .revokedRegistryNotPublished }
+                    return revocationAttempted ? .revocationUnconfirmed : .notPublished
+                case .noop: return .rejected
+                }
+            }
+        } catch { return .notPublished }
+    }
+
+    #if DEBUG
     @discardableResult
     static func remove(id: UUID) -> Bool {
-        withStateLock {
-            let observedDatabases = loadDatabases()
-            do {
-                if observedDatabases.first(where: { $0.id == id })?.isCloudBacked == true {
-                    guard try PendingUploadQueue.readJournal(for: id).isEmpty else { return false }
-                }
-                guard try PendingLocalSaveStore.revokeForRemoval(id) else { return false }
-            } catch { return false }
-            // Removal must distinguish an absent reference from an unreadable registry.
-            let currentDatabases: [DatabaseReference]
-            do {
-                currentDatabases = normalized(try JSONDecoder().decode(
-                    [DatabaseReference].self, from: Data(contentsOf: databaseListURL)
-                ))
-            } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
-                return true
-            } catch { return false }
-            guard let removedReference = currentDatabases.first(where: { $0.id == id }) else { return true }
-            if removedReference.isCloudBacked {
-                guard (try? PendingUploadQueue.readJournal(for: id).isEmpty) == true else { return false }
-            }
-            let wasActiveAutoFillDatabase = activeAutoFillDatabase?.id == id
-            let remainingDatabases = currentDatabases.filter { $0.id != id }
-            guard saveDatabases(remainingDatabases) else { return false }
-
-            KeychainService.deleteCompositeKey(for: removedReference.id)
-            if let legacyFilename = removedReference.legacyKeychainFilename {
-                KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-            }
-            QuickUnlockKeychain.removeMasterKeyEntry(for: removedReference.id)
-
-            try? FileManager.default.removeItem(at: cacheLocation(for: removedReference))
-            try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removedReference))
-            try? PendingUploadQueue.removeAllMarkers(for: removedReference.id)
-
-            if activeAutoFillDatabaseID == id {
-                activeAutoFillDatabaseID = nil
-            }
-
-            // Every removal drops the database's published identities —
-            // targeted, works while locked, leaves other databases'
-            // suggestions in place. (Pre-slice-04 only removing the *active*
-            // database cleared anything, and it wiped the whole store.)
-            CredentialIdentityStoreManager.removeIdentities(
-                forDatabase: id,
-                includingLegacyIdentifiers: wasActiveAutoFillDatabase
-            )
-            return true
-        }
+        guard AppGroupContainer.isRedirectedForTesting else { return false }
+        guard let rows = try? readDatabasesStrict() else { return false }
+        guard let reference = rows.first(where: { $0.id == id }) else { return true }
+        let outcome = remove(observed: reference)
+        return outcome == .removed || outcome == .alreadyMissing
     }
+    #endif
 
     static func update(_ reference: DatabaseReference) {
         withStateLock {
@@ -1136,7 +1161,7 @@ enum DatabaseListStore {
     }
 
     /// Owns the consequences of toggling a database's AutoFill participation
-    /// (mirroring how `remove(id:)` owns removal consequences): disabling
+    /// (mirroring how `remove(observed:)` owns removal consequences): disabling
     /// removes exactly that database's published identities — targeted, needs
     /// no unlock, other databases' suggestions stay untouched — and, when the
     /// disabled database was the active AutoFill database, hands the active
@@ -1883,9 +1908,10 @@ enum DatabaseListStore {
     }
 
     static func clearAll() {
+        guard AppGroupContainer.isRedirectedForTesting else { return }
+        let currentDatabases = loadDatabases()
+        currentDatabases.forEach { _ = remove(observed: $0) }
         withStateLock {
-            let currentDatabases = loadDatabases()
-            currentDatabases.forEach { remove(id: $0.id) }
             try? FileManager.default.removeItem(at: databaseListURL)
             try? FileManager.default.removeItem(at: backupsRootURL)
             try? PendingUploadQueue.clearAll()

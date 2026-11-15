@@ -1032,12 +1032,15 @@ final class DatabaseViewModel {
     /// Same cleanup as a manual list removal: cached copy, backups, Keychain
     /// key, pending-upload markers, and AutoFill identities all go with it.
     /// No-op when the file reappeared since the failure was recorded.
-    func removeMissingDocumentsDatabase() {
-        guard DatabaseListStore.isDocumentsFileMissing(for: databaseReference) else {
-            canRemoveMissingDocumentsFile = false
-            return
-        }
-        DatabaseListStore.remove(id: databaseReference.id)
+    @discardableResult
+    func removeMissingDocumentsDatabase() async -> DatabaseListStore.RemovalOutcome? {
+        let observed = databaseReference
+        let outcome = await Task.detached { () -> DatabaseListStore.RemovalOutcome? in
+            guard DatabaseListStore.isDocumentsFileMissing(for: observed) else { return nil }
+            return DatabaseListStore.remove(observed: observed)
+        }.value
+        if outcome == nil && databaseReference == observed { canRemoveMissingDocumentsFile = false }
+        return outcome
     }
 
     /// Whether the failure screen may offer to relink this database to a file

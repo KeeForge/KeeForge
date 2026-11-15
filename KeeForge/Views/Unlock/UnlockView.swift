@@ -556,8 +556,7 @@ struct UnlockView: View {
             isPresented: $showRemoveMissingConfirmation
         ) {
             Button("Remove", role: .destructive) {
-                viewModel.removeMissingDocumentsDatabase()
-                onBackToDatabaseList()
+                removeMissingDatabase()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -638,8 +637,7 @@ struct UnlockView: View {
                         isPresented: $showRemoveMissingConfirmation
                     ) {
                         Button("Remove", role: .destructive) {
-                            viewModel.removeMissingDocumentsDatabase()
-                            onBackToDatabaseList()
+                            removeMissingDatabase()
                         }
                         Button("Cancel", role: .cancel) {}
                     } message: {
@@ -848,6 +846,14 @@ struct UnlockView: View {
             case .visibleUnconfirmed, .keyEffectUnconfirmed:
                 selectionAlert = .init(title: String(localized: "Hardware Key"), message: CocoaError(.fileWriteUnknown).localizedDescription)
             }
+        }
+    }
+
+    private func removeMissingDatabase() {
+        Task {
+            guard let outcome = await viewModel.removeMissingDocumentsDatabase() else { return }
+            if outcome == .removed || outcome == .alreadyMissing { onBackToDatabaseList() }
+            else { selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: CocoaError(.fileWriteUnknown)) }
         }
     }
 

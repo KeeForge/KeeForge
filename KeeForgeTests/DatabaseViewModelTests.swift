@@ -600,7 +600,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.canRemoveMissingDocumentsFile)
 
         // Same consequences as a manual list removal.
-        vm.removeMissingDocumentsDatabase()
+        await vm.removeMissingDocumentsDatabase()
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
         XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference.id))
     }
@@ -629,7 +629,7 @@ final class DatabaseViewModelTests: XCTestCase {
         // it stays visible — but a remove after the file came back must be a
         // no-op (re-verified at action time) and clear the stale flag.
         try fixtureData.write(to: fileURL)
-        vm.removeMissingDocumentsDatabase()
+        await vm.removeMissingDocumentsDatabase()
         XCTAssertEqual(DatabaseListStore.databases.map(\.id), [reference.id])
         XCTAssertFalse(vm.canRemoveMissingDocumentsFile)
     }

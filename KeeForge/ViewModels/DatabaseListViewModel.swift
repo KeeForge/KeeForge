@@ -140,8 +140,8 @@ final class DatabaseListViewModel {
     }
 
     @discardableResult
-    func removeDatabase(_ reference: DatabaseReference) -> Bool {
-        let removed = DatabaseListStore.remove(id: reference.id)
+    func removeDatabase(_ reference: DatabaseReference) async -> DatabaseListStore.RemovalOutcome {
+        let removed = await Task.detached { DatabaseListStore.remove(observed: reference) }.value
         reload()
         return removed
     }
