@@ -1078,71 +1078,64 @@ final class LocalDatabaseSaverTests: XCTestCase {
     }
 
     func testSaveCloudReferenceResolvedToCacheWritesCacheExactlyOnce() async throws {
-        // A cloud-backed reference has no bookmark, so (as in an AutoFill
-        // extension save) the resolved save location IS the shared cache
-        // file. The atomic replace is the cache write; a second refresh
-        // through cacheDatabaseCopy would write the same bytes again.
         let reference = makeCloudReference()
-        let fixtureURL = try TestDatabaseSupport.fixtureURL(
-            bundle: Bundle(for: LocalDatabaseSaverTests.self)
-        )
-        try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: fixtureURL), for: reference)
-        let cacheURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
-        let context = try makeDirtySaveContext(
-            databaseURL: cacheURL,
-            entryTitle: "Cloud Cache Entry"
-        )
+        DatabaseListStore.update(reference)
+        let fixtureURL = try TestDatabaseSupport.fixtureURL(bundle: Bundle(for: Self.self))
+        let original = try Data(contentsOf: fixtureURL)
+        try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(databaseURL: cacheURL, entryTitle: "Cloud Cache Entry")
+        let writes = WriteCounter()
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        let replace = environment.replaceFile
+        environment.replaceFile = { data, url, sha, ref in
+            if url.standardizedFileURL == cacheURL.standardizedFileURL { writes.increment() }
+            return try replace(data, url, sha, ref)
+        }
+        let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: reference,
+            compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-1", kdfPolicy: .mainApp, environment: environment)
+        guard case .saved(let sha, _, _) = result else { return XCTFail("Expected local cloud commit") }
+        let bytes = try Data(contentsOf: cacheURL)
+        XCTAssertNotEqual(bytes, original)
+        XCTAssertEqual(FileDigest.sha512(bytes), sha)
+        XCTAssertEqual(writes.count, 1)
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker), bytes)
+        XCTAssertEqual(marker.marker.openTimeSHA512, sha)
+        let parsed = try KDBXParser.parse(data: bytes, password: fixturePassword, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertTrue(parsed.allEntries.contains { $0.title == "Cloud Cache Entry" })
+    }
 
-        let cacheWrites = WriteCounter()
-        let cachePath = cacheURL.standardizedFileURL.resolvingSymlinksInPath().path
-        var environment = LocalDatabaseSaver.Environment.live
-        let trace = TestDatabaseSupport.LocalPublicationTrace()
-        environment.localPublicationFailure = { trace.record($0, $1) }
-        let liveReplace = environment.replaceFileAtomically
-        environment.replaceFileAtomically = { data, url, expectedSHA512, authorization in
-            if url.standardizedFileURL.resolvingSymlinksInPath().path == cachePath {
-                cacheWrites.increment()
-            }
-            return try liveReplace(data, url, expectedSHA512, authorization)
+    func testUnregisteredCloudReferenceCannotReplaceCacheOrCreateJournal() async throws {
+        let reference = makeCloudReference()
+        let fixtureURL = try TestDatabaseSupport.fixtureURL(bundle: Bundle(for: Self.self))
+        let original = try Data(contentsOf: fixtureURL)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        try FileManager.default.createDirectory(at: cacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try original.write(to: cacheURL)
+        let context = try makeDirtySaveContext(databaseURL: cacheURL, entryTitle: "Unregistered")
+        let writes = WriteCounter()
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        let replace = environment.replaceFile
+        environment.replaceFile = { data, url, sha, ref in
+            writes.increment()
+            return try replace(data, url, sha, ref)
         }
-        environment.cacheDatabaseCopy = { data, reference in
-            cacheWrites.increment()
-            try TestDatabaseSupport.cacheLocalSnapshotDiagnosingFailure(data, for: reference)
-        }
-
-        TestDatabaseSupport.cloudDiagnosticSnapshot("3 before", reference: reference, savedSHA: nil, openSHA: context.openTimeSHA512)
-        let result = try await LocalDatabaseSaver.save(
-            draft: context.draft,
-            reference: reference,
-            compositeKey: context.compositeKey,
-            openTimeSHA512: context.openTimeSHA512,
-            environment: environment
-        )
-
-        let resultSHA: Data?
-        switch result {
-        case .saved(let sha, _, _), .committedWithoutConfirmedDurability(let sha, _, _, _): resultSHA = sha
-        case .indeterminate, .conflict: resultSHA = nil
-        }
-        TestDatabaseSupport.cloudDiagnosticSnapshot("3 after", reference: reference, savedSHA: resultSHA, openSHA: context.openTimeSHA512)
-        let resultKind: String
-        switch result {
-        case .saved: resultKind = "saved"
-        case .committedWithoutConfirmedDurability: resultKind = "unconfirmed"
-        case .indeterminate: resultKind = "indeterminate"
-        case .conflict: resultKind = "conflict"
-        }
-        print("diagnostic 3 result=\(resultKind) registryPresent=\(DatabaseListStore.databases.contains { $0.id == reference.id }) cacheExists=\(FileManager.default.fileExists(atPath: cacheURL.path)) writes=\(cacheWrites.count) boundaries=\(trace.summary)")
-        guard case .saved(let newSHA512, _, _) = result else {
-            XCTFail("Expected save to succeed.")
-            return
-        }
-        XCTAssertEqual(
-            cacheWrites.count,
-            1,
-            "Saving a cloud reference must write the shared cache exactly once"
-        )
-        XCTAssertEqual(FileDigest.sha512(try Data(contentsOf: cacheURL)), newSHA512)
+        do {
+            _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: reference,
+                compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+                expectedRev: "rev-1", kdfPolicy: .mainApp, environment: environment)
+            XCTFail("Unregistered reference must not commit")
+        } catch { XCTAssertEqual(error as? SaveError, .saveContextUnavailable) }
+        XCTAssertEqual(writes.count, 0)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), original)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
     }
 
     func testSaveFinishingAfterAnotherCapturedBaselineConflictsInsteadOfOverwritingIt() async throws {
