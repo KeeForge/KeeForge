@@ -36,6 +36,16 @@ final class PendingUploadQueueTests: XCTestCase {
         }
     }
 
+    func test_unboundNewJournalCannotBeAutomaticallyRetired() throws {
+        let environment = makeEnvironment()
+        var marker = makeMarker()
+        marker.journalVersion = 1
+        marker.binding = nil
+        let stored = try PendingUploadQueue.enqueue(marker, environment: environment)
+        XCTAssertFalse(try PendingUploadQueue.dropIfUnchanged(stored, environment: environment))
+        XCTAssertEqual(PendingUploadQueue.listMarkers(for: marker.databaseId, environment: environment).first?.id, stored.id)
+    }
+
     func test_bindingRejectsCollidingAccountsAndChangedFactors() throws {
         let metadata = CloudSyncMetadata(provider: "webdav", accountId: "a/b", fileId: "vault", displayPath: "vault",
             remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)

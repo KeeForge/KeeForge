@@ -443,7 +443,7 @@ enum PendingUploadQueue {
                   current == storedMarker.marker else {
                 return false
             }
-            guard current.binding == nil || current.binding?.isRecognized == true else { return false }
+            guard (current.journalVersion == nil && current.binding == nil) || current.binding?.isRecognized == true else { return false }
             guard current.uploadAttemptID == nil || current.attemptIsFenced == true || current.confirmedAt != nil else { return false }
             do {
                 try environment.removeItem(storedMarker.fileURL)
@@ -750,7 +750,8 @@ enum PendingUploadQueue {
     static func preserveLegacyPayloads(for reference: DatabaseReference, environment: Environment = .live) throws {
         let backups = DatabaseListStore.recentBackups(for: reference)
         for stored in try readJournal(for: reference.id, environment: environment)
-        where stored.marker.isPayloadFinalized == true && stored.marker.intendedPayloadPath == nil && stored.marker.binding == nil {
+        where stored.marker.journalVersion == nil && stored.marker.isPayloadFinalized == true
+            && stored.marker.intendedPayloadPath == nil && stored.marker.binding == nil {
             let candidates = [resolveAppGroupURL(for: stored.marker.encryptedBytesCacheURL, environment: environment)] + backups
             guard let bytes = candidates.lazy.compactMap({ try? environment.readData($0) })
                 .first(where: { FileDigest.sha512($0) == stored.marker.openTimeSHA512 }) else { continue }

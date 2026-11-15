@@ -1340,6 +1340,57 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         }
     }
 
+    func testRecoveredRekeyAllowsFreshUnlockAndOrdinarySaveWithPriorOwnerEpoch() async throws {
+        let base = try fixtureData()
+        let reference = try makeStoredManualReference(fileID: "/rekey-reopen-\(UUID().uuidString).kdbx", autoFillEnabled: false)
+        try DatabaseListStore.cacheDatabaseCopy(base, for: reference)
+        _ = try PendingLocalSaveStore.prepareSource(base, for: reference.id,
+            masterKeyChangedAt: reference.lastMasterKeyChangeAt, baseCacheSHA512: FileDigest.sha512(base))
+        XCTAssertEqual(try PendingLocalSaveStore.discard(PendingLocalSaveStore.recovery(for: reference.id)), .resolved)
+        let key = try KDBXTestFixture.test.compositeKey(in: Bundle(for: Self.self))
+        let session = SymmetricKey(size: .bits256)
+        let opened = try KDBXParser.parseWithMeta(data: base, compositeKey: key, sessionKey: session)
+        let draft = DatabaseDraft(rootGroup: opened.rootGroup, meta: opened.meta, sessionKey: session)
+        let newPassword = "new-cloud-rekey-password"
+        let newKey = try KDBXCrypto.compositeKey(password: newPassword, keyFileData: nil)
+        let remote = InMemoryRemoteProvider(bytes: base, rev: "rev-A")
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in remote.currentMetadata }
+        environment.downloadRemoteData = { _ in remote.currentBytes }
+        environment.upload = { _, bytes, rev, _ in try remote.store(bytes, expectedRev: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        environment.writeGuarantee = { _, _, _ in .preflightOnly }
+        let saver = environment
+        let change = PendingUploadQueue.KeyChange(keyFileBookmarkData: nil, keyFileFilename: nil)
+        let result = try await CloudDatabaseSaver.$keyChange.withValue(change) {
+            try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: FileDigest.sha512(base), expectedRev: "rev-A", kdfPolicy: .mainApp,
+                newCompositeKey: newKey, environment: saver)
+        }
+        guard case .saved = result else { return XCTFail("Expected durable rekey") }
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: current.id).isEmpty)
+        let cache = DatabaseListStore.cacheLocation(for: current)
+        let vm = DatabaseViewModel(databaseReference: current, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: cache, data: try Data(contentsOf: cache), status: .current)
+        }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+            try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+        }, quickUnlockKeyPersistOperation: { _, _, _ in false }, expressUnlockKeySaveOperation: { _, _ in })
+        await vm.unlock(password: newPassword)
+        defer { vm.lock() }
+        XCTAssertEqual(vm.state, .unlocked)
+        try vm.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(vm.visibleRootGroupID),
+            draft: EntryDraftPayload(title: "After rekey restart", password: "new")))
+        try await vm.save()
+        let pending = try XCTUnwrap(PendingUploadQueue.readJournal(for: current.id).first)
+        XCTAssertNotNil(pending.marker.binding)
+        XCTAssertTrue(try Self.entryTitles(in: Data(contentsOf: cache), password: newPassword).contains("After rekey restart"))
+    }
+
     func testOfflineKnownSaveCompletesSessionBookkeepingWithoutOptionalKeyPublicationOrRepeatedEncryption() async throws {
         let bytes = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         let reference = try makeStoredManualReference(fileID: "/queued-save.kdbx", autoFillEnabled: false)
