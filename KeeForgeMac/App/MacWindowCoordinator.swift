@@ -156,6 +156,9 @@ final class MacWindowCoordinator {
         launcher.cancelEnrollmentDestinationHandler = { [weak self] in self?.enrollment.discardEnrollment() }
         quickAccess.showDatabaseWindow = { [weak self] in self?.showDatabaseWindow($0) ?? false }
         quickAccess.showDatabaseList = { [weak self] in self?.showDatabasesWindow() }
+        quickAccess.reopenApp = { [weak self] in
+            self?.dockReopen(hasVisibleWindows: NSApp.windows.contains { $0.isVisible && $0.canBecomeMain })
+        }
         observeApplication()
         observeDatabaseList()
     }

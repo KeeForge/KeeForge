@@ -4,6 +4,9 @@ import SwiftUI
 /// The New Database and Connect to Server boards: a 140 pt label column and a 330 pt control column.
 enum MacSheetFormMetrics {
     static let width: CGFloat = 480
+    /// A sheet on the shared `MacSettingsForm` grid: its 170 pt label column plus a 320 pt control column.
+    static let gridWidth: CGFloat = 500
+    static let rowSpacing: CGFloat = 12
 }
 
 struct MacConnectServerSheet: View {

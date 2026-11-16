@@ -26,6 +26,7 @@
 - On iPhone and iPad, the Recycle Bin shows which group each item came from and when it was deleted, and tells you to touch and hold an item to restore or delete it.
 - On iPhone, iPad, and Mac, Restore to Group… puts a recycled item back in a group you choose, next to Restore, which returns it to its original group.
 - In the entry editor on iPhone and iPad, each custom field is one row with its name and value. Protect Field and Remove Field are in the row's menu, and Reorder Fields moves them.
+- On Mac, right-click or Control-click KeeForge's menu bar icon for Open KeeForge and Quit KeeForge.
 
 ### Changes
 

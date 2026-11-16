@@ -166,8 +166,9 @@ final class MacDatabasesSheets: NSObject {
         let content = MacNewDatabaseSheet(model: model,
             selectKeyFile: { [weak self] in self?.selectKeyFile(create: false) },
             createKeyFile: { [weak self] in self?.selectKeyFile(create: true) })
+        // Tall enough for Advanced Options to open without scrolling (NewDatabase board: 716 pt).
         let sheet = MacFormSheetController(title: String(localized: "New Database"), content: content,
-                                          size: NSSize(width: 560, height: 560))
+                                          size: NSSize(width: 560, height: 660), maxHeight: 660)
         sheet.defaultButton.title = String(localized: "Create")
         sheet.defaultButton.setAccessibilityIdentifier("database-create.create-button")
         sheet.cancelButton.setAccessibilityIdentifier("database-create.cancel-button")
