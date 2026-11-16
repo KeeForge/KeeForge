@@ -1740,6 +1740,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                     try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: liveDelivery)
                 }
                 let list = DatabaseListViewModel(pendingUploadDrainer: PendingUploadDrainer(environment: drainerEnvironment))
+                store.installListHooks(on: list)
                 store.handleAppDidBecomeActive()
                 await list.drainPendingUploadsOnAppActive()
                 let observedJournal = try PendingUploadQueue.readJournal(for: firstReference.id)
