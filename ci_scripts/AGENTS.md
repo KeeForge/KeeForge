@@ -27,17 +27,17 @@
 - `validate_architecture.py` rejects a SwiftUI import under `KeeForge/ViewModels/` and a direct `SettingsService` preference write in `SettingsView.swift`. It is a narrow regression guard, not a review of workflow ownership.
 - `validate_cloud_test_schemes.py` enforces the partition below.
 
-## Xcode Cloud test partition
+## RC test partition
 
-Xcode Cloud's RC workflow runs three Required-to-Pass schemes: `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`. The ordinary `KeeForge` scheme still contains both full suites.
+On each `rc/*` tag, `ios-rc-tests` runs three schemes: `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`. The ordinary `KeeForge` scheme still contains both full suites.
 
 - UI A selects whole classes in `project.yml` (the `cloudUIGroupA` anchor). UI B skips exactly that list through the same anchor, so B is the complement and a new UI class runs in B with no edit.
 - The validator rejects a gap, an overlap, a stale class name, a filtered or skipped unit target, a test plan, and any parallel target. Both UI groups stay serial.
 - Unit tests have their own scheme so a UI task retry does not repeat them.
-- Rebalance by moving class names in the A list when measured Cloud durations for the two UI groups drift apart. Never list a class in B.
-- `KeeForgeUITestCase` sets a 300-second execution allowance. Cloud enables test timeouts; pass `-test-timeouts-enabled YES` locally to enforce it.
+- Rebalance by moving class names in the A list when measured durations for the two UI groups drift apart. Never list a class in B.
+- `KeeForgeUITestCase` sets a 300-second execution allowance. `ios-rc-tests` enables test timeouts; pass `-test-timeouts-enabled YES` locally to enforce it.
 
-The live Cloud workflow configuration is in `../.agents/skills/prepare-release/references/xcode-cloud-setup.md`.
+The Xcode Cloud archive workflow is described in `../.agents/skills/prepare-release/references/xcode-cloud-setup.md`.
 
 ## KDBX Compatibility Gate
 

@@ -8,8 +8,8 @@ gate is accepted; the direct build is staged and soaked separately. Ship only th
 This is a sequential, high-stakes workflow: each step depends on the previous one succeeding. Do not
 skip steps or proceed past a failure.
 
-Test execution model: the full unit suites and hosted UI suites run on **Xcode Cloud** and
-**GitHub Actions**. `KeeForgeMacUITests/MacSmokeUITests` is the required local UI smoke because it
+Test execution model: the full unit suites and hosted UI suites run on **GitHub Actions**;
+**Xcode Cloud** only archives and uploads the two App Store builds. `KeeForgeMacUITests/MacSmokeUITests` is the required local UI smoke because it
 needs an unlocked active login session. Do not run the full hosted suites locally up front. The
 focused What's New preview capture below is allowed before committing release content. Run other
 focused local
@@ -154,8 +154,8 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
 2. **Every candidate has one globally increasing repo build and one immutable RC tag.** All four
    product targets carry that repo build. Xcode Cloud's iOS and Mac TestFlight numbers may differ
    from it and from each other, so the manifest maps all three artifacts to the same SHA.
-3. **All gates are accepted before external distribution.** Accept the Xcode Cloud verdict, the
-   macOS and iPad GitHub Actions verdicts, both KDBX gates, and the
+3. **All gates are accepted before external distribution.** Accept the Xcode Cloud archive verdict, the
+   macOS, iPhone, and iPad GitHub Actions verdicts, both KDBX gates, and the
    local Mac smoke suite; green or explicitly adjudicated per [gate-adjudication.md](gate-adjudication.md). Before
    external distribution or direct-artifact staging, both exact exported Mac apps must also pass
    `ci_scripts/verify_mac_artifact.sh` with universal `arm64,x86_64`, unless an explicit product
@@ -181,7 +181,7 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
 - The KDBX compatibility gate runs **per platform**: `KeeForgeTests` on an iOS simulator, then
   `KDBX_COMPAT_SCHEME=KeeForgeMac` for `KeeForgeMacTests` on macOS, as
   [documented](candidate.md#regenerate-and-run-the-kdbx-gates). Both must pass before
-  external distribution, alongside all three cloud verdicts and local Mac smoke.
+  external distribution, alongside every cloud verdict and local Mac smoke.
 - The Mac ships through **two channels**. The Mac App Store build is the default
   (`xcodegen generate`) and is archived like the iOS app. The notarized
   Developer ID build is produced by `ci_scripts/build_mac_direct.sh`, which
