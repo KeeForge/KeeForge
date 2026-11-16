@@ -62,7 +62,7 @@ Apple 審核各平台的建置版本期間，iPhone、iPad 和 Mac 測試版的�
 
 KeeForge 沒有任何分析工具、背景遙測或當機回報 SDK。保險庫資料只會留在裝置上，以及你自己選擇的儲存位置。網路存取僅限於已連接的雲端服務、選擇性啟用的 DuckDuckGo 網站圖示擷取、自願的 App Store 小費購買、直接下載版 Mac App 的更新檢查，以及你主動送出訊息時的 App 內回饋表單。
 
-在 iPhone 與 iPad 上，拷貝的機密會標示為僅限本機，不會經由通用剪貼簿傳送。macOS 不提供這項排除能力，因此在 Mac 上可能會依照你的系統設定同步；KeeForge 會將內容標示為機密，並在短時間後或鎖定時清除。KeeForge 也會保護 iPhone 與 iPad 的 App 切換器預覽。Mac 上的螢幕擷取阻擋功能屬於盡力保護，可能無法阻止所有截圖或螢幕錄影。
+在 iPhone 與 iPad 上，拷貝的機密會標示為僅限本機，不會經由通用剪貼簿傳送。macOS 不提供這項排除能力，因此在 Mac 上可能會依照你的系統設定同步；KeeForge 會將內容標示為機密，並在你選擇的時限後清除；若選擇「永不」，則在鎖定時清除。KeeForge 也會保護 iPhone 與 iPad 的 App 切換器預覽。Mac 上的螢幕擷取阻擋功能屬於盡力保護，可能無法阻止所有截圖或螢幕錄影。
 
 請參閱[隱私權政策](https://keeforge.com/zh-hant/privacy)（[英文原文](https://keeforge.com/privacy)）。
 

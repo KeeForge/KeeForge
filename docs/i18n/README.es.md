@@ -62,7 +62,7 @@ La disponibilidad de la beta puede variar entre iPhone, iPad y Mac mientras Appl
 
 KeeForge no tiene analítica, ni telemetría en segundo plano, ni SDK de informes de fallos. Los datos de la bóveda permanecen en el dispositivo y en las ubicaciones de almacenamiento que elijas. El acceso a la red se limita a los proveedores de nube conectados, la obtención opcional de favicones a través de DuckDuckGo, las compras opcionales en la App Store para la propina, las comprobaciones de actualización de la app de Mac descargada directamente y el formulario de comentarios integrado en la app cuando envías explícitamente un mensaje.
 
-En iPhone y iPad, los secretos copiados se marcan como locales y no viajan por el Portapapeles universal. macOS no ofrece esa exclusión, por lo que en Mac pueden seguir tu ajuste del sistema; KeeForge los marca como confidenciales y borra su entrada al poco tiempo o al bloquear. KeeForge también protege las vistas del selector de apps en iPhone y iPad. El bloqueo de capturas en Mac es una protección sin garantía y puede no impedir todas las capturas o grabaciones de pantalla.
+En iPhone y iPad, los secretos copiados se marcan como locales y no viajan por el Portapapeles universal. macOS no ofrece esa exclusión, por lo que en Mac pueden seguir tu ajuste del sistema; KeeForge los marca como confidenciales y borra su entrada al cumplirse el tiempo que elijas o, si eliges «Nunca», al bloquear. KeeForge también protege las vistas del selector de apps en iPhone y iPad. El bloqueo de capturas en Mac es una protección sin garantía y puede no impedir todas las capturas o grabaciones de pantalla.
 
 Lee la [política de privacidad](https://keeforge.com/es/privacy) ([original en inglés](https://keeforge.com/privacy)).
 

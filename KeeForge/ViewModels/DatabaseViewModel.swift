@@ -155,9 +155,17 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
     var message: String {
         switch self {
         case .changeUnavailable:
+            #if os(macOS)
+            String(localized: "The change saved through AutoFill is no longer stored on this device, or it was saved before the master key changed. Use Discard Pending Upload in the Database menu to clear the conflict.")
+            #else
             String(localized: "The change saved through AutoFill is no longer stored on this device, or it was saved before the master key changed. Use Discard Pending Upload in the database list to clear the conflict.")
+            #endif
         case .changeUnidentified:
+            #if os(macOS)
+            String(localized: "KeeForge can't tell which copy on this device holds the change saved through AutoFill, so nothing was merged. The change may already be in this database; otherwise look for it in the backups in Database Settings and export that backup to merge it in another KeePass app. Once the change is merged, use Discard Pending Upload in the Database menu to clear the conflict.")
+            #else
             String(localized: "KeeForge can't tell which copy on this device holds the change saved through AutoFill, so nothing was merged. The change may already be in this database; otherwise look for it in the backups in Database Details and export that backup to merge it in another KeePass app. Once the change is merged, use Discard Pending Upload in the database list to clear the conflict.")
+            #endif
         case .changeUnreadable(.cache):
             #if os(macOS)
             String(localized: "The change saved through AutoFill could not be opened with this database's master key. To merge it in another KeePass app, use Export Copy in the database list.")
@@ -165,7 +173,11 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
             String(localized: "The change saved through AutoFill could not be opened with this database's master key. To merge it in another KeePass app, use Share in the database list.")
             #endif
         case .changeUnreadable(.backup(let url)):
+            #if os(macOS)
+            String(localized: "The change saved through AutoFill could not be opened with this database's master key. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Settings. Export that backup to merge it in another KeePass app.")
+            #else
             String(localized: "The change saved through AutoFill could not be opened with this database's master key. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
+            #endif
         case .attachmentsDiverged(.cache):
             #if os(macOS)
             String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. To merge it in another KeePass app, use Export Copy in the database list.")
@@ -173,11 +185,23 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
             String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. To merge it in another KeePass app, use Share in the database list.")
             #endif
         case .attachmentsDiverged(.backup(let url)):
+            #if os(macOS)
+            String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Settings. Export that backup to merge it in another KeePass app.")
+            #else
             String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
+            #endif
         case .attachmentsDivergedFromFile(let url):
+            #if os(macOS)
+            String(localized: "The change saved through AutoFill and this database store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Settings. Export that backup to merge it in another KeePass app.")
+            #else
             String(localized: "The change saved through AutoFill and this database store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
+            #endif
         case .cloudChanged:
+            #if os(macOS)
+            String(localized: "The cloud copy has changed since this database was last synced. Nothing was lost. Choose Sync Now in the Database menu to get the latest copy, then choose Merge Changes again.")
+            #else
             String(localized: "The cloud copy has changed since this database was last synced. Nothing was lost. Use Sync Now in Database Details to get the latest copy, then choose Merge Changes again.")
+            #endif
         case .sessionUnavailable:
             String(localized: "The change can't be merged right now. Make sure the database is editable and has no unresolved save conflict, then try again.")
         }
@@ -2492,8 +2516,8 @@ final class DatabaseViewModel {
         }
         // Only iOS backgrounding sets `preservingClipboard`: the user is
         // switching apps to paste, so scrubbing there made every copy arrive
-        // empty (#34). iOS bounds the secret anyway via the expiration date and
-        // `.localOnly` that `ClipboardService.copy` stamps on. Every other lock
+        // empty (#34). iOS bounds the secret anyway via `.localOnly` and, unless
+        // the clear timeout is Never, the expiration date `ClipboardService.copy` stamps on. Every other lock
         // means the user walked away, so those still scrub — which matters most
         // on macOS, where neither flag exists (`KeeForgeMac/SECURITY.md`).
         if preservingClipboard == false {
