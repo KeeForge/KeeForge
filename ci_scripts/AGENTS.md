@@ -86,6 +86,10 @@ Only the scripts whose names do not explain them. Usage is in each script's head
 - `make_appstore_screenshots.py` and `make_store_creative.py`: the App Store art, drawn with the shared kit in `store_art.py` (fonts pinned and fetched into `build/fonts/`, palette, devices, cards cut from captures). The listing is six frames on iPhone 6.9", iPad 13" and Mac, one set per shipped locale, headlined from `appstore_captions.json` (Mac frames also take a subline; the last frame lists features other KeePass apps sell separately, never with a price); the header and search-results art read `appstore_creative.json`. A new shipped locale needs copy in both files and an entry in the script's `LOCALES`. A listing is never partial: a missing capture, a card not found in its capture, or copy that does not fit fails before anything is written, and `--self-test` covers layout and those failures. `--capture` runs the iPhone capture on a local simulator; capture iPad and Mac with `studio-test`. The script header gives the capture classes and commands.
 - `make_app_preview.py`: the iPhone app preview, cut from a `--record-video` run of the store capture. Each scene ends on that run's screenshot, found by matching frames, so cuts survive timing changes; the recording plays on the indigo field under a headline per scene from `appstore_preview.json` (one entry per scene for each locale).
 
+## Browser relay artifact boundary
+
+Both Mac channels embed a separately signed, hardened bare executable at `Contents/MacOS/keeforge-browser-host`. `verify_mac_artifact.sh` requires exactly sandbox=true and the signing-team-prefixed browser app group, and includes the tool in architecture and test-hook checks. The direct build's nested hardening enumeration includes this tool before notarization. `test_verify_mac_artifact.sh` exercises the host gate with synthetic signatures and entitlement plists; it does not establish export or notarization behavior.
+
 ## Release procedures
 
 Release steps live with the release skills, under `../.agents/skills/prepare-release/references/`:

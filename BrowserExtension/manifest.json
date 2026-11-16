@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
   "version": "0.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtHEUH54vlcLBsHjpIxKXkQT9S5BsTYP5RlKoZBKiErJmJNQRPoiSm/G1PbPtMjKJQ9w5Vkfi2ZFPyxDp5+03N3eduYnWYXRWDHN4m4RI7mImPwpHNfzjN1r/23Zkc0VEYPnQLvZ9mfTpj5S/LcbWMg8QwGIABA63b5OWYRV9/LnDkGFNSbIImEZ7XmNANLCn2ROjcvTCdWsvp3Dc1D8AvJUA7HhUcoM8yscLnk8pvSTLqU5cl/eaHvl4jxIaP18Wq/Z/qnGM0T2rE34K4EYBt4L7lzl8hA9QlIkVIYtFqm+f1K15djjvU1J268gMhPfanlRmTgEh2KEYpvQz0vk4pwIDAQAB",
   "minimum_chrome_version": "133",
   "browser_specific_settings": {
     "gecko": {

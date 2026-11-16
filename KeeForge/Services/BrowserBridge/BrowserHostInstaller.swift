@@ -3,13 +3,6 @@ import AppKit
 import Darwin
 import Foundation
 
-// Merge into BrowserHost/BrowserBridgeIdentifiers.swift when that shared source is available.
-enum BrowserHostInstallerIdentifiers {
-    static let hostName = "com.keevault.browser"
-    static let placeholderChromiumOrigins: [String] = []
-    static let firefoxExtensionID = "browser-extension@keeforge.com"
-}
-
 enum HostBrowser: String, CaseIterable, Sendable {
     case chrome, chromeBeta, chromium, brave, edge, vivaldi, arc, firefox
 
@@ -96,7 +89,7 @@ protocol BrowserHostFileSystem {
 
 // Descriptor-relative operations refuse a symlinked folder or manifest and keep every mutation inside the granted directory.
 struct BrowserHostLocalFileSystem: BrowserHostFileSystem {
-    private let filename = BrowserHostInstallerIdentifiers.hostName + ".json"
+    private let filename = BrowserBridgeIdentifiers.nativeHostName + ".json"
 
     func isCanonicalPath(_ url: URL) -> Bool {
         url.resolvingSymlinksInPath().path == url.standardizedFileURL.path
@@ -144,7 +137,7 @@ struct BrowserHostLocalFileSystem: BrowserHostFileSystem {
     private func checkOwnership(_ data: Data?) throws {
         guard let data else { return }
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              object["name"] as? String == BrowserHostInstallerIdentifiers.hostName else {
+              object["name"] as? String == BrowserBridgeIdentifiers.nativeHostName else {
             throw BrowserHostInstallerError.foreignManifest
         }
     }
@@ -201,8 +194,8 @@ final class BrowserHostInstaller {
         defaults: UserDefaults = .standard,
         home: URL = BrowserHostInstaller.realHomeDirectory(),
         appBundle: URL = Bundle.main.bundleURL,
-        chromiumOrigins: [String] = BrowserHostInstallerIdentifiers.placeholderChromiumOrigins,
-        firefoxID: String = BrowserHostInstallerIdentifiers.firefoxExtensionID,
+        chromiumOrigins: [String] = BrowserBridgeIdentifiers.chromiumExtensionOrigins,
+        firefoxID: String = BrowserBridgeIdentifiers.firefoxExtensionID,
         files: any BrowserHostFileSystem = BrowserHostLocalFileSystem(),
         bookmarks: BrowserHostBookmarkAccess = .live,
         isInstalled: @escaping (HostBrowser) -> Bool = { browser in
@@ -238,7 +231,7 @@ final class BrowserHostInstaller {
         let allowed = browser.isFirefox ? [firefoxID].filter { !$0.isEmpty } : chromiumOrigins
         guard !allowed.isEmpty else { throw BrowserHostInstallerError.extensionIDNotConfigured }
         let object: [String: Any] = [
-            "name": BrowserHostInstallerIdentifiers.hostName,
+            "name": BrowserBridgeIdentifiers.nativeHostName,
             "description": "KeeForge browser integration",
             "path": host.path,
             "type": "stdio",

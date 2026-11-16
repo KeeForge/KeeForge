@@ -9,6 +9,8 @@ if len(versions) != 1:
     raise SystemExit('Expected exactly one marketing version in project.yml')
 manifest = json.loads((root / 'manifest.json').read_text())
 manifest['version'] = versions.pop()
+# The key only gives an unpacked development copy a stable ID; stores assign their own.
+manifest.pop('key', None)
 files = {'manifest.json': (json.dumps(manifest, indent=2) + '\n').encode()}
 for path in sorted([*(root / 'src').rglob('*'), *(root / '_locales').rglob('*'), *(root / 'icons').rglob('*'), root / 'popup.html', root / 'pair.html', root / 'popup.css']):
     if path.is_file():

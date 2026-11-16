@@ -24,8 +24,8 @@ Frames whose `t` is `"host"` are exchanged between the extension and the host on
 | --- | --- | --- |
 | host → extension | `{"v":1,"t":"host","event":"connected"}` | The socket is connected; the extension may send `hello` or `pair-commit`. Sent once per successful connect. |
 | host → extension | `{"v":1,"t":"host","event":"unavailable","reason":"not-running"}` | No socket, or nothing accepts on it. Also `"reason":"closed"` when a connected socket closes. |
-| extension → host | `{"v":1,"t":"host","cmd":"launch"}` | Ask LaunchServices to open KeeForge, then retry the socket for up to 10 seconds; answers `connected` or `unavailable`. |
-| extension → host | `{"v":1,"t":"host","cmd":"connect"}` | Retry the socket once now; answers `connected` or `unavailable`. |
+| extension → host | `{"v":1,"t":"host","cmd":"launch"}` | Drop the current socket connection if there is one, ask LaunchServices to open KeeForge (this also brings a running KeeForge forward), then retry the socket for up to 10 seconds; answers `connected` or `unavailable`. |
+| extension → host | `{"v":1,"t":"host","cmd":"connect"}` | Drop the current socket connection if there is one and try the socket once now; answers `connected` or `unavailable`. |
 
 On start the host tries the socket once and sends `connected` or `unavailable`. It exits when stdin reaches end of file. After the socket closes it stays alive and answers `launch` / `connect`.
 

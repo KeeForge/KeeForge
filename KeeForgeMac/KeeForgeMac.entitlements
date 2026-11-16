@@ -15,6 +15,7 @@
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.com.keevault.shared</string>
+		<string>$(TeamIdentifierPrefix)com.keevault.browser</string>
 	</array>
 	<!-- Items stored without an explicit kSecAttrAccessGroup land in the FIRST
 	     group listed, so com.keevault.sharedkeychain must stay first if a second

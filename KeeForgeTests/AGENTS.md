@@ -76,6 +76,8 @@ Prefer a unit test here over a UI test unless the behavior only exists as UI. Ru
 - Renaming or moving a catalog means updating both copy scripts and `catalogSources` in the test. A new locale joins `shippedTranslationLocales`.
 - `URLSchemeFormatTests` reads `Bundle.main`, the host app, so it sees substituted build settings. It is the only check before App Store Connect that a placeholder did not produce an illegal URL scheme.
 
+`BrowserHostRelayTests` compiles the host relay/control logic directly into the Mac test bundle and covers byte-preserving pipe/socket transport, control interception, reconnect, directional limits, partial frames, and stdin EOF. Its listener lives only in a temporary directory and launch is injected.
+
 ## Designated gates
 
 - `AutoFillExtension/CredentialProviderCoordinator.swift`: `CredentialProviderCoordinatorTests`, on both platforms. It pins `cleanup()` on every completion path, including manual text insertion after a real fixture unlock, database switches from an empty code list, cancellation, repeated requests, reactivation, and stale callbacks. The Mac shell's window-close and alert paths are `CredentialProviderShellMacTests`.

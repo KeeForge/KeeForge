@@ -72,3 +72,7 @@ Run this checklist in both real Chrome and Firefox with a manually registered `t
 - [ ] Assign/test the shortcut in each browser. It opens a visible popup and never fills on its own.
 
 The mock uses disposable demo credentials only; do not point it at real databases. Real native-host installation, app-side policy, locked-database recovery, Touch ID, and hardware behavior require integration testing with the other browser-bridge items.
+
+## Development ID
+
+`manifest.json` carries a `key` so an unpacked copy always loads in Chromium browsers as `pihelgeaeflnpjjdajbdmfmcpgeoefbf`; debug builds of KeeForge allow that ID. Nobody holds the private half, so it cannot sign a package, and `tools/build.sh` removes the key from the store archives. Release builds of KeeForge allow only the store-assigned ID.

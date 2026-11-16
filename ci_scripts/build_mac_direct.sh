@@ -771,7 +771,7 @@ check_hardening "${APP_PATH}"
 while IFS= read -r NESTED; do
   check_hardening "${NESTED}"
 done < <(find "${APP_PATH}/Contents" \
-  \( -name "*.appex" -o -name "*.xpc" -o -name "*.app" \) -print)
+  \( -name "*.appex" -o -name "*.xpc" -o -name "*.app" -o -name "keeforge-browser-host" \) -print)
 
 # The AutoFill extension must stay sandboxed in its own right: it is the process
 # that holds decrypted vault contents while filling.
