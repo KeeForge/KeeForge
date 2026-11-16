@@ -48,6 +48,8 @@ targetTemplates:
   # `sources` into the target's own, so a target adds only its extras.
   UnitTestFixtures:
     sources:
+      - path: BrowserExtension/test/vectors.json
+        buildPhase: resources
       - path: TestFixtures/test.kdbx
         buildPhase: resources
       - path: TestFixtures/demo.kdbx
@@ -152,6 +154,7 @@ targets:
           - "AppSupport/MacQuickAccessController.swift"
           - "AppSupport/MacGlobalHotKey.swift"
           - "SSHAgent/*.swift"
+          - "BrowserBridge/*.swift"
       - path: KeeForge/ViewModels
         excludes: ["README.md", "AGENTS.md"]
       - path: KeeForge/Views
