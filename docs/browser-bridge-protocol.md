@@ -11,7 +11,7 @@ extension  <-- native messaging (stdio) -->  host  <-- Unix socket -->  Mac app 
 ```
 
 - **Frame:** a 4-byte unsigned length in little-endian order, then that many bytes of UTF-8 JSON (one object). The same framing is used on the browser's pipes and on the socket.
-- **Limits:** a frame sent toward the app is at most 65,536 bytes; a frame sent toward the extension is at most 1,048,576 bytes. A longer frame is a protocol error: the receiver closes the connection.
+- **Limits:** the JSON of a frame sent toward the app is at most 65,536 bytes; toward the extension, at most 1,048,576 bytes. The 4-byte length is not counted. A longer frame is a protocol error: the receiver closes the connection.
 - **Socket:** `b.sock` in the container of the app group `<TeamID>.com.keevault.browser`, mode 0600. The app accepts only peers whose effective user is its own (`getpeereid`), and at most 64 connections.
 - **Native host name:** `com.keevault.browser`. Firefox extension id: `browser-extension@keeforge.com`.
 - The host forwards every frame unchanged, in both directions, except the host control frames in section 2. It never parses or logs any other frame.
@@ -79,23 +79,23 @@ A connection carries one session. A second `hello` on a connection is `bad-reque
 
 ## 7. Inner messages
 
-Requests come from the extension and carry an integer `id` chosen by it; each gets exactly one reply with the same `id`. Replies are `{"id":n,"ok":true,...}` or `{"id":n,"ok":false,"error":"<code>"}`.
+Requests come from the extension and carry an integer `id` chosen by it (0 to 2^53 - 1, not reused while a request with that id is unanswered); each gets exactly one reply with the same `id`. Replies are `{"id":n,"ok":true,...}` or `{"id":n,"ok":false,"error":"<code>"}`.
 
 | Request | Fields | Successful reply |
 | --- | --- | --- |
 | `{"type":"status"}` | | `"app"`: version, `"unlocked"`: count of unlocked databases, `"locked"`: count of open but locked databases |
-| `{"type":"matches"}` | `"origin"` | `"entries"`: array of `{"entry","db","dbName","title","username","hasTotp"}`, `"locked"`: count of open but locked databases |
+| `{"type":"matches"}` | `"origin"` | `"entries"`: array of `{"entry","db","dbName","title","username","hasTotp","exact"}`, `"locked"`: count of open but locked databases |
 | `{"type":"credential"}` | `"entry"`, `"db"`, `"origin"`, optional `"totp": true` | `"username"`, `"password"`, and `"totp"` (current code) when asked and the entry has one |
 | `{"type":"reveal"}` | `"entry"`, `"db"` | none |
 | `{"type":"unlock"}` | optional `"db"` | none |
 
 - `origin` is a serialized web origin: `https://host` or `https://host:port`. `http://` is accepted only for `localhost`, `127.0.0.1` and `[::1]`. Anything else is `bad-origin`.
 - `entry` and `db` are UUID strings. `username` is already resolved (field references included); `matches` never contains a password, a code, or any other field.
-- `matches` returns the entries the app's site matcher offers for that origin from every database that is unlocked and has no lock pending, strict matches first, at most 50.
-- `credential` is answered only for an `entry`/`db` pair that a `matches` reply on this connection returned for the same `origin`; otherwise `not-offered`. The app matches again and checks the lock state again before answering. The reply can take as long as a device-owner prompt; the extension waits up to 120 seconds.
+- `matches` returns the entries the app's site matcher offers for that origin from every database that is unlocked and has no lock pending, at most 50. `"exact": true` marks an entry that lists this host itself; the others are possible matches on a related host of the same site, listed after the exact ones, and the extension shows them apart.
+- `credential` is answered only for an `entry`/`db` pair that a `matches` reply on this connection returned for the same `origin`; otherwise `not-offered`. The app matches again (the entry must still be an exact or possible match for the origin) and checks the lock state again before answering. The reply can take as long as a device-owner prompt; the extension waits up to 120 seconds.
 - `reveal` fronts that database's window and selects the entry. `unlock` fronts the named database's locked window, or the Databases window.
 
-Error codes: `bad-request`, `bad-origin`, `locked` (no unlocked database, or that one locked since), `not-offered`, `no-match` (the entry no longer lists the site), `denied` (the device-owner check failed or was cancelled), `unavailable` (the entry or database is gone), `rate-limited`.
+Error codes: `bad-request`, `bad-origin`, `locked` (no unlocked database, or that one locked since), `not-offered`, `no-match` (the entry no longer matches the site), `denied` (the device-owner check failed or was cancelled), `unavailable` (the entry or database is gone), `rate-limited`.
 
 ## 8. Rules both sides keep
 
