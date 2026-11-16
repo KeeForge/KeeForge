@@ -141,7 +141,7 @@ private struct MacDatabaseGeneralTab: View {
             }
             MacSettingsSeparator()
             MacSettingsRow("Editing:") {
-                Toggle("Read-Only", isOn: Binding(get: { model.isReadOnly }, set: model.setReadOnly))
+                Toggle("Read-Only", isOn: Binding(get: { model.isReadOnly }, set: { model.setReadOnly($0) }))
                     .disabled(model.fixedReadOnly || model.isLoading)
                     .accessibilityIdentifier("database-row.read-only-toggle")
                 noteCaption(model.readOnlyCaption, indented: true)
@@ -280,7 +280,7 @@ private struct MacDatabaseAutoFillTab: View {
     var body: some View {
         MacSettingsForm {
             MacSettingsRow("AutoFill:") {
-                Toggle("Include in AutoFill", isOn: Binding(get: { model.current.autoFillEnabled }, set: model.setAutoFillEnabled))
+                Toggle("Include in AutoFill", isOn: Binding(get: { model.current.autoFillEnabled }, set: { model.setAutoFillEnabled($0) }))
                     .accessibilityIdentifier("database-details.autofill-toggle")
                 settingsCaption("When off, AutoFill offers nothing from this database; turned back on, it suggests again after the next unlock.", indented: true)
             }

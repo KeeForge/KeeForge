@@ -42,7 +42,7 @@ Three repository rulesets, all with admin bypass. They live in GitHub settings, 
 
 - Every workflow declares `permissions: contents: read` at the top. A job that needs more asks for it on the job itself, and a called workflow cannot exceed its caller.
 - Renaming the `unit-tests` or `macos-unit-tests` job breaks the rulesets, which match the check by job name.
-- `macos-unit-tests` runs on `xcode-27`: Xcode 26.6, the newest on `macos-26`, crashes in the Swift 6.3 compiler on the Mac app. The PR `unit-tests` job runs on `macos-26`.
+- `macos-unit-tests` runs on `xcode-27`, the only image with Xcode 27; the PR `unit-tests` job runs on `macos-26`. Swift 6.3 (Xcode 26.6, the newest on `macos-26`) crashes in IRGen on a method reference passed as a SwiftUI `Binding` setter, so pass setters as closures.
 - Mac jobs sign ad hoc with entitlements stripped (`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_ENTITLEMENTS=`), because runners have no signing account.
 - `ios-rc-tests` is a reusable workflow that `tests.yml` calls, not an inline matrix job: a skipped matrix job shows its raw `${{ matrix.* }}` name on every pull request. Its jobs therefore report as `ios-rc-tests / <scheme> (<device>)`, for example `ios-rc-tests / KeeForge (iPad (A16))`, and still belong to the `tests.yml` run.
 - Workflows regenerate the project with XcodeGen; the checked-in `.xcodeproj` is never assumed current. `macos-unit-tests` and `ios-rc-tests` keep the image default; `unit-tests` selects the newest Xcode on its runner.

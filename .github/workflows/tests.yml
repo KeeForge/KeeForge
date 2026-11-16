@@ -125,8 +125,8 @@ jobs:
 
   macos-unit-tests:
     if: github.event_name != 'push' || github.event.deleted == false
-    # macos-26 tops out at Xcode 26.6, whose Swift 6.3 compiler crashes on the
-    # Mac app. xcode-27 is the only GitHub image with Xcode 27.
+    # xcode-27 is the only GitHub image with Xcode 27; macos-26 tops out at
+    # Xcode 26.6.
     runs-on: xcode-27
     timeout-minutes: 120
     env:
