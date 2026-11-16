@@ -236,7 +236,8 @@ enum KDBXCompatibilitySupport {
     /// gate must use to open the artifact; `compositeKey` is derived from them.
     struct RekeyTarget {
         let compositeKey: SymmetricKey
-        let password: String
+        /// Nil when the master key has no password component.
+        let password: String?
         /// On-disk name of the key file, e.g. `demo-keyfile.key`.
         let keyFileName: String?
         let keyFileData: Data?
@@ -483,7 +484,8 @@ enum KDBXCompatibilitySupport {
         struct Artifact: Codable {
             let id: String
             let fileName: String
-            let password: String
+            /// Absent when the database opens with a key file alone.
+            let password: String?
             let keyFileName: String?
             let expectedSearchTerms: [String]
             let expectedGroupPaths: [String]
@@ -610,6 +612,7 @@ enum KDBXCompatibilitySupport {
         "rekey-add-keyfile",
         "rekey-add-generated-keyfile",
         "rekey-remove-keyfile",
+        "rekey-keyfile-only",
         "encryption-settings-chacha20-argon2id",
         "encryption-settings-aes256-keep-kdf",
         "encryption-settings-aes-kdf",
@@ -712,6 +715,7 @@ enum KDBXCompatibilitySupport {
         table["rekey-add-keyfile"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["rekey-add-generated-keyfile"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["rekey-remove-keyfile"] = [fixtureEntryPasswords[Fixture.passwordKeyfile.id]!]
+        table["rekey-keyfile-only"] = [fixtureEntryPasswords[Fixture.passwordKeyfile.id]!]
         // Re-encrypted under a new cipher and KDF, a pre-existing protected
         // value read back externally proves the payload survived intact.
         table["encryption-settings-chacha20-argon2id"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
@@ -848,6 +852,7 @@ enum KDBXCompatibilitySupport {
             "rekey-add-keyfile",
             "rekey-add-generated-keyfile",
             "rekey-remove-keyfile",
+            "rekey-keyfile-only",
             "encryption-settings-chacha20-argon2id",
             "encryption-settings-aes256-keep-kdf",
             "encryption-settings-aes-kdf",
@@ -2214,6 +2219,31 @@ enum KDBXCompatibilitySupport {
         )
     }
 
+    /// `.passwordKeyfile` rekeyed to its key file alone, as the Mac sheet's
+    /// Remove Master Password does. No password is not an empty password:
+    /// the composite key hashes only the components that exist.
+    static func rekeyKeyfileOnlyScenario() -> Scenario {
+        Scenario(
+            id: "rekey-keyfile-only",
+            title: "Remove the master password, keeping the key file",
+            artifactFileName: "password-keyfile-rekey-keyfile-only.kdbx",
+            expectedSearchTerms: ["KeyFile Test Entry"],
+            expectedGroupPaths: [],
+            rekey: { loaded in
+                let keyFileData = try XCTUnwrap(loaded.keyFileData)
+                return RekeyTarget(
+                    compositeKey: try KDBXCrypto.compositeKey(password: nil, keyFileData: keyFileData),
+                    password: nil,
+                    keyFileName: try XCTUnwrap(loaded.fixture.descriptor?.keyFileFileName),
+                    keyFileData: keyFileData
+                )
+            },
+            assertChange: { before, after, _ in
+                try assertWholeTreeUnchanged(before: before, after: after)
+            }
+        )
+    }
+
     // MARK: - Encryption settings scenarios
 
     /// `.aesBaseline` moved to ChaCha20 and the Balanced Argon2id preset, with
@@ -2358,6 +2388,9 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .passwordKeyfile, scenario: rekeyRemoveKeyfileScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .passwordKeyfile, scenario: rekeyKeyfileOnlyScenario())
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .aesBaseline, scenario: encryptionSettingsChaCha20Scenario())
@@ -2560,7 +2593,7 @@ enum KDBXCompatibilitySupport {
             // A rekeyed artifact only opens with the credentials it was
             // rekeyed to, so the manifest must carry the EFFECTIVE post-rekey
             // password and key file, not the fixture's.
-            let effectivePassword: String
+            let effectivePassword: String?
             let effectiveKeyFileName: String?
             let effectiveKeyFileData: Data?
             if let rekey {

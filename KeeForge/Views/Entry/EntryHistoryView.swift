@@ -259,10 +259,10 @@ private struct EntryHistoryVersionFields: View {
                 }
             }
             if !version.notes.isEmpty {
-                ReferenceAwareFieldRow(label: String(localized: "Notes"), raw: version.notes,
-                                       viewModel: viewModel, accessibilityPrefix: "entry-history",
-                                       isCurrent: secretActionIsCurrent) { notes in
-                    Section("Notes") {
+                Section("Notes") {
+                    ReferenceAwareFieldRow(label: String(localized: "Notes"), raw: version.notes,
+                                           viewModel: viewModel, accessibilityPrefix: "entry-history",
+                                           isCurrent: secretActionIsCurrent) { notes in
                         SelectableNotesText(notes)
                     }
                 }

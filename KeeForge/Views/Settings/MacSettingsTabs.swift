@@ -157,7 +157,7 @@ struct MacSecuritySettingsTab: View {
                 Picker("Clipboard Clear Timeout", selection: $settings.clipboardTimeout) {
                     ForEach(SettingsService.ClipboardTimeout.allCases, id: \.self) { Text($0.title).tag($0) }
                 }.macSettingsPopUp()
-                settingsCaption("Copied values are cleared after this timeout (unless you copied something else since) and are hidden from clipboard-manager apps. Unlike iOS, macOS cannot exclude copies from Handoff's Universal Clipboard, so a copied password may briefly appear on your other devices' clipboards.")
+                settingsCaption("Copied values are cleared after this timeout (unless you copied something else since) and when the database locks, and are hidden from clipboard-manager apps. With Never, a copy stays until the database locks. Unlike iOS, macOS cannot exclude copies from Handoff's Universal Clipboard, so a copied password may appear on your other devices' clipboards.")
             }
             MacSettingsSeparator()
             MacSettingsRow("Screen capture:") {

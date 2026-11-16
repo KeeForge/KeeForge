@@ -280,7 +280,8 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
     ) {
         let alert = NSAlert()
         alert.messageText = String(localized: "Unlock KeeForge")
-        alert.informativeText = String(localized: "Enter your master password or use biometrics.")
+        // Several databases can be open; say whose master password this asks for.
+        alert.informativeText = "\(database.displayName)\n\(String(localized: "Enter your master password or use biometrics."))"
 
         let passwordField = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
         passwordField.placeholderString = String(localized: "Master Password")

@@ -458,13 +458,18 @@ final class MacWindowCoordinator {
 
     /// Database ▸ Lock All Databases.
     var canLockAllDatabases: Bool {
-        databaseWindows.keys.contains(where: isUnlocked)
+        databaseWindows.values.contains { $0.session.state == .unlocked || $0.session.canCancelUnlockAttempt }
     }
 
     /// Each unlocked window locks through its own path, so unsaved work asks there as it would for Lock.
+    /// An open still in progress is cancelled, or it would finish unlocked after the command.
     func lockAllDatabases() {
-        for controller in databaseWindows.values where controller.session.state == .unlocked {
-            DatabaseCommands(session: controller.session).lock()
+        for controller in databaseWindows.values {
+            if controller.session.state == .unlocked {
+                DatabaseCommands(session: controller.session).lock()
+            } else {
+                controller.session.cancelUnlockAttempt()
+            }
         }
     }
 

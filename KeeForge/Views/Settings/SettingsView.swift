@@ -296,7 +296,7 @@ private struct AutoFillSettingsView: View {
                 Toggle("Copy Verification Code on AutoFill", isOn: $autoFillCopyTOTP)
                     .accessibilityIdentifier("settings.autofill.copy-totp")
             } footer: {
-                Text("When AutoFill fills a password, it also copies the entry's verification code for code fields iOS does not recognize. You'll confirm the fill in KeeForge, and the code clears after the Clipboard Clear Timeout.")
+                Text("When AutoFill fills a password, it also copies the entry's verification code for code fields iOS does not recognize. You'll confirm the fill in KeeForge, and the code clears after the Clipboard Clear Timeout. With Never, it stays until you copy something else.")
             }
 
             clearEntriesSection

@@ -207,10 +207,11 @@ final class MacDatabasesSheets: NSObject {
                     url = await self.panels.saveKeyFile(suggestedName: KeyFileExportDocument.defaultFilename(forDatabaseFilename: model.suggestedFilename))
                     guard self.generation == token, let url else { return }
                     try await Task.detached {
-                        var document = try KeyFileExportDocument.generate().data
-                        defer { document.resetBytes(in: 0..<document.count) }
                         let scoped = url.startAccessingSecurityScopedResource()
                         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                        try KeyFileOverwriteGuard.check(url)
+                        var document = try KeyFileExportDocument.generate().data
+                        defer { document.resetBytes(in: 0..<document.count) }
                         try document.write(to: url)
                     }.value
                 } else { url = await self.panels.chooseKeyFile() }

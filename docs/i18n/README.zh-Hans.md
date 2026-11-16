@@ -62,7 +62,7 @@ Apple 审核各平台的构建版本期间，iPhone、iPad 和 Mac 测试版的�
 
 KeeForge 没有分析统计、没有后台遥测、也没有崩溃报告 SDK。保险库数据只保留在设备上和你选择的存储位置。网络访问仅限于已连接的云服务商、可选启用的通过 DuckDuckGo 获取网站图标、可选的 App Store“打赏”内购、直接下载版 Mac App 的更新检查，以及你主动提交消息时使用的应用内反馈表单。
 
-在 iPhone 和 iPad 上，拷贝的机密会标记为仅限本机，不会通过通用剪贴板传输。macOS 不提供这项排除能力，因此在 Mac 上可能会遵循你的系统设置；KeeForge 会将内容标记为机密，并在短时间后或锁定时清除。KeeForge 还会保护 iPhone 和 iPad 的 App 切换器预览。Mac 上的屏幕捕获阻止功能属于尽力保护，可能无法阻止所有截屏或录屏。
+在 iPhone 和 iPad 上，拷贝的机密会标记为仅限本机，不会通过通用剪贴板传输。macOS 不提供这项排除能力，因此在 Mac 上可能会遵循你的系统设置；KeeForge 会将内容标记为机密，并在你选择的时限后清除；若选择“从不”，则在锁定时清除。KeeForge 还会保护 iPhone 和 iPad 的 App 切换器预览。Mac 上的屏幕捕获阻止功能属于尽力保护，可能无法阻止所有截屏或录屏。
 
 请阅读[隐私政策](https://keeforge.com/zh-hans/privacy)（[英文原文](https://keeforge.com/privacy)）。
 

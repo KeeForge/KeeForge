@@ -62,7 +62,7 @@ Die Verfügbarkeit der Beta kann sich zwischen iPhone, iPad und Mac unterscheide
 
 KeeForge enthält keine Analytik, keine Hintergrund-Telemetrie und keine Crash-Reporting-SDKs. Tresordaten bleiben auf dem Gerät und an den von dir gewählten Speicherorten. Netzwerkzugriffe beschränken sich auf verbundene Cloud-Anbieter, das optionale Laden von Favicons über DuckDuckGo, optionale App-Store-Käufe für das Trinkgeld, Update-Prüfungen der direkt geladenen Mac-App und das In-App-Feedback-Formular, wenn du explizit eine Nachricht absendest.
 
-Auf iPhone und iPad werden kopierte Geheimnisse als lokal markiert und nicht über die universelle Zwischenablage übertragen. macOS bietet diesen Ausschluss nicht; dort können Kopien deiner Systemeinstellung folgen. KeeForge markiert sie als verborgen und löscht seinen Eintrag nach kurzer Zeit oder beim Sperren. Außerdem schützt KeeForge App-Vorschauen auf iPhone und iPad. Der Bildschirmaufnahme-Schutz auf dem Mac arbeitet nach bestem Bemühen und kann nicht jeden Screenshot oder jede Aufnahme verhindern.
+Auf iPhone und iPad werden kopierte Geheimnisse als lokal markiert und nicht über die universelle Zwischenablage übertragen. macOS bietet diesen Ausschluss nicht; dort können Kopien deiner Systemeinstellung folgen. KeeForge markiert sie als verborgen und löscht seinen Eintrag nach der von dir gewählten Löschfrist oder, wenn du „Nie“ wählst, beim Sperren. Außerdem schützt KeeForge App-Vorschauen auf iPhone und iPad. Der Bildschirmaufnahme-Schutz auf dem Mac arbeitet nach bestem Bemühen und kann nicht jeden Screenshot oder jede Aufnahme verhindern.
 
 Lies die [Datenschutzerklärung](https://keeforge.com/de/privacy) ([englisches Original](https://keeforge.com/privacy)).
 
