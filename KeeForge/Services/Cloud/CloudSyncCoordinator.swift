@@ -48,6 +48,8 @@ enum CloudSyncCoordinator {
     /// `CloudProvider.metadataProbeTransfersContent`.
     static let openProbeDeadline: TimeInterval = 10
 
+    private static let cacheDownloadLock = CacheDownloadLock()
+
     /// The metadata probe did not answer within the open deadline. Treated as
     /// an unreachable server, so it wears the offline message.
     struct ProbeTimeout: LocalizedError, CloudSyncIssueConvertible {
@@ -130,13 +132,23 @@ enum CloudSyncCoordinator {
             // say, so the pre-download reading stands.
             var syncedMetadata = remoteMetadata
             if needsDownload {
-                let downloadedMetadata = try await downloadLatestCopy(
-                    provider: provider,
-                    metadata: metadata,
-                    reference: updatedReference,
-                    destinationURL: cacheURL,
-                    progress: progress
-                )
+                // Overlapping sync-downs would pin one inode and fail each other's publish.
+                let cacheKey = cacheURL.standardizedFileURL.path
+                await cacheDownloadLock.acquire(cacheKey)
+                let downloadedMetadata: CloudFileMetadata?
+                do {
+                    downloadedMetadata = try await downloadLatestCopy(
+                        provider: provider,
+                        metadata: metadata,
+                        reference: updatedReference,
+                        destinationURL: cacheURL,
+                        progress: progress
+                    )
+                } catch {
+                    await cacheDownloadLock.release(cacheKey)
+                    throw error
+                }
+                await cacheDownloadLock.release(cacheKey)
                 if let downloadedMetadata {
                     syncedMetadata = downloadedMetadata
                 }
@@ -582,5 +594,32 @@ enum CloudSyncCoordinator {
         var uploadedReference = reference
         uploadedReference.updateCloudSyncMetadata(applyRemoteMetadata)
         return uploadedReference
+    }
+}
+
+/// One sync-down per cache file at a time within this process. Other writers
+/// (app saves, the AutoFill extension) stay outside it on purpose: the
+/// coordinator's pin is what keeps a download from reverting their bytes.
+private actor CacheDownloadLock {
+    private var heldKeys: Set<String> = []
+    private var waiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+
+    func acquire(_ key: String) async {
+        guard heldKeys.contains(key) else {
+            heldKeys.insert(key)
+            return
+        }
+        // `release` hands the key straight to this waiter.
+        await withCheckedContinuation { waiters[key, default: []].append($0) }
+    }
+
+    func release(_ key: String) {
+        guard var queue = waiters[key], queue.isEmpty == false else {
+            heldKeys.remove(key)
+            return
+        }
+        let next = queue.removeFirst()
+        waiters[key] = queue.isEmpty ? nil : queue
+        next.resume()
     }
 }

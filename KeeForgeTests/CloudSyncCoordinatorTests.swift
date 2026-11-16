@@ -198,6 +198,46 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cacheURL), savedBytes)
     }
 
+    /// Returning to the app starts a background refresh while Sync Now or an
+    /// unlock syncs the same database. Both download; the second must not
+    /// read the first one's publish as a concurrent save and fail.
+    func testOverlappingSyncDownsOfOneDatabaseBothSucceed() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("stale-cache".utf8), for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        provider.downloadDelay = .milliseconds(200)
+        provider.downloadedData = Data("fresh-cloud-copy".utf8)
+
+        async let first = CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+        async let second = CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+        let resolutions = try await [first, second]
+
+        for resolution in resolutions {
+            XCTAssertEqual(resolution.status, .downloaded)
+            XCTAssertEqual(resolution.data, Data("fresh-cloud-copy".utf8))
+            XCTAssertNil(resolution.reference.cloudSyncMetadata?.lastSyncIssue)
+        }
+        XCTAssertEqual(try Data(contentsOf: cacheURL), Data("fresh-cloud-copy".utf8))
+        let strays = try FileManager.default.contentsOfDirectory(
+            atPath: cacheURL.deletingLastPathComponent().path
+        )
+        XCTAssertEqual(strays, [cacheURL.lastPathComponent], "Both syncs' pins and staged downloads must be cleaned up.")
+    }
+
     // MARK: - Coordinated cache replace (M12, direct)
 
     // `replaceCacheItem` is the conditional swap the whole M12 race defense

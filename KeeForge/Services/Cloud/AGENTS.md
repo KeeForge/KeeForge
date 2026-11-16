@@ -40,6 +40,7 @@
 - The metadata probe races `openProbeDeadline` only when a cache can stand in; a miss is treated as offline. With no cache it waits out the transport.
 - `downloadLatestCopy` pins the existing cache with a hard link before the transfer and before listing markers, then publishes with a coordinated replace conditioned on the pinned inode. A save that lands mid-download then makes the sync fall back to the cache instead of reverting it.
 - Do not move the pin after the download (it would pin the newer save and replace it), and do not use a rename-aside (the cache path would be empty during the transfer).
+- Sync-downs of one cache file run one at a time in the process (`CacheDownloadLock`); overlapping ones would pin the same inode, and the later publish would refuse the earlier one as a concurrent save. App saves and the AutoFill extension stay outside the lock, so the pin still guards against them.
 - When a marker is queued, both cache-replacing paths back the cache up into the database's backup directory first (`applyUploadedBytesAfterSave` only when the cache differs from the bytes being applied). A failed backup aborts the replacement: losing the only copy of an unuploaded save is worse than a failed refresh.
 - Cloud state learned across an `await` is written with `DatabaseListStore.updateCloudSyncMetadata(for:ifUnchangedFrom:mutate:)`, not `update(_:)`, which would roll back a save or drain that finished inside the window.
 
