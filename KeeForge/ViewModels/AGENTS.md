@@ -183,3 +183,4 @@ Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, f
 - List reconciliation may refresh local session preferences, but an unlocked session or in-flight save retains its authenticated target and master-key epoch. An unrelated list callback cannot authorize old session keys under a newer persisted epoch.
 
 - Native launcher removal is asynchronous through the same list owner as iOS; confirmation forwards the captured reference and callers may await completion. A list failure cannot be reported as a removed database.
+- Native server prefill projects only the server address, username and transport opt-in from its credential-data reader; it never fills a stored password. Model tests supply encoded credential fixtures, while Keychain round trips stay at the credential-store boundary.
