@@ -247,21 +247,14 @@ final class BrowserHostInstaller {
         guard bookmarks.start(resolved.url) else { throw BrowserHostInstallerError.accessLost }
         defer { bookmarks.stop(resolved.url) }
         let directory = manifestDirectory(for: browser)
-        try validateGrant(resolved.url, directory: directory)
-        guard files.directoryExists(resolved.url), files.directoryExists(directory) else {
-            throw BrowserHostInstallerError.accessLost
-        }
+        guard isSameFolder(resolved.url, directory) else { throw BrowserHostInstallerError.accessLost }
+        guard files.isCanonicalPath(directory) else { throw BrowserHostInstallerError.unsafeManifest }
+        guard files.directoryExists(directory) else { throw BrowserHostInstallerError.accessLost }
         return try body(directory)
     }
 
-    private func validateGrant(_ grant: URL, directory: URL) throws {
-        let path = grant.standardizedFileURL.path
-        guard grant.isFileURL, path == directory.standardizedFileURL.path || path == directory.deletingLastPathComponent().standardizedFileURL.path else {
-            throw BrowserHostInstallerError.wrongFolder
-        }
-        guard files.isCanonicalPath(grant), files.isCanonicalPath(directory) else {
-            throw BrowserHostInstallerError.unsafeManifest
-        }
+    private func isSameFolder(_ url: URL, _ expected: URL) -> Bool {
+        url.isFileURL && url.standardizedFileURL.path == expected.standardizedFileURL.path
     }
 
     func state(for browser: HostBrowser) -> BrowserHostInstallerState {
@@ -280,6 +273,7 @@ final class BrowserHostInstaller {
         catch { return .accessLost }
     }
 
+    // A browser-parent grant is used only to create NativeMessagingHosts; its bookmark is never stored.
     func setUp(_ browser: HostBrowser) async throws {
         let data = try manifest(for: browser)
         let directory = manifestDirectory(for: browser)
@@ -287,14 +281,14 @@ final class BrowserHostInstaller {
         guard let grant = try await grantFolder(.init(browser: browser, manifestDirectory: directory, directoryToGrant: target)) else {
             throw BrowserHostInstallerError.grantCancelled
         }
-        guard grant.standardizedFileURL.path == target.standardizedFileURL.path else { throw BrowserHostInstallerError.wrongFolder }
+        guard isSameFolder(grant, target) else { throw BrowserHostInstallerError.wrongFolder }
         guard bookmarks.start(grant) else { throw BrowserHostInstallerError.accessLost }
         defer { bookmarks.stop(grant) }
-        try validateGrant(grant, directory: directory)
+        guard files.isCanonicalPath(grant), files.isCanonicalPath(directory) else { throw BrowserHostInstallerError.unsafeManifest }
         guard files.directoryExists(grant) else { throw BrowserHostInstallerError.browserParentMissing }
         if !files.directoryExists(directory) { try files.createManifestDirectory(in: grant) }
-        try validateGrant(grant, directory: directory)
-        let bookmark = try bookmarks.create(grant)
+        guard files.isCanonicalPath(directory), files.directoryExists(directory) else { throw BrowserHostInstallerError.unsafeManifest }
+        let bookmark = try bookmarks.create(directory)
         try files.write(data, in: directory)
         defaults.set(bookmark, forKey: bookmarkKey(browser))
     }

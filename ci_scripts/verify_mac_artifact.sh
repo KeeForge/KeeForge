@@ -112,7 +112,7 @@ bundle_hardening() {
 }
 
 verify_browser_host() {
-  local host="$1" metadata team entitlements
+  local host="$1" app="$2" metadata team app_team entitlements app_entitlements
   [[ -f "$host" && -x "$host" ]] || die "browser host executable is missing"
   codesign --verify --strict "$host" >/dev/null 2>&1 \
     || die "browser host signature is invalid"
@@ -137,6 +137,23 @@ try:
 except Exception:
     sys.exit(1)
 PYHOST
+  # The relay reaches the app only through the shared container, so both must be one team's group.
+  app_team="$(codesign -dvv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p')" || true
+  [[ "$app_team" == "$team" ]] || die "browser host and app signing teams differ"
+  app_entitlements="${TMP_DIR}/app-browser-entitlements.plist"
+  codesign -d --entitlements - --xml "$app" >"$app_entitlements" 2>/dev/null \
+    || die "app entitlements are unavailable"
+  python3 - "$app_entitlements" "$team" <<'PYAPPGROUP' || die "app entitlements do not list the browser host group"
+import plistlib, sys
+try:
+    with open(sys.argv[1], "rb") as source:
+        groups = plistlib.load(source).get("com.apple.security.application-groups")
+    browser = [g for g in groups if isinstance(g, str) and g.endswith("com.keevault.browser")]
+    if browser != [sys.argv[2] + ".com.keevault.browser"]:
+        sys.exit(1)
+except Exception:
+    sys.exit(1)
+PYAPPGROUP
 }
 
 # The tool is not a bundle, so its version lives in the __TEXT,__info_plist
@@ -196,7 +213,7 @@ grep -q 'com.apple.security.app-sandbox' "$ROOT_ENTITLEMENTS" \
   || die "app sandbox entitlement is missing"
 bundle_hardening "$APP_PATH"
 BROWSER_HOST="${APP_PATH}/Contents/MacOS/keeforge-browser-host"
-verify_browser_host "$BROWSER_HOST"
+verify_browser_host "$BROWSER_HOST" "$APP_PATH"
 verify_browser_host_version "$BROWSER_HOST" "$VERSION" "$BUILD"
 
 while IFS= read -r nested_bundle; do

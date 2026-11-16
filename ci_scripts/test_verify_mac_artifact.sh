@@ -9,20 +9,34 @@ chmod +x "$host"
 die() { echo "error: $*" >&2; exit 1; }
 # Load the production functions without running the artifact CLI.
 source <(sed -n '/^bundle_hardening() {/,/^codesign --verify --deep/p' "${SCRIPT_DIR}/verify_mac_artifact.sh" | sed '$d')
+app="${TMP_DIR}/KeeForge.app"
+mkdir "$app"
 codesign() {
+  local target="${!#}"
   if [[ "$*" == *--verify* ]]; then [[ "$CASE" != signature ]]; return; fi
+  if [[ "$target" == "$app" ]]; then
+    if [[ "$*" == *--entitlements* ]]; then cat "${TMP_DIR}/app.plist"; return; fi
+    echo 'TeamIdentifier=FIXTURE'
+    return 0
+  fi
   if [[ "$*" == *--entitlements* ]]; then cat "${TMP_DIR}/fixture.plist"; return; fi
-  echo 'TeamIdentifier=FIXTURE'
+  if [[ "$CASE" == host-team ]]; then echo 'TeamIdentifier=OTHER'; else echo 'TeamIdentifier=FIXTURE'; fi
   [[ "$CASE" == runtime ]] || echo 'flags=0x10000(runtime)'
   return 0
 }
 passed=0
-for CASE in valid missing signature runtime sandbox group extra cs debug malformed; do
+for CASE in valid missing signature runtime sandbox group extra cs debug malformed host-team app-missing-group app-other-group; do
   export CASE
-  python3 - "${TMP_DIR}/fixture.plist" "$CASE" <<'PY'
+  python3 - "${TMP_DIR}/fixture.plist" "$CASE" "${TMP_DIR}/app.plist" <<'PY'
 import plistlib, sys
 case = sys.argv[2]
-e = {"com.apple.security.app-sandbox": True, "com.apple.security.application-groups": ["FIXTURE.com.keevault.browser"]}
+host_team = "OTHER" if case == "host-team" else "FIXTURE"
+e = {"com.apple.security.app-sandbox": True, "com.apple.security.application-groups": [host_team + ".com.keevault.browser"]}
+app = {"com.apple.security.app-sandbox": True, "com.apple.security.application-groups": ["group.com.keevault.shared", "FIXTURE.com.keevault.browser"]}
+if case == "app-missing-group": app["com.apple.security.application-groups"] = ["group.com.keevault.shared"]
+if case == "app-other-group": app["com.apple.security.application-groups"].append("OTHER.com.keevault.browser")
+with open(sys.argv[3], "wb") as f:
+    plistlib.dump(app, f)
 if case == "sandbox": e["com.apple.security.app-sandbox"] = False
 if case == "group": e["com.apple.security.application-groups"].append("group.com.keevault.shared")
 if case == "extra": e["unexpected"] = True
@@ -33,7 +47,7 @@ with open(sys.argv[1], "wb") as f:
 PY
   target="$host"
   [[ "$CASE" != missing ]] || target="${TMP_DIR}/absent"
-  if (verify_browser_host "$target") >"${TMP_DIR}/result" 2>&1; then
+  if (verify_browser_host "$target" "$app") >"${TMP_DIR}/result" 2>&1; then
     [[ "$CASE" == valid ]] || { echo "FAIL: accepted $CASE" >&2; exit 1; }
   else
     [[ "$CASE" != valid ]] || { cat "${TMP_DIR}/result" >&2; exit 1; }

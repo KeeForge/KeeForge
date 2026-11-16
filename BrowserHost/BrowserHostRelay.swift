@@ -45,6 +45,8 @@ final class BrowserHostRelay {
     let socketPath: String?
     let launch: () -> Void
     private var connection: Int32 = -1
+    // A replaced socket usually reuses the descriptor number, so poll results are matched by generation.
+    private var generation = 0
     private var toBrowser = Data()
     private var toApp = Data()
     private var appFrames = BrowserHostFrames(limit: 1_048_576)
@@ -84,6 +86,7 @@ final class BrowserHostRelay {
                 pollfd(fd: output, events: Int16(toBrowser.isEmpty ? 0 : POLLOUT), revents: 0),
                 pollfd(fd: connection, events: Int16((toBrowser.count < 2_097_152 ? POLLIN : 0) | (toApp.isEmpty ? 0 : POLLOUT)), revents: 0)
             ]
+            let polledGeneration = generation
             let polled = poll(&descriptors, nfds_t(descriptors.count), retryUntil == nil ? -1 : 100)
             if polled < 0 { if errno == EINTR { continue }; return }
             if descriptors[0].revents & Int16(POLLIN | POLLHUP) != 0 {
@@ -95,8 +98,7 @@ final class BrowserHostRelay {
             }
             if descriptors[1].revents & Int16(POLLERR | POLLHUP | POLLNVAL) != 0 { return }
             if descriptors[1].revents & Int16(POLLOUT) != 0, !flush(output, data: &toBrowser) { return }
-            // A browser control may have replaced the descriptor during this poll.
-            guard connection >= 0, connection == descriptors[2].fd else { continue }
+            guard connection >= 0, generation == polledGeneration else { continue }
             if descriptors[2].revents & Int16(POLLIN | POLLHUP | POLLERR) != 0 {
                 if let bytes = readAvailable(connection) {
                     var frames = appFrames
@@ -146,7 +148,7 @@ final class BrowserHostRelay {
     }
 
     private func disconnect() {
-        if connection >= 0 { close(connection) }
+        if connection >= 0 { close(connection); generation += 1 }
         connection = -1
         toApp.removeAll()
         appFrames = BrowserHostFrames(limit: 1_048_576)
@@ -155,6 +157,7 @@ final class BrowserHostRelay {
     private func attemptConnect(reportFailure: Bool) {
         guard connection < 0 else { return }
         if let socketPath { connection = Self.connectSocket(socketPath) }
+        if connection >= 0 { generation += 1 }
         if connection >= 0 { event("connected") }
         else if reportFailure { event("unavailable", reason: "not-running") }
     }
@@ -188,6 +191,7 @@ final class BrowserHostRelay {
     }
 
     private func flush(_ fd: Int32, data: inout Data) -> Bool {
+        guard !data.isEmpty else { return true }
         let count = data.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
         if count > 0 { data.removeFirst(count); return true }
         return count < 0 && (errno == EINTR || errno == EAGAIN)

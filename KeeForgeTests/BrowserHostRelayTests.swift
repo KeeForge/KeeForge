@@ -51,6 +51,8 @@ final class BrowserHostRelayTests: XCTestCase {
             guard poll(&descriptor, 1, 3000) > 0 else { throw NSError(domain: "accept timeout", code: 1) }
             let fd = accept(listener, nil, nil)
             guard fd >= 0 else { throw NSError(domain: "accept", code: 1) }
+            var noSignal: Int32 = 1
+            _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
             return fd
         }
 
@@ -141,6 +143,27 @@ final class BrowserHostRelayTests: XCTestCase {
         let frame = h.frame("{\"t\":\"hello\"}")
         try h.send(frame)
         XCTAssertEqual(try h.read(h.peer, count: frame.count), frame)
+    }
+
+    func testConnectAfterQueuedFrameKeepsTheReplacementConnection() throws {
+        let h = try Harness()
+        defer { try? h.finish() }
+        try h.event("connected")
+        // One full 16 KiB relay read queues this frame; the next read, in a pass that polled for POLLOUT, carries connect.
+        let prefix = "{\"t\":\"msg\",\"c\":\""
+        let queued = h.frame(prefix + String(repeating: "a", count: 16_380 - prefix.utf8.count - 2) + "\"}")
+        XCTAssertEqual(queued.count, 16_384)
+        try h.send(queued + h.frame("{\"v\":1,\"t\":\"host\",\"cmd\":\"connect\"}"))
+        let stale = h.peer
+        h.peer = try h.acceptPeer()
+        close(stale)
+        try h.event("connected")
+        let reply = h.frame("{\"t\":\"msg\",\"c\":\"reply\"}")
+        try h.writePeer(reply)
+        XCTAssertEqual(try h.read(h.output.fileHandleForReading.fileDescriptor, count: reply.count), reply)
+        let hello = h.frame("{\"t\":\"hello\"}")
+        try h.send(hello)
+        XCTAssertEqual(try h.read(h.peer, count: hello.count), hello)
     }
 
     func testLaunchRetriesUntilAppListens() throws {

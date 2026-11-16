@@ -14,6 +14,7 @@ final class BrowserHostInstallerTests: XCTestCase {
     private var starts = 0
     private var stops = 0
     private var requests: [BrowserHostInstaller.FolderGrantRequest] = []
+    private var bookmarked: [URL] = []
 
     override func setUp() async throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).resolvingSymlinksInPath()
@@ -32,7 +33,7 @@ final class BrowserHostInstallerTests: XCTestCase {
         BrowserHostInstaller(
             defaults: defaults, home: root, appBundle: URL(fileURLWithPath: app), chromiumOrigins: origins,
             bookmarks: .init(
-                create: { Data($0.path.utf8) },
+                create: { [unowned self] in bookmarked.append($0); return Data($0.path.utf8) },
                 resolve: { [unowned self] in (URL(fileURLWithPath: String(decoding: $0, as: UTF8.self)), stale) },
                 start: { [unowned self] _ in if startAllowed { starts += 1 }; return startAllowed },
                 stop: { [unowned self] _ in stops += 1 }
@@ -50,6 +51,8 @@ final class BrowserHostInstallerTests: XCTestCase {
         try FileManager.default.createDirectory(at: manifestFolder ? directory : directory.deletingLastPathComponent(), withIntermediateDirectories: true)
         return directory
     }
+
+    private let storedBookmarkKey = "browserHost.folderBookmark.chrome"
 
     private func manifestURL(_ directory: URL) -> URL { directory.appendingPathComponent("com.keevault.browser.json") }
 
@@ -113,7 +116,22 @@ final class BrowserHostInstallerTests: XCTestCase {
         let subject = installer()
         try await subject.setUp(.chrome)
         XCTAssertEqual(requests.first?.directoryToGrant.path, directory.deletingLastPathComponent().path)
+        XCTAssertEqual(bookmarked.map(\.path), [directory.path])
+        XCTAssertEqual(defaults.data(forKey: storedBookmarkKey), Data(directory.path.utf8))
         XCTAssertEqual(installer().state(for: .chrome), .ready)
+    }
+
+    func testStoredBrowserParentGrantIsAccessLost() async throws {
+        let directory = try prepare()
+        let subject = installer()
+        try await subject.setUp(.chrome)
+        let original = try Data(contentsOf: manifestURL(directory))
+        defaults.set(Data(directory.deletingLastPathComponent().path.utf8), forKey: storedBookmarkKey)
+        let moved = installer(app: "/elsewhere/KeeForge.app")
+        XCTAssertEqual(moved.state(for: .chrome), .accessLost)
+        XCTAssertEqual(moved.repairAll()[.chrome], .accessLost)
+        await assertError(.accessLost) { try moved.remove(.chrome) }
+        XCTAssertEqual(try Data(contentsOf: manifestURL(directory)), original)
     }
 
     func testMissingBrowserParentRefused() async {
