@@ -9,6 +9,8 @@ import SwiftUI
 protocol MacQuickSearchPanelPresenting: AnyObject {
     var isPanelVisible: Bool { get }
     var onToggleRequested: (() -> Void)? { get set }
+    var onOpenAppRequested: (() -> Void)? { get set }
+    var onQuitRequested: (() -> Void)? { get set }
     func setStatusItemVisible(_ visible: Bool)
     func showPanel()
     func hidePanel(restoringPreviousApp: Bool)
@@ -82,10 +84,13 @@ final class MacQuickAccessController {
     /// Fronts KeeForge to choose a database, reopening its window if it was
     /// closed; set by the app.
     @ObservationIgnored var showDatabaseList: (() -> Void)?
+    /// Shows KeeForge's windows as a click on its Dock icon does; set by the app.
+    @ObservationIgnored var reopenApp: (() -> Void)?
 
     @ObservationIgnored private let presenter: MacQuickSearchPanelPresenting
     @ObservationIgnored private let hotKey: MacHotKeyRegistering
     @ObservationIgnored private let activateApp: @MainActor () -> Void
+    @ObservationIgnored private let quitApp: @MainActor () -> Void
     @ObservationIgnored private var isStarted = false
 
     init(
@@ -96,7 +101,8 @@ final class MacQuickAccessController {
                 NSApp.unhide(nil)
             }
             NSApp.activate()
-        }
+        },
+        quitApp: @escaping @MainActor () -> Void = { NSApp.terminate(nil) }
     ) {
         let searchModel = MacQuickSearchViewModel(
             authenticateDeviceOwner: { gate in
@@ -112,6 +118,7 @@ final class MacQuickAccessController {
         self.presenter = presenter ?? MacQuickSearchPanel(searchModel: searchModel)
         self.hotKey = hotKey
         self.activateApp = activateApp
+        self.quitApp = quitApp
         isMenuBarItemEnabled = SettingsService.macMenuBarQuickAccessEnabled
         shortcut = SettingsService.macQuickSearchShortcut
         searchModel.focusedDatabaseID = { [weak self] in self?.focusedDatabaseID }
@@ -123,6 +130,8 @@ final class MacQuickAccessController {
         isStarted = true
 
         presenter.onToggleRequested = { [weak self] in self?.togglePanel() }
+        presenter.onOpenAppRequested = { [weak self] in self?.openApp() }
+        presenter.onQuitRequested = { [weak self] in self?.quit() }
         hotKey.onPressed = { [weak self] in self?.togglePanel() }
         searchModel.onCopied = { [weak self] in
             self?.presenter.hidePanel(restoringPreviousApp: true)
@@ -158,6 +167,18 @@ final class MacQuickAccessController {
         }
     }
 
+    func openApp() {
+        presenter.hidePanel(restoringPreviousApp: false)
+        activateApp()
+        reopenApp?()
+    }
+
+    /// The same terminate path as File ▸ Quit, so unsaved-work prompts and the clipboard clear still run.
+    func quit() {
+        presenter.hidePanel(restoringPreviousApp: false)
+        quitApp()
+    }
+
     private func apply() {
         guard isStarted else { return }
 
@@ -177,6 +198,36 @@ final class MacQuickAccessController {
     }
 }
 
+/// The status item's right-click (and Control-click) menu.
+@MainActor
+final class MacStatusItemMenu: NSObject {
+    let menu = NSMenu()
+    var onOpenApp: (() -> Void)?
+    var onQuit: (() -> Void)?
+
+    override init() {
+        super.init()
+        menu.autoenablesItems = false
+        add(String(localized: "Open KeeForge"), #selector(openApp), identifier: "menu-bar.status-item.open-app")
+        menu.addItem(.separator())
+        add(String(localized: "Quit KeeForge"), #selector(quit), identifier: "menu-bar.status-item.quit")
+    }
+
+    nonisolated static func opensMenu(for type: NSEvent.EventType, modifiers: NSEvent.ModifierFlags) -> Bool {
+        type == .rightMouseUp || type == .rightMouseDown || modifiers.contains(.control)
+    }
+
+    private func add(_ title: String, _ action: Selector, identifier: String) {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        item.setAccessibilityIdentifier(identifier)
+        menu.addItem(item)
+    }
+
+    @objc private func openApp() { onOpenApp?() }
+    @objc private func quit() { onQuit?() }
+}
+
 /// The status item and the borderless, non-activating panel it opens.
 ///
 /// Non-activating so a search started from another app leaves that app
@@ -190,8 +241,11 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
     static let cornerRadius: CGFloat = 14
 
     var onToggleRequested: (() -> Void)?
+    var onOpenAppRequested: (() -> Void)?
+    var onQuitRequested: (() -> Void)?
 
     private let searchModel: MacQuickSearchViewModel
+    private let statusMenu = MacStatusItemMenu()
     private var statusItem: NSStatusItem?
     private var panel: QuickSearchPanelWindow?
     private var keyMonitor: Any?
@@ -203,6 +257,9 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
 
     init(searchModel: MacQuickSearchViewModel) {
         self.searchModel = searchModel
+        super.init()
+        statusMenu.onOpenApp = { [weak self] in self?.onOpenAppRequested?() }
+        statusMenu.onQuit = { [weak self] in self?.onQuitRequested?() }
     }
 
     var isPanelVisible: Bool {
@@ -217,6 +274,7 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
                 button.toolTip = String(localized: "KeeForge Quick Search")
                 button.target = self
                 button.action = #selector(statusItemClicked)
+                button.sendAction(on: [.leftMouseUp, .rightMouseUp])
                 button.setAccessibilityIdentifier("menu-bar.quick-search.status-item")
             }
             statusItem = item
@@ -262,10 +320,23 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
     }
 
     @objc private func statusItemClicked() {
+        if let event = NSApp.currentEvent, MacStatusItemMenu.opensMenu(for: event.type, modifiers: event.modifierFlags) {
+            showStatusMenu()
+            return
+        }
         if isPanelVisible == false, let lastResignedKeyAt, Date().timeIntervalSince(lastResignedKeyAt) < 0.3 {
             return
         }
         onToggleRequested?()
+    }
+
+    private func showStatusMenu() {
+        guard let statusItem else { return }
+        if isPanelVisible { hidePanel(restoringPreviousApp: false) }
+        // Attached only for this click, so a plain click keeps opening the panel.
+        statusItem.menu = statusMenu.menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
     }
 
     private func makePanel() -> QuickSearchPanelWindow {

@@ -1188,6 +1188,8 @@ private final class CoordinatorSheetWindow: NSWindow {
 private final class QuickSearchPresenterStub: MacQuickSearchPanelPresenting {
     var isPanelVisible = false
     var onToggleRequested: (() -> Void)?
+    var onOpenAppRequested: (() -> Void)?
+    var onQuitRequested: (() -> Void)?
     func setStatusItemVisible(_ visible: Bool) {}
     func showPanel() {}
     func hidePanel(restoringPreviousApp: Bool) {}

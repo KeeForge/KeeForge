@@ -9,7 +9,7 @@
 - `MacLockMonitor`: the macOS lock lifecycle. macOS has no "entered background" moment, so its triggers are what locks the vault there.
 - `MacDatabaseWindowRegistry`: app-owned window-identity to database-ID mapping, resolving sheets/children to their database parent. Sessions never retain AppKit objects; unregistering clears callbacks.
 - `MacWindowCloseGuard`: settles each registered database window's unsaved work independently and locks/cancels only its session on committed close. Cancel and save failure retain both.
-- `MacQuickAccessController`: the opt-in status item, the quick-search panel, and the global shortcut, which exists only while the status item does. The app supplies its targets: `focusedDatabaseID`, `sessionForDatabase`, `showDatabaseWindow`, and `showDatabaseList`. No service looks up a database through `NSApp`'s key, main, or first window.
+- `MacQuickAccessController`: the opt-in status item, the quick-search panel, and the global shortcut, which exists only while the status item does. The app supplies its targets: `focusedDatabaseID`, `sessionForDatabase`, `showDatabaseWindow`, `showDatabaseList`, and `reopenApp` (the Dock reopen path). A plain click on the status item toggles the panel; a right-click or Control-click shows `MacStatusItemMenu` (Open KeeForge, Quit KeeForge), whose Quit goes through `NSApp.terminate` so the unsaved-work prompts and clipboard clear still run. No service looks up a database through `NSApp`'s key, main, or first window.
 - `WhatsNewPresentationService`: the curated feature catalog. Add one case before each feature-bearing release, written from `CHANGELOG.md` as user-facing copy.
 
 ## Invariants
