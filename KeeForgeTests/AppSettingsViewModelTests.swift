@@ -57,12 +57,13 @@ final class AppSettingsViewModelTests: XCTestCase {
     }
 
     func testTimeoutIsPersistedBeforeResettingTheLiveTimerAndUnchangedValuesDoNothing() {
-        SettingsService.autoLockTimeout = .oneMinute
+        SettingsService.autoLockTimeout = .fiveMinutes
         var observedTimeouts: [SettingsService.AutoLockTimeout] = []
         let model = AppSettingsViewModel(resetInactivityTimer: {
             observedTimeouts.append(SettingsService.autoLockTimeout)
         })
 
+        XCTAssertEqual(model.autoLockTimeout, .fiveMinutes)
         model.autoLockTimeout = .oneMinute
         model.autoLockTimeout = .oneMinute
 
