@@ -24,7 +24,7 @@ async function start() {
   try {
     const result = await chrome.runtime.sendMessage({ type: 'startPairing', name });
     if (result.ok === false) { failed(result.error); return; }
-    code.textContent = result.code; status.textContent = message('compareCode'); void poll();
+    code.textContent = `${result.code.slice(0, 3)} ${result.code.slice(3)}`; status.textContent = message('compareCode'); void poll();
   } catch { failed('unavailable'); }
 }
 void start();

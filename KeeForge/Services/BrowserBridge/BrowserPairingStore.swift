@@ -50,15 +50,19 @@ actor BrowserPairingStore {
         try records().first { $0.clientID == clientID }
     }
 
+    /// The browser-supplied name without control or format characters, at most 64 characters.
+    static func sanitizedName(_ name: String) -> String {
+        let sanitized = String(String.UnicodeScalarView(name.unicodeScalars.filter {
+            CharacterSet.controlCharacters.contains($0) == false
+        }))
+        return String(sanitized.prefix(64))
+    }
+
     func addOrReplace(_ browser: PairedBrowser) throws {
         guard browser.publicKey.count == 32 else { throw BrowserPairingStoreError.invalidPublicKey }
         var browsers = try records().filter { $0.clientID != browser.clientID }
-        let sanitized = String(String.UnicodeScalarView(browser.name.unicodeScalars.filter {
-            CharacterSet.controlCharacters.contains($0) == false
-        }))
-        let name = String(sanitized.prefix(64))
         browsers.append(PairedBrowser(
-            clientID: browser.clientID, publicKey: browser.publicKey, name: name,
+            clientID: browser.clientID, publicKey: browser.publicKey, name: Self.sanitizedName(browser.name),
             pairedAt: browser.pairedAt, lastUsedAt: browser.lastUsedAt
         ))
         try persist(browsers)

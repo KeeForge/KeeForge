@@ -8540,6 +8540,58 @@
         }
       }
     },
+    "Allow" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consenti"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "許可"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешить"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允許"
+          }
+        }
+      }
+    },
     "Allow browser extensions to fill from KeeForge" : {
       "localizations" : {
         "de" : {
@@ -8692,6 +8744,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "允許後續聯絡"
+          }
+        }
+      }
+    },
+    "Allow only if your browser shows the same code. A paired browser can ask KeeForge for the logins that match the page you are on." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erlaube dies nur, wenn dein Browser denselben Code zeigt. Ein gekoppelter Browser kann KeeForge nach den Anmeldedaten fragen, die zur geöffneten Seite passen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite solo si tu navegador muestra el mismo código. Un navegador enlazado puede pedir a KeeForge los inicios de sesión que coinciden con la página en la que estás."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorisez uniquement si votre navigateur affiche le même code. Un navigateur jumelé peut demander à KeeForge les identifiants correspondant à la page affichée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consenti solo se il browser mostra lo stesso codice. Un browser abbinato può chiedere a KeeForge le credenziali corrispondenti alla pagina in cui ti trovi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザに同じコードが表示されている場合にのみ許可してください。ペアリング済みのブラウザは、表示中のページに一致するログイン情報を KeeForge に要求できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешайте, только если браузер показывает тот же код. Связанный браузер может запрашивать у KeeForge данные для входа, подходящие для открытой страницы."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅当浏览器显示相同的代码时才允许。已配对的浏览器可以向 KeeForge 请求与当前页面匹配的登录信息。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅當瀏覽器顯示相同的代碼時才允許。已配對的瀏覽器可以向 KeeForge 要求與目前頁面相符的登入資訊。"
           }
         }
       }
@@ -26835,6 +26939,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在項目編輯器中完成更多操作"
+          }
+        }
+      }
+    },
+    "Don’t Allow" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No permitir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ne pas autoriser"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non consentire"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "許可しない"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не разрешать"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不允许"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不允許"
           }
         }
       }
@@ -51566,6 +51722,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "或"
+          }
+        }
+      }
+    },
+    "Pair with %@?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit %@ koppeln?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Enlazar con %@?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jumeler avec %@ ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbinare %@?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ とペアリングしますか？"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Связать с %@?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要与 %@ 配对吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要與 %@ 配對嗎？"
           }
         }
       }

@@ -14,6 +14,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     private lazy var macWindowCloseGuard = MacWindowCloseGuard(registry: databaseWindowRegistry)
     private let macQuickAccess = MacQuickAccessController()
     private let macBrowserBridge = MacBrowserBridgeController()
+    private var browserBridgePrompts: MacBrowserBridgePrompts?
     private lazy var browserHosts = BrowserHostInstaller { [weak self] request in
         await MacFilePanels.presentAsSheet(MacFilePanels.makeBrowserFolderPanel(for: request),
                                            on: self?.settingsWindowController?.window)
@@ -85,6 +86,11 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         macSSHAgent.sessionsProvider = { sessionStore.openSessions }
         macSSHAgent.start()
         macBrowserBridge.sessionsProvider = { sessionStore.openSessions }
+        let browserBridgePrompts = MacBrowserBridgePrompts(source: macBrowserBridge,
+                                                           shell: MacBrowserBridgeWindowShell(coordinator: coordinator))
+        self.browserBridgePrompts = browserBridgePrompts
+        macBrowserBridge.reveal = { [weak browserBridgePrompts] in browserBridgePrompts?.reveal(entryID: $0, databaseID: $1) }
+        macBrowserBridge.unlock = { [weak browserBridgePrompts] in browserBridgePrompts?.unlock(databaseID: $0) }
         macBrowserBridge.start()
         // A moved or updated app rewrites its manifests from the folder access it already has; this never prompts.
         if macBrowserBridge.isEnabled { browserHosts.repairAll() }
