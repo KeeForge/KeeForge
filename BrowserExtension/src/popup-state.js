@@ -19,6 +19,20 @@ export class PopupState {
       this.state = this.entries.length ? 'matches' : reply.locked > 0 ? 'locked' : 'empty';
     } else { this.state = 'error'; this.error = 'unavailable'; }
   }
+  async load() {
+    this.target = null; this.entries = []; this.state = 'loading';
+    this.reply(await this.send({ type: 'getState', reconnect: true }));
+    if (this.state !== 'ready') return;
+    // A worker restart can invalidate selection between these two requests.
+    for (let attempt = 0; attempt < 2; ++attempt) {
+      const target = await this.send({ type: 'getTarget' });
+      if (target.ok === false) { this.reply(target); return; }
+      const reply = await this.send({ type: 'getMatches', tabId: target.tabId, frameId: target.frameId, token: target.token });
+      if (reply.error === 'target-required' && attempt === 0) continue;
+      this.target = reply.ok === false ? null : target;
+      this.reply(reply); return;
+    }
+  }
   move(key) {
     if (this.state !== 'matches' || !this.entries.length) return;
     if (key === 'ArrowDown') this.selected = (this.selected + 1) % this.entries.length;
@@ -28,12 +42,13 @@ export class PopupState {
     if (this.state !== 'matches') return false;
     const entry = this.entries[index];
     if (!entry || !this.target || (totp && !entry.hasTotp)) return false;
-    const request = { type: 'fill', tabId: this.target.tabId, frameId: this.target.frameId, entry: entry.entry, db: entry.db, ...(totp ? { totp: true } : {}) };
+    const request = { type: 'fill', tabId: this.target.tabId, frameId: this.target.frameId, token: this.target.token, entry: entry.entry, db: entry.db, ...(totp ? { totp: true } : {}) };
     this.state = 'confirm';
     try {
       const reply = await this.send(request);
       if (reply.ok === true) { this.entries = []; this.target = null; this.selected = 0; this.state = 'done'; return true; }
       this.reply(reply);
+      if (reply.error === 'target-required') await this.load();
     } catch { this.reply({ ok: false, error: 'unavailable' }); }
     return false;
   }

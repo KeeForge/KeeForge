@@ -22,12 +22,14 @@ async function fill(index, totp = false) {
 }
 function render() {
   content.replaceChildren(); status.textContent = '';
+  site.textContent = model.target ? `${model.target.origin}${model.target.frameId === 0 ? '' : ' — ' + message('inFrame')}` : '';
   const state = model.state;
   status.textContent = message({ loading: 'loading', 'host-missing': 'hostMissing', 'app-unavailable': 'appUnavailable', unpaired: 'notPaired', pairing: 'pairBusy', locked: 'unlock', confirm: 'confirm', empty: 'noLogins', done: 'filled' }[state] || 'loading', state === 'empty' && model.target ? new URL(model.target.origin).host : undefined);
   if (state === 'error') status.textContent = reason(model.error);
   if (['app-unavailable', 'empty'].includes(state)) content.append(button(message('openApp'), () => action('launchApp')));
   if (state === 'unpaired') content.append(button(message('pair'), async () => { await chrome.tabs.create({ url: chrome.runtime.getURL('pair.html') }); window.close(); }));
   if (state === 'locked') content.append(button(message('unlock'), () => action('unlock')));
+  if (['error', 'host-missing', 'app-unavailable'].includes(state)) content.append(button(message('tryAgain'), load));
   if (state !== 'matches') return;
   status.textContent = '';
   let index = 0, otherHeading = false;
@@ -60,13 +62,9 @@ document.addEventListener('keydown', event => {
 });
 async function load() {
   try {
-    model.reply(await send({ type: 'getState' })); render();
-    if (model.state !== 'ready') return;
-    const target = await send({ type: 'getTarget' });
-    if (target.ok === false) { model.reply(target); render(); return; }
-    model.target = target;
-    site.textContent = `${target.origin}${target.frameId === 0 ? '' : ' — ' + message('inFrame')}`;
-    model.reply(await send({ type: 'getMatches', tabId: target.tabId, frameId: target.frameId })); render();
+    model.state = 'loading'; model.entries = []; model.target = null; site.textContent = ''; render();
+    await model.load();
+    render();
   } catch { model.reply({ ok: false, error: 'bad-origin' }); render(); }
 }
 render(); void load();

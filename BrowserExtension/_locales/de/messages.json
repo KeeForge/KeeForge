@@ -103,5 +103,8 @@
   },
   "browser": {
     "message": "Browser"
+  },
+  "tryAgain": {
+    "message": "Erneut versuchen"
   }
 }

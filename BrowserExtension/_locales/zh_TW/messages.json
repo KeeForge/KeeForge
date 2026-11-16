@@ -103,5 +103,8 @@
   },
   "browser": {
     "message": "瀏覽器"
+  },
+  "tryAgain": {
+    "message": "再試一次"
   }
 }

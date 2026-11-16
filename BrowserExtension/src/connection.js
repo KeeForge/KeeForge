@@ -114,7 +114,13 @@ export class Connection {
   }
   async startPairing(name = 'Browser') {
     requireThat(typeof name === 'string' && [...name].length <= 64);
-    requireThat(this.state !== 'pairing', 'pairing-busy');
+    requireThat(!this.pairStarting && this.state !== 'pairing', 'pairing-busy');
+    this.pairStarting = true;
+    try {
+      return await this.preparePairing(name);
+    } finally { this.pairStarting = false; }
+  }
+  async preparePairing(name) {
     // A connection that has already sent hello cannot carry another session.
     if (this.port && this.phase !== 'unpaired') this.close();
     await this.open({ pairing: true });

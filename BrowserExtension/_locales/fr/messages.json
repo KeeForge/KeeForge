@@ -103,5 +103,8 @@
   },
   "browser": {
     "message": "Navigateur"
+  },
+  "tryAgain": {
+    "message": "Réessayer"
   }
 }

@@ -78,8 +78,10 @@ test('handshake timeout and wrong app static key fail closed', async () => {
 });
 test('wrong client static key cannot authenticate', async () => {
   const s = await paired();
-  const record = await s.store.load(); await s.store.storage.write({ ...record, client: await keyPair() });
-  s.connection.close(); await s.connection.open(); assert.equal(s.connection.reason, 'unpaired');
+  const record = await s.store.load(); await s.store.storage.write({ ...record, client: { ...record.client, privateKey: (await keyPair()).privateKey } });
+  s.connection.close(); await s.connection.open(); assert.equal(s.connection.state, 'ready');
+  await assert.rejects(s.connection.request('status'), /bad-handshake/);
+  assert.equal(s.connection.cipher, null);
 });
 for (const n of [0, 2]) test(`counter ${n === 0 ? 'replay' : 'skip'} tears down`, async () => {
   const s = await paired(); await s.connection.request('status');
@@ -133,7 +135,10 @@ test('remote disable and connected/unavailable control events discard pending se
 test('pairing while paired uses a new connection; concurrent starts cannot replace a waiting pairing', async () => {
   const s = await paired(); const old = s.connection.port;
   s.app.decision = 'pending';
-  const p = await s.connection.startPairing(); assert.notEqual(s.connection.port, old); assert.equal(old.disconnected, true);
+  const first = s.connection.startPairing();
+  const second = s.connection.startPairing();
+  await assert.rejects(second, /pairing-busy/);
+  const p = await first; assert.notEqual(s.connection.port, old); assert.equal(old.disconnected, true);
   await assert.rejects(s.connection.startPairing(), /pairing-busy/);
   s.connection.close(); await assert.rejects(p.result);
 });
@@ -162,4 +167,20 @@ test('Open KeeForge fronts an already-running paired app through launch on a fre
   assert.equal((await s.connection.hostCommand('launch')).state, 'ready');
   assert.equal(previous.disconnected, true); assert.deepEqual(s.runtime.commands, ['launch']);
   assert.equal((await s.connection.request('status')).ok, true); s.connection.close();
+});
+
+test('popup reconnect after a real disconnect or timeout establishes a fresh working session', async () => {
+  const { Background } = await import('../src/background.js');
+  for (const mode of ['disconnected', 'timeout']) {
+    const s = await paired(); const background = new Background({ connection: s.connection, timers: s.timers });
+    if (mode === 'disconnected') s.connection.port.onDisconnect.emit();
+    else {
+      s.app.dropReplies = true;
+      const pending = s.connection.request('status'); await until(() => s.connection.pending.size === 1);
+      s.timers.fire(10000); await assert.rejects(pending, /timeout/); s.app.dropReplies = false;
+    }
+    assert.equal(s.connection.reason, mode);
+    assert.equal((await background.handle({ type: 'getState', reconnect: true })).state, 'ready');
+    assert.equal((await s.connection.request('status')).ok, true); assert.equal(s.runtime.ports.length, 2); s.connection.close();
+  }
 });

@@ -103,5 +103,8 @@
   },
   "browser": {
     "message": "浏览器"
+  },
+  "tryAgain": {
+    "message": "重试"
   }
 }

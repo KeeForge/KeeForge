@@ -2,7 +2,7 @@ export const message = (key, substitutions) => chrome.i18n.getMessage(key, subst
 const reasons = {
   'host-missing': 'hostMissing', 'not-running': 'appUnavailable', 'closed': 'appUnavailable',
   'pairing-declined': 'pairDeclined', 'pairing-busy': 'pairBusy', timeout: 'timeout',
-  'bad-origin': 'badOrigin', 'no-fields': 'noFields', 'no-match': 'noLongerMatches',
+  'target-required': 'notOffered', 'bad-origin': 'badOrigin', 'no-fields': 'noFields', 'no-match': 'noLongerMatches',
   locked: 'unlock', denied: 'denied', 'not-offered': 'notOffered', 'rate-limited': 'rateLimited',
   disabled: 'disabled', unpaired: 'pair', disconnected: 'disconnected'
 };

@@ -5,7 +5,7 @@ import { ProtocolError, origin, requireThat, integer, object } from './protocol.
 
 // Runs in the isolated world; neither result comes from a page-defined property.
 export function inspectDocument() {
-  return { href: location.href, origin: globalThis.origin };
+  return { href: location.href, origin: globalThis.origin, token: globalThis.__keeforgeDocumentPin };
 }
 export function deriveOrigin(snapshot) {
   requireThat(object(snapshot) && typeof snapshot.href === 'string', 'bad-origin');
@@ -21,9 +21,9 @@ export async function targetDocument(api, tabId, frameId = 0) {
   // Missing URL means activeTab did not grant access to this tab.
   requireThat(typeof tab.url === 'string', 'bad-origin');
   deriveOrigin({ href: tab.url, origin: new URL(tab.url).origin });
-  const results = await api.scripting.executeScript({ target: { tabId, frameIds: [frameId] }, func: inspectDocument });
+  const results = await api.scripting.executeScript({ target: { tabId, frameIds: [frameId] }, world: 'ISOLATED', func: inspectDocument });
   requireThat(results.length === 1 && results[0].frameId === frameId && !results[0].error, 'bad-origin');
-  return { tabId, frameId, documentId: results[0].documentId, origin: deriveOrigin(results[0].result) };
+  return { tabId, frameId, documentId: results[0].documentId, origin: deriveOrigin(results[0].result), token: results[0].result.token };
 }
 export class Background {
   constructor({ api = globalThis.chrome, connection = new Connection(), timers = globalThis, injectCredential = null } = {}) {
@@ -43,7 +43,10 @@ export class Background {
     return this.use(async () => {
       switch (message.type) {
         case 'getState':
-          if (!this.connection.getState().reason) await this.connection.open();
+          if (message.reconnect === true || !this.connection.getState().reason) {
+            if (message.reconnect === true && this.connection.phase === 'unavailable') await this.connection.hostCommand('connect');
+            else await this.connection.open();
+          }
           return this.connection.getState();
         case 'launchApp':
           await this.connection.open();
@@ -61,25 +64,30 @@ export class Background {
           const probes = await this.api.scripting.executeScript({ target: { tabId, allFrames: true }, world: 'ISOLATED', func: probeFrame });
           const frameId = chooseFrame(probes);
           requireThat(probes.some(p => p.frameId === frameId && !p.error && p.result?.fillable), 'no-fields');
-          this.popupTarget = await targetDocument(this.api, tabId, frameId);
+          const selected = probes.find(p => p.frameId === frameId);
+          const target = await targetDocument(this.api, tabId, frameId);
+          requireThat(typeof selected.result.token === 'string' && target.token === selected.result.token && target.documentId === selected.documentId, 'bad-origin');
+          this.popupTarget = target;
           return this.popupTarget;
         }
         case 'getMatches': {
+          requireThat(this.popupTarget && message.token === this.popupTarget.token, 'target-required');
           const target = await targetDocument(this.api, message.tabId, message.frameId);
-          this.checkPopupTarget(target);
+          this.checkPopupTarget(target, message);
           return this.connection.request('matches', { origin: target.origin });
         }
         case 'fill': {
           requireThat(typeof this.injectCredential === 'function', 'fill-not-configured');
+          requireThat(this.popupTarget && message.token === this.popupTarget.token, 'target-required');
           const target = await targetDocument(this.api, message.tabId, message.frameId);
-          this.checkPopupTarget(target);
+          this.checkPopupTarget(target, message);
           let credential;
           try {
             credential = await this.connection.request('credential', { entry: message.entry, db: message.db, origin: target.origin, ...(message.totp === true ? { totp: true } : {}) });
             if (!credential.ok) return { ok: false, error: credential.error };
             const current = await targetDocument(this.api, message.tabId, message.frameId);
-            requireThat(current.origin === target.origin && current.documentId === target.documentId, 'bad-origin');
-            // Adapter must inject into this document and check origin again in the fill function.
+            this.checkPopupTarget(current, message);
+            // Adapter must check this document’s token and origin again inside the fill function.
             await this.injectCredential(current, credential, message.totp === true);
             return { ok: true };
           } finally {
@@ -94,10 +102,10 @@ export class Background {
       }
     });
   }
-  checkPopupTarget(target) {
-    if (!this.popupTarget) return;
+  checkPopupTarget(target, message) {
+    requireThat(this.popupTarget && message.token === this.popupTarget.token, 'target-required');
     const selected = this.popupTarget;
-    requireThat(target.tabId === selected.tabId && target.frameId === selected.frameId && target.origin === selected.origin && target.documentId === selected.documentId, 'bad-origin');
+    requireThat(target.tabId === selected.tabId && target.frameId === selected.frameId && target.origin === selected.origin && target.documentId === selected.documentId && typeof target.token === 'string' && target.token === selected.token, 'bad-origin');
   }
   listen() {
     this.api.runtime.onMessage.addListener((message, sender, respond) => {
