@@ -2,7 +2,7 @@ name: Tests
 
 # One workflow for every GitHub test lane; .github/AGENTS.md has the gate map.
 #   pull_request   unit-tests + macos-unit-tests (the required checks)
-#   rc/* tag push  macos-unit-tests + the Xcode Cloud RC test schemes (ios-rc-tests.yml)
+#   rc/* tag push  macos-unit-tests + the RC test schemes (ios-rc-tests.yml)
 #   dispatch       the rc/* set against `ref`
 #
 # The job ids `unit-tests` and `macos-unit-tests` are the ruleset's required
@@ -249,7 +249,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # The Xcode Cloud RC schemes and the iPad regular-width lane, in their own
+  # The RC test schemes and the iPad regular-width lane, in their own
   # file so pull requests list one skipped job instead of a raw matrix name.
   ios-rc-tests:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.deleted == false)

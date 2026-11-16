@@ -26481,6 +26481,58 @@
         }
       }
     },
+    "Download the latest release" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neueste Version laden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargar la última versión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Télécharger la dernière version"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scarica l'ultima versione"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新リリースをダウンロード"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузить последнюю версию"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载最新版本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載最新版本"
+          }
+        }
+      }
+    },
     "Download Website Favicons" : {
       "localizations" : {
         "de" : {
@@ -38001,6 +38053,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 會建立使用 %1$@ 加密和 Argon2id 金鑰衍生（%2$@）的 KDBX 4 資料庫。更強的設定會延長解鎖時間，並可能在部分裝置上超出自動填寫的記憶體限制。"
+          }
+        }
+      }
+    },
+    "KeeForge for Mac is rebuilt from the ground up as a native Mac app. Find it on the Mac App Store or download it from GitHub." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge für den Mac wurde von Grund auf als native Mac-App neu entwickelt. Du findest es im Mac App Store oder lädst es von GitHub."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge para Mac se ha rehecho desde cero como una app nativa para Mac. Encuéntralo en el Mac App Store o descárgalo desde GitHub."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge pour Mac a été entièrement reconstruit comme une app Mac native. Retrouvez-le sur le Mac App Store ou téléchargez-le depuis GitHub."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge per Mac è stato ricostruito da zero come app nativa per Mac. Lo trovi sul Mac App Store oppure puoi scaricarlo da GitHub."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 用 KeeForge は、ネイティブの Mac アプリとして一から作り直されました。Mac App Store で入手するか、GitHub からダウンロードできます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge для Mac создан заново как нативное приложение для Mac. Найдите его в Mac App Store или загрузите с GitHub."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 版 KeeForge 已从头打造为原生 Mac App。可在 Mac App Store 获取，或从 GitHub 下载。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 版 KeeForge 已從頭打造為原生 Mac App。可在 Mac App Store 取得，或從 GitHub 下載。"
+          }
+        }
+      }
+    },
+    "KeeForge for Mac, redesigned" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge für den Mac, neu gestaltet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge para Mac, rediseñado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge pour Mac, repensé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge per Mac, riprogettato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 用 KeeForge を再設計"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge для Mac в новом дизайне"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新设计的 Mac 版 KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新設計的 Mac 版 KeeForge"
           }
         }
       }
