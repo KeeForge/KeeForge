@@ -35,7 +35,8 @@ class EntryEditUITestCase: KeeForgeUITestCase {
             let bottom = keyboard.exists ? keyboard.frame.minY : app.windows.firstMatch.frame.maxY
             return element.frame.maxY <= bottom
         }
-        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
+        // The list's side margin: a slow drag that starts on a text field does not scroll.
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.45))
         for offset in Array(repeating: -220.0, count: 6) + Array(repeating: 220.0, count: 10) {
             if isReachable() { return true }
             start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: offset)), withVelocity: .slow, thenHoldForDuration: 0.3)
@@ -664,9 +665,9 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         XCTAssertTrue(revealElement(copyButton), "The saved custom field was not shown on the entry")
         XCTAssertTrue(revealElement(editButton))
         tapElement(editButton)
-        XCTAssertTrue(revealElement(app.textFields["entry-edit.custom-field.name-field.0"]))
+        XCTAssertTrue(revealFormElement(app.textFields["entry-edit.custom-field.name-field.0"]))
         XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.0"].value as? String, "Zulu")
-        XCTAssertTrue(revealElement(app.textFields["entry-edit.custom-field.name-field.1"]))
+        XCTAssertTrue(revealFormElement(app.textFields["entry-edit.custom-field.name-field.1"]))
         XCTAssertEqual(app.textFields["entry-edit.custom-field.name-field.1"].value as? String, "Account Number")
     }
 
