@@ -107,9 +107,9 @@ then realign with `git fetch origin --tags --force`.
 [release branch cut](../prepare-release/references/new-release.md#commit-the-release-content-to-main-then-cut-the-branch) put the changelog section, the What's New content, and `MARKETING_VERSION` on `main` before the
 cut, and the [merge-back guidance](../prepare-release/references/merge-back.md#merge-the-release-branch-back-into-main) merges carried each candidate's repo build across. Verify rather than redo:
 
-- `main`'s `MARKETING_VERSION` is `{version}` on all four targets: `KeeForge`, `KeeForgeAutoFill`,
-  `KeeForgeMac`, and `KeeForgeMacAutoFill`.
-- `main`'s `CURRENT_PROJECT_VERSION` is the accepted `repoBuild` on all four targets, and the
+- `main`'s `MARKETING_VERSION` is `{version}` on all five targets: `KeeForge`, `KeeForgeAutoFill`,
+  `KeeForgeMac`, `KeeForgeMacAutoFill`, and `KeeForgeBrowserHost`.
+- `main`'s `CURRENT_PROJECT_VERSION` is the accepted `repoBuild` on all five targets, and the
   direct artifact's `CFBundleVersion` is also that `repoBuild`. Do not compare either value with
   the platform-specific TestFlight build numbers.
 - `main`'s `CHANGELOG.md` has the `## v{version}` section, with an empty `## Unreleased` above it

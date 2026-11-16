@@ -10,7 +10,7 @@ Usage: next_repo_build.sh [--no-fetch] [--repo DIR] [--releases-dir DIR]
        next_repo_build.sh --self-test
 
 Historical target values establish the floor. The current tree must contain
-all four product targets with one equal numeric CURRENT_PROJECT_VERSION.
+all five product targets with one equal numeric CURRENT_PROJECT_VERSION.
 Candidate manifests are read from {version}/b{repoBuild}/manifest.json under
 the releases directory (default: release_dir.sh).
 USAGE
@@ -35,7 +35,7 @@ done
 
 target_values() {
   awk '
-    /^  (KeeForge|KeeForgeAutoFill|KeeForgeMac|KeeForgeMacAutoFill):$/ { target=$1; sub(/:$/, "", target); next }
+    /^  (KeeForge|KeeForgeAutoFill|KeeForgeMac|KeeForgeMacAutoFill|KeeForgeBrowserHost):$/ { target=$1; sub(/:$/, "", target); next }
     /^  [^ ]/ { target="" }
     target && /CURRENT_PROJECT_VERSION:/ {
       value=$0; sub(/^.*CURRENT_PROJECT_VERSION:[[:space:]]*"?/, "", value); sub(/"[[:space:]]*$/, "", value)
@@ -47,9 +47,9 @@ target_values() {
 check_current_project() {
   local file="$1" rows names expected values
   rows="$(target_values "$file")"
-  [[ "$(printf '%s\n' "$rows" | sed '/^$/d' | wc -l | tr -d ' ')" == 4 ]] || die "current project.yml must contain all four product targets with numeric builds"
+  [[ "$(printf '%s\n' "$rows" | sed '/^$/d' | wc -l | tr -d ' ')" == 5 ]] || die "current project.yml must contain all five product targets with numeric builds"
   names="$(printf '%s\n' "$rows" | cut -d: -f1 | sort)"
-  expected="$(printf '%s\n' KeeForge KeeForgeAutoFill KeeForgeMac KeeForgeMacAutoFill | sort)"
+  expected="$(printf '%s\n' KeeForge KeeForgeAutoFill KeeForgeMac KeeForgeMacAutoFill KeeForgeBrowserHost | sort)"
   [[ "$names" == "$expected" ]] || die "current project.yml target set is incomplete or duplicated"
   values="$(printf '%s\n' "$rows" | cut -d: -f2 | sort -u)"
   [[ "$(printf '%s\n' "$values" | wc -l | tr -d ' ')" == 1 ]] || die "current product targets do not share one CURRENT_PROJECT_VERSION"
@@ -158,6 +158,10 @@ targets:
     settings:
       base:
         CURRENT_PROJECT_VERSION: "12"
+  KeeForgeBrowserHost:
+    settings:
+      base:
+        CURRENT_PROJECT_VERSION: "12"
 YAML
   git -C "$repo" add project.yml; git -C "$repo" commit -qm current
   result="$($0 --no-fetch --repo "$repo")"
@@ -170,8 +174,14 @@ YAML
   sed -i '' 's/KeeForgeMacAutoFill:/Other:/' "$repo/project.yml"
   if "$0" --no-fetch --repo "$repo" >/dev/null 2>&1; then die "self-test accepted missing current target"; fi
   sed -i '' 's/Other:/KeeForgeMacAutoFill:/' "$repo/project.yml"
+  sed -i '' 's/KeeForgeBrowserHost:/Other:/' "$repo/project.yml"
+  if "$0" --no-fetch --repo "$repo" >/dev/null 2>&1; then die "self-test accepted missing browser host target"; fi
+  sed -i '' 's/Other:/KeeForgeBrowserHost:/' "$repo/project.yml"
   perl -0pi -e 's/CURRENT_PROJECT_VERSION: "12"/CURRENT_PROJECT_VERSION: "13"/' "$repo/project.yml"
   if "$0" --no-fetch --repo "$repo" >/dev/null 2>&1; then die "self-test accepted unequal current targets"; fi
+  perl -0pi -e 's/CURRENT_PROJECT_VERSION: "13"/CURRENT_PROJECT_VERSION: "12"/' "$repo/project.yml"
+  perl -0pi -e 's/(KeeForgeBrowserHost:\n.*\n.*\n.*CURRENT_PROJECT_VERSION: )"12"/$1"13"/' "$repo/project.yml"
+  if "$0" --no-fetch --repo "$repo" >/dev/null 2>&1; then die "self-test accepted a browser host build that differs"; fi
   perl -0pi -e 's/CURRENT_PROJECT_VERSION: "13"/CURRENT_PROJECT_VERSION: "12"/' "$repo/project.yml"
   printf '%s\n' '{bad json' >"$manifests/1.1.0/b15/manifest.json"
   if "$0" --no-fetch --repo "$repo" >/dev/null 2>&1; then die "self-test accepted malformed manifest"; fi

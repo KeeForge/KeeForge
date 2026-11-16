@@ -88,7 +88,7 @@ Only the scripts whose names do not explain them. Usage is in each script's head
 
 ## Browser relay artifact boundary
 
-Both Mac channels embed a separately signed, hardened bare executable at `Contents/MacOS/keeforge-browser-host`. `verify_mac_artifact.sh` requires exactly sandbox=true and the signing-team-prefixed browser app group, and includes the tool in architecture and test-hook checks. The direct build's nested hardening enumeration includes this tool before notarization. `test_verify_mac_artifact.sh` exercises the host gate with synthetic signatures and entitlement plists; it does not establish export or notarization behavior.
+Both Mac channels embed a separately signed, hardened bare executable at `Contents/MacOS/keeforge-browser-host`. `verify_mac_artifact.sh` requires exactly sandbox=true and the signing-team-prefixed browser app group, requires the version and build in the tool's embedded `__TEXT,__info_plist` section (every slice) to equal the app's, and includes the tool in architecture and test-hook checks. The direct build's nested hardening enumeration includes this tool before notarization. `test_verify_mac_artifact.sh` exercises the host gate with synthetic signatures and entitlement plists, and the version check with small Mach-O binaries it compiles with `clang`; it does not establish export or notarization behavior.
 
 ## Release procedures
 

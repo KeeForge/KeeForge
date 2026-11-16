@@ -41,9 +41,10 @@ Reference files, read on demand:
 ## Set the candidate build number
 
 Determine the repository floor mechanically; never use the App Store Connect result or a single
-working-tree value as the only source. The new four-target invariant begins with this process:
-older revisions may predate the Mac targets and may contain unequal or reset build values. Scan
-those revisions for every numeric value belonging to whichever of the four targets existed, using
+working-tree value as the only source. The equal-build invariant begins with this process:
+older revisions may predate the Mac targets or the browser host and may contain unequal or reset
+build values. Scan those revisions for every numeric value belonging to whichever of the five
+targets existed, using
 their maximum only as the legacy floor. Separately require the current working tree to satisfy the
 new invariant. First fetch the refs used for release bookkeeping, then validate every present
 new-process manifest. Run this in a fresh Bash shell; any failed check is a stop, not a reason to
@@ -64,14 +65,14 @@ higher Xcode Cloud value may intentionally skip unused repository numbers. If it
 back and record the new displayed value before continuing.
 
 Stop if the current `project.yml` does not contain exactly one numeric
-`CURRENT_PROJECT_VERSION` for each of `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and
-`KeeForgeMacAutoFill`, or if those four current values differ. Historical revisions are not required
-to satisfy this new invariant: absent Mac targets, unequal values, and old resets are tolerated, but
+`CURRENT_PROJECT_VERSION` for each of `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`,
+`KeeForgeMacAutoFill`, and `KeeForgeBrowserHost`, or if those five current values differ. Historical revisions are not required
+to satisfy this new invariant: absent Mac or browser host targets, unequal values, and old resets are tolerated, but
 only numeric values from an existing target contribute to the legacy floor. Stop if a present
 new-process manifest is malformed/missing `repoBuild`, or if its `repoBuild` disagrees with its
 filename/RC tag. The greatest validated value across reachable project history and manifests is the
 previous global maximum; its successor is `localNextBuild`. Set the selected `repoBuild` on all
-four current targets. Re-check that all four current values are identical before committing and
+five current targets. Re-check that all five current values are identical before committing and
 record the result plus the App Store Connect preflight in the new manifest. A missing project
 history or no usable numeric historical value is not evidence that the floor is zero; stop and
 resolve the scope instead. A manifest from a different release may legitimately have a lower build;

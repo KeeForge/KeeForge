@@ -139,6 +139,53 @@ except Exception:
 PYHOST
 }
 
+# The tool is not a bundle, so its version lives in the __TEXT,__info_plist
+# section of every Mach-O slice.
+verify_browser_host_version() {
+  local host="$1" version="$2" build="$3"
+  python3 - "$host" "$version" "$build" <<'PYVERSION' || die "browser host version or build does not match the app"
+import plistlib, struct, sys
+
+def info_plist(data, base):
+    magic, _, _, _, ncmds, _, _, _ = struct.unpack_from("<8I", data, base)
+    if magic != 0xFEEDFACF:
+        raise ValueError("not a 64-bit Mach-O slice")
+    cursor = base + 32
+    for _ in range(ncmds):
+        cmd, cmdsize = struct.unpack_from("<2I", data, cursor)
+        if cmd == 0x19:
+            nsects = struct.unpack_from("<I", data, cursor + 64)[0]
+            for index in range(nsects):
+                section = cursor + 72 + index * 80
+                name, segment = (raw.rstrip(b"\0") for raw in struct.unpack_from("16s16s", data, section))
+                if (segment, name) == (b"__TEXT", b"__info_plist"):
+                    size, offset = struct.unpack_from("<QI", data, section + 40)
+                    return plistlib.loads(data[base + offset:base + offset + size])
+        cursor += cmdsize
+    raise ValueError("no __TEXT,__info_plist section")
+
+try:
+    data = open(sys.argv[1], "rb").read()
+    magic = struct.unpack_from(">I", data, 0)[0]
+    if magic in (0xCAFEBABE, 0xCAFEBABF):
+        count = struct.unpack_from(">I", data, 4)[0]
+        if magic == 0xCAFEBABE:
+            bases = [struct.unpack_from(">5I", data, 8 + i * 20)[2] for i in range(count)]
+        else:
+            bases = [struct.unpack_from(">2I2Q2I", data, 8 + i * 32)[2] for i in range(count)]
+    else:
+        bases = [0]
+    if not bases:
+        sys.exit(1)
+    for base in bases:
+        plist = info_plist(data, base)
+        if (plist.get("CFBundleShortVersionString"), plist.get("CFBundleVersion")) != (sys.argv[2], sys.argv[3]):
+            sys.exit(1)
+except Exception:
+    sys.exit(1)
+PYVERSION
+}
+
 codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1 \
   || die "app code signature is invalid"
 
@@ -150,6 +197,7 @@ grep -q 'com.apple.security.app-sandbox' "$ROOT_ENTITLEMENTS" \
 bundle_hardening "$APP_PATH"
 BROWSER_HOST="${APP_PATH}/Contents/MacOS/keeforge-browser-host"
 verify_browser_host "$BROWSER_HOST"
+verify_browser_host_version "$BROWSER_HOST" "$VERSION" "$BUILD"
 
 while IFS= read -r nested_bundle; do
   [[ -n "$nested_bundle" ]] || continue
