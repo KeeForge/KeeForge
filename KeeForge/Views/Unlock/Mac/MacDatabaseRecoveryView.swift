@@ -173,7 +173,7 @@ struct MacDatabaseUnavailableView: View {
         MacLockedPageLayout {
             VStack(spacing: 0) {
                 MacLockedPageHeader(tile: .brand, title: summary.name, subtitle: summary.fileAndStorage)
-                Text("This database is unavailable. Return to the database list to remove it or refresh its bookmark.")
+                Text("This database is unavailable. Open the Databases window to remove it from your list.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

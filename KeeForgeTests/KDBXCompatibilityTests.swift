@@ -387,6 +387,15 @@ final class KDBXCompatibilityTests: XCTestCase {
             "The remove-keyfile scenario's manifest entry must carry no key file"
         )
 
+        let keyfileOnly = try KDBXCompatibilitySupport.load(.passwordKeyfile, bundle: bundle)
+        let keyfileOnlyResult = try collector.run(
+            KDBXCompatibilitySupport.rekeyKeyfileOnlyScenario(),
+            on: keyfileOnly
+        )
+        try assertRekeyHeaderHygiene(keyfileOnlyResult, loaded: keyfileOnly)
+        XCTAssertNil(keyfileOnlyResult.rekey?.password, "The key-file-only manifest entry must carry no password")
+        XCTAssertEqual(keyfileOnlyResult.rekey?.keyFileData, keyfileOnly.keyFileData)
+
         try collector.emit()
     }
 
@@ -871,6 +880,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "aes-baseline-rekey-add-keyfile",
             "aes-baseline-rekey-add-generated-keyfile",
             "password-keyfile-rekey-remove-keyfile",
+            "password-keyfile-rekey-keyfile-only",
             "\(richID)-custom-field-edits",
             "\(richID)-rename-custom-icon",
             "\(richID)-delete-custom-icon",
@@ -897,7 +907,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 50)
+        XCTAssertEqual(descriptors.count, 51)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

@@ -1,5 +1,6 @@
 #if os(macOS)
 import Foundation
+import SiteMatching
 
 /// The menu bar quick search: what the panel shows for the focused database,
 /// and the copy/open actions it offers.
@@ -287,12 +288,9 @@ final class MacQuickSearchViewModel {
         return session
     }
 
+    /// The host AutoFill matches the entry on, so the row never names a site the entry does not fill.
     private static func host(of url: String) -> String? {
-        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.isEmpty == false else { return nil }
-        let withScheme = trimmed.contains("://") ? trimmed : "https://" + trimmed
-        guard let host = URL(string: withScheme)?.host(percentEncoded: false), host.isEmpty == false else { return nil }
-        return host.lowercased()
+        SiteHost(url)?.name
     }
 
     private static func canCopy(_ field: CopyField, from entry: KPEntry, in session: DatabaseViewModel) -> Bool {

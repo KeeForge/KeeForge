@@ -329,7 +329,8 @@ final class CredentialProviderCoordinator {
     /// the real `UIPasteboard`. Defaults to `ClipboardService.copy`, which
     /// stamps the write with the Clipboard Clear Timeout as a system-enforced
     /// expiration date — the copy therefore expires even though the extension
-    /// process is gone by then.
+    /// process is gone by then. With Never there is no expiration and nothing
+    /// clears it.
     var copyToClipboard: @MainActor (String) -> Void = { ClipboardService.copy($0) }
     #endif
 

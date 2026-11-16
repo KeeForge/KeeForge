@@ -356,6 +356,24 @@ final class AutoLockTests: XCTestCase {
     }
 #endif
 
+#if os(iOS)
+    /// The app and the AutoFill extension both copy through these options, and
+    /// the extension has no lock to clear a copy that never expires.
+    func testIOSCopiesStayLocalAndExpireUnlessTheTimeoutIsNever() throws {
+        let now = Date(timeIntervalSince1970: 1_000)
+        for timeout in SettingsService.ClipboardTimeout.allCases {
+            let options = ClipboardService.pasteboardOptions(for: timeout, now: now)
+            XCTAssertEqual(options[.localOnly] as? Bool, true, "\(timeout)")
+            XCTAssertEqual(
+                options[.expirationDate] as? Date,
+                timeout.seconds.map { now.addingTimeInterval($0) },
+                "\(timeout)"
+            )
+        }
+        XCTAssertNil(ClipboardService.pasteboardOptions(for: .never)[.expirationDate])
+    }
+#endif
+
     // The lock-on-background switch and its deferred inactivity check are iOS
     // scene-phase behavior. macOS never defers: `handleSceneDidEnterBackground`
     // is reached only from `MacLockMonitor`, which always locks.
