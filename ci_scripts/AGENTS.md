@@ -69,6 +69,7 @@ KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh   # mac
 - The suite attaches each scenario's bytes on the way past its own assertions. Do not add a separate artifact-only test; it would repeat the Argon2 work.
 - Exported attachment names are mangled, so the script maps them back through xcresulttool's `manifest.json` (`suggestedHumanReadableName` to `exportedFileName`). That mapping is load-bearing.
 - Manifest fragments are found by content (a JSON object with an `artifacts` key), merged, and deduplicated by artifact id. Zero fragments, conflicting copies of an id, or an id in `expectedArtifactIDs` that no method emitted all fail the gate.
+- An artifact whose manifest entry has no `password` is keyed by its key file alone and is opened with `--no-password`; an empty password is a different key. An entry with neither fails the gate.
 - Zero TOTP, custom-field, or expiry checks fails the gate even when everything else passed, so a lost expectation table cannot pass silently.
 
 The artifact set is declared in `KeeForgeTests/Support/KDBXCompatibilitySupport.swift` (`artifactDescriptors`) and emitted by `KeeForgeTests/KDBXCompatibilityTests.swift`. `../KeeForgeTests/AGENTS.md` says how to add one.

@@ -388,10 +388,18 @@ for artifact in artifacts:
     base_options = ["-q"]
     if key_path:
         base_options.extend(["-k", key_path])
+    # A database keyed by a key file alone has no password to pipe in.
+    master_password = artifact.get("password")
+    if master_password is None:
+        if key_path is None:
+            failures.append(f"{artifact_id}: manifest has neither a password nor a key file")
+            continue
+        base_options.append("--no-password")
+        master_password = ""
 
     for term in artifact.get("expectedSearchTerms", []):
         command = [keepassxc_cli, "search", *base_options, db_path, term]
-        result = run_keepassxc(command, artifact["password"])
+        result = run_keepassxc(command, master_password)
         if result.returncode != 0 or term not in result.stdout:
             failures.append(
                 f"{artifact_id}: search term {term!r} failed\n"
@@ -401,7 +409,7 @@ for artifact in artifacts:
 
     for group_path in artifact.get("expectedGroupPaths", []):
         command = [keepassxc_cli, "ls", *base_options, db_path, group_path]
-        result = run_keepassxc(command, artifact["password"])
+        result = run_keepassxc(command, master_password)
         if result.returncode != 0:
             failures.append(
                 f"{artifact_id}: group path {group_path!r} failed\n"
@@ -415,7 +423,7 @@ for artifact in artifacts:
         expected_sha256 = expected_attachment["sha256"]
 
         entry_path, resolve_error = resolve_entry_path(
-            db_path, base_options, artifact["password"], entry_title, artifact_id
+            db_path, base_options, master_password, entry_title, artifact_id
         )
         if entry_path is None:
             failures.append(resolve_error)
@@ -424,7 +432,7 @@ for artifact in artifacts:
         with tempfile.TemporaryDirectory() as export_dir:
             export_path = os.path.join(export_dir, "exported-attachment")
             command = [keepassxc_cli, "attachment-export", *base_options, db_path, entry_path, attachment_name, export_path]
-            result = run_keepassxc(command, artifact["password"])
+            result = run_keepassxc(command, master_password)
             if result.returncode != 0:
                 failures.append(
                     f"{artifact_id}: attachment-export for {entry_title!r}/{attachment_name!r} failed\n"
@@ -447,7 +455,7 @@ for artifact in artifacts:
     custom_fields = artifact.get("expectedCustomFields", [])
     if custom_fields:
         command = [keepassxc_cli, "export", *base_options, "-f", "xml", db_path]
-        result = run_keepassxc(command, artifact["password"])
+        result = run_keepassxc(command, master_password)
         if result.returncode != 0:
             failures.append(f"{artifact_id}: XML export failed\nstderr: {result.stderr}")
         else:
@@ -463,7 +471,7 @@ for artifact in artifacts:
                 if "\r" not in field["value"]:
                     continue
                 entry_path, resolve_error = resolve_entry_path(
-                    db_path, base_options, artifact["password"], expected["entryTitle"], artifact_id
+                    db_path, base_options, master_password, expected["entryTitle"], artifact_id
                 )
                 if entry_path is None:
                     failures.append(resolve_error)
@@ -471,7 +479,7 @@ for artifact in artifacts:
                 command = [keepassxc_cli, "show", *base_options, "-s", "-a", field["name"], db_path, entry_path]
                 raw_result = subprocess.run(
                     command,
-                    input=(artifact["password"] + "\n").encode("utf-8"),
+                    input=(master_password + "\n").encode("utf-8"),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 )
@@ -485,7 +493,7 @@ for artifact in artifacts:
     expiries = artifact.get("expectedExpiries", [])
     if expiries:
         command = [keepassxc_cli, "export", *base_options, "-f", "xml", db_path]
-        result = run_keepassxc(command, artifact["password"])
+        result = run_keepassxc(command, master_password)
         if result.returncode != 0:
             failures.append(f"{artifact_id}: XML export failed\nstderr: {result.stderr}")
         else:
@@ -498,7 +506,7 @@ for artifact in artifacts:
 
     if any(artifact.get(key) for key in ("expectedCustomIcons", "expectedRestoreReferences", "expectedEntryParents")):
         command = [keepassxc_cli, "export", *base_options, "-f", "xml", db_path]
-        result = run_keepassxc(command, artifact["password"])
+        result = run_keepassxc(command, master_password)
         if result.returncode != 0:
             failures.append(f"{artifact_id}: XML export failed\nstderr: {result.stderr}")
         else:
@@ -516,14 +524,14 @@ for artifact in artifacts:
         expected_value = expected_password["password"]
 
         entry_path, resolve_error = resolve_entry_path(
-            db_path, base_options, artifact["password"], entry_title, artifact_id
+            db_path, base_options, master_password, entry_title, artifact_id
         )
         if entry_path is None:
             failures.append(resolve_error)
             continue
 
         command = [keepassxc_cli, "show", *base_options, "-s", "-a", "Password", db_path, entry_path]
-        result = run_keepassxc(command, artifact["password"])
+        result = run_keepassxc(command, master_password)
         if result.returncode != 0:
             failures.append(
                 f"{artifact_id}: show Password for {entry_title!r} failed\n"
@@ -551,7 +559,7 @@ for artifact in artifacts:
         entry_title = expected_totp["entryTitle"]
 
         entry_path, resolve_error = resolve_entry_path(
-            db_path, base_options, artifact["password"], entry_title, artifact_id
+            db_path, base_options, master_password, entry_title, artifact_id
         )
         if entry_path is None:
             failures.append(resolve_error)
@@ -559,7 +567,7 @@ for artifact in artifacts:
 
         before_time = time.time()
         command = [keepassxc_cli, "show", *base_options, "-t", db_path, entry_path]
-        result = run_keepassxc(command, artifact["password"])
+        result = run_keepassxc(command, master_password)
         after_time = time.time()
         if result.returncode != 0:
             failures.append(

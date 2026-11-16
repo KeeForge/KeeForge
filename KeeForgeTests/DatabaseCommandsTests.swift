@@ -131,6 +131,47 @@ final class DatabaseCommandsTests: XCTestCase {
         }
     }
 
+    func testEntryRowMenuCopiesTheVerificationCodeAndGatesChangeIcon() async throws {
+        let key = SymmetricKey(size: .bits256)
+        let config = TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: key))
+        let code = KPEntry(title: "Code", totpConfig: config)
+        let plain = KPEntry(title: "Plain")
+        let session = try makeSession(root: KPGroup(name: "Root", entries: [code, plain]), key: key)
+        await session.unlock(password: "testpassword123")
+        try await session.reloadDiscardingDraft()
+        defer { session.lockRequest(force: true) }
+
+        let row = EntryRowActions(entryID: code.id, session: session)
+        XCTAssertTrue(row.canCopyVerificationCode)
+        XCTAssertTrue(row.canChangeIcon)
+        XCTAssertFalse(EntryRowActions(entryID: plain.id, session: session).canCopyVerificationCode)
+
+        var copied: [String] = []
+        let before = TOTPGenerator.generateCode(config: config, sessionKey: try XCTUnwrap(session.sessionKey))
+        row.copyVerificationCode { copied.append($0) }
+        let after = TOTPGenerator.generateCode(config: config, sessionKey: try XCTUnwrap(session.sessionKey))
+        EntryRowActions(entryID: plain.id, session: session).copyVerificationCode { copied.append($0) }
+        XCTAssertEqual(copied.count, 1)
+        XCTAssertTrue([before, after].contains(copied[0]))
+
+        try session.deleteEntry(code.id, sendToRecycleBin: true)
+        XCTAssertFalse(EntryRowActions(entryID: code.id, session: session).canChangeIcon, "A recycled entry is not edited in place")
+
+        session.lockRequest(force: true)
+        let locked = EntryRowActions(entryID: code.id, session: session)
+        XCTAssertFalse(locked.canCopyVerificationCode)
+        locked.copyVerificationCode { copied.append($0) }
+        XCTAssertEqual(copied.count, 1)
+
+        let readOnly = try makeSession(readOnly: true, root: KPGroup(name: "Root", entries: [code]), key: key)
+        await readOnly.unlock(password: "testpassword123")
+        try await readOnly.reloadDiscardingDraft()
+        defer { readOnly.lockRequest(force: true) }
+        let frozen = EntryRowActions(entryID: code.id, session: readOnly)
+        XCTAssertFalse(frozen.canChangeIcon)
+        XCTAssertTrue(frozen.canCopyVerificationCode, "Copying a code is not an edit")
+    }
+
     func testPerEntryCopyActsOnTheNamedEntryWithoutAPromptOnlyWhileUnlocked() async throws {
         let key = SymmetricKey(size: .bits256)
         let config = TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: key))

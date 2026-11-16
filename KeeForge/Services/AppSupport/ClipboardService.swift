@@ -22,12 +22,20 @@ enum ClipboardService {
 
     static func copy(_ string: String) {
         let pasteboard = UIPasteboard.general
-        var options: [UIPasteboard.OptionsKey: Any] = [.localOnly: true]
-        if let seconds = SettingsService.clipboardTimeout.seconds {
-            options[.expirationDate] = Date().addingTimeInterval(seconds)
-        }
+        let options = pasteboardOptions(for: SettingsService.clipboardTimeout)
         pasteboard.setItems([[UIPasteboard.typeAutomatic: string]], options: options)
         ownedChangeCount = pasteboard.changeCount
+    }
+
+    static func pasteboardOptions(
+        for timeout: SettingsService.ClipboardTimeout,
+        now: Date = Date()
+    ) -> [UIPasteboard.OptionsKey: Any] {
+        var options: [UIPasteboard.OptionsKey: Any] = [.localOnly: true]
+        if let seconds = timeout.seconds {
+            options[.expirationDate] = now.addingTimeInterval(seconds)
+        }
+        return options
     }
 
     /// Clears the pasteboard only if the most recent write is still ours
