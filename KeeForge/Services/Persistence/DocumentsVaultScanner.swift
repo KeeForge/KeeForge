@@ -8,7 +8,8 @@ import Foundation
 /// reference through `DatabaseListStore.locateDatabaseFile(for:)` — the single
 /// heal implementation, which rebinds stranded references to
 /// `Documents/<filename>` (same id, nickname, key file, settings) and reseeds
-/// the AutoFill cache — then registers files no reference claims. Only files
+/// the AutoFill cache — then registers files no reference claims, except one
+/// the user removed from the list that has not changed since. Only files
 /// carrying the 8-byte KDBX magic are touched; anything else the user dropped
 /// (key files, notes) is left alone.
 enum DocumentsVaultScanner {
@@ -48,9 +49,9 @@ enum DocumentsVaultScanner {
         }
 
         for url in candidates {
-            // `add(url:)` throws `duplicateFile` for paths an existing
-            // reference (including one just rebound) already resolves to.
-            if (try? DatabaseListStore.add(url: url)) != nil {
+            // Throws `duplicateFile` for paths an existing reference
+            // (including one just rebound) already resolves to.
+            if (try? DatabaseListStore.addDiscoveredDocumentsFile(url: url)) != nil {
                 didChange = true
             }
         }

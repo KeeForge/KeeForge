@@ -205,20 +205,40 @@ enum DatabaseListStore {
 
     @discardableResult
     static func add(url: URL) throws -> DatabaseReference {
-        let reference = try withStateLock { () throws -> DatabaseReference in
-            var currentDatabases = loadDatabases()
-            if let duplicate = existingLocalReference(matching: url, in: currentDatabases) {
-                throw AddDatabaseError.duplicateFile(
-                    existingReferenceID: duplicate.id,
-                    filename: duplicate.displayName
-                )
-            }
-            let reference = try makeReference(from: url)
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
-            return reference
-        }
+        let reference = try withStateLock { try appendLocalReference(for: url) }
         cacheInitialCopyIfPossible(from: url, for: reference.id)
+        return reference
+    }
+
+    /// `DocumentsVaultScanner`'s registration: nil for a Documents file the
+    /// user removed from the list and that has not changed since. Checked
+    /// under the lock so a concurrent `remove(id:)` cannot slip in between.
+    @discardableResult
+    static func addDiscoveredDocumentsFile(url: URL) throws -> DatabaseReference? {
+        let reference = try withStateLock { () throws -> DatabaseReference? in
+            if let fingerprint = documentsFileFingerprint(for: url),
+               removedDocumentsFileFingerprints.contains(fingerprint) {
+                return nil
+            }
+            return try appendLocalReference(for: url)
+        }
+        if let reference {
+            cacheInitialCopyIfPossible(from: url, for: reference.id)
+        }
+        return reference
+    }
+
+    private static func appendLocalReference(for url: URL) throws -> DatabaseReference {
+        var currentDatabases = loadDatabases()
+        if let duplicate = existingLocalReference(matching: url, in: currentDatabases) {
+            throw AddDatabaseError.duplicateFile(
+                existingReferenceID: duplicate.id,
+                filename: duplicate.displayName
+            )
+        }
+        let reference = try makeReference(from: url)
+        currentDatabases.append(reference)
+        saveDatabases(currentDatabases)
         return reference
     }
 
@@ -341,6 +361,7 @@ enum DatabaseListStore {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
             }
             QuickUnlockKeychain.removeMasterKeyEntry(for: removedReference.id)
+            rememberRemovedDocumentsFile(of: removedReference)
 
             try? FileManager.default.removeItem(at: cacheLocation(for: removedReference))
             try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removedReference))
@@ -779,6 +800,7 @@ enum DatabaseListStore {
         withStateLock {
             let currentDatabases = loadDatabases()
             currentDatabases.forEach { remove(id: $0.id) }
+            appLocalDefaults.removeObject(forKey: removedDocumentsFilesKey)
             try? FileManager.default.removeItem(at: databaseListURL)
             try? FileManager.default.removeItem(at: backupsRootURL)
             try? PendingUploadQueue.clearAll()
@@ -1174,6 +1196,51 @@ enum DatabaseListStore {
     /// top-level file.
     static func isTopLevelDocumentsFile(_ url: URL) -> Bool {
         normalizedFilePath(for: url.deletingLastPathComponent()) == normalizedFilePath(for: documentsDirectoryURL)
+    }
+
+    // MARK: - Removed Documents files
+
+    private static let removedDocumentsFilesKey = "removedDocumentsFileFingerprints"
+
+    /// Only the app's scan reads this, so it stays out of the App Group. The
+    /// Mac unit-test host is the real app, hence the redirect.
+    private static var appLocalDefaults: UserDefaults {
+        AppGroupContainer.isRedirectedForTesting ? AppGroupContainer.defaults : .standard
+    }
+
+    private static var removedDocumentsFileFingerprints: Set<String> {
+        Set(appLocalDefaults.stringArray(forKey: removedDocumentsFilesKey) ?? [])
+    }
+
+    private static func rememberRemovedDocumentsFile(of reference: DatabaseReference) {
+        guard reference.isDocumentsResident,
+              let fingerprint = documentsFileFingerprint(
+                for: documentsDirectoryURL.appendingPathComponent(reference.filename, isDirectory: false)
+              ) else {
+            return
+        }
+        var fingerprints = removedDocumentsFileFingerprints
+        fingerprints.insert(fingerprint)
+        appLocalDefaults.set(fingerprints.sorted(), forKey: removedDocumentsFilesKey)
+    }
+
+    /// A hash, so no filename is stored. Size and modification date make a
+    /// newer copy dropped in through Finder or the Files app count as a new file.
+    private static func documentsFileFingerprint(for url: URL) -> String? {
+        guard let values = try? url.resourceValues(
+                forKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
+              ),
+              values.isRegularFile == true,
+              let size = values.fileSize,
+              let modificationDate = values.contentModificationDate else {
+            return nil
+        }
+        let identity = [
+            url.lastPathComponent.precomposedStringWithCanonicalMapping,
+            String(size),
+            String(modificationDate.timeIntervalSinceReferenceDate.bitPattern),
+        ].joined(separator: "\u{1F}")
+        return SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
     /// Persists a re-minted bookmark for a stranded Documents-resident
