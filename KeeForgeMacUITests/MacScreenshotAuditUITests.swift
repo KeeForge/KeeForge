@@ -436,6 +436,16 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             if window.buttons["cloud-reauth-banner.reconnect"].firstMatch.waitForExistence(timeout: 15) {
                 settle(0.6)
                 await snapWindow(window, name)
+                // 8a2b. The Sync tab while the server needs reconnecting, with the card's Reconnect.
+                let reconnectName = "08a2b-database-settings-sync-reconnect"
+                let saveAlertOK = window.sheets.buttons["OK"].firstMatch
+                if saveAlertOK.waitForExistence(timeout: 3) { saveAlertOK.click(); settle(0.6) }
+                if let sheet = openDatabaseSettings(in: window, skipping: reconnectName) {
+                    if selectDatabaseSettingsTab("Sync", in: sheet) { await snapWindow(sheet, reconnectName) }
+                    else { noteSkip(reconnectName, reason: "a WebDAV database showed no Sync tab") }
+                    sheet.buttons["database-settings.done"].firstMatch.click()
+                    _ = sheet.waitForNonExistence(timeout: 5)
+                }
             } else {
                 noteSkip(name, reason: "the reconnect notice never appeared")
                 let hierarchy = XCTAttachment(string: app.debugDescription)

@@ -26,8 +26,21 @@ final class MacDatabaseSettingsModel {
             }
         }
     }
+    /// The Sync tab's Status row: the status card's own rules, worded for a settings row.
+    struct SyncStatus: Equatable {
+        enum Tone: Equatable { case healthy, neutral, warning }
+        var text: String
+        var tone: Tone
+        /// The status card's action, offered only where a database window can carry it out.
+        var action: MacDatabaseStatus.Action?
+        var isActionEnabled = true
+    }
+
     let reference: DatabaseReference
     let session: DatabaseViewModel?
+    /// Set by a database window: its status card's status, and that card's actions.
+    @ObservationIgnored var windowStatus: (@MainActor () -> MacDatabaseStatus)?
+    @ObservationIgnored var performStatusAction: (@MainActor (MacDatabaseStatus.Action) -> Void)?
     let list: DatabaseListViewModel
     var selection = Tab.general
     var nickname: String
@@ -134,6 +147,49 @@ final class MacDatabaseSettingsModel {
         if let session { session.setCloudSyncPolicy(policy); list.reload() }
         else { list.setCloudSyncPolicy(policy, for: current) }
     }
+    var syncStatus: SyncStatus {
+        let status = windowStatus?() ?? MacDatabaseStatus(listSyncState)
+        let healthy = String(localized: "Healthy")
+        var result: SyncStatus
+        switch status.line.dot {
+        case .warning: result = SyncStatus(text: status.line.state ?? healthy, tone: .warning)
+        case .neutral: result = SyncStatus(text: status.line.state ?? healthy, tone: .neutral)
+        case .synced, nil: result = SyncStatus(text: healthy, tone: .healthy)
+        }
+        if isReadOnly { result.text += MacDatabaseStatus.separator + String(localized: "Read-only") }
+        if performStatusAction != nil, let action = status.action {
+            result.action = action
+            result.isActionEnabled = status.isActionEnabled
+        }
+        return result
+    }
+
+    /// What the Databases window knows without an open session: the account, pending uploads and the cached copy's warning.
+    private var listSyncState: MacDatabaseStatus.State {
+        var state = MacDatabaseStatus.State()
+        let reference = current
+        state.name = reference.displayName
+        state.storage = .cloud(provider: reference.cloudProviderKind?.displayName ?? String(localized: "cloud"))
+        state.pendingUploads = MacPendingUploads.list(list).counts(reference.id)
+        if let cloud = list.cloudState(for: reference) {
+            if !cloud.isConnected { state.cachedCopy = .disconnected }
+            else if let warning = cloud.warningText { state.cachedCopy = .failed(warning) }
+        }
+        state.lastSyncedAt = reference.cloudSyncMetadata?.lastSyncedAt
+        state.isReadOnly = isReadOnly
+        return state
+    }
+
+    var isSyncing: Bool { session?.isSyncingCloud == true }
+    var canSyncNow: Bool { session?.canSyncCloudNow == true }
+    /// Why Sync Now is unavailable, or what the last sync did.
+    var syncNowNote: String? {
+        guard let session, session.state == .unlocked else { return String(localized: "Unlock this database to sync it.") }
+        if let outcome = session.cloudSyncOutcome { return outcome.message }
+        if session.isDirty || session.hasUnsavedEditor { return String(localized: "Save your changes before syncing.") }
+        return nil
+    }
+
     func setAutoFillEnabled(_ enabled: Bool) { list.setAutoFillEnabled(enabled, for: current) }
     func syncNow() async { await session?.syncCloudNow(); list.reload() }
 }

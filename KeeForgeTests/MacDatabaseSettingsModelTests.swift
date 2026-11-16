@@ -207,6 +207,59 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         XCTAssertEqual(list.databases.first?.nickname, "Native settings")
     }
 
+    func testSyncStatusWordsTheStatusCardAndOffersItsActionOnlyThroughAWindow() throws {
+        var remote = try reference()
+        remote.source = .cloud(CloudSyncMetadata(provider: CloudProviderKind.webDAV.rawValue, accountId: UUID().uuidString,
+            fileId: "/vault.kdbx", displayPath: "/vault.kdbx", remoteContentHash: nil, remoteModifiedAt: nil,
+            remoteRev: nil, lastSyncedAt: nil, lastSyncIssue: nil))
+        let model = MacDatabaseSettingsModel(reference: remote)
+        var state = MacDatabaseStatus.State()
+        state.storage = .cloud(provider: "WebDAV")
+        state.lastSyncedAt = .now
+        model.windowStatus = { MacDatabaseStatus(state) }
+
+        XCTAssertEqual(model.syncStatus, .init(text: String(localized: "Healthy"), tone: .healthy))
+
+        state.cachedCopy = .offline
+        XCTAssertEqual(model.syncStatus.tone, .neutral)
+        XCTAssertTrue(model.syncStatus.text.hasPrefix(String(localized: "Offline")))
+
+        state.cachedCopy = nil
+        state.syncResult = .failed
+        XCTAssertEqual(model.syncStatus, .init(text: String(localized: "Sync failed"), tone: .warning))
+
+        state.syncResult = nil
+        state.needsReconnect = true
+        XCTAssertEqual(model.syncStatus.text, String(localized: "Reconnect needed"))
+        XCTAssertNil(model.syncStatus.action, "Without a window to carry it out, the sheet offers no action")
+        var performed: [MacDatabaseStatus.Action] = []
+        model.performStatusAction = { performed.append($0) }
+        XCTAssertEqual(model.syncStatus.action, .reconnect(provider: "WebDAV"))
+        state.isReconnectInFlight = true
+        XCTAssertFalse(model.syncStatus.isActionEnabled)
+
+        state.needsReconnect = false
+        state.pendingUploads = .init(waiting: 2, conflicts: 0)
+        XCTAssertEqual(model.syncStatus.text, String(localized: "\(2) changes waiting to upload"))
+        XCTAssertEqual(model.syncStatus.action, .pushPendingUploads)
+        model.syncStatus.action.map { model.performStatusAction?($0) }
+        XCTAssertEqual(performed, [.pushPendingUploads])
+
+        XCTAssertEqual(model.syncNowNote, String(localized: "Unlock this database to sync it."))
+        XCTAssertFalse(model.canSyncNow)
+        XCTAssertFalse(model.isSyncing)
+    }
+
+    func testSyncStatusMarksAReadOnlyDatabase() throws {
+        var remote = try reference()
+        remote.source = .cloud(CloudSyncMetadata(provider: CloudProviderKind.ftp.rawValue, accountId: UUID().uuidString,
+            fileId: "/vault.kdbx", displayPath: "/vault.kdbx", remoteContentHash: nil, remoteModifiedAt: nil,
+            remoteRev: nil, lastSyncedAt: nil, lastSyncIssue: nil))
+        remote.isReadOnly = true
+        let model = MacDatabaseSettingsModel(reference: remote)
+        XCTAssertEqual(model.syncStatus.text, String(localized: "Healthy") + MacDatabaseStatus.separator + String(localized: "Read-only"))
+    }
+
     func testNativeShellUsesDoneAndIconTabsWithoutShowingWindow() throws {
         let sheet = MacDatabaseSettingsSheet(model: MacDatabaseSettingsModel(reference: try reference()))
         let model = sheet.model
