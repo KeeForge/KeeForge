@@ -143,16 +143,13 @@ final class MacWindowCoordinator {
                 session.lockForDatabaseTransition()
                 guard session.state == .locked else { self.launcher.refusedRemoval = reference; return }
             }
-            Task { [weak self] in
-                let outcome = await listViewModel.removeDatabase(reference)
-                guard let self else { return }
-                switch outcome {
-                case .removed, .alreadyMissing: break
-                case .revokedRecoveryRequired, .revokedRegistryNotPublished:
-                    self.launcher.sheet = .details(reference.id)
-                case .rejected, .notPublished, .revocationUnconfirmed, .visibleUnconfirmed:
-                    self.launcher.selectionAlert = .init(title: String(localized: "Databases"), message: CocoaError(.fileWriteUnknown).localizedDescription)
-                }
+            let outcome = await listViewModel.removeDatabase(reference)
+            switch outcome {
+            case .removed, .alreadyMissing: break
+            case .revokedRecoveryRequired, .revokedRegistryNotPublished:
+                self.launcher.sheet = .details(reference.id)
+            case .rejected, .notPublished, .revocationUnconfirmed, .visibleUnconfirmed:
+                self.launcher.selectionAlert = .init(title: String(localized: "Databases"), message: CocoaError(.fileWriteUnknown).localizedDescription)
             }
         }
         launcher.chooseEnrollmentDestinationHandler = { [weak self] in self?.chooseEnrollmentDestination($0) }
@@ -396,8 +393,10 @@ final class MacWindowCoordinator {
                 self.removalPrompt(.refused, reference, window) { _ in }
                 return
             }
-            self.launcher.remove(reference)
-            self.showDatabasesWindow()
+            Task {
+                await self.launcher.remove(reference)
+                self.showDatabasesWindow()
+            }
         }
     }
 
