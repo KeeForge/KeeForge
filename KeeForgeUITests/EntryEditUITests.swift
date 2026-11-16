@@ -85,7 +85,15 @@ class EntryEditUITestCase: KeeForgeUITestCase {
 
         let newEntryButton = app.buttons["New Entry"]
         XCTAssertTrue(newEntryButton.waitForExistence(timeout: 5), "New Entry action was not visible", file: file, line: line)
-        newEntryButton.tap()
+        chooseAddMenuItem(newEntryButton)
+    }
+
+    /// A tap that lands while the menu is still opening leaves it open with nothing chosen.
+    private func chooseAddMenuItem(_ item: XCUIElement) {
+        item.tap()
+        if item.waitForNonExistence(timeout: 2) == false {
+            item.tap()
+        }
     }
 
     func createGroup(
@@ -98,7 +106,7 @@ class EntryEditUITestCase: KeeForgeUITestCase {
 
         let newGroupButton = app.buttons["New Group"]
         XCTAssertTrue(newGroupButton.waitForExistence(timeout: 5), "New Group action was not visible", file: file, line: line)
-        newGroupButton.tap()
+        chooseAddMenuItem(newGroupButton)
 
         let nameField = app.textFields["group-create.name-field"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 5), "Group name field was not visible", file: file, line: line)
