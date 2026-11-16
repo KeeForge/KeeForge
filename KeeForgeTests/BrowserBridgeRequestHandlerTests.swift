@@ -1,0 +1,385 @@
+#if os(macOS)
+import CryptoKit
+import XCTest
+@testable import KeeForge
+
+@MainActor
+final class BrowserBridgeRequestHandlerTests: XCTestCase {
+    private var sessions: [DatabaseViewModel] = []
+    private let key = SymmetricKey(size: .bits256)
+    private let origin = "https://example.com"
+    private var nextID = 0
+
+    override func tearDown() async throws {
+        for session in sessions { session.lockRequest(force: true) }
+        sessions = []
+        try await super.tearDown()
+    }
+
+    private func entry(_ title: String = "Login", url: String = "https://example.com", id: UUID = UUID()) throws -> KPEntry {
+        KPEntry(id: id, title: title, username: "user", password: try .encrypt("password-\(title)", using: key), url: url)
+    }
+
+    private func makeSession(
+        _ entries: [KPEntry], groups: [KPGroup] = [], enabled: Bool = true,
+        gate: SecretAccessGate? = nil, databaseID: UUID = UUID()
+    ) async throws -> DatabaseViewModel {
+        let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        var reference = try TestDatabaseSupport.makeReference(for: url, id: databaseID)
+        reference.autoFillEnabled = enabled
+        let key = key
+        let session = DatabaseViewModel(
+            databaseReference: reference,
+            reloadOperation: { reference, _ in
+                .init(reference: reference, rootGroup: KPGroup(name: "Root", entries: entries, groups: groups),
+                      meta: KPMeta(), formatVersion: .kdbx4(minor: 1), sessionKey: key,
+                      openTimeSHA512: Data("test-hash".utf8), binaryPool: BinaryPool(rawFields: []))
+            },
+            quickUnlockKeyPersistOperation: { _, _, _ in false },
+            expressUnlockKeySaveOperation: { _, _ in },
+            storedKeyPresenceCheck: { _ in false },
+            storedKeyStoreOperation: { _, _ in },
+            storedKeyDeleteOperation: { _ in },
+            deviceOwnerAuthAvailabilityCheck: { false },
+            quickUnlockAvailabilityCheck: { false },
+            secretAccess: gate ?? SecretAccessGate(isAuthenticationAvailable: { false })
+        )
+        sessions.append(session)
+        await session.unlock(password: "testpassword123")
+        try await session.reloadDiscardingDraft()
+        XCTAssertEqual(session.state, .unlocked)
+        return session
+    }
+
+    private func handler(
+        gate: @escaping BrowserBridgeRequestHandler.DeviceOwnerAuthenticator = { _ in true },
+        now: @escaping @MainActor () -> ContinuousClock.Instant = { .now }
+    ) -> BrowserBridgeRequestHandler {
+        BrowserBridgeRequestHandler(sessionsProvider: { [weak self] in self?.sessions ?? [] }, appVersion: "test", authenticateDeviceOwner: gate, now: now)
+    }
+
+    private func send(_ op: BrowserBridgeRequest.Operation, to handler: BrowserBridgeRequestHandler) async -> BrowserBridgeReply.Result {
+        nextID += 1
+        return await handler.response(to: .init(id: nextID, operation: op)).result
+    }
+
+    private func matches(_ handler: BrowserBridgeRequestHandler, origin: String = "https://example.com") async throws -> [BrowserBridgeMatch] {
+        let result = await send(.matches(origin: origin), to: handler)
+        guard case .matches(let entries, _) = result else { XCTFail("Expected matches: \(result)"); return [] }
+        return entries
+    }
+
+    private func credential(_ entry: KPEntry, _ session: DatabaseViewModel, origin: String = "https://example.com", totp: Bool? = nil) -> BrowserBridgeRequest.Operation {
+        .credential(entry: entry.id, db: session.databaseReference.id, origin: origin, totp: totp)
+    }
+
+    func testOriginValidation() async {
+        let accepted = ["https://example.com", "https://EXAMPLE.COM", "https://192.168.1.1", "https://example.com:8443", "https://example.com:0", "http://localhost:3000", "http://127.0.0.1", "http://[::1]:3000", "https://[2001:db8::1]"]
+        let rejected = ["", "https://example.com/", "https://example.com/path", "https://a@example.com", "https://a:b@example.com", "https://example.com?x", "https://example.com#x", "http://example.com", "file://example.com", "example.com", "https://", "https://example.com:", "https://example.com:65536", "https://example.com\\@evil.com", " https://example.com", "https://example.com/%2F", "https://example.com?", "https://example.com#", "https://[google.com]", "https://[invalid::address]"]
+        let handler = handler()
+        for value in accepted {
+            XCTAssertTrue(BrowserBridgeRequestHandler.validOrigin(value), value)
+            let reply = await send(.matches(origin: value), to: handler)
+            XCTAssertEqual(reply, .failure(.locked), value)
+        }
+        for value in rejected {
+            XCTAssertFalse(BrowserBridgeRequestHandler.validOrigin(value), value)
+            let reply = await send(.matches(origin: value), to: handler)
+            XCTAssertEqual(reply, .failure(.badOrigin), value)
+        }
+    }
+
+    func testMatchesFiltersAndOrdersAcrossDatabasesAndContainsOnlyMetadata() async throws {
+        let loose = try entry("Loose", url: "https://login.example.com")
+        let exact = try entry("Exact")
+        let other = try entry("Other", url: "https://other.net")
+        let hidden = try entry("Hidden")
+        let empty = KPEntry(title: "Empty", url: origin)
+        let expired = KPEntry(title: "Expired", password: exact.password, url: origin, expires: true, expiryTime: .distantPast)
+        let first = try await makeSession([loose, other, empty, expired], groups: [KPGroup(name: "Excluded", entries: [hidden], searchingEnabled: .disabled)])
+        let second = try await makeSession([exact])
+        _ = try await makeSession([try entry("Disabled")], enabled: false)
+        let handler = handler()
+        let rows = try await matches(handler)
+        XCTAssertEqual(rows.map(\.title), ["Exact", "Loose"])
+        XCTAssertEqual(rows.map(\.exact), [true, false])
+        XCTAssertEqual(rows.map(\.db), [second.databaseReference.id, first.databaseReference.id])
+        XCTAssertEqual(rows.map(\.dbName), [second.databaseReference.displayName, first.databaseReference.displayName])
+        let json = try JSONSerialization.jsonObject(with: BrowserBridgeJSON.encode(BrowserBridgeReply(id: 1, result: .matches(entries: rows, locked: 0)))) as! [String: Any]
+        for row in json["entries"] as! [[String: Any]] {
+            XCTAssertEqual(Set(row.keys), ["entry", "db", "dbName", "title", "username", "hasTotp", "exact"])
+        }
+        let result = await send(credential(loose, first), to: handler)
+        XCTAssertEqual(result, .credential(username: "user", password: "password-Loose", totp: nil))
+    }
+
+    func testFiftyCapAndOnlyReturnedPairsAreOffered() async throws {
+        let entries = try (0..<55).map { try entry("\($0)") }
+        let session = try await makeSession(entries)
+        let handler = handler()
+        let rows = try await matches(handler)
+        XCTAssertEqual(rows.count, 50)
+        XCTAssertEqual(rows.map(\.entry), Array(entries.prefix(50)).map(\.id))
+        let result = await send(credential(entries[50], session), to: handler)
+        XCTAssertEqual(result, .failure(.notOffered))
+    }
+
+    func testLockedAndPendingSessionsAreCountedAndWithdrawn() async throws {
+        let first = try await makeSession([try entry()])
+        let second = try await makeSession([try entry()])
+        let handler = handler()
+        first.holdForQuitPrompt()
+        second.lockRequest(force: true)
+        let status = await send(.status, to: handler)
+        XCTAssertEqual(status, .status(app: "test", unlocked: 0, locked: 2))
+        let locked = await send(.matches(origin: origin), to: handler)
+        XCTAssertEqual(locked, .failure(.locked))
+        first.releaseQuitHold()
+        let result = await send(.matches(origin: origin), to: handler)
+        guard case .matches(let rows, let lockedCount) = result else { return XCTFail() }
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(lockedCount, 1)
+    }
+
+    func testDatabaseIdentityAndConnectionOriginOffers() async throws {
+        let id = UUID()
+        let a = try entry("A", id: id)
+        let b = try entry("B", id: id)
+        let first = try await makeSession([a])
+        let second = try await makeSession([b])
+        let handler = handler()
+        let unoffered = await send(credential(a, first), to: handler)
+        XCTAssertEqual(unoffered, .failure(.notOffered))
+        _ = try await matches(handler)
+        let otherOrigin = await send(credential(a, first, origin: "https://login.example.com"), to: handler)
+        XCTAssertEqual(otherOrigin, .failure(.notOffered))
+        let otherConnection = await send(credential(a, first), to: self.handler())
+        XCTAssertEqual(otherConnection, .failure(.notOffered))
+        let result = await send(credential(b, second), to: handler)
+        XCTAssertEqual(result, .credential(username: "user", password: "password-B", totp: nil))
+    }
+
+    func testOfferEvictionAndReplacement() async throws {
+        let entry = try entry()
+        let session = try await makeSession([entry])
+        let handler = handler()
+        _ = try await matches(handler)
+        for port in 1...8 { _ = try await matches(handler, origin: "https://example.com:\(port)") }
+        let evicted = await send(credential(entry, session), to: handler)
+        XCTAssertEqual(evicted, .failure(.notOffered))
+        let retained = await send(credential(entry, session, origin: "https://example.com:8"), to: handler)
+        XCTAssertEqual(retained, .credential(username: "user", password: "password-Login", totp: nil))
+    }
+
+    func testURLChangedAndSessionRemoved() async throws {
+        let entry = try entry()
+        let session = try await makeSession([entry])
+        let handler = handler()
+        _ = try await matches(handler)
+        try session.applyEntryEdit(.updateEntry(entryID: entry.id, draft: EntryDraftPayload(title: entry.title, username: entry.username, password: "password-Login", url: "https://other.net")))
+        let changed = await send(credential(entry, session), to: handler)
+        XCTAssertEqual(changed, .failure(.noMatch))
+        sessions.removeAll()
+        let removed = await send(credential(entry, session), to: handler)
+        XCTAssertEqual(removed, .failure(.unavailable))
+        session.lockRequest(force: true)
+    }
+
+    func testDeniedAndCancelledNeverDecryptPassword() async throws {
+        let corrupt = KPEntry(title: "Corrupt", password: EncryptedValue(sealedData: Data([1]), hasValue: true), url: origin)
+        let session = try await makeSession([corrupt])
+        for cancelled in [false, true] {
+            let gate = SecretAccessGate(gracePeriod: { .alwaysAsk }, isAuthenticationAvailable: { true }, prompt: { _ in
+                if cancelled { throw CancellationError() }
+                throw NSError(domain: "TestDenied", code: 1)
+            })
+            let handler = handler(gate: { _ in await BrowserBridgeRequestHandler.deviceOwnerGate(gate) })
+            _ = try await matches(handler)
+            let result = await send(credential(corrupt, session), to: handler)
+            XCTAssertEqual(result, .failure(.denied))
+        }
+    }
+
+    func testLockPendingLockRelockAndReplacementDuringGateReleaseNothing() async throws {
+        for change in 0..<4 {
+            let entry = try entry()
+            let session = try await makeSession([entry])
+            let handler = handler(gate: { [self] _ in
+                switch change {
+                case 0: session.lockRequest(force: true)
+                case 1:
+                    session.lockRequest(force: true)
+                    await session.unlock(password: "testpassword123")
+                    try? await session.reloadDiscardingDraft()
+                case 2: session.holdForQuitPrompt()
+                default:
+                    sessions.removeAll { $0 === session }
+                    _ = try? await makeSession([entry], databaseID: session.databaseReference.id)
+                }
+                return true
+            })
+            _ = try await matches(handler)
+            let result = await send(credential(entry, session), to: handler)
+            XCTAssertEqual(result, .failure(.locked), "change \(change)")
+            session.lockRequest(force: true)
+        }
+    }
+
+    func testURLChangedDuringGateIsNoMatch() async throws {
+        let entry = try entry()
+        let session = try await makeSession([entry])
+        let handler = handler(gate: { _ in
+            try? session.applyEntryEdit(.updateEntry(entryID: entry.id, draft: EntryDraftPayload(title: entry.title, password: "password-Login", url: "https://other.net")))
+            return true
+        })
+        _ = try await matches(handler)
+        let result = await send(credential(entry, session), to: handler)
+        XCTAssertEqual(result, .failure(.noMatch))
+    }
+
+    func testRealSessionGateGracePeriod() async throws {
+        var prompts = 0
+        var instant = ContinuousClock.now
+        let gate = SecretAccessGate(gracePeriod: { .thirtySeconds }, now: { instant }, isAuthenticationAvailable: { true }, prompt: { _ in prompts += 1 })
+        let entry = try entry()
+        let session = try await makeSession([entry], gate: gate)
+        gate.invalidate()
+        let handler = handler(gate: BrowserBridgeRequestHandler.deviceOwnerGate)
+        _ = try await matches(handler)
+        for _ in 0..<2 {
+            let result = await send(credential(entry, session), to: handler)
+            XCTAssertEqual(result, .credential(username: "user", password: "password-Login", totp: nil))
+        }
+        XCTAssertEqual(prompts, 1)
+        instant += .seconds(30)
+        _ = await send(credential(entry, session), to: handler)
+        XCTAssertEqual(prompts, 2)
+    }
+
+    func testProtectedUsernameAndPasswordReferencesAndTOTP() async throws {
+        let target = try entry("Target", url: "https://other.net")
+        let reference = "{REF:P@I:\(target.id.uuidString.replacingOccurrences(of: "-", with: ""))}"
+        var referencing = try entry("Reference")
+        referencing.username = reference
+        referencing.password = try .encrypt(reference, using: key)
+        referencing.totpConfig = TOTPConfig(secret: try .encrypt("JBSWY3DPEHPK3PXP", using: key))
+        let plain = try entry("NoCode")
+        var publicReference = try entry("PublicReference")
+        publicReference.username = "{REF:U@I:\(target.id.uuidString.replacingOccurrences(of: "-", with: ""))}"
+        let session = try await makeSession([target, referencing, plain, publicReference])
+        let handler = handler()
+        let rows = try await matches(handler)
+        XCTAssertEqual(rows.first { $0.entry == referencing.id }?.username, "")
+        XCTAssertEqual(rows.first { $0.entry == referencing.id }?.hasTotp, true)
+        XCTAssertEqual(rows.first { $0.entry == publicReference.id }?.username, "user")
+        let result = await send(credential(referencing, session, totp: true), to: handler)
+        guard case .credential(let username, let password, let code) = result else { return XCTFail() }
+        XCTAssertEqual(username, "password-Target")
+        XCTAssertEqual(password, "password-Target")
+        XCTAssertEqual(code?.count, 6)
+        XCTAssertTrue(code?.allSatisfy(\.isNumber) == true)
+        let noCode = await send(credential(plain, session, totp: true), to: handler)
+        XCTAssertEqual(noCode, .credential(username: "user", password: "password-NoCode", totp: nil))
+        let notRequested = await send(credential(referencing, session), to: handler)
+        XCTAssertEqual(notRequested, .credential(username: "password-Target", password: "password-Target", totp: nil))
+    }
+
+    func testRevealAndUnlock() async throws {
+        let entry = try entry()
+        let session = try await makeSession([entry])
+        let db = session.databaseReference.id
+        var revealed: [UUID] = []
+        var unlocked: [UUID?] = []
+        let handler = BrowserBridgeRequestHandler(sessionsProvider: { self.sessions }, appVersion: "test", reveal: { revealed = [$0, $1] }, unlock: { unlocked.append($0) })
+        let before = await send(.reveal(entry: entry.id, db: db), to: handler)
+        XCTAssertEqual(before, .failure(.notOffered))
+        _ = try await matches(handler)
+        let reveal = await send(.reveal(entry: entry.id, db: db), to: handler)
+        XCTAssertEqual(reveal, .empty)
+        XCTAssertEqual(revealed, [entry.id, db])
+        for id in [db, nil] as [UUID?] {
+            let result = await send(.unlock(db: id), to: handler)
+            XCTAssertEqual(result, .empty)
+        }
+        XCTAssertEqual(unlocked, [db, nil])
+        let unknown = await send(.unlock(db: UUID()), to: handler)
+        XCTAssertEqual(unknown, .failure(.unavailable))
+        sessions.removeAll()
+        let gone = await send(.reveal(entry: entry.id, db: db), to: handler)
+        XCTAssertEqual(gone, .failure(.unavailable))
+        session.lockRequest(force: true)
+    }
+
+    func testOfferedCredentialLocksAndEntryRemovalAreRefused() async throws {
+        let entry = try entry()
+        let session = try await makeSession([entry])
+        let handler = handler()
+        _ = try await matches(handler)
+        session.holdForQuitPrompt()
+        let pending = await send(credential(entry, session), to: handler)
+        XCTAssertEqual(pending, .failure(.locked))
+        session.releaseQuitHold()
+        try session.applyEntryEdit(.deleteEntry(entryID: entry.id, sendToRecycleBin: false))
+        let gone = await send(credential(entry, session), to: handler)
+        XCTAssertEqual(gone, .failure(.unavailable))
+    }
+
+    func testReplacedOfferWithdrawsPreviouslyReturnedPairs() async throws {
+        let entry = try entry()
+        let session = try await makeSession([entry])
+        let handler = handler()
+        _ = try await matches(handler)
+        try session.applyEntryEdit(.deleteEntry(entryID: entry.id, sendToRecycleBin: false))
+        let rows = try await matches(handler)
+        XCTAssertEqual(rows, [])
+        let withdrawn = await send(credential(entry, session), to: handler)
+        XCTAssertEqual(withdrawn, .failure(.notOffered))
+    }
+
+    func testCredentialRateWindowCountsFailuresAndExpires() async throws {
+        var instant = ContinuousClock.now
+        let handler = handler(now: { instant })
+        let op = BrowserBridgeRequest.Operation.credential(entry: UUID(), db: UUID(), origin: origin, totp: nil)
+        for _ in 0..<30 {
+            let result = await send(op, to: handler)
+            XCTAssertEqual(result, .failure(.notOffered))
+        }
+        let limited = await send(op, to: handler)
+        XCTAssertEqual(limited, .failure(.rateLimited))
+        instant += .seconds(60)
+        let nextWindow = await send(op, to: handler)
+        XCTAssertEqual(nextWindow, .failure(.notOffered))
+    }
+
+    func testOneCredentialInFlightWhileStatusStillWorks() async throws {
+        let entry = try entry()
+        let session = try await makeSession([entry])
+        var continuation: CheckedContinuation<Bool, Never>?
+        let handler = handler(gate: { _ in await withCheckedContinuation { continuation = $0 } })
+        _ = try await matches(handler)
+        let op = credential(entry, session)
+        let first = Task { await self.send(op, to: handler) }
+        while continuation == nil { await Task.yield() }
+        let second = await send(op, to: handler)
+        XCTAssertEqual(second, .failure(.rateLimited))
+        let status = await send(.status, to: handler)
+        XCTAssertEqual(status, .status(app: "test", unlocked: 1, locked: 0))
+        continuation?.resume(returning: true)
+        let result = await first.value
+        XCTAssertEqual(result, .credential(username: "user", password: "password-Login", totp: nil))
+    }
+
+    func testSixteenRequestsInFlightAndMalformedRequests() async {
+        let handler = handler()
+        let tasks = (0..<40).map { id in Task { await handler.response(to: .init(id: id, operation: .status)).result } }
+        var results: [BrowserBridgeReply.Result] = []
+        for task in tasks { results.append(await task.value) }
+        XCTAssertEqual(results.filter { $0 == .status(app: "test", unlocked: 0, locked: 0) }.count, 16)
+        XCTAssertEqual(results.filter { $0 == .failure(.rateLimited) }.count, 24)
+        for json in ["{", "{\"id\":42,\"type\":\"credential\"}", "{\"id\":-1,\"type\":\"status\"}"] {
+            let result = await handler.response(to: Data(json.utf8))
+            XCTAssertEqual(result.result, .failure(.badRequest))
+        }
+    }
+}
+#endif

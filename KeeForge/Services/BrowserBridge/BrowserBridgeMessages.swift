@@ -143,8 +143,8 @@ enum BrowserBridgeEnvelope: Codable, Equatable {
     }
 }
 
-struct BrowserBridgeRequest: Codable, Equatable {
-    enum Operation: Equatable {
+struct BrowserBridgeRequest: Codable, Equatable, Sendable {
+    enum Operation: Equatable, Sendable {
         case status
         case matches(origin: String)
         case credential(entry: UUID, db: UUID, origin: String, totp: Bool?)
@@ -183,17 +183,18 @@ struct BrowserBridgeRequest: Codable, Equatable {
     }
 }
 
-struct BrowserBridgeMatch: Codable, Equatable {
+struct BrowserBridgeMatch: Codable, Equatable, Sendable {
     let entry: UUID
     let db: UUID
     let dbName: String
     let title: String
     let username: String
     let hasTotp: Bool
+    let exact: Bool
 }
 
-struct BrowserBridgeReply: Codable, Equatable {
-    enum Result: Equatable {
+struct BrowserBridgeReply: Codable, Equatable, Sendable {
+    enum Result: Equatable, Sendable {
         case status(app: String, unlocked: Int, locked: Int)
         case matches(entries: [BrowserBridgeMatch], locked: Int)
         case credential(username: String, password: String, totp: String?)

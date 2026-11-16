@@ -179,7 +179,7 @@ final class BrowserBridgeProtocolTests: XCTestCase {
             }
         }
         XCTAssertThrowsError(try BrowserBridgeJSON.decode(BrowserBridgeRequest.self, from: Data("{\"id\":1,\"type\":\"future\"}".utf8)))
-        let results: [BrowserBridgeReply.Result] = [.status(app: "1", unlocked: 2, locked: 3), .matches(entries: [.init(entry: uuid, db: uuid, dbName: "Test", title: "Title", username: "user", hasTotp: true)], locked: 1), .credential(username: "user", password: "test", totp: "123456"), .credential(username: "", password: "", totp: nil), .empty] + BrowserBridgeRequestError.allCases.map { .failure($0) }
+        let results: [BrowserBridgeReply.Result] = [.status(app: "1", unlocked: 2, locked: 3), .matches(entries: [.init(entry: uuid, db: uuid, dbName: "Test", title: "Title", username: "user", hasTotp: true, exact: true)], locked: 1), .credential(username: "user", password: "test", totp: "123456"), .credential(username: "", password: "", totp: nil), .empty] + BrowserBridgeRequestError.allCases.map { .failure($0) }
         for result in results {
             let reply = BrowserBridgeReply(id: 7, result: result)
             let operation: BrowserBridgeRequest.Operation
@@ -204,6 +204,16 @@ final class BrowserBridgeProtocolTests: XCTestCase {
         for code in BrowserBridgeErrorCode.allCases {
             XCTAssertEqual(try BrowserBridgeJSON.decode(BrowserBridgeEnvelope.self, from: BrowserBridgeJSON.encode(BrowserBridgeEnvelope.error(code))), .error(code))
         }
+    }
+
+    func testMatchesRequireExactBoolean() throws {
+        let uuid = UUID()
+        let row = BrowserBridgeMatch(entry: uuid, db: uuid, dbName: "Test", title: "Title", username: "user", hasTotp: false, exact: false)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: BrowserBridgeJSON.encode(row)) as? [String: Any])
+        json.removeValue(forKey: "exact")
+        XCTAssertThrowsError(try BrowserBridgeJSON.decode(BrowserBridgeMatch.self, from: JSONSerialization.data(withJSONObject: json)))
+        json["exact"] = "true"
+        XCTAssertThrowsError(try BrowserBridgeJSON.decode(BrowserBridgeMatch.self, from: JSONSerialization.data(withJSONObject: json)))
     }
 
     func testPairingHappyPathThenSessionOnSameConnection() throws {

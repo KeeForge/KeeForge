@@ -1,12 +1,15 @@
 # Browser Bridge Services
 
-**Scope:** the macOS-only, opt-in bridge a browser extension asks for credentials through (#299): protocol and crypto for one connection, and where pairings and the app's bridge key are kept. Every file is `#if os(macOS)`, excluded from iOS in both project specs (the direct spec inherits the base), and absent from both AutoFill allow-lists. No sockets, Keychain, UI, database/session models or logging.
+**Scope:** the macOS-only, opt-in bridge a browser extension asks for credentials through (#299): protocol and crypto for one connection, request authorization against the open database sessions, and where pairings and the app's bridge key are kept. Every file is `#if os(macOS)`, excluded from iOS in both project specs (the direct spec inherits the base), and absent from both AutoFill allow-lists. No sockets, UI or logging here. Only the request handler reads database sessions.
 
 ## Ownership
 
 - Framing owns directional byte caps; messages own strict wire decoding; crypto owns X25519, HKDF and AES-GCM; the connection state machine owns pairing order, one handshake, counters and pending replies.
 - The caller serializes calls off the main thread, supplies the app static key and client lookup, coordinates pairing admission across connections, persists `.paired`, and drives the 120-second pairing timeout and connection cancellation. The request handler owns origin validation, offers, authorization and database policy.
 - `BrowserPairingStore` owns the paired-browser records (client id, public key, sanitized name, dates) in the app's own defaults through `SettingsService`, and the installation's X25519 private key in the Keychain. It is an actor; a caller that needs a synchronous lookup keeps its own snapshot.
+- The main-actor request handler owns connection-local offers (50 pairs per origin, most recent 8 origins), origin validation, all-open-session reads and the session’s device-owner gate. Eligibility shares `KPGroup.autoFillEntries` with AutoFill, respects database participation, and excludes expired entries and entries with neither a password nor a verification code (the bridge fills no passkeys).
+- Credentials require an offer for that exact origin and database/entry pair. Recheck session identity, unlocked/no-pending-lock state, lock cycle and interactive match after authentication; decrypt off actor, then recheck the lease and content revision before releasing. Never block the main actor on socket work.
+- Per connection: 16 requests in flight, one credential in flight, 30 credential attempts per rolling minute on an injected monotonic clock.
 
 ## Invariants
 
@@ -18,9 +21,9 @@
 
 ## Tests
 
+- `BrowserBridgeRequestHandlerTests`: real-session offers, matching, gates, lock races, references and limits.
 - `BrowserBridgeProtocolTests` in `KeeForgeMacTests`: framing, strict decoding, pairing, handshake, rejection paths, authenticated counters and deterministic vectors. The client reference lives only in that test file.
 - `../../../BrowserExtension/test/vectors.json` is bundled by `UnitTestFixtures`; regeneration instructions are in the test header. The extension tests consume the same file.
-
 - `BrowserPairingStoreTests`: records, name sanitizing, last-used coalescing and key lifetime, with an injected clock and a fake Keychain. Tests never touch the real Keychain.
 
 ## See also
