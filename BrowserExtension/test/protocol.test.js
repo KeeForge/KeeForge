@@ -33,14 +33,14 @@ test('reject invalid envelope values and canonical base64', () => {
   for (const n of [-1, 0.1, Number.MAX_SAFE_INTEGER + 1, NaN, '0']) assert.throws(() => validateEnvelope(envelope('msg', { n, c: b })));
   assert.throws(() => validateEnvelope(envelope('msg', { n: 0, c: '' })));
 });
-const requests = [request(1, 'status'), request(1, 'matches', { origin: 'https://example.com' }), request(1, 'credential', { entry: ENTRY, db: DB, origin: 'https://example.com', totp: true }), request(1, 'reveal', { entry: ENTRY, db: DB }), request(1, 'unlock', { db: DB })];
+const requests = [request(1, 'status'), request(1, 'matches', { origin: 'https://example.com' }), request(1, 'credential', { entry: ENTRY, db: DB, origin: 'https://example.com' }), request(1, 'reveal', { entry: ENTRY, db: DB }), request(1, 'unlock', { db: DB }), request(1, 'credential', { entry: ENTRY, db: DB, origin: 'https://example.com', totp: true })];
 const replies = [
   { app: '1', unlocked: 0, locked: 1 },
   { entries: [{ entry: ENTRY, db: DB, dbName: 'db', title: 'title', username: 'user', hasTotp: true, exact: true }], locked: 0 },
-  { username: 'user', password: 'password', totp: '123456' }, {}, {}
+  { username: 'user', password: 'password' }, {}, {}, { totp: '123456' }
 ];
 for (const [i, req] of requests.entries()) {
-  test(`strict inner ${req.type}`, () => {
+  test(`strict inner ${req.type}${req.totp ? ' (code only)' : ''}`, () => {
     for (const key of Object.keys(req)) {
       if (key === 'totp' || (key === 'db' && req.type === 'unlock')) continue;
       const fields = { ...req }; delete fields[key];
@@ -50,7 +50,6 @@ for (const [i, req] of requests.entries()) {
     const reply = { id: 1, ok: true, ...replies[i] };
     assert.deepEqual(validateReply({ ...reply, extra: 'ignored' }, req), reply);
     for (const key of Object.keys(reply)) {
-      if (key === 'totp') continue;
       const missing = { ...reply }; delete missing[key];
       assert.throws(() => validateReply(missing, req));
       assert.throws(() => validateReply({ ...reply, [key]: null }, req));
@@ -70,8 +69,11 @@ test('inner edge failures and matches strips unknown fields', () => {
     assert.throws(() => validateReply({ id: 1, ok: true, locked: 0, entries: [{ ...e, [key]: null }] }, requests[1]));
   }
   assert.throws(() => validateReply({ id: 1, ok: true, locked: 0, entries: Array(51).fill(replies[1].entries[0]) }, requests[1]));
-  assert.throws(() => validateReply({ id: 1, ok: true, username: 'a', password: 'b', totp: 123 }, requests[2]));
-  assert.throws(() => validateReply({ id: 1, ok: true, username: 'a', password: 'b', totp: '123' }, { ...requests[2], totp: undefined }));
+  assert.throws(() => validateReply({ id: 1, ok: true, totp: 123 }, requests[5]));
+  // A code-only reply carries the code alone; a password fill never carries a code.
+  for (const extra of [{ username: 'a' }, { password: 'b' }, { username: 'a', password: 'b' }]) assert.throws(() => validateReply({ id: 1, ok: true, totp: '123456', ...extra }, requests[5]));
+  assert.throws(() => validateReply({ id: 1, ok: true, username: 'a', password: 'b', totp: '123' }, requests[2]));
+  assert.deepEqual(validateReply({ id: 1, ok: true, totp: '123456' }, requests[5]), { id: 1, ok: true, totp: '123456' });
   const result = validateReply({ id: 1, ok: true, locked: 0, entries: [{ ...replies[1].entries[0], password: 'accidental-secret' }] }, requests[1]);
   assert.equal('password' in result.entries[0], false);
   for (const value of ['https://example.com/', 'https://example.com/path', 'http://example.com', 'null', 'file:///tmp/a', 'https://example.com:443']) assert.throws(() => origin(value));

@@ -68,9 +68,11 @@ Why this shape:
 
 - **Manifest installed through a user-granted folder.** The sandboxed app cannot
   write into other apps' Application Support folders. Settings ▸ Browsers asks
-  the user to grant each browser's `NativeMessagingHosts` folder in an open panel,
-  writes `com.keevault.browser.json` there, and keeps a security-scoped bookmark
-  so it can repair the file later without asking.
+  the user to grant each browser's `NativeMessagingHosts` folder (or the browser's
+  own folder, used once to create it) in an open panel, writes
+  `com.keevault.browser.json` there, and keeps a security-scoped bookmark of the
+  `NativeMessagingHosts` folder only, so it can repair the file later without
+  asking.
 - **Password fills follow the Copy Password rule.** Each credential takes the
   owning session's device-owner gate, including its grace period. The bridge adds
   no separate approval setting; a user who wants a prompt for every fill keeps the

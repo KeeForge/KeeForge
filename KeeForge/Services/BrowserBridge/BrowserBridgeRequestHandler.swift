@@ -149,7 +149,9 @@ final class BrowserBridgeRequestHandler {
             guard let source = session(db) else { return .failure(.unavailable) }
             guard Self.isUnlocked(source) else { return .failure(.locked) }
             guard source.entry(withID: entryID) != nil else { return .failure(.unavailable) }
-            guard matchingEntry(entryID, in: source, origin: origin) != nil else { return .failure(.noMatch) }
+            guard let offered = matchingEntry(entryID, in: source, origin: origin) else { return .failure(.noMatch) }
+            let codeOnly = totp == true
+            guard !codeOnly || offered.hasTOTP else { return .failure(.unavailable) }
             let cycle = source.lockCycleID
             let authorized = await authenticate(source.secretAccess)
             guard session(db) === source, Self.isUnlocked(source), source.lockCycleID == cycle else { return .failure(.locked) }
@@ -160,14 +162,17 @@ final class BrowserBridgeRequestHandler {
             let entries = source.currentRootGroup?.allEntries ?? []
             // Capture encrypted values only; plaintext is created after authorization, off the main actor.
             let result = await Task.detached {
+                if codeOnly {
+                    guard let config = entry.totpConfig else { return BrowserBridgeReply.Result.failure(.unavailable) }
+                    return .totp(TOTPGenerator.generateCode(config: config, sessionKey: key))
+                }
                 let resolver = FieldReferenceResolver(entries: entries, sessionKey: key)
                 let username = resolver.resolve(entry.username, clearance: .protectedValues).value ?? ""
                 guard let password = try? entry.password.decrypt(using: key) else {
                     return BrowserBridgeReply.Result.failure(.badRequest)
                 }
                 let resolvedPassword = resolver.resolve(password, clearance: .protectedValues).value ?? password
-                let code = totp == true ? entry.totpConfig.map { TOTPGenerator.generateCode(config: $0, sessionKey: key) } : nil
-                return .credential(username: username, password: resolvedPassword, totp: code)
+                return .credential(username: username, password: resolvedPassword)
             }.value
             guard !Task.isCancelled, session(db) === source, Self.isUnlocked(source), source.lockCycleID == cycle else {
                 return .failure(.locked)

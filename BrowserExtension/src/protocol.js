@@ -93,9 +93,12 @@ export function validateReply(reply, request) {
         return { entry: e.entry, db: e.db, dbName: e.dbName, title: e.title, username: e.username, hasTotp: e.hasTotp, exact: e.exact };
       }) };
     case 'credential':
-      requireThat(string(reply.username) && string(reply.password));
-      requireThat(reply.totp === undefined || (request.totp === true && string(reply.totp)));
-      return { ...result, username: reply.username, password: reply.password, ...(reply.totp === undefined ? {} : { totp: reply.totp }) };
+      if (request.totp === true) {
+        requireThat(string(reply.totp) && reply.username === undefined && reply.password === undefined);
+        return { ...result, totp: reply.totp };
+      }
+      requireThat(string(reply.username) && string(reply.password) && reply.totp === undefined);
+      return { ...result, username: reply.username, password: reply.password };
     case 'reveal': case 'unlock': return result;
     default: throw new ProtocolError();
   }

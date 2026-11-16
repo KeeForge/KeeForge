@@ -131,14 +131,15 @@ final class BrowserBridgeProtocolTests: XCTestCase {
             }
         }
         XCTAssertThrowsError(try BrowserBridgeJSON.decode(BrowserBridgeRequest.self, from: Data("{\"id\":1,\"type\":\"future\"}".utf8)))
-        let results: [BrowserBridgeReply.Result] = [.status(app: "1", unlocked: 2, locked: 3), .matches(entries: [.init(entry: uuid, db: uuid, dbName: "Test", title: "Title", username: "user", hasTotp: true, exact: true)], locked: 1), .credential(username: "user", password: "test", totp: "123456"), .credential(username: "", password: "", totp: nil), .empty] + BrowserBridgeRequestError.allCases.map { .failure($0) }
+        let results: [BrowserBridgeReply.Result] = [.status(app: "1", unlocked: 2, locked: 3), .matches(entries: [.init(entry: uuid, db: uuid, dbName: "Test", title: "Title", username: "user", hasTotp: true, exact: true)], locked: 1), .credential(username: "user", password: "test"), .credential(username: "", password: ""), .totp("123456"), .empty] + BrowserBridgeRequestError.allCases.map { .failure($0) }
         for result in results {
             let reply = BrowserBridgeReply(id: 7, result: result)
             let operation: BrowserBridgeRequest.Operation
             switch result {
             case .status, .failure: operation = .status
             case .matches: operation = .matches(origin: "https://example.com")
-            case .credential: operation = .credential(entry: uuid, db: uuid, origin: "https://example.com", totp: true)
+            case .credential: operation = .credential(entry: uuid, db: uuid, origin: "https://example.com", totp: nil)
+            case .totp: operation = .credential(entry: uuid, db: uuid, origin: "https://example.com", totp: true)
             case .empty: operation = .unlock(db: nil)
             }
             let encoded = try BrowserBridgeJSON.encode(reply)
@@ -146,13 +147,17 @@ final class BrowserBridgeProtocolTests: XCTestCase {
             var extra = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
             extra["future"] = [false]
             XCTAssertEqual(try BrowserBridgeJSON.decodeReply(from: JSONSerialization.data(withJSONObject: extra), for: operation), reply)
-            for field in extra.keys where field != "future" && field != "totp" {
+            for field in extra.keys where field != "future" {
                 var missing = extra; missing.removeValue(forKey: field)
                 XCTAssertThrowsError(try BrowserBridgeJSON.decodeReply(from: JSONSerialization.data(withJSONObject: missing), for: operation))
                 var wrong = extra; wrong[field] = [false]
                 XCTAssertThrowsError(try BrowserBridgeJSON.decodeReply(from: JSONSerialization.data(withJSONObject: wrong), for: operation))
             }
         }
+        let codeOnly = try XCTUnwrap(JSONSerialization.jsonObject(with: BrowserBridgeJSON.encode(BrowserBridgeReply(id: 7, result: .totp("123456")))) as? [String: Any])
+        XCTAssertEqual(Set(codeOnly.keys), ["id", "ok", "totp"])
+        let fill = try XCTUnwrap(JSONSerialization.jsonObject(with: BrowserBridgeJSON.encode(BrowserBridgeReply(id: 7, result: .credential(username: "user", password: "test")))) as? [String: Any])
+        XCTAssertEqual(Set(fill.keys), ["id", "ok", "username", "password"])
         for code in BrowserBridgeErrorCode.allCases {
             XCTAssertEqual(try BrowserBridgeJSON.decode(BrowserBridgeEnvelope.self, from: BrowserBridgeJSON.encode(BrowserBridgeEnvelope.error(code))), .error(code))
         }
@@ -252,9 +257,9 @@ final class BrowserBridgeProtocolTests: XCTestCase {
             var (server, client) = try established()
             let request = BrowserBridgeRequest(id: 1, operation: .status)
             _ = try server.receive(frame(client.send(request)))
-            let base = try BrowserBridgeJSON.encode(BrowserBridgeReply(id: 1, result: .credential(username: "", password: "", totp: nil))).count
+            let base = try BrowserBridgeJSON.encode(BrowserBridgeReply(id: 1, result: .credential(username: "", password: ""))).count
             let password = String(repeating: "x", count: BrowserBridgeFraming.maximumReplyPlaintext - base + extra)
-            let output = server.reply(.credential(username: "", password: password, totp: nil), to: request)
+            let output = server.reply(.credential(username: "", password: password), to: request)
             XCTAssertEqual(output.close, !fits)
             if fits, case .message = try envelope(output) {} else if fits { XCTFail("Expected a sealed reply") }
         }
@@ -274,7 +279,7 @@ final class BrowserBridgeProtocolTests: XCTestCase {
         var (server, client) = try established()
         let request = BrowserBridgeRequest(id: 1, operation: .status)
         _ = try server.receive(frame(client.send(request)))
-        try assertError(server.reply(.credential(username: "", password: String(repeating: "x", count: BrowserBridgeFraming.maximumExtensionPayload), totp: nil), to: request), .badRequest)
+        try assertError(server.reply(.credential(username: "", password: String(repeating: "x", count: BrowserBridgeFraming.maximumExtensionPayload)), to: request), .badRequest)
         let (host, _) = try established()
         try assertError(host.receive(frame(.host)), .badRequest)
     }

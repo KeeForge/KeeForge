@@ -723,8 +723,9 @@ then applies these rules:
   unlock also starts and which defaults to Always Ask. Before and after the
   prompt, and again after decrypting off the main actor, the handler checks that
   the session is the same one, unlocked, in the same lock cycle, unchanged, and
-  that the entry still matches the origin. The reply holds the user name, the
-  password, and the current code when asked.
+  that the entry still matches the origin. The reply holds the user name and
+  password, or, for a code-only request, the current code alone; the password
+  is not decrypted for a code-only request.
 - `reveal` and `unlock` bring a database window or the Databases window forward,
   and `reveal` selects an entry this connection was offered. Neither unlocks a
   database or shows a secret, and a window brought forward this way does not
@@ -739,8 +740,7 @@ or a same-user process holding that browser's key, can list the offered logins
 for any site it names and obtain a password after the user confirms the prompt,
 or without a prompt inside the grace period. The extension keeps its key
 non-extractable in IndexedDB, which binds WebCrypto callers only; assume a
-process that can read the browser profile can recover it. A code-only fill still
-receives the password from the app, and the extension drops it.
+process that can read the browser profile can recover it.
 
 Setting up a browser writes `com.keevault.browser.json`, naming the host's
 absolute path and the allowed extension IDs, into that browser's
@@ -750,9 +750,10 @@ A grant of the browser's own folder is used once to create `NativeMessagingHosts
 and never bookmarked; the bookmark of `NativeMessagingHosts` itself stays in the
 app's defaults. The installer refuses a symlinked folder or manifest, never
 replaces a manifest with another `name`, and removes only one whose `path` is
-inside a `KeeForge.app`. At launch with the bridge on, a manifest that no longer
-matches is rewritten from the stored grant without a prompt, only when the app
-runs from `/Applications` or `~/Applications` and is not translocated. Release
+inside a `KeeForge.app`. Once per launch, the first time the bridge listens, a
+manifest that no longer matches is rewritten from the stored grant without a
+prompt, only when the app runs from `/Applications` or `~/Applications` and is
+not translocated. Release
 builds allow only store extension IDs; the development Chromium ID is in debug
 builds only. The manifest's allowed-extension list is a filter the browser
 applies, not a security boundary: any same-user process can rewrite the file or

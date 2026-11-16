@@ -29,8 +29,10 @@ test('pairing, equal codes, reconnect, concurrent encrypted round trips and no r
   const statuses = await Promise.all(Array.from({ length: 8 }, () => c.request('status')));
   assert.equal(statuses.length, 8); assert.equal(statuses[0].app, 'mock');
   await c.request('matches', { origin: 'https://example.com' });
-  const credential = await c.request('credential', { entry: ENTRY, db: DB, origin: 'https://example.com', totp: true });
-  assert.equal(credential.password, 'mock-password'); assert.equal(credential.totp, '123456');
+  const code = await c.request('credential', { entry: ENTRY, db: DB, origin: 'https://example.com', totp: true });
+  assert.deepEqual(code, { id: code.id, ok: true, totp: '123456' });
+  const credential = await c.request('credential', { entry: ENTRY, db: DB, origin: 'https://example.com' });
+  assert.equal(credential.password, 'mock-password'); assert.equal('totp' in credential, false);
   assert.equal(c.pending.size, 0); assert.equal(c.record, null); assert.equal(c.ephemeral, null);
   c.close(); await c.open(); assert.equal(c.state, 'ready');
   assert.equal((await c.request('status')).ok, true);

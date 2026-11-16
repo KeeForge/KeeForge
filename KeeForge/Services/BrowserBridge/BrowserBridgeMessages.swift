@@ -197,7 +197,9 @@ struct BrowserBridgeReply: Codable, Equatable, Sendable {
     enum Result: Equatable, Sendable {
         case status(app: String, unlocked: Int, locked: Int)
         case matches(entries: [BrowserBridgeMatch], locked: Int)
-        case credential(username: String, password: String, totp: String?)
+        case credential(username: String, password: String)
+        /// The reply to a code-only `credential` request: the current code and nothing else.
+        case totp(String)
         case empty
         case failure(BrowserBridgeRequestError)
     }
@@ -220,7 +222,8 @@ struct BrowserBridgeReply: Codable, Equatable, Sendable {
             switch operation {
             case .status: result = .status(app: try c.field("app"), unlocked: try c.field("unlocked"), locked: try c.field("locked"))
             case .matches: result = .matches(entries: try c.field("entries"), locked: try c.field("locked"))
-            case .credential: result = .credential(username: try c.field("username"), password: try c.field("password"), totp: try c.optional("totp"))
+            case .credential(_, _, _, let totp) where totp == true: result = .totp(try c.field("totp"))
+            case .credential: result = .credential(username: try c.field("username"), password: try c.field("password"))
             case .reveal, .unlock: result = .empty
             }
         }
@@ -233,8 +236,8 @@ struct BrowserBridgeReply: Codable, Equatable, Sendable {
         switch result {
         case .status(let app, let unlocked, let locked): try c.field("app", app); try c.field("unlocked", unlocked); try c.field("locked", locked)
         case .matches(let entries, let locked): try c.field("entries", entries); try c.field("locked", locked)
-        case .credential(let username, let password, let totp):
-            try c.field("username", username); try c.field("password", password); if let totp { try c.field("totp", totp) }
+        case .credential(let username, let password): try c.field("username", username); try c.field("password", password)
+        case .totp(let code): try c.field("totp", code)
         case .empty, .failure: break
         }
     }

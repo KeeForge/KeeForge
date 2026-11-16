@@ -88,7 +88,7 @@ Requests come from the extension and carry an integer `id` chosen by it (0 to 2^
 | --- | --- | --- |
 | `{"type":"status"}` | | `"app"`: version, `"unlocked"`: count of unlocked databases, `"locked"`: count of open but locked databases |
 | `{"type":"matches"}` | `"origin"` | `"entries"`: array of `{"entry","db","dbName","title","username","hasTotp","exact"}`, `"locked"`: count of open but locked databases |
-| `{"type":"credential"}` | `"entry"`, `"db"`, `"origin"`, optional `"totp": true` | `"username"`, `"password"`, and `"totp"` (current code) when asked and the entry has one |
+| `{"type":"credential"}` | `"entry"`, `"db"`, `"origin"`, optional `"totp": true` | without `"totp"`: `"username"` and `"password"`; with `"totp": true`: `"totp"` (the current code) only |
 | `{"type":"reveal"}` | `"entry"`, `"db"` | none |
 | `{"type":"unlock"}` | optional `"db"` | none |
 
@@ -96,9 +96,10 @@ Requests come from the extension and carry an integer `id` chosen by it (0 to 2^
 - `entry` and `db` are UUID strings. `username` is already resolved (field references included); `matches` never contains a password, a code, or any other field.
 - `matches` returns the entries the app's site matcher offers for that origin from every database that is unlocked and has no lock pending, at most 50. `title`, `username` and `dbName` are cut to 256 characters, and rows are dropped from the end until the reply fits the frame limit; only the rows returned are offered. `"exact": true` marks an entry that lists this host itself; the others are possible matches on a related host of the same site, listed after the exact ones, and the extension shows them apart.
 - `credential` is answered only for an `entry`/`db` pair that a `matches` reply on this connection returned for the same `origin`; otherwise `not-offered`. The app matches again (the entry must still be an exact or possible match for the origin) and checks the lock state again before answering. The reply can take as long as a device-owner prompt; the extension waits up to 120 seconds.
+- A `credential` request with `"totp": true` asks for the code alone: its reply never contains `username` or `password`, and an entry without a code is `unavailable`. A request without `"totp"` is never answered with a code. The extension rejects a reply that carries the other kind's fields as `bad-request`.
 - `reveal` fronts that database's window and selects the entry. `unlock` fronts the named database's locked window, or the Databases window. Together they allow a burst of 3 per connection, then one per second; more is `rate-limited`.
 
-Error codes: `bad-request`, `bad-origin`, `locked` (no unlocked database, or that one locked since), `not-offered`, `no-match` (the entry no longer matches the site), `denied` (the device-owner check failed or was cancelled), `unavailable` (the entry or database is gone), `rate-limited`.
+Error codes: `bad-request`, `bad-origin`, `locked` (no unlocked database, or that one locked since), `not-offered`, `no-match` (the entry no longer matches the site), `denied` (the device-owner check failed or was cancelled), `unavailable` (the entry or database is gone, or a code-only request names an entry without a code), `rate-limited`.
 
 ## 8. Rules both sides keep
 

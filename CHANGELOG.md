@@ -4,7 +4,7 @@
 
 ### New Features
 
-- On Mac, fill logins in Chrome, Edge, Brave, Arc, Vivaldi, Chromium, and Firefox with the KeeForge browser extension (#299). Turn on Settings → Browsers → "Allow browser extensions to fill from KeeForge", set up each browser there, then install the extension and pair it by checking that the code in the browser matches the one KeeForge shows. The extension lists the logins that match the site you're on, and fills one after Touch ID or your Mac password, as Copy Password does. Settings → Browsers lists paired browsers and removes them. The bridge is off until you turn it on.
+- On Mac, fill logins in your web browser with the KeeForge browser extension (#299). Turn on Settings → Browsers → "Allow browser extensions to fill from KeeForge", set up each browser there, then install the extension and pair it by checking that the code in the browser matches the one KeeForge shows. The extension lists the logins that match the site you're on, and fills one after Touch ID or your Mac password, as Copy Password does. Settings → Browsers lists paired browsers and removes them. The bridge is off until you turn it on.
 
 ## v1.23.0 (2026-11-15)
 

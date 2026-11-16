@@ -16,7 +16,7 @@ function setup() {
   let chosenFrame = 0;
   const timers = new FakeTimers(); let snapshot = { token: 'pin', href: 'https://example.com/path', origin: 'https://example.com' };
   const api = { tabs: { query: async () => [{ id: 1 }], async get() { return { url: 'https://example.com/path' }; } }, scripting: { async executeScript({ target }) { return target.allFrames ? [{ frameId: chosenFrame, documentId: 'doc', result: { focused: true, fillable: true, token: snapshot.token } }] : [{ frameId: target.frameIds[0], documentId: 'doc', result: snapshot }]; } } };
-  const calls = []; const credential = { id: 2, ok: true, username: 'demo', password: 'secret', totp: '123456' };
+  const calls = []; const credential = { id: 2, ok: true, username: 'demo', password: 'secret' };
   const connection = { state: 'ready', async open() { calls.push('open'); }, getState() { return { state: this.state }; }, close() { calls.push('close'); }, async request(type, fields) { calls.push({ type, fields }); return type === 'credential' ? credential : { ok: true }; }, async forgetPairing() { calls.push('forget'); } };
   const fills = [];
   const b = new Background({ api, timers, connection, injectCredential: async (target, value) => { fills.push({ target, value }); assert.equal(value.password, 'secret'); } });
@@ -40,6 +40,15 @@ test('browser origin overrides UI, frames use browser data, credential is consum
   assert.equal(Object.values(s.b).includes(s.credential), false);
   assert.equal(JSON.stringify(s.b).includes('secret'), false);
   s.timers.fire(60000); assert.equal(s.calls.at(-1), 'close');
+});
+test('a code-only fill asks for the code alone and never handles a password', async () => {
+  const s = setup(); const code = { id: 3, ok: true, totp: '123456' }; let seen;
+  s.connection.request = async (type, fields) => { s.calls.push({ type, fields }); return type === 'credential' ? code : { ok: true }; };
+  s.b.injectCredential = async (target, value, codeOnly) => { seen = { keys: Object.keys(value), totp: value.totp, codeOnly }; };
+  assert.deepEqual(await s.handle({ type: 'fill', tabId: 1, entry: 'e', db: 'd', totp: true }), { ok: true });
+  assert.deepEqual(s.calls.at(-1), { type: 'credential', fields: { entry: 'e', db: 'd', origin: 'https://example.com', totp: true } });
+  assert.deepEqual(seen, { keys: ['id', 'ok', 'totp'], totp: '123456', codeOnly: true });
+  assert.deepEqual(code, {});
 });
 test('fill failure and navigation clear credentials; no configured seam releases nothing', async () => {
   for (const mode of ['throw', 'navigate', 'document', 'no-seam']) {

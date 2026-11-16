@@ -102,5 +102,5 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - Composite keys live in Keychain, not raw master passwords.
 - Local saves compare the open-time SHA-512 before overwrite, create timestamped backups, and refresh the shared cached copy for AutoFill.
 - App Group and security-scoped bookmark behavior affect both the app and AutoFill extension.
-- The Mac browser bridge is off by default, lists matching logins without secrets, and releases one password at a time behind the device-owner gate; the threat model's bridge rows record its limits.
+- The Mac browser bridge is off by default, lists matching logins without secrets, and releases one password, or one verification code, per request behind the device-owner gate; the threat model's bridge rows record its limits.
 - Network egress stays limited to cloud sync, opt-in favicon fetching (DuckDuckGo, `icons.duckduckgo.com`), the user-initiated feedback form (`feedback.keeforge.com`), OS-mediated StoreKit requests for the tip jar and review prompt in App Store builds, and, in the direct Mac build only, Sparkle's daily update check (on by default; Settings → About → Updates).

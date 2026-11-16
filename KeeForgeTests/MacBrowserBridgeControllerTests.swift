@@ -267,7 +267,7 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
         XCTAssertEqual(entries.map(\.entry), [entry.id])
         XCTAssertEqual(entries.map(\.db), [session.databaseReference.id])
         let credential = try await request(.credential(entry: entry.id, db: session.databaseReference.id, origin: "https://example.com", totp: nil), id: 2, client: &client, socket: socket)
-        XCTAssertEqual(credential, .credential(username: "entry-user", password: "entry-password", totp: nil))
+        XCTAssertEqual(credential, .credential(username: "entry-user", password: "entry-password"))
         let reveal = try await request(.reveal(entry: entry.id, db: session.databaseReference.id), id: 3, client: &client, socket: socket)
         XCTAssertEqual(reveal, .empty)
         XCTAssertEqual(reveals, [entry.id, session.databaseReference.id])

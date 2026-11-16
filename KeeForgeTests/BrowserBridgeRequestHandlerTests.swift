@@ -110,7 +110,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
             XCTAssertEqual(Set(row.keys), ["entry", "db", "dbName", "title", "username", "hasTotp", "exact"])
         }
         let result = await send(credential(loose, first), to: handler)
-        XCTAssertEqual(result, .credential(username: "user", password: "password-Loose", totp: nil))
+        XCTAssertEqual(result, .credential(username: "user", password: "password-Loose"))
     }
 
     func testFiftyCapAndOnlyReturnedPairsAreOffered() async throws {
@@ -148,7 +148,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         let dropped = await send(credential(entries[fitted.count], session), to: handler)
         XCTAssertEqual(dropped, .failure(.notOffered), "Only returned rows are offered")
         let kept = await send(credential(entries[0], session), to: handler)
-        XCTAssertEqual(kept, .credential(username: "user", password: "password-\(heavy)", totp: nil))
+        XCTAssertEqual(kept, .credential(username: "user", password: "password-\(heavy)"))
     }
 
     func testLockedAndPendingSessionsAreCountedAndWithdrawn() async throws {
@@ -183,7 +183,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         let otherConnection = await send(credential(a, first), to: self.handler())
         XCTAssertEqual(otherConnection, .failure(.notOffered))
         let result = await send(credential(b, second), to: handler)
-        XCTAssertEqual(result, .credential(username: "user", password: "password-B", totp: nil))
+        XCTAssertEqual(result, .credential(username: "user", password: "password-B"))
     }
 
     func testOfferEvictionAndReplacement() async throws {
@@ -195,7 +195,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         let evicted = await send(credential(entry, session), to: handler)
         XCTAssertEqual(evicted, .failure(.notOffered))
         let retained = await send(credential(entry, session, origin: "https://example.com:8"), to: handler)
-        XCTAssertEqual(retained, .credential(username: "user", password: "password-Login", totp: nil))
+        XCTAssertEqual(retained, .credential(username: "user", password: "password-Login"))
     }
 
     func testURLChangedAndSessionRemoved() async throws {
@@ -276,7 +276,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         _ = try await matches(handler)
         for _ in 0..<2 {
             let result = await send(credential(entry, session), to: handler)
-            XCTAssertEqual(result, .credential(username: "user", password: "password-Login", totp: nil))
+            XCTAssertEqual(result, .credential(username: "user", password: "password-Login"))
         }
         XCTAssertEqual(prompts, 1)
         XCTAssertEqual(reasons, [String(localized: "Fill a login in your browser")])
@@ -285,32 +285,49 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         XCTAssertEqual(prompts, 2)
     }
 
-    func testProtectedUsernameAndPasswordReferencesAndTOTP() async throws {
+    func testProtectedUsernameAndPasswordReferences() async throws {
         let target = try entry("Target", url: "https://other.net")
         let reference = "{REF:P@I:\(target.id.uuidString.replacingOccurrences(of: "-", with: ""))}"
         var referencing = try entry("Reference")
         referencing.username = reference
         referencing.password = try .encrypt(reference, using: key)
         referencing.totpConfig = TOTPConfig(secret: try .encrypt("JBSWY3DPEHPK3PXP", using: key))
-        let plain = try entry("NoCode")
         var publicReference = try entry("PublicReference")
         publicReference.username = "{REF:U@I:\(target.id.uuidString.replacingOccurrences(of: "-", with: ""))}"
-        let session = try await makeSession([target, referencing, plain, publicReference])
+        let session = try await makeSession([target, referencing, publicReference])
         let handler = handler()
         let rows = try await matches(handler)
         XCTAssertEqual(rows.first { $0.entry == referencing.id }?.username, "")
         XCTAssertEqual(rows.first { $0.entry == referencing.id }?.hasTotp, true)
         XCTAssertEqual(rows.first { $0.entry == publicReference.id }?.username, "user")
-        let result = await send(credential(referencing, session, totp: true), to: handler)
-        guard case .credential(let username, let password, let code) = result else { return XCTFail() }
-        XCTAssertEqual(username, "password-Target")
-        XCTAssertEqual(password, "password-Target")
-        XCTAssertEqual(code?.count, 6)
-        XCTAssertTrue(code?.allSatisfy(\.isNumber) == true)
+        let result = await send(credential(referencing, session), to: handler)
+        XCTAssertEqual(result, .credential(username: "password-Target", password: "password-Target"))
+    }
+
+    func testCodeOnlyRequestReturnsOnlyTheCodeAndNeverReadsThePassword() async throws {
+        var withCode = try entry("Code")
+        // A password this session cannot decrypt: a code-only request must not need it.
+        withCode.password = try .encrypt("other-key-password", using: SymmetricKey(size: .bits256))
+        withCode.totpConfig = TOTPConfig(secret: try .encrypt("JBSWY3DPEHPK3PXP", using: key))
+        let plain = try entry("NoCode")
+        let session = try await makeSession([withCode, plain])
+        var prompts = 0
+        let handler = handler(gate: { _ in prompts += 1; return true })
+        _ = try await matches(handler)
+        let result = await send(credential(withCode, session, totp: true), to: handler)
+        guard case .totp(let code) = result else { return XCTFail("Expected a code: \(result)") }
+        XCTAssertEqual(code.count, 6)
+        XCTAssertTrue(code.allSatisfy(\.isNumber))
+        XCTAssertEqual(prompts, 1)
+        let json = try JSONSerialization.jsonObject(with: BrowserBridgeJSON.encode(BrowserBridgeReply(id: 1, result: result))) as! [String: Any]
+        XCTAssertEqual(Set(json.keys), ["id", "ok", "totp"])
         let noCode = await send(credential(plain, session, totp: true), to: handler)
-        XCTAssertEqual(noCode, .credential(username: "user", password: "password-NoCode", totp: nil))
-        let notRequested = await send(credential(referencing, session), to: handler)
-        XCTAssertEqual(notRequested, .credential(username: "password-Target", password: "password-Target", totp: nil))
+        XCTAssertEqual(noCode, .failure(.unavailable))
+        XCTAssertEqual(prompts, 1)
+        let passwordFill = await send(credential(plain, session), to: handler)
+        XCTAssertEqual(passwordFill, .credential(username: "user", password: "password-NoCode"))
+        let passwordJSON = try JSONSerialization.jsonObject(with: BrowserBridgeJSON.encode(BrowserBridgeReply(id: 2, result: passwordFill))) as! [String: Any]
+        XCTAssertEqual(Set(passwordJSON.keys), ["id", "ok", "username", "password"])
     }
 
     func testRevealAndUnlock() async throws {
@@ -441,7 +458,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         XCTAssertEqual(status, .status(app: "test", unlocked: 1, locked: 0))
         continuation?.resume(returning: true)
         let result = await first.value
-        XCTAssertEqual(result, .credential(username: "user", password: "password-Login", totp: nil))
+        XCTAssertEqual(result, .credential(username: "user", password: "password-Login"))
     }
 
     func testSixteenRequestsInFlightAndMalformedRequests() async {

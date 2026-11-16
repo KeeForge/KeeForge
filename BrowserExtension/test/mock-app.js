@@ -59,7 +59,10 @@ export class MockSession {
         Object.assign(reply, { entries: this.app.entries, locked: this.app.scenario === 'locked' ? 1 : 0 }); break;
       case 'credential':
         if (!this.offered.has(request.origin) || !this.app.entries.some(entry => entry.entry === request.entry && entry.db === request.db)) reply = { id: request.id, ok: false, error: 'not-offered' };
-        else Object.assign(reply, { username: 'demo', password: 'mock-password', ...(request.totp ? { totp: '123456' } : {}) });
+        else if (request.totp) {
+          if (this.app.entries.find(entry => entry.entry === request.entry && entry.db === request.db).hasTotp) reply.totp = '123456';
+          else reply = { id: request.id, ok: false, error: 'unavailable' };
+        } else Object.assign(reply, { username: 'demo', password: 'mock-password' });
         break;
     }
     if (this.app.replyTransform) reply = this.app.replyTransform(reply);
