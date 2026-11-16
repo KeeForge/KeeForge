@@ -9,6 +9,7 @@
 - `Cloud/CloudDatabaseSaver`: the app's save of a cloud-backed database. `Cloud/CloudSyncCoordinator`: download-before-open and every replacement of a cloud cache file.
 - `AutoFill/AutoFillSaveCoordinator`: the extension-safe save of a new entry, and the pending-upload marker that covers it.
 - `SSHAgent/MacSSHAgentController`: the macOS-only, opt-in SSH agent that signs with keys stored in the unlocked database (`SSHAgent/AGENTS.md`).
+- `BrowserBridge/`: the macOS-only, opt-in bridge a browser extension asks for credentials through (`BrowserBridge/AGENTS.md`); wire contract in `../../docs/browser-bridge-protocol.md`.
 - `Security/KeychainService`: the per-database quick-unlock key. `Cloud/CloudTokenStore`: provider credentials. They are separate items with different protection (see `Security/AGENTS.md`, `Cloud/AGENTS.md`).
 
 ## Invariants

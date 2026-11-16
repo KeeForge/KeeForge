@@ -1,4 +1,5 @@
 import Foundation
+import LocalAuthentication
 
 enum WhatsNewPlatform: Hashable, Sendable {
     case iOS
@@ -52,10 +53,64 @@ struct WhatsNewRelease: Identifiable, Sendable {
 
 /// User-facing release highlights, filtered for the current platform.
 enum WhatsNewCatalog {
-    static func release(version: String, platform: WhatsNewPlatform) -> WhatsNewRelease? {
+    static func release(
+        version: String,
+        platform: WhatsNewPlatform,
+        deviceHasTouchID: Bool = deviceHasTouchID
+    ) -> WhatsNewRelease? {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.23.0":
+            features = [
+                WhatsNewFeature(
+                    id: "mac-redesign",
+                    title: "KeeForge for Mac, redesigned",
+                    detail: "KeeForge for Mac is rebuilt from the ground up as a native Mac app. Find it on the Mac App Store or download it from GitHub.",
+                    systemImage: "macbook",
+                    platforms: [.iOS],
+                    link: URL(string: "https://github.com/KeeForge/KeeForge/releases/latest").map {
+                        WhatsNewFeatureLink(title: "Download the latest release", url: $0)
+                    }
+                ),
+                WhatsNewFeature(
+                    id: "mac-native-app",
+                    title: "A new KeeForge for Mac",
+                    detail: "KeeForge is rebuilt as a native Mac app. Each database window shows the sidebar, your entries, and the selected entry side by side, and you edit an entry right where you read it.",
+                    systemImage: "macwindow",
+                    platforms: [.macOS]
+                ),
+                WhatsNewFeature(
+                    id: "mac-multiple-databases",
+                    title: "Open several databases at once",
+                    detail: "Each database opens in its own window, and closing a window locks only that database. Choose Window → Databases to open, add, or create another.",
+                    systemImage: "macwindow.on.rectangle",
+                    platforms: [.macOS]
+                ),
+                WhatsNewFeature(
+                    id: "entry-row-menu",
+                    title: "More when you touch and hold",
+                    detail: "Touch and hold an entry in any list to copy its verification code or change its icon.",
+                    systemImage: "hand.tap",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "recycle-bin-origin",
+                    title: "A clearer Recycle Bin",
+                    detail: "The Recycle Bin shows which group each item came from and when it was deleted. Touch and hold an item to restore it, or choose Restore to Group… to put it somewhere else.",
+                    systemImage: "trash",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "autofill-unlock-sheet",
+                    title: "Unlock AutoFill in one place",
+                    detail: deviceHasTouchID
+                        ? "AutoFill now unlocks in a sheet that names the database, with your master password and Touch ID together."
+                        : "AutoFill now unlocks in a sheet that names the database, with your master password and Face ID together.",
+                    systemImage: "lock.open",
+                    platforms: [.iOS]
+                ),
+            ]
         case "1.22.0":
             features = [
                 WhatsNewFeature(
@@ -550,6 +605,13 @@ enum WhatsNewCatalog {
         guard supportedFeatures.isEmpty == false else { return nil }
 
         return WhatsNewRelease(version: version, features: supportedFeatures)
+    }
+
+    // `biometryType` is set by the evaluation even when nothing is enrolled.
+    private static var deviceHasTouchID: Bool {
+        let context = LAContext()
+        _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+        return context.biometryType == .touchID
     }
 }
 

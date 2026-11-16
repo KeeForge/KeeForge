@@ -64,8 +64,8 @@ private struct MacEncryptionSettingsForm: View {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.State.warning)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Most databases never need this").font(.headline)
-                        Text("Saving re-encrypts this database file. It still opens with the same master key, and backups made before the change keep the previous settings.")
-                            .font(.caption).fixedSize(horizontal: false, vertical: true)
+                        Text("Saving re-encrypts the file; it keeps its master key, and backups made before the change keep the previous settings.")
+                            .macSettingsCaptionStyle().foregroundStyle(.primary)
                     }
                     Spacer(minLength: 0)
                 }
@@ -146,12 +146,12 @@ private struct MacEncryptionSettingsForm: View {
     private static func description(_ model: EncryptionSettingsViewModel) -> String {
         let warning = String(localized: "Stronger settings take longer to unlock.")
         guard model.showsAESKDFRounds else { return model.keyDerivationSummary + " " + warning }
-        let cipherNote = String(localized: "AES-KDF only strengthens the master key. The Encryption setting above still chooses the cipher that encrypts the database.")
+        let cipherNote = String(localized: "AES-KDF only strengthens the master key; the Encryption setting above chooses the cipher.")
         let summary = model.aesKDFRoundsError == nil ? [model.keyDerivationSummary] : []
         return (summary + [cipherNote, warning]).joined(separator: " ")
     }
 
     private func caption(_ text: String) -> some View {
-        Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        settingsCaption(verbatim: text)
     }
 }

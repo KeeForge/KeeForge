@@ -7015,7 +7015,9 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testFailedWindowCloseSaveKeepsRegistrationSessionAndSecrets() async throws {
+        let saveAttempted = expectation(description: "Close attempted the save")
         let vm = try makeViewModel(localSaveOperation: { _, _, _, _, _, _, _ in
+            saveAttempted.fulfill()
             throw SaveError.saveContextUnavailable
         })
         await vm.unlock(password: fixturePassword)
@@ -7030,8 +7032,13 @@ final class DatabaseViewModelTests: XCTestCase {
         let guardUnderTest = MacWindowCloseGuard(registry: registry,
             prompt: { _, _ in .save }, closeWindow: { _ in closed = true })
         XCTAssertFalse(guardUnderTest.windowShouldClose(window))
-        for _ in 0..<100 where vm.pendingLockRequest == nil { await Task.yield() }
+        await fulfillment(of: [saveAttempted], timeout: 10)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while vm.pendingLockRequest == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
         XCTAssertNotNil(vm.pendingLockRequest)
+        XCTAssertTrue(vm.isDirty)
         XCTAssertFalse(closed)
         XCTAssertEqual(vm.state, .unlocked)
         XCTAssertNotNil(vm.sessionKey)

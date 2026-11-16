@@ -10,19 +10,22 @@ struct MacQuickSearchSettingsTab: View {
     var body: some View {
         MacSettingsForm {
             MacSettingsRow("Menu bar:") {
-                Toggle("Show KeeForge in the Menu Bar", isOn: $controller.isMenuBarItemEnabled)
-                    .accessibilityIdentifier("settings.menu-bar.toggle")
+                MacSettingsHelpRow(help: MacSettingsHelpButton(label: "Quick Search Help",
+                    text: "Entries appear only while that database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the database window.",
+                    identifier: "settings.quick-search.help")) {
+                    Toggle("Show KeeForge in the Menu Bar", isOn: $controller.isMenuBarItemEnabled)
+                        .accessibilityIdentifier("settings.menu-bar.toggle")
+                }
+                settingsCaption("Search the database whose window you used last, from the menu bar or with the shortcut in any app.", indented: true)
             }
             MacSettingsRow("Quick Search shortcut:") {
                 MacShortcutRecorder(shortcut: $controller.shortcut, isRecording: $controller.isRecordingShortcut)
                     .disabled(!controller.isMenuBarItemEnabled)
                 if controller.isShortcutUnavailable {
                     Text("Another app is already using this shortcut. Choose a different one.")
-                        .font(.caption).foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .macSettingsCaptionStyle().foregroundStyle(.red)
                 }
-                settingsCaption("Click to record a new shortcut. It needs ⌘, ⌥ or ⌃; Escape cancels.")
-                settingsCaption("Search the open database from the menu bar, or press the shortcut in any app. Entries appear only while the database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the main window.")
+                settingsCaption("Click to record a shortcut with ⌘, ⌥ or ⌃; Escape cancels.")
             }
         }
         .onChange(of: controller.isMenuBarItemEnabled) { _, isEnabled in

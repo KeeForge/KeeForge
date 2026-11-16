@@ -56,7 +56,7 @@ struct MacConnectServerSheet: View {
                     .accessibilityIdentifier("webdav.connect.allow-http-toggle")
             }
             if form.allowsUnencryptedHTTP {
-                caption("HTTP sends your WebDAV username, password, and database traffic without encryption. Only use it on a local network you trust.")
+                caption("HTTP sends your username, password and database unencrypted, so use it only on a local network you trust.")
             } else {
                 caption("Keep this off unless your trusted local WebDAV server cannot use HTTPS.")
             }
@@ -81,13 +81,13 @@ struct MacConnectServerSheet: View {
                     .accessibilityIdentifier("ftp.connect.allow-unencrypted-toggle")
             }
             if model.showsFTPWarnings {
-                caption("FTP sends your username, password, and database file without encryption. Only use it on a local network you trust.")
+                caption("FTP sends your username, password and database unencrypted, so use it only on a local network you trust.")
                     .foregroundStyle(.orange)
-                caption("FTP cannot prevent every simultaneous save. Avoid editing this database from another app or device at the same time; a concurrent change may be overwritten.")
+                caption("Avoid editing this database elsewhere at the same time: FTP can’t stop a concurrent change from being overwritten.")
             }
         }.formStyle(.columns).frame(width: MacSheetFormMetrics.width)
     }
     private func caption(_ key: LocalizedStringKey) -> some View {
-        LabeledContent("") { Text(key).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+        LabeledContent("") { settingsCaption(key) }
     }
 }

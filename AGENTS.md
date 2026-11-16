@@ -16,7 +16,7 @@ Entry point for coding agents working on KeeForge. This file holds the repo-wide
 - Native iPhone, iPad, and Mac KeePass manager for KDBX 4.x; also reads KDBX 3.1 (read-only)
 - Swift 6, SwiftUI, iOS 18+ / macOS 15+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`; target-membership rules live in `KeeForge/AGENTS.md`
-- Xcode Cloud runs the `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB` schemes; the partition rules are in `ci_scripts/AGENTS.md`.
+- On each `rc/*` tag, GitHub Actions runs the `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB` schemes and Xcode Cloud archives both App Store builds; the partition rules are in `ci_scripts/AGENTS.md`.
 - Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`
 
 ## Find The Right Doc
@@ -38,6 +38,7 @@ Before changing a folder, read its `AGENTS.md` and each parent's up to this file
 
 - Keep temporary agent artifacts in the main checkout's gitignored `scratch/`, never a linked worktree's. Find the main checkout with the first entry in `git worktree list --porcelain`.
 - `scratch/` may be emptied at any time. Release artifacts and evidence a later step needs go in the main checkout's `build/releases/` (`ci_scripts/release_dir.sh`; layout in `.agents/skills/prepare-release/references/shared.md`).
+- Local Xcode tests/renders must use `-derivedDataPath <main>/scratch/test-derived-data`; SwiftPM tests use `--scratch-path <main>/scratch/test-package-build`. Arrange cleanup with `trap`/`finally` for success, failure and cancellation: stop test processes, uninstall their simulator apps, unregister their Mac app bundles with `lsregister -u`, then delete temporary builds, `.xcresult` bundles and fixtures after preserving required evidence. Never remove the installed app, personal vault data or release artifacts.
 - For iOS UI work, preview with `scripts/render-views.sh` before driving a simulator or device; `KeeForge/Views/AGENTS.md` says what it covers.
 - Update the folder's `AGENTS.md` when an invariant, ownership boundary, or test mapping changes. Do not add file maps, identifier lists, or history. Leave historical `docs/specs` alone unless explicitly asked.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change. `KeeForgeUITests` and `KeeForgeMacUITests` share one identifier surface, so update both.
