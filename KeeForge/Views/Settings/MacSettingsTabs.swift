@@ -38,11 +38,13 @@ struct MacSettingsPane<Content: View>: View {
 }
 
 struct MacSettingsForm<Content: View>: View {
+    /// Sheets with a fixed height use a tighter rhythm than the Settings window.
+    var rowSpacing = MacSettingsLayout.rowSpacing
     @ViewBuilder let content: Content
 
     var body: some View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: MacSettingsLayout.columnSpacing,
-             verticalSpacing: MacSettingsLayout.rowSpacing) {
+             verticalSpacing: rowSpacing) {
             content
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)

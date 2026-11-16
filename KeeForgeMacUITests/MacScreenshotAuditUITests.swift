@@ -436,6 +436,16 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             if window.buttons["cloud-reauth-banner.reconnect"].firstMatch.waitForExistence(timeout: 15) {
                 settle(0.6)
                 await snapWindow(window, name)
+                // 8a2b. The Sync tab while the server needs reconnecting, with the card's Reconnect.
+                let reconnectName = "08a2b-database-settings-sync-reconnect"
+                let saveAlertOK = window.sheets.buttons["OK"].firstMatch
+                if saveAlertOK.waitForExistence(timeout: 3) { saveAlertOK.click(); settle(0.6) }
+                if let sheet = openDatabaseSettings(in: window, skipping: reconnectName) {
+                    if selectDatabaseSettingsTab("Sync", in: sheet) { await snapWindow(sheet, reconnectName) }
+                    else { noteSkip(reconnectName, reason: "a WebDAV database showed no Sync tab") }
+                    sheet.buttons["database-settings.done"].firstMatch.click()
+                    _ = sheet.waitForNonExistence(timeout: 5)
+                }
             } else {
                 noteSkip(name, reason: "the reconnect notice never appeared")
                 let hierarchy = XCTAttachment(string: app.debugDescription)
@@ -491,7 +501,15 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         await captureLauncherSheet(
             opening: { self.databasesWindow.buttons["databases.create-new"].firstMatch.click() },
             hosting: "database-create.cancel-button",
-            "01b-databases-create-new"
+            "01b-databases-create-new",
+            then: [
+                ("01b1-databases-create-advanced", { $0.buttons["database-create.advanced-options"].firstMatch.click() }),
+                ("01b2-databases-create-webdav", { sheet in
+                    sheet.popUpButtons["database-create.destination-picker"].firstMatch.click()
+                    self.app.menuItems["WebDAV"].firstMatch.click()
+                }),
+                ("01b3-databases-create-advanced-closed", { $0.buttons["database-create.advanced-options"].firstMatch.click() }),
+            ]
         ) {
             self.app.buttons["database-create.cancel-button"].firstMatch.click()
         }
@@ -1642,6 +1660,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         opening open: () -> Void,
         hosting identifier: String?,
         _ name: String,
+        then steps: [(name: String, step: (XCUIElement) -> Void)] = [],
         closing close: () -> Void
     ) async {
         guard waitForStableForeground() else {
@@ -1658,6 +1677,11 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         }
         settle(0.6)
         await snapWindow(sheet, name)
+        for (stepName, step) in steps {
+            step(sheet)
+            settle(0.6)
+            await snapWindow(sheet, stepName)
+        }
         close()
         if sheet.waitForNonExistence(timeout: 5) == false {
             app.typeKey(.escape, modifierFlags: [])

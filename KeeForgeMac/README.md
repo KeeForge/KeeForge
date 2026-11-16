@@ -142,8 +142,12 @@ names its parent in the caption. Entry icons use the same select-then-Use Icon
 shell, with custom icons, their manager and cancellable website download.
 Database Settings uses a 720×540 pt shell with a centred title over a row of
 icon-over-title tabs (`MacSheetTabBar`: General, Security, Sync for WebDAV/FTP,
-AutoFill, Backups), ruled off from the body and the Done footer. Its hosted
-column forms omit key-file association rows; the unlock page and launcher row
+AutoFill, Backups), ruled off from the body and the Done footer. The tabs are drawn
+to the Settings window's toolbar tabs (AppKit draws those only in a toolbar, which a
+sheet lacks), and every tab lays out on the Settings window's `MacSettingsForm` grid,
+as New Database does. The Sync tab's Status row uses the status card's
+`MacDatabaseStatus` rules; from a database window it offers the card's action, which
+closes the sheet and runs in the window. Its hosted forms omit key-file association rows; the unlock page and launcher row
 still manage associations. AutoFill's destination row needs the unlocked session.
 Manage Custom Icons opens its existing sheet. Change Master Key and Encryption
 Settings are native sheets stacked on the Security tab; Database ▸ Change Master
