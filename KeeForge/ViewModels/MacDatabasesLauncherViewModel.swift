@@ -152,7 +152,7 @@ final class MacDatabasesLauncherViewModel {
     @ObservationIgnored var hasUnsavedWork: @MainActor (UUID) -> Bool = { _ in false }
     /// True while the window's sheet is creating or connecting; a new request must not replace it.
     @ObservationIgnored var isSheetBusy: @MainActor () -> Bool = { false }
-    @ObservationIgnored var removeDatabase: @MainActor (DatabaseReference) -> Void = { _ in }
+    @ObservationIgnored var removeDatabase: @MainActor (DatabaseReference) async -> Void = { _ in }
     @ObservationIgnored var chooseEnrollmentDestinationHandler: @MainActor (UUID) -> Void = { _ in }
     @ObservationIgnored var cancelEnrollmentDestinationHandler: @MainActor () -> Void = {}
     /// The list's mutations: quick launch, read-only, key file, nickname, pending uploads.
@@ -313,17 +313,17 @@ final class MacDatabasesLauncherViewModel {
         beginRemoval(selectedDatabase)
     }
 
-    func confirmRemoval() {
+    func confirmRemoval() async {
         guard let pendingRemoval else { return }
         self.pendingRemoval = nil
-        remove(pendingRemoval)
+        await remove(pendingRemoval)
     }
 
     /// Checked again on confirmation: the window may have gained unsaved work meanwhile.
-    func remove(_ reference: DatabaseReference) {
+    func remove(_ reference: DatabaseReference) async {
         guard requestRemoval(reference) else { return }
         if selectedDatabaseID == reference.id { selectedDatabaseID = nil }
-        removeDatabase(reference)
+        await removeDatabase(reference)
     }
 
     // MARK: - Servers
