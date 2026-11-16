@@ -5344,6 +5344,58 @@
         }
       }
     },
+    "15 Minutes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15 Minuten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15 minutos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15 minutes"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15 minuti"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15 分"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15 минут"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15 分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15 分鐘"
+          }
+        }
+      }
+    },
     "30 Seconds" : {
       "localizations" : {
         "de" : {
@@ -18535,54 +18587,54 @@
         }
       }
     },
-    "Copied values are cleared after this timeout (unless you copied something else since) and are hidden from clipboard-manager apps. Unlike iOS, macOS cannot exclude copies from Handoff's Universal Clipboard, so a copied password may briefly appear on your other devices' clipboards." : {
+    "Copied values are cleared after this timeout (unless you copied something else since) and when the database locks, and are hidden from clipboard-manager apps. With Never, a copy stays until the database locks. Unlike iOS, macOS cannot exclude copies from Handoff's Universal Clipboard, so a copied password may appear on your other devices' clipboards." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kopierte Werte werden nach Ablauf dieser Frist gelöscht (sofern du zwischenzeitlich nichts anderes kopiert hast) und vor Apps zur Verwaltung der Zwischenablage verborgen. Anders als iOS kann macOS Kopien nicht von der universellen Zwischenablage von Handoff ausschließen. Daher kann ein kopiertes Passwort kurzzeitig in den Zwischenablagen deiner anderen Geräte erscheinen."
+            "value" : "Kopierte Werte werden nach Ablauf dieser Frist gelöscht (sofern du zwischenzeitlich nichts anderes kopiert hast) oder wenn die Datenbank gesperrt wird, und sind vor Apps zur Verwaltung der Zwischenablage verborgen. Mit „Nie“ bleibt eine Kopie erhalten, bis die Datenbank gesperrt wird. Anders als iOS kann macOS Kopien nicht von der universellen Zwischenablage von Handoff ausschließen. Daher kann ein kopiertes Passwort in den Zwischenablagen deiner anderen Geräte erscheinen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los valores copiados se borran al vencer este plazo (a menos que hayas copiado algo más mientras tanto) y se ocultan de las apps de gestión del portapapeles. A diferencia de iOS, macOS no puede excluir las copias del portapapeles universal de Handoff, por lo que una contraseña copiada puede aparecer brevemente en el portapapeles de tus otros dispositivos."
+            "value" : "Los valores copiados se borran al vencer este plazo (a menos que hayas copiado algo más mientras tanto) y cuando se bloquea la base de datos, y se ocultan de las apps de gestión del portapapeles. Con «Nunca», una copia permanece hasta que se bloquea la base de datos. A diferencia de iOS, macOS no puede excluir las copias del portapapeles universal de Handoff, por lo que una contraseña copiada puede aparecer en el portapapeles de tus otros dispositivos."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les valeurs copiées sont effacées à l'expiration de ce délai (sauf si vous avez copié autre chose entre-temps) et sont masquées aux apps de gestion du presse-papiers. Contrairement à iOS, macOS ne peut pas exclure les copies du presse-papiers universel de Handoff. Un mot de passe copié peut donc apparaître brièvement dans les presse-papiers de vos autres appareils."
+            "value" : "Les valeurs copiées sont effacées à l'expiration de ce délai (sauf si vous avez copié autre chose entre-temps) et lorsque la base de données se verrouille, et sont masquées aux apps de gestion du presse-papiers. Avec « Jamais », une copie reste jusqu'au verrouillage de la base de données. Contrairement à iOS, macOS ne peut pas exclure les copies du presse-papiers universel de Handoff. Un mot de passe copié peut donc apparaître dans les presse-papiers de vos autres appareils."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "I valori copiati vengono cancellati allo scadere di questo tempo (a meno che nel frattempo tu non abbia copiato altro) e sono nascosti alle app di gestione degli appunti. A differenza di iOS, macOS non può escludere le copie dagli Appunti condivisi di Handoff, quindi una password copiata potrebbe comparire brevemente negli appunti dei tuoi altri dispositivi."
+            "value" : "I valori copiati vengono cancellati allo scadere di questo tempo (a meno che nel frattempo tu non abbia copiato altro) e quando il database si blocca, e sono nascosti alle app di gestione degli appunti. Con Mai, una copia resta finché il database non si blocca. A differenza di iOS, macOS non può escludere le copie dagli Appunti condivisi di Handoff, quindi una password copiata potrebbe comparire negli appunti dei tuoi altri dispositivi."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "コピーした値は、この時間が過ぎると消去され（その間に別のものをコピーした場合を除く）、クリップボード管理 App からは見えません。iOS とは異なり、macOS では Handoff のユニバーサルクリップボードからコピーを除外できないため、コピーしたパスワードが他のデバイスのクリップボードに一時的に表示されることがあります。"
+            "value" : "コピーした値は、この時間が過ぎると消去され（その間に別のものをコピーした場合を除く）、データベースのロック時にも消去されます。クリップボード管理 App からは見えません。「しない」を選ぶと、コピーはデータベースがロックされるまで残ります。iOS とは異なり、macOS では Handoff のユニバーサルクリップボードからコピーを除外できないため、コピーしたパスワードが他のデバイスのクリップボードに表示されることがあります。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Скопированные значения очищаются по истечении этого времени (если вы с тех пор не скопировали что-то другое) и скрыты от менеджеров буфера обмена. В отличие от iOS, macOS не позволяет исключить скопированное из универсального буфера обмена Handoff, поэтому скопированный пароль может ненадолго появиться в буфере обмена других ваших устройств."
+            "value" : "Скопированные значения очищаются по истечении этого времени (если вы с тех пор не скопировали что-то другое) и при блокировке базы данных, а также скрыты от менеджеров буфера обмена. При значении «Никогда» скопированное остаётся до блокировки базы данных. В отличие от iOS, macOS не позволяет исключить скопированное из универсального буфера обмена Handoff, поэтому скопированный пароль может появиться в буфере обмена других ваших устройств."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "拷贝的值会在此时限后被清除（除非此后你又拷贝了其他内容），并对剪贴板管理类 App 隐藏。与 iOS 不同，macOS 无法将拷贝内容排除在“接力”的通用剪贴板之外，因此拷贝的密码可能会短暂出现在你其他设备的剪贴板上。"
+            "value" : "拷贝的值会在此时限后被清除（除非此后你又拷贝了其他内容），数据库锁定时也会清除，并对剪贴板管理类 App 隐藏。选择“从不”时，拷贝的内容会保留到数据库锁定为止。与 iOS 不同，macOS 无法将拷贝内容排除在“接力”的通用剪贴板之外，因此拷贝的密码可能会出现在你其他设备的剪贴板上。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "拷貝的值會在此時限後清除（除非之後你又拷貝了其他內容），並對剪貼板管理類 App 隱藏。與 iOS 不同，macOS 無法將拷貝內容排除在「接力」的通用剪貼板之外，因此拷貝的密碼可能會短暫出現在你其他裝置的剪貼板上。"
+            "value" : "拷貝的值會在此時限後清除（除非之後你又拷貝了其他內容），資料庫鎖定時也會清除，並對剪貼板管理類 App 隱藏。選擇「永不」時，拷貝的內容會保留到資料庫鎖定為止。與 iOS 不同，macOS 無法將拷貝內容排除在「接力」的通用剪貼板之外，因此拷貝的密碼可能會出現在你其他裝置的剪貼板上。"
           }
         }
       }
@@ -37871,6 +37923,58 @@
         }
       }
     },
+    "KeeForge can't tell which copy on this device holds the change saved through AutoFill, so nothing was merged. The change may already be in this database; otherwise look for it in the backups in Database Settings and export that backup to merge it in another KeePass app. Once the change is merged, use Discard Pending Upload in the Database menu to clear the conflict." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge kann nicht feststellen, welche Kopie auf diesem Gerät die über AutoFill gespeicherte Änderung enthält, daher wurde nichts zusammengeführt. Die Änderung ist möglicherweise bereits in dieser Datenbank enthalten; andernfalls suche sie in den Sicherungskopien in den Datenbankeinstellungen und exportiere diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen. Sobald die Änderung zusammengeführt ist, verwende „Ausstehenden Upload verwerfen“ im Menü „Datenbank“, um den Konflikt aufzulösen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no puede determinar qué copia de este dispositivo contiene el cambio guardado mediante el autorrelleno, así que no se combinó nada. Es posible que el cambio ya esté en esta base de datos; si no, búscalo en las copias de seguridad de los ajustes de la base de datos y exporta esa copia de seguridad para combinarlo en otra app de KeePass. Una vez combinado el cambio, usa «Descartar carga pendiente» en el menú «Base de datos» para resolver el conflicto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ne peut pas déterminer quelle copie sur cet appareil contient la modification enregistrée via le remplissage automatique, aucune fusion n'a donc été effectuée. La modification figure peut-être déjà dans cette base de données ; sinon, cherchez-la dans les sauvegardes des réglages de la base de données et exportez cette sauvegarde pour la fusionner dans une autre app KeePass. Une fois la modification fusionnée, utilisez « Ignorer l'envoi en attente » dans le menu « Base de données » pour résoudre le conflit."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non riesce a stabilire quale copia su questo dispositivo contenga la modifica salvata tramite l'inserimento automatico, quindi non è stato unito nulla. La modifica potrebbe essere già in questo database; in caso contrario cercala tra i backup in Impostazioni del database ed esporta quel backup per unirlo in un'altra app KeePass. Una volta unita la modifica, usa Scarta caricamento in sospeso nel menu Database per risolvere il conflitto."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更がこのデバイス上のどのコピーに含まれているかを KeeForge で判別できないため、何もマージされませんでした。変更はすでにこのデータベースに含まれている可能性があります。含まれていない場合は、データベース設定にあるバックアップから探し、そのバックアップを書き出して、他の KeePass App でマージしてください。変更をマージしたら、「データベース」メニューの「保留中のアップロードを破棄」を使って競合を解消してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge не может определить, какая копия на этом устройстве содержит изменение, сохранённое через автозаполнение, поэтому ничего не объединено. Возможно, изменение уже есть в этой базе данных; если нет, найдите его в резервных копиях в настройках базы данных и экспортируйте эту копию, чтобы объединить её в другом приложении KeePass. После объединения изменения используйте «Отменить ожидающую отправку» в меню «База данных», чтобы снять конфликт."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法确定此设备上的哪个副本包含通过自动填充保存的更改，因此未进行任何合并。该更改可能已在此数据库中；否则，请在数据库设置的备份中查找，导出该备份，并在其他 KeePass App 中合并。合并更改后，请使用“数据库”菜单中的“放弃待处理的上传”来解决冲突。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法判斷此裝置上的哪個副本包含透過自動填寫儲存的變更，因此未進行任何合併。該變更可能已在此資料庫中；否則，請在資料庫設定的備份中尋找，匯出該備份，並在其他 KeePass App 中合併。合併變更後，請使用「資料庫」選單中的「捨棄待處理的上傳」來解決衝突。"
+          }
+        }
+      }
+    },
     "KeeForge could not confirm the encrypted AutoFill snapshot. This save did not change the shared copy or original database. Open Database Details in KeeForge to recover or discard the pending snapshot." : {
       "localizations" : {
         "de" : {
@@ -54029,6 +54133,58 @@
         }
       }
     },
+    "Quick Search" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schnellsuche"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Búsqueda rápida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherche rapide"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ricerca rapida"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイック検索"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Быстрый поиск"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速搜索"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速搜尋"
+          }
+        }
+      }
+    },
     "Quick Search Shortcut" : {
       "localizations" : {
         "de" : {
@@ -66904,6 +67060,58 @@
         }
       }
     },
+    "That file is a key file one of your databases still needs, so KeeForge did not replace it. Choose a different name or location for the new key file." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datei ist eine Schlüsseldatei, die eine deiner Datenbanken noch benötigt. KeeForge hat sie daher nicht ersetzt. Wähle einen anderen Namen oder Speicherort für die neue Schlüsseldatei."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ese archivo es un archivo de clave que una de tus bases de datos todavía necesita, así que KeeForge no lo ha reemplazado. Elige otro nombre u otra ubicación para el nuevo archivo de clave."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier est un fichier de clé dont l'une de vos bases de données a encore besoin, KeeForge ne l'a donc pas remplacé. Choisissez un autre nom ou un autre emplacement pour le nouveau fichier de clé."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file è un file chiave ancora necessario a uno dei tuoi database, quindi KeeForge non lo ha sostituito. Scegli un nome o una posizione diversi per il nuovo file chiave."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルは、いずれかのデータベースでまだ必要なキーファイルのため、KeeForge は置き換えませんでした。新しいキーファイルには別の名前または場所を選択してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот файл — файл ключа, который всё ещё нужен одной из ваших баз данных, поэтому KeeForge не заменил его. Выберите другое имя или расположение для нового файла ключа."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该文件是你的某个数据库仍需使用的密钥文件，因此 KeeForge 没有替换它。请为新的密钥文件选取其他名称或位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "該檔案是你的某個資料庫仍需使用的金鑰檔案，因此 KeeForge 沒有取代它。請為新的金鑰檔案選擇其他名稱或位置。"
+          }
+        }
+      }
+    },
     "The attached photo is too large. Choose a smaller photo." : {
       "localizations" : {
         "de" : {
@@ -67112,6 +67320,58 @@
         }
       }
     },
+    "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from %@ in Database Settings. Export that backup to merge it in another KeePass app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gespeicherte Änderung und die Cloud-Kopie speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Sie ist in der Sicherungskopie vom %@ in den Datenbankeinstellungen gespeichert. Exportiere diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante el autorrelleno y la copia de la nube almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Se conserva en la copia de seguridad del %@ en los ajustes de la base de datos. Exporta esa copia de seguridad para combinarlo en otra app de KeePass."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique et la copie du cloud stockent leurs pièces jointes différemment : les fusionner pourrait faire pointer une pièce jointe vers le mauvais fichier. Elle est conservée dans la sauvegarde du %@ dans les réglages de la base de données. Exportez cette sauvegarde pour la fusionner dans une autre app KeePass."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modifica salvata tramite l'inserimento automatico e la copia nel cloud archiviano gli allegati in modo diverso, quindi unirle potrebbe far puntare un allegato al file sbagliato. La modifica è conservata nel backup del %@ in Impostazioni del database. Esporta quel backup per unirlo in un'altra app KeePass."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更とクラウドのコピーでは添付ファイルの保存方法が異なるため、マージすると添付ファイルが誤ったファイルを参照する可能性があります。この変更は、データベース設定にある %@ のバックアップに保持されています。そのバックアップを書き出して、他の KeePass App でマージしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменение, сохранённое через автозаполнение, и облачная копия хранят вложения по-разному, поэтому при объединении вложение может указать на неверный файл. Изменение сохранено в резервной копии от %@ в настройках базы данных. Экспортируйте эту копию, чтобы объединить её в другом приложении KeePass."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改与云端副本存储附件的方式不同，合并后可能导致附件指向错误的文件。该更改保存在数据库设置中 %@ 的备份里。请导出该备份，并在其他 KeePass App 中合并。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更與雲端副本儲存附件的方式不同，合併後可能導致附件指向錯誤的檔案。該變更保存在資料庫設定中 %@ 的備份裡。請匯出該備份，並在其他 KeePass App 中合併。"
+          }
+        }
+      }
+    },
     "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. To merge it in another KeePass app, use Export Copy in the database list." : {
       "localizations" : {
         "de" : {
@@ -67268,6 +67528,58 @@
         }
       }
     },
+    "The change saved through AutoFill and this database store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from %@ in Database Settings. Export that backup to merge it in another KeePass app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gespeicherte Änderung und diese Datenbank speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Sie ist in der Sicherungskopie vom %@ in den Datenbankeinstellungen gespeichert. Exportiere diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante el autorrelleno y esta base de datos almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Se conserva en la copia de seguridad del %@ en los ajustes de la base de datos. Exporta esa copia de seguridad para combinarlo en otra app de KeePass."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique et cette base de données stockent leurs pièces jointes différemment : les fusionner pourrait faire pointer une pièce jointe vers le mauvais fichier. Elle est conservée dans la sauvegarde du %@ dans les réglages de la base de données. Exportez cette sauvegarde pour la fusionner dans une autre app KeePass."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modifica salvata tramite l'inserimento automatico e questo database archiviano gli allegati in modo diverso, quindi unirli potrebbe far puntare un allegato al file sbagliato. La modifica è conservata nel backup del %@ in Impostazioni del database. Esporta quel backup per unirlo in un'altra app KeePass."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更とこのデータベースでは添付ファイルの保存方法が異なるため、マージすると添付ファイルが誤ったファイルを参照する可能性があります。この変更は、データベース設定にある %@ のバックアップに保持されています。そのバックアップを書き出して、他の KeePass App でマージしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменение, сохранённое через автозаполнение, и эта база данных хранят вложения по-разному, поэтому при объединении вложение может указать на неверный файл. Изменение сохранено в резервной копии от %@ в настройках базы данных. Экспортируйте эту копию, чтобы объединить её в другом приложении KeePass."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改与此数据库存储附件的方式不同，合并后可能导致附件指向错误的文件。该更改保存在数据库设置中 %@ 的备份里。请导出该备份，并在其他 KeePass App 中合并。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更與此資料庫儲存附件的方式不同，合併後可能導致附件指向錯誤的檔案。該變更保存在資料庫設定中 %@ 的備份裡。請匯出該備份，並在其他 KeePass App 中合併。"
+          }
+        }
+      }
+    },
     "The change saved through AutoFill could not be opened with this database's master key. It is kept in the backup from %@ in Database Details. Export that backup to merge it in another KeePass app." : {
       "localizations" : {
         "de" : {
@@ -67316,6 +67628,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法使用此資料庫的主金鑰開啟透過自動填寫儲存的變更。該變更保存在資料庫詳細資訊中 %@ 的備份裡。請匯出該備份，並在其他 KeePass App 中合併。"
+          }
+        }
+      }
+    },
+    "The change saved through AutoFill could not be opened with this database's master key. It is kept in the backup from %@ in Database Settings. Export that backup to merge it in another KeePass app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gespeicherte Änderung konnte mit dem Master-Schlüssel dieser Datenbank nicht geöffnet werden. Sie ist in der Sicherungskopie vom %@ in den Datenbankeinstellungen gespeichert. Exportiere diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante el autorrelleno no se pudo abrir con la clave maestra de esta base de datos. Se conserva en la copia de seguridad del %@ en los ajustes de la base de datos. Exporta esa copia de seguridad para combinarlo en otra app de KeePass."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique n'a pas pu être ouverte avec la clé principale de cette base de données. Elle est conservée dans la sauvegarde du %@ dans les réglages de la base de données. Exportez cette sauvegarde pour la fusionner dans une autre app KeePass."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non è stato possibile aprire la modifica salvata tramite l'inserimento automatico con la chiave principale di questo database. È conservata nel backup del %@ in Impostazioni del database. Esporta quel backup per unirlo in un'altra app KeePass."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更を、このデータベースのマスターキーで開けませんでした。この変更は、データベース設定にある %@ のバックアップに保持されています。そのバックアップを書き出して、他の KeePass App でマージしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменение, сохранённое через автозаполнение, не удалось открыть мастер-ключом этой базы данных. Оно сохранено в резервной копии от %@ в настройках базы данных. Экспортируйте эту копию, чтобы объединить её в другом приложении KeePass."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法使用此数据库的主密钥打开通过自动填充保存的更改。该更改保存在数据库设置中 %@ 的备份里。请导出该备份，并在其他 KeePass App 中合并。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法使用此資料庫的主金鑰開啟透過自動填寫儲存的變更。該變更保存在資料庫設定中 %@ 的備份裡。請匯出該備份，並在其他 KeePass App 中合併。"
           }
         }
       }
@@ -67476,6 +67840,58 @@
         }
       }
     },
+    "The change saved through AutoFill is no longer stored on this device, or it was saved before the master key changed. Use Discard Pending Upload in the Database menu to clear the conflict." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gespeicherte Änderung ist nicht mehr auf diesem Gerät gespeichert oder wurde vor der Änderung des Master-Schlüssels gespeichert. Verwende „Ausstehenden Upload verwerfen“ im Menü „Datenbank“, um den Konflikt aufzulösen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante el autorrelleno ya no está almacenado en este dispositivo, o se guardó antes de que cambiara la clave maestra. Usa «Descartar carga pendiente» en el menú «Base de datos» para resolver el conflicto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique n'est plus stockée sur cet appareil, ou elle a été enregistrée avant le changement de la clé principale. Utilisez « Ignorer l'envoi en attente » dans le menu « Base de données » pour résoudre le conflit."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modifica salvata tramite l'inserimento automatico non è più archiviata su questo dispositivo, oppure è stata salvata prima del cambio della chiave principale. Usa Scarta caricamento in sospeso nel menu Database per risolvere il conflitto."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更はこのデバイスに残っていないか、マスターキーの変更前に保存されたものです。「データベース」メニューの「保留中のアップロードを破棄」を使って競合を解消してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменение, сохранённое через автозаполнение, больше не хранится на этом устройстве или было сохранено до смены мастер-ключа. Используйте «Отменить ожидающую отправку» в меню «База данных», чтобы снять конфликт."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改已不在此设备上，或是在主密钥更改之前保存的。请使用“数据库”菜单中的“放弃待处理的上传”来解决冲突。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更已不在此裝置上，或是在主金鑰變更之前儲存的。請使用「資料庫」選單中的「捨棄待處理的上傳」來解決衝突。"
+          }
+        }
+      }
+    },
     "The change saved through AutoFill was merged into the cached copy and queued for upload." : {
       "localizations" : {
         "de" : {
@@ -67582,6 +67998,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "透過自動填寫儲存的變更已與雲端副本合併並上傳。"
+          }
+        }
+      }
+    },
+    "The cloud copy has changed since this database was last synced. Nothing was lost. Choose Sync Now in the Database menu to get the latest copy, then choose Merge Changes again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Cloud-Kopie wurde seit der letzten Synchronisierung dieser Datenbank geändert. Es ist nichts verloren gegangen. Wähle „Jetzt synchronisieren“ im Menü „Datenbank“, um die neueste Kopie zu laden, und wähle dann erneut „Änderungen zusammenführen“."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copia de la nube ha cambiado desde la última sincronización de esta base de datos. No se perdió nada. Elige «Sincronizar ahora» en el menú «Base de datos» para obtener la copia más reciente y, después, vuelve a elegir «Combinar cambios»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copie du cloud a changé depuis la dernière synchronisation de cette base de données. Rien n'a été perdu. Choisissez « Synchroniser maintenant » dans le menu « Base de données » pour obtenir la copie la plus récente, puis choisissez à nouveau « Fusionner les modifications »."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copia nel cloud è cambiata dall'ultima sincronizzazione di questo database. Non è andato perso nulla. Scegli Sincronizza ora nel menu Database per ottenere la copia più recente, poi scegli di nuovo Unisci modifiche."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースを最後に同期してから、クラウドのコピーが変更されました。何も失われていません。「データベース」メニューで「今すぐ同期」を選択して最新のコピーを取得してから、もう一度「変更をマージ」を選択してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Облачная копия изменилась с момента последней синхронизации этой базы данных. Ничего не потеряно. Выберите «Синхронизировать» в меню «База данных», чтобы получить последнюю копию, затем снова выберите «Объединить изменения»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自上次同步此数据库以来，云端副本已发生变化。没有丢失任何内容。请在“数据库”菜单中选取“立即同步”获取最新副本，然后再次选择“合并更改”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自上次同步此資料庫以來，雲端副本已變更。沒有遺失任何內容。請在「資料庫」選單中選擇「立即同步」取得最新副本，然後再次選擇「合併變更」。"
           }
         }
       }
@@ -73666,6 +74134,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此資料庫過大，KeeForge 無法開啟。"
+          }
+        }
+      }
+    },
+    "This database is unavailable. Open the Databases window to remove it from your list." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank ist nicht verfügbar. Öffne das Fenster „Datenbanken“, um sie aus deiner Liste zu entfernen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos no está disponible. Abre la ventana «Bases de datos» para quitarla de tu lista."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données n'est pas disponible. Ouvrez la fenêtre « Bases de données » pour la retirer de votre liste."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database non è disponibile. Apri la finestra Database per rimuoverlo dal tuo elenco."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースは利用できません。「データベース」ウインドウを開いてリストから削除してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта база данных недоступна. Откройте окно «Базы данных», чтобы удалить её из списка."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库不可用。请打开“数据库”窗口将其从列表中移除。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫無法使用。請打開「資料庫」視窗將其從列表中移除。"
           }
         }
       }
@@ -83958,54 +84478,54 @@
         }
       }
     },
-    "When AutoFill fills a password, it also copies the entry's verification code for code fields iOS does not recognize. You'll confirm the fill in KeeForge, and the code clears after the Clipboard Clear Timeout." : {
+    "When AutoFill fills a password, it also copies the entry's verification code for code fields iOS does not recognize. You'll confirm the fill in KeeForge, and the code clears after the Clipboard Clear Timeout. With Never, it stays until you copy something else." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wenn AutoFill ein Passwort ausfüllt, kopiert es auch den Bestätigungscode des Eintrags für Codefelder, die iOS nicht erkennt. Du bestätigst das Ausfüllen in KeeForge, und der Code wird nach der Löschfrist der Zwischenablage gelöscht."
+            "value" : "Wenn AutoFill ein Passwort ausfüllt, kopiert es auch den Bestätigungscode des Eintrags für Codefelder, die iOS nicht erkennt. Du bestätigst das Ausfüllen in KeeForge, und der Code wird nach der Löschfrist der Zwischenablage gelöscht. Mit „Nie“ bleibt er erhalten, bis du etwas anderes kopierst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cuando el autorrelleno completa una contraseña, también copia el código de verificación de la entrada para los campos de código que iOS no reconoce. Confirmarás el autorrelleno en KeeForge y el código se borrará al cumplirse el tiempo de espera de borrado del portapapeles."
+            "value" : "Cuando el autorrelleno completa una contraseña, también copia el código de verificación de la entrada para los campos de código que iOS no reconoce. Confirmarás el autorrelleno en KeeForge y el código se borrará al cumplirse el tiempo de espera de borrado del portapapeles. Con «Nunca», permanece hasta que copies otra cosa."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lorsque le remplissage automatique remplit un mot de passe, il copie également le code de vérification de l'entrée pour les champs de code qu'iOS ne reconnaît pas. Vous confirmerez le remplissage dans KeeForge et le code sera effacé après le délai d'effacement du presse-papiers."
+            "value" : "Lorsque le remplissage automatique remplit un mot de passe, il copie également le code de vérification de l'entrée pour les champs de code qu'iOS ne reconnaît pas. Vous confirmerez le remplissage dans KeeForge et le code sera effacé après le délai d'effacement du presse-papiers. Avec « Jamais », il reste jusqu'à ce que vous copiiez autre chose."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Quando l'inserimento automatico inserisce una password, copia anche il codice di verifica della voce per i campi del codice che iOS non riconosce. Confermerai l'inserimento in KeeForge e il codice verrà cancellato allo scadere del Tempo di cancellazione degli appunti."
+            "value" : "Quando l'inserimento automatico inserisce una password, copia anche il codice di verifica della voce per i campi del codice che iOS non riconosce. Confermerai l'inserimento in KeeForge e il codice verrà cancellato allo scadere del Tempo di cancellazione degli appunti. Con Mai, resta finché non copi qualcos'altro."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自動入力がパスワードを入力するとき、iOS が認識できないコード欄のために、エントリの確認コードもコピーします。入力時には KeeForge での確認が必要で、コードは「クリップボードを消去するまでの時間」が過ぎると消去されます。"
+            "value" : "自動入力がパスワードを入力するとき、iOS が認識できないコード欄のために、エントリの確認コードもコピーします。入力時には KeeForge での確認が必要で、コードは「クリップボードを消去するまでの時間」が過ぎると消去されます。「しない」を選ぶと、別のものをコピーするまで残ります。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Когда автозаполнение вставляет пароль, оно также копирует код проверки записи для полей кода, которые iOS не распознаёт. Вы подтвердите заполнение в KeeForge, а код будет удалён по истечении тайм-аута очистки буфера обмена."
+            "value" : "Когда автозаполнение вставляет пароль, оно также копирует код проверки записи для полей кода, которые iOS не распознаёт. Вы подтвердите заполнение в KeeForge, а код будет удалён по истечении тайм-аута очистки буфера обмена. При значении «Никогда» он остаётся, пока вы не скопируете что-то другое."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自动填充填入密码时，还会拷贝条目的验证码，以便用于 iOS 无法识别的验证码栏。你将在 KeeForge 中确认填充，验证码会在“剪贴板清除超时”后清除。"
+            "value" : "自动填充填入密码时，还会拷贝条目的验证码，以便用于 iOS 无法识别的验证码栏。你将在 KeeForge 中确认填充，验证码会在“剪贴板清除超时”后清除。选择“从不”时，验证码会保留到你拷贝其他内容为止。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自動填寫填入密碼時，還會拷貝項目的驗證碼，以便用於 iOS 無法辨識的驗證碼欄位。你將在 KeeForge 中確認填寫，驗證碼會在「剪貼板清除逾時」後清除。"
+            "value" : "自動填寫填入密碼時，還會拷貝項目的驗證碼，以便用於 iOS 無法辨識的驗證碼欄位。你將在 KeeForge 中確認填寫，驗證碼會在「剪貼板清除逾時」後清除。選擇「永不」時，驗證碼會保留到你拷貝其他內容為止。"
           }
         }
       }

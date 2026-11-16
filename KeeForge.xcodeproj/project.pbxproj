@@ -521,6 +521,7 @@
 		66088311A2FA978204A5A943 /* LocalDatabaseSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */; };
 		664A0B0C848B0867E1705FE8 /* AutoFillSaveCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 553C63DEBDFFD48E4FC4646E /* AutoFillSaveCoordinator.swift */; };
 		6681C79ACDAB2CD67338F2E1 /* FaviconImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F6033A10423C0AC43AB4041 /* FaviconImageTests.swift */; };
+		66A40787F7F0571FE5BB81A6 /* KeyFileOverwriteGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF830244A3D984F71F5C4A99 /* KeyFileOverwriteGuard.swift */; };
 		66DF626BAC87ED327A3BD798 /* DatabaseCreationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07DCAC6B2242F7FC28617138 /* DatabaseCreationViewModel.swift */; };
 		67588569A4F91D0F594C89F8 /* Entry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF7A2480DF3853AFF0AF02B /* Entry.swift */; };
 		677EF9E383223AAAF6FC9F29 /* TagCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92521B2315279462128F0068 /* TagCapsule.swift */; };
@@ -1203,6 +1204,7 @@
 		F603A396AD8DE85C78839E5A /* BiometricService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C17D7E75C6066F4A179AB5F /* BiometricService.swift */; };
 		F62ADAF79CB7D9C57A4DAB15 /* CredentialProviderPresentingSpy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549786F507C78652231994C1 /* CredentialProviderPresentingSpy.swift */; };
 		F6735B75EC3543EFEC977190 /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDAC3B4189F67A87429C1363 /* StatusBadge.swift */; };
+		F6736EAD604EA9D7213F9362 /* KeyFileOverwriteGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF830244A3D984F71F5C4A99 /* KeyFileOverwriteGuard.swift */; };
 		F6C7643046A59F198B64EC76 /* FaviconImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F6033A10423C0AC43AB4041 /* FaviconImageTests.swift */; };
 		F6D6CA9E9A0BB073703AAA9E /* SSHAgentTestKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793BC599E7FC93B720927040 /* SSHAgentTestKeys.swift */; };
 		F73B54C1572F840DDD7889DF /* EntryEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0298F6EF01194050F3D35F5A /* EntryEditUITests.swift */; };
@@ -1816,6 +1818,7 @@
 		CEDFE73464CA767D74355AE7 /* EntryEditCompletionGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditCompletionGate.swift; sourceTree = "<group>"; };
 		CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialIdentityStoreManagerTests.swift; sourceTree = "<group>"; };
 		CF69E315CB01DC6C5A568375 /* KeeForgeTwofish */ = {isa = PBXFileReference; lastKnownFileType = folder; name = KeeForgeTwofish; path = Vendor/KeeForgeTwofish; sourceTree = SOURCE_ROOT; };
+		CF830244A3D984F71F5C4A99 /* KeyFileOverwriteGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyFileOverwriteGuard.swift; sourceTree = "<group>"; };
 		D00BE5E76F0C0EB7D820D6E6 /* MacIconImages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacIconImages.swift; sourceTree = "<group>"; };
 		D023E6C0C08FE4FCE43249AB /* EncryptionSettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptionSettingsUITests.swift; sourceTree = "<group>"; };
 		D0676F0C4E5413139552083A /* GroupEditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupEditUITests.swift; sourceTree = "<group>"; };
@@ -2455,6 +2458,7 @@
 				5E56924FBDB62B185403ECA2 /* DatabaseListStore.swift */,
 				1B37093A769E7D22F7C7EC7C /* DocumentPickerService.swift */,
 				1FCF6EB947198A5036649625 /* DocumentsVaultScanner.swift */,
+				CF830244A3D984F71F5C4A99 /* KeyFileOverwriteGuard.swift */,
 				B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */,
 				B2C82F63D180F4F7F9204E3B /* PendingLocalSaveStore.swift */,
 				DA3FF6C98ADE49FE6BDB7B6D /* SecurityScopedBookmarkManager.swift */,
@@ -3800,6 +3804,7 @@
 				543078ED644835D464B4C9D2 /* KDFExecutionPolicy+App.swift in Sources */,
 				3DD45403A274314AC235AE44 /* KPMeta.swift in Sources */,
 				F8002ECA654AC11D9EEB2BB9 /* KeyFileExportDocument.swift in Sources */,
+				F6736EAD604EA9D7213F9362 /* KeyFileOverwriteGuard.swift in Sources */,
 				0268947BAC326A3BDBF92D02 /* KeychainService.swift in Sources */,
 				099C7E9FA60381A0CA76E605 /* LargeTypeModel.swift in Sources */,
 				2FB690AA87853493C7E13651 /* LocalDatabaseSaver.swift in Sources */,
@@ -4119,6 +4124,7 @@
 				685A76281F75A72DAB96E1D5 /* KPMeta.swift in Sources */,
 				982F1AF71FFA882BB9C49E87 /* KeeForgeApp.swift in Sources */,
 				43CC66EE48E3905C384381FA /* KeyFileExportDocument.swift in Sources */,
+				66A40787F7F0571FE5BB81A6 /* KeyFileOverwriteGuard.swift in Sources */,
 				C345E0CBF0AE22D43AA5D5EB /* KeychainService.swift in Sources */,
 				3E6AF2A081C42B6FCE3B928C /* LargeTypeModel.swift in Sources */,
 				59ADE684D5F68C0BC02EB0CC /* LocalDatabaseSaver.swift in Sources */,

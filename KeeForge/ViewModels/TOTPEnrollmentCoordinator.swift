@@ -111,6 +111,13 @@ final class TOTPEnrollmentCoordinator {
         }
     }
 
+    /// The single-session shell's arrival: a link that comes in while the shown database is
+    /// locked stays unassigned, so it follows the user to whichever database they unlock.
+    func receiveEnrollment(_ uri: OTPAuthURI, showing shown: Session?) {
+        receiveEnrollment(uri, destination: shown?.isUnlocked == true ? shown : nil)
+        updateSession(shown)
+    }
+
     func receiveEnrollment(_ uri: OTPAuthURI, destination: Session?) {
         session = destination
         self.destination = destination

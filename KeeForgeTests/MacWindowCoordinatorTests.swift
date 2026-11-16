@@ -389,6 +389,22 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.launcher.rows.map(\.isUnlocked), [false, true, false])
     }
 
+    func testLockAllDatabasesCancelsAnOpenStillInProgress() async throws {
+        start()
+        coordinator.open(references[0])
+        let controller = try XCTUnwrap(coordinator.databaseWindows[references[0].id])
+        let opening = Task { await controller.session.unlock(password: "testpassword123") }
+        for _ in 0..<100 where controller.session.state != .unlocking { await Task.yield() }
+        XCTAssertEqual(controller.session.state, .unlocking)
+        XCTAssertTrue(coordinator.canLockAllDatabases)
+
+        coordinator.lockAllDatabases()
+        await opening.value
+
+        XCTAssertEqual(controller.session.state, .locked, "The open must not finish unlocked after Lock All")
+        XCTAssertFalse(coordinator.canLockAllDatabases)
+    }
+
     func testLauncherRowActionsWriteThroughTheList() async throws {
         start()
         let reference = references[0]

@@ -146,11 +146,13 @@ final class MasterKeyChangeViewModel {
         write: @escaping KeyFileWrite = { data, url in try data.write(to: url) },
         wipe: @escaping @Sendable (inout Data) -> Void = { SecureWipe.wipe(&$0) }
     ) async throws {
+        let currentKeyFileData = [sessionKeyFileData].compactMap(\.self)
         try await Task.detached(priority: .userInitiated) {
-            var bytes = try KDBXKeyFile.generate()
-            defer { wipe(&bytes) }
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+            try KeyFileOverwriteGuard.check(url, keyFileData: currentKeyFileData)
+            var bytes = try KDBXKeyFile.generate()
+            defer { wipe(&bytes) }
             try write(bytes, url)
         }.value
         guard isCancelled == false else { return }

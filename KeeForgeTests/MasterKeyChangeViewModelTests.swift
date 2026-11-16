@@ -585,6 +585,44 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.pickedKeyFileData)
     }
 
+    func testCreatedKeyFileNeverReplacesTheKeyFileTheSessionOpenedWith() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("vault.keyx")
+        let current = Data("current-key-file".utf8)
+        try current.write(to: url)
+        let viewModel = makeViewModel(sessionKeyFileData: current)
+
+        do {
+            try await viewModel.createKeyFile(at: url)
+            XCTFail("Replacing the key file in use must be refused")
+        } catch {
+            XCTAssertTrue(error is KeyFileOverwriteGuard.KeyFileInUseError)
+        }
+
+        XCTAssertEqual(try Data(contentsOf: url), current)
+        XCTAssertEqual(viewModel.keyFileChange, .keepCurrent)
+        XCTAssertNil(viewModel.pickedKeyFileData)
+    }
+
+    func testKeyFileOverwriteGuardRefusesAListedDatabasesKeyFileAndAllowsOtherFiles() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let listed = directory.appendingPathComponent("other.keyx")
+        let unrelated = directory.appendingPathComponent("notes.keyx")
+        try Data("listed".utf8).write(to: listed)
+        try Data("unrelated".utf8).write(to: unrelated)
+        let link = directory.appendingPathComponent("link.keyx")
+        try FileManager.default.linkItem(at: listed, to: link)
+
+        XCTAssertThrowsError(try KeyFileOverwriteGuard.check(listed, listedKeyFileURLs: { [listed] }))
+        XCTAssertThrowsError(try KeyFileOverwriteGuard.check(link, listedKeyFileURLs: { [listed] }), "A hard link is the same file")
+        XCTAssertNoThrow(try KeyFileOverwriteGuard.check(unrelated, keyFileData: [Data("listed".utf8)], listedKeyFileURLs: { [listed] }))
+        XCTAssertNoThrow(try KeyFileOverwriteGuard.check(directory.appendingPathComponent("new.keyx"), listedKeyFileURLs: { [listed] }))
+    }
+
     // MARK: - Cancellation
 
     func testPerformChangeRefusesWhenCancelled() async throws {

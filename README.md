@@ -62,7 +62,7 @@ Beta availability can differ between iPhone, iPad, and Mac while Apple reviews e
 
 KeeForge has no analytics, no background telemetry, and no crash-reporting SDKs. Vault data stays on device and in the storage locations you choose. Network access is limited to connected cloud providers, opt-in favicon fetching through DuckDuckGo, optional App Store purchases for the tip jar, update checks for the direct-download Mac app, and the in-app feedback form when you explicitly submit a message.
 
-On iPhone and iPad, copied secrets are marked local-only so they do not travel through Universal Clipboard. macOS does not offer that exclusion, so copied secrets can follow your system's Universal Clipboard setting; KeeForge marks them as concealed and clears its clipboard entry after a short while or when you lock the database. KeeForge also protects app-switcher previews on iPhone and iPad. Screen-capture blocking on Mac is best-effort and may not stop every screenshot or recording.
+On iPhone and iPad, copied secrets are marked local-only so they do not travel through Universal Clipboard. macOS does not offer that exclusion, so copied secrets can follow your system's Universal Clipboard setting; KeeForge marks them as concealed and clears its clipboard entry after the clear timeout you choose, or when you lock the database if you choose Never. KeeForge also protects app-switcher previews on iPhone and iPad. Screen-capture blocking on Mac is best-effort and may not stop every screenshot or recording.
 
 Read the [privacy policy](https://keeforge.com/privacy).
 

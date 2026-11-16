@@ -102,7 +102,6 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
 
     func testTagPageLocksTheDatabase() throws {
         unlockSuccessfully()
-        try XCTSkipIf(usesRegularWidthLayout, "At regular width the sidebar's Lock stays on screen")
         selectDatabaseView(.tags)
         let sharedRow = app.descendants(matching: .any)
             .matching(identifier: "tag-list.row.\(sharedTag)")
