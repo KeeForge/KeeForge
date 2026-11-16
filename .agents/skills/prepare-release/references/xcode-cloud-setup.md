@@ -14,10 +14,11 @@ relying on this; Apple can change the UI and the account can drift):
   own dialog reads "add platforms to an app to create a universal purchase", there is no separate
   toggle, and a platform cannot be removed afterwards. The macOS version record, auto-created as
   1.0, has since been corrected to **1.16.0** (verified 2026-09-14).
-- The active **Tests (RC)** workflow has five actions: **Archive - macOS** (scheme
+- The active **Tests (RC)** workflow has two actions: **Archive - macOS** (scheme
   `KeeForgeMac`, Build For *Any Mac* — native, not Mac Catalyst — Distribution Preparation
-  *App Store Connect*), **Archive - iOS**, and three **Test - iOS** actions (all Required to Pass):
-  `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`. A
+  *App Store Connect*) and **Archive - iOS**. It runs no tests: `ios-rc-tests` in
+  `.github/workflows/tests.yml` runs `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and
+  `KeeForgeCloudUIB` on the same two devices and is the gate (`githubIPhone`). A
   **Test - macOS** action was added and then removed once build 53 proved Xcode Cloud cannot
   launch the Mac app to test it; the reasoning is under "Required workflow shape". Its `rc/*` tag
   trigger is active and the **Release** workflow is still deactivated. Xcode Cloud build 56
@@ -56,50 +57,27 @@ App Review submission, or legal declarations.
 
 ## Test partition
 
-The RC workflow uses `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`.
-They separate unit coverage from two serial UI groups to reduce the work repeated by a Cloud
-task retry. `ci_scripts/AGENTS.md` documents the coverage guard and timeouts.
-
-Activated on 2026-09-28 through Xcode's workflow editor. App Store Connect's scheme picker
-continued to show only older schemes after a source push and full page reload; Xcode exposed
-the local shared schemes and saved them successfully. Its warning that a scheme may only exist
-locally is resolved by verifying that the shared `.xcscheme` files are committed and pushed.
-
-All three iOS Test actions are **Required to Pass**, use **Test (Use Scheme Setting)**, and run
-on iPhone 18 Pro and iPhone SE (3rd generation), both **Latest from Selected Xcode** (currently
-iOS 27). Both archives, start conditions, redacted environment variables, Clean, Restrict Editing,
-and the absence of post-actions were preserved.
-
-This workflow requires a commit containing these three schemes (added in `9155c05`). Do not
-use it to rebuild an older commit without them. The manual `release/1.16` branch condition is
-historical; verify that it names the candidate's actual release branch before a recovery run.
+`KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB` separate unit coverage from two
+serial UI groups. `ios-rc-tests` runs them on iPhone 18 Pro and iPhone SE (3rd generation);
+`ci_scripts/AGENTS.md` documents the coverage guard and timeouts.
 
 ## Required workflow shape
 
 | Trigger | Workflow | Actions |
 | --- | --- | --- |
-| `rc/*` tag push | **Tests (RC)** | Three Test - iOS actions (unit, UI A, UI B; all Required to Pass), and Archive - iOS + Archive - macOS (both Distribution Preparation: App Store Connect). Archives/uploads may run automatically; no external-distribution post-action is configured. There is deliberately **no Test - macOS** — see below. |
+| `rc/*` tag push | **Tests (RC)** | Archive - iOS + Archive - macOS (both Distribution Preparation: App Store Connect). Archives/uploads may run automatically; no external-distribution post-action is configured. There is deliberately **no test action** — see below. |
 | Manual Start, exact branch `release/1.16` | **Tests (RC)** | Same actions. Recovery only, when the `rc/*` tag push produced no run; see "Recovering a missing tag-triggered run". |
 | `v*` tag push | *(none — the `Release` workflow is deactivated)* | — |
 
 Three properties matter:
 
-1. **Tests and both platform archives live in the same workflow, and all three test actions are Required
-   to Pass.** App
-   Store Connect lists a workflow's actions alphabetically and offers no way to reorder them, so
-   "test first" is not something you configure — the actions run in **parallel**.
-   What Required to Pass buys is that a red test action fails the *workflow's test verdict*. The
-   archive can still finish and upload, but that uploaded build remains blocked from external
-   distribution until the failure is adjudicated and every required gate is accepted. There is no
-   automatic external-distribution action whose status could bypass that deliberate manual
-   decision.
-
-   Leaving the archives ungated is deliberate. When a cloud test failure turns out to be a flake
-   ([gate-adjudication.md](gate-adjudication.md)), the binary already exists and can be distributed by hand; gating the
-   archive would force a respin to rebuild a binary that was never at fault. Switching any test
-   action to *Not Required to Pass* would remove the real gate and let a build distribute
-   over failing tests. Splitting tests and archives into workflows both triggered on `rc/*` would
-   have the same effect, because neither could gate the other.
+1. **The workflow archives; GitHub Actions tests.** The same `rc/*` tag starts both, so the builds
+   upload while the tests run. An uploaded build stays blocked from external distribution until
+   every gate is accepted, and there is no automatic external-distribution action that could
+   bypass that manual decision. When a test failure turns out to be a flake
+   ([gate-adjudication.md](gate-adjudication.md)), the binary already exists and can be distributed by hand
+   without a respin. Xcode Cloud's test actions are metered against a monthly compute allowance
+   and repeated what `ios-rc-tests` runs unmetered, so do not re-add them.
 2. **Xcode Cloud cannot run the Mac tests, so it does not try.** A `Test - macOS` action was
    configured and removed again on 2026-09-07 after build 53. Every test in it failed with
    `Could not launch "KeeForge". Runningboard has returned error 5` / `Launchd job spawn failed`:
@@ -225,9 +203,8 @@ gate, or change the direct Mac artifact procedure.
   install. It stays a required owner-run gate per platform, run twice per candidate (iOS and
   `KDBX_COMPAT_SCHEME=KeeForgeMac`; see `candidate.md`). The local `KeeForgeMacUITests/MacSmokeUITests` suite is also
   required and needs an unlocked active login session.
-- Minimum-OS coverage: Xcode Cloud's iOS test action can only pin the latest runtime or iOS 16.4,
-  with no iOS 18.x runtime available, and no GitHub lane runs iOS 18 either.
-- The regular-width iPad UI classes: they `XCTSkip` on both Cloud devices. The `ios-rc-tests`
+- Minimum-OS coverage: no hosted lane runs iOS 18.
+- The regular-width iPad UI classes: they `XCTSkip` on both iPhones. The `ios-rc-tests`
   iPad lane of `.github/workflows/tests.yml` runs them on each `rc/*` tag, and it is a release gate
   (`githubIPad`).
 - **All** native Mac unit coverage: GitHub Actions carries it, because Xcode Cloud cannot launch
@@ -265,7 +242,7 @@ One `rc/{version}-b{repoBuild}` tag starts the workflow (or a verified manual re
 five product targets from that SHA and may receive different App Store Connect TestFlight build
 numbers. Match each processed build to the RC tag/SHA and record the pair in the candidate's
 `manifest.json` ([release artifact directory](shared.md#where-release-artifacts-live)) along with the direct build's
-`CFBundleVersion` (which equals `repoBuild`). The manifest also records the Xcode Cloud, GitHub macOS, and GitHub iPad check URLs,
+`CFBundleVersion` (which equals `repoBuild`). The manifest also records the Xcode Cloud, GitHub macOS, GitHub iPhone, and GitHub iPad check URLs,
 both KDBX log paths, local Mac smoke result, artifact hashes/signatures, and notarization ID. It
 must contain no credentials, tokens, passwords, private keys, keychain profiles, or cloud secret
 values. Preserve the completed non-secret manifest with the final release evidence; it is not an

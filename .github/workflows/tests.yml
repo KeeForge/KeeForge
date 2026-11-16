@@ -2,7 +2,7 @@ name: Tests
 
 # One workflow for every GitHub test lane; .github/AGENTS.md has the gate map.
 #   pull_request   unit-tests + macos-unit-tests (the required checks)
-#   rc/* tag push  macos-unit-tests + the Xcode Cloud RC test schemes (ios-rc-tests.yml)
+#   rc/* tag push  macos-unit-tests + the RC test schemes (ios-rc-tests.yml)
 #   dispatch       the rc/* set against `ref`
 #
 # The job ids `unit-tests` and `macos-unit-tests` are the ruleset's required
@@ -168,31 +168,40 @@ jobs:
         run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
 
       - name: Generate project
+        id: generate
         run: xcodegen generate
 
       # Each package's own suite, with its line, region, and function coverage
       # floors. The verdict is the script's exit status; there is no xcresult.
+      # Every suite runs once the project is generated, so one failure does not
+      # hide the others; any failed step still fails the job.
       - name: Run KDBXKit tests with coverage
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
         run: Packages/KDBXKit/scripts/coverage.sh
 
       - name: Run KDBXXML tests with coverage
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
         run: Packages/KDBXXML/scripts/coverage.sh
 
       - name: Run SiteMatching tests with coverage
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
         run: Packages/SiteMatching/scripts/coverage.sh
 
       - name: Run OneTimeCodes tests with coverage
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
         run: Packages/OneTimeCodes/scripts/coverage.sh
 
       # Same for the WebDAV and FTP clients; their live URLSession and
       # NWConnection paths run against loopback servers.
       - name: Run RemoteFileTransports tests with coverage
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
         run: Packages/RemoteFileTransports/scripts/coverage.sh
 
       # Runners have no signing account, so the app is ad-hoc signed with no
       # entitlements (unsandboxed). Local runs keep automatic signing with the
       # full sandbox entitlements — see project.yml.
       - name: Run macOS unit tests
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
         run: |
           set -uo pipefail
           mkdir -p build
@@ -240,7 +249,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # The Xcode Cloud RC schemes and the iPad regular-width lane, in their own
+  # The RC test schemes and the iPad regular-width lane, in their own
   # file so pull requests list one skipped job instead of a raw matrix name.
   ios-rc-tests:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.deleted == false)

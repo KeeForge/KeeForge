@@ -63,6 +63,7 @@ final class SiteHostTests: XCTestCase {
             ("example.com", "https://example.com"),
             ("example.com/path?q=1", "https://example.com/path?q=1"),
             ("localhost:8080", "https://localhost:8080"),
+            ("localhost:8080/admin", "https://localhost:8080/admin"),
             ("http://user:secret@example.com:8443/", "http://user:secret@example.com:8443/"),
             ("https://example.com\\@evil.example", "https://example.com/@evil.example"),
         ]

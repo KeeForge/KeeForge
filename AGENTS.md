@@ -16,7 +16,7 @@ Entry point for coding agents working on KeeForge. This file holds the repo-wide
 - Native iPhone, iPad, and Mac KeePass manager for KDBX 4.x; also reads KDBX 3.1 (read-only)
 - Swift 6, SwiftUI, iOS 18+ / macOS 15+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`; target-membership rules live in `KeeForge/AGENTS.md`
-- Xcode Cloud runs the `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB` schemes; the partition rules are in `ci_scripts/AGENTS.md`.
+- On each `rc/*` tag, GitHub Actions runs the `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB` schemes and Xcode Cloud archives both App Store builds; the partition rules are in `ci_scripts/AGENTS.md`.
 - Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeBrowserHost` (the Mac app's embedded native-messaging host, `BrowserHost/`), `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`
 - `BrowserExtension/` is the Chrome/Firefox extension: plain JavaScript with Node tests and no Xcode target; its wire contract with the Mac app is `docs/browser-bridge-protocol.md`.
 

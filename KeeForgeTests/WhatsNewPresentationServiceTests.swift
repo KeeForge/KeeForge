@@ -123,9 +123,13 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
 
         XCTAssertEqual(
             iOSRelease.features.map(\.id),
-            ["entry-row-menu", "recycle-bin-origin", "autofill-unlock-sheet"]
+            ["mac-redesign", "entry-row-menu", "recycle-bin-origin", "autofill-unlock-sheet"]
         )
         XCTAssertEqual(macOSRelease.features.map(\.id), ["mac-native-app", "mac-multiple-databases"])
+        XCTAssertEqual(
+            iOSRelease.features.first?.link?.url.absoluteString,
+            "https://github.com/KeeForge/KeeForge/releases/latest"
+        )
         XCTAssertTrue(String(localized: try XCTUnwrap(iOSRelease.features.last).detail).contains("Face ID"))
         XCTAssertTrue(String(localized: try XCTUnwrap(touchIDRelease.features.last).detail).contains("Touch ID"))
     }
