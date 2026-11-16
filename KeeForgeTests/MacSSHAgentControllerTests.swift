@@ -756,7 +756,7 @@ final class MacSSHAgentControllerTests: XCTestCase {
 
         XCTAssertEqual(controller.unavailability, .socketInUse)
         XCTAssertThrowsError(try SSHAgentSocketServer(path: path, handler: SSHAgentRequestHandler { [] }).start()) {
-            XCTAssertEqual($0 as? SSHAgentSocketError, .socketInUse)
+            XCTAssertEqual($0 as? LocalSocketError, .socketInUse)
         }
         controller.stop()
         let answers = try await Self.exchange([Self.requestIdentities], at: path)

@@ -153,6 +153,7 @@ targets:
           - "AppSupport/MacWindowCloseGuard.swift"
           - "AppSupport/MacQuickAccessController.swift"
           - "AppSupport/MacGlobalHotKey.swift"
+          - "AppSupport/LocalSocketServer.swift"
           - "SSHAgent/*.swift"
           - "BrowserBridge/*.swift"
       - path: KeeForge/ViewModels
