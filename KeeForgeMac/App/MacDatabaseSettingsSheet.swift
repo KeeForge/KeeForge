@@ -223,7 +223,7 @@ private struct MacDatabaseGeneralTab: View {
         Divider()
         LabeledContent("Editing:") {
             VStack(alignment: .leading, spacing: 8) {
-                Toggle("Read-Only", isOn: Binding(get: { model.isReadOnly }, set: model.setReadOnly))
+                Toggle("Read-Only", isOn: Binding(get: { model.isReadOnly }, set: { model.setReadOnly($0) }))
                     .disabled(model.fixedReadOnly || model.isLoading)
                     .accessibilityIdentifier("database-row.read-only-toggle")
                 Text(model.readOnlyCaption).font(.caption).foregroundStyle(.secondary)
@@ -295,7 +295,7 @@ private struct MacDatabaseSyncTab: View {
             Divider()
             LabeledContent("When opening:") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Toggle("Sync When Opening", isOn: Binding(get: { model.current.cloudSyncPolicy == .onOpen }, set: model.setSyncOnOpen))
+                    Toggle("Sync When Opening", isOn: Binding(get: { model.current.cloudSyncPolicy == .onOpen }, set: { model.setSyncOnOpen($0) }))
                         .accessibilityIdentifier("database-details.sync-on-open-toggle")
                     if !state.isConnected {
                         caption("This account is disconnected. KeeForge keeps the cached copy until you remove the database.")
