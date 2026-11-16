@@ -64,6 +64,16 @@ enum WhatsNewCatalog {
         case "1.23.0":
             features = [
                 WhatsNewFeature(
+                    id: "mac-redesign",
+                    title: "KeeForge for Mac, redesigned",
+                    detail: "KeeForge for Mac is rebuilt from the ground up as a native Mac app. Find it on the Mac App Store or download it from GitHub.",
+                    systemImage: "macbook",
+                    platforms: [.iOS],
+                    link: URL(string: "https://github.com/KeeForge/KeeForge/releases/latest").map {
+                        WhatsNewFeatureLink(title: "Download the latest release", url: $0)
+                    }
+                ),
+                WhatsNewFeature(
                     id: "mac-native-app",
                     title: "A new KeeForge for Mac",
                     detail: "KeeForge is rebuilt as a native Mac app. Each database window shows the sidebar, your entries, and the selected entry side by side, and you edit an entry right where you read it.",
