@@ -276,7 +276,7 @@ private struct MacDatabaseSecurityTab: View {
                     .disabled(!model.canChangeSecurity || model.fileInfo?.summary == nil)
                     .accessibilityIdentifier("database-details.change-encryption-settings")
                     .padding(.top, 4)
-                settingsCaption("Most databases never need this. The wrong values can make a database slow to open on your other devices.")
+                settingsCaption("Most databases never need this; the wrong values can make a database slow to open on your other devices.")
             }
         }
     }
@@ -319,14 +319,18 @@ private struct MacDatabaseSyncTab: View {
                 }
                 MacSettingsSeparator()
                 MacSettingsRow("When opening:") {
-                    Toggle("Sync When Opening", isOn: Binding(get: { model.current.cloudSyncPolicy == .onOpen }, set: { model.setSyncOnOpen($0) }))
-                        .accessibilityIdentifier("database-details.sync-on-open-toggle")
+                    MacSettingsHelpRow(help: MacSettingsHelpButton(label: "Sync When Opening Help",
+                        text: "Cloud uploads check the server's copy first and stop if it changed. AutoFill uses the cached copy only.",
+                        identifier: "database-details.sync-policy.help")) {
+                        Toggle("Sync When Opening", isOn: Binding(get: { model.current.cloudSyncPolicy == .onOpen }, set: { model.setSyncOnOpen($0) }))
+                            .accessibilityIdentifier("database-details.sync-on-open-toggle")
+                    }
                     if !state.isConnected {
-                        settingsCaption("This account is disconnected. KeeForge keeps the cached copy until you remove the database.", indented: true)
+                        settingsCaption("This account is disconnected, so KeeForge keeps the cached copy until you remove the database.", indented: true)
                     } else if model.current.cloudSyncPolicy == .manual {
-                        settingsCaption("KeeForge opens the copy saved on this device without checking the cloud. Use Sync Now in the unlocked database to get newer changes. Saving still checks the cloud copy first and stops if it changed. AutoFill uses the cached copy only.", indented: true)
+                        settingsCaption("KeeForge opens the copy on this Mac without checking the server; use Sync Now to get newer changes.", indented: true)
                     } else {
-                        settingsCaption("Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.", indented: true)
+                        settingsCaption("KeeForge refreshes the cached copy whenever you open the database; AutoFill uses the cached copy only.", indented: true)
                     }
                 }
                 MacSettingsRow {
@@ -366,7 +370,7 @@ private struct MacDatabaseAutoFillTab: View {
             MacSettingsRow("AutoFill:") {
                 Toggle("Include in AutoFill", isOn: Binding(get: { model.current.autoFillEnabled }, set: { enabled in Task { await model.setAutoFillEnabled(enabled) } }))
                     .accessibilityIdentifier("database-details.autofill-toggle")
-                settingsCaption("When off, passwords, passkeys, and verification codes from this database are neither suggested nor available in AutoFill. After you turn it back on, suggestions return the next time you unlock this database.", indented: true)
+                settingsCaption("When off, AutoFill offers nothing from this database; turned back on, it suggests again after the next unlock.", indented: true)
             }
             if model.hasDestination, let session = model.session, let group = session.autoFillDestinationGroup {
                 MacSettingsSeparator()
@@ -411,7 +415,7 @@ private struct MacDatabaseBackupsTab: View {
             MacSettingsRow("Export:") {
                 Button("Export Copy…") { export(.currentCopy(model.current)) }
                     .accessibilityIdentifier("database-details.export-copy")
-                settingsCaption("Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
+                settingsCaption("Saves KeeForge's cached copy, for example to merge a stuck upload in another KeePass app.")
             }
             MacSettingsSeparator()
             MacSettingsRow("Backups:") {
@@ -433,8 +437,7 @@ private struct MacDatabaseBackupsTab: View {
     }
 }
 
+@MainActor
 private func noteCaption(_ text: String, indented: Bool = false) -> some View {
-    Text(verbatim: text).font(.caption).foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.leading, indented ? MacSettingsLayout.checkboxIndent : 0)
+    settingsCaption(verbatim: text, indented: indented)
 }

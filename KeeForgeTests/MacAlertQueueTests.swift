@@ -26,6 +26,7 @@ final class MacAlertQueueTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
     }
 
@@ -33,6 +34,7 @@ final class MacAlertQueueTests: XCTestCase {
         windows.forEach { $0.close() }
         windows = []
         DatabaseListStore.clearAll()
+        await resetCredentialIdentityStoreState()
         try await super.tearDown()
     }
 
@@ -203,6 +205,12 @@ final class MacAlertQueueTests: XCTestCase {
         await waitUntil { DatabaseListStore.databases.first?.keyFileFilename == keyFile.lastPathComponent }
         XCTAssertEqual(panelRequests, 1)
         XCTAssertNil(launcher.keyFileTarget)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while DatabaseListStore.databases.first?.keyFileFilename != keyFile.lastPathComponent,
+              launcher.selectionAlert == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertNil(launcher.selectionAlert)
         XCTAssertEqual(DatabaseListStore.databases.first?.keyFileFilename, keyFile.lastPathComponent)
         alerts.end()
     }

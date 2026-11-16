@@ -6,6 +6,20 @@
 
 - Retain encrypted cloud saves for recovery, queue cached changes durably, and avoid automatically resending uncertain replacement requests.
 
+### Changes
+
+- Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
+- AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
+
+### Fixes
+
+- Preserve encrypted cloud creation data when the outcome is uncertain instead of automatically creating another remote copy.
+- Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
+
+## v1.23.0 (2026-11-15)
+
+### New Features
+
 - On Mac, open several databases at once, each in its own window. A new Databases window lists your databases and opens, adds, creates, or connects to them; Window ▸ Databases brings it back. Closing a database's window locks that database only. Windows that were open when you quit come back on relaunch, locked, where you left them. Database ▸ Lock All Databases locks every open database.
 - The Mac app is rebuilt as a native Mac app, with the sidebar, the entry list, and the selected entry side by side in each database window:
   - The sidebar lists All Entries, Verification Codes, Passkeys, your groups, tags, and the Recycle Bin in sections you can fold. A status card at its foot shows where the database is stored and whether it is synced, syncing, offline, waiting to upload, in conflict, or needs you to reconnect, with the action that fixes it.
@@ -23,35 +37,13 @@
 - Edit Group on iPhone and iPad shows the icon beside the name and the tags in the same card, and explains what hiding a group from Search & AutoFill does.
 - AutoFill on iPhone and iPad unlocks in a sheet that names the database and its file, with the master password field, Face ID, and Unlock, instead of a system alert.
 - Change Master Key shows the strength of the new password, as New Database does.
-- On iPhone and iPad, the Recycle Bin shows which group each item came from and when it was deleted, and tells you to touch and hold an item to restore or delete it.
+- On iPhone and iPad, the Recycle Bin shows which group each item came from and when it was deleted, for items whose original group was recorded when they were recycled, and tells you to touch and hold an item to restore or delete it.
 - On iPhone, iPad, and Mac, Restore to Group… puts a recycled item back in a group you choose, next to Restore, which returns it to its original group.
 - In the entry editor on iPhone and iPad, each custom field is one row with its name and value. Protect Field and Remove Field are in the row's menu, and Reorder Fields moves them.
 - On Mac, right-click or Control-click KeeForge's menu bar icon for Open KeeForge and Quit KeeForge.
 
-### Changes
-
-- Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
-
-- AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
-
-- On Mac, Auto-Lock now defaults to 5 minutes of inactivity and offers 30 seconds, 1 minute, 5 minutes, or Never. Immediately is gone on Mac, where it never locked a database you left open; Mac installs set to Immediately, or never changed, now lock after 5 minutes of inactivity. To lock as soon as you leave KeeForge, turn on “When KeeForge is in the background for” in Settings ▸ Security. iPhone and iPad are unchanged.
-- On Mac, quick search and the AutoFill picker have a new look that matches the rest of the app, and the Light, Dark, or System theme in Settings ▸ Appearance now applies to every window, sheet, panel, and alert.
-- Clipboard Clear Timeout in Settings has a Never option, on iPhone, iPad, and Mac (#210). A copied value then stays until you copy something else or the database locks; on iPhone and iPad, locking when KeeForge goes to the background still keeps it so you can paste. The default stays 30 seconds.
-- Sorting by title puts entries with the same title in order of their user name, such as several verification codes for one service (#271).
-- Scanning a verification-code QR code or pasting a setup link in the entry editor fills an empty title and user name from the code's issuer and account, as adding a code from New already did (#270). A title or user name you already entered is kept.
-- AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
-  - An entry for an IP address, such as a router, is suggested only on that exact address. Before, entries for other addresses ending in the same two numbers appeared as possible matches.
-  - An entry for a subdomain is no longer suggested or filled on a parent that unrelated sites share, such as `localhost`, `github.io`, or `co.uk`.
-  - A passkey saved for `www.co.uk` is no longer offered on `co.uk`.
-  - A page on `www.www.example.com` no longer fills every entry for `example.com`.
-  - An entry URL that starts with another scheme and `://`, such as `androidapp://`, `ftp://`, or `ssh://`, no longer matches a website or appears in the system's suggestions. Before, an Android app stored as `androidapp://com.mybank.app` matched the website `mybank.app`.
-  - A URL is read the way browsers read it: a backslash counts as a slash, so `https://example.com\@other.example` matches `example.com`, not `other.example`.
-
 ### Fixes
 
-- Preserve encrypted cloud creation data when the outcome is uncertain instead of automatically creating another remote copy.
-
-- Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
 - On iPhone, iPad, and Mac, an entry's website opens only when it is an `http` or `https` address, or a bare address such as `example.com`, which opens as `https://example.com`. Any other value, such as a `file:`, `javascript:`, or another app's link, is shown as plain text you can copy, with no open button.
 - Creating a database on an FTP server that answers a missing file with a temporary error (such as `rclone serve ftp`) no longer fails as temporarily unavailable.
 - On Mac, quitting KeeForge (including at logout or restart) now clears a password or other value it copied, instead of leaving it on the clipboard until the clear timeout would have run.
@@ -69,6 +61,22 @@
 - An AutoFill suggestion for a website no longer fills an entry whose URL has since changed to another site; the picker opens instead.
 - Password import skips rows that contain a KeePass field reference (`{REF:…}`) and lists them with the other skipped rows. A verification-code setup link no longer prefills a title or user name that contains one.
 - A database whose groups or data nest more than 256 levels deep now reports that it can't be opened instead of closing KeeForge or AutoFill, and a save that would nest that deeply is refused with the group or entry named.
+
+### Changes
+
+- On Mac, explanations in Settings, Database Settings and the master key, encryption and server sheets are larger and shorter, with the longer caveats behind a help button.
+- On Mac, Auto-Lock now defaults to 5 minutes of inactivity and offers 30 seconds, 1 minute, 5 minutes, or Never. Immediately is gone on Mac, where it never locked a database you left open; Mac installs set to Immediately, or never changed, now lock after 5 minutes of inactivity. To lock as soon as you leave KeeForge, turn on “When KeeForge is in the background for” in Settings ▸ Security. iPhone and iPad are unchanged.
+- On Mac, quick search and the AutoFill picker have a new look that matches the rest of the app, and the Light, Dark, or System theme in Settings ▸ Appearance now applies to every window, sheet, panel, and alert.
+- Clipboard Clear Timeout in Settings has a Never option, on iPhone, iPad, and Mac (#210). A copied value then stays until you copy something else or the database locks; on iPhone and iPad, locking when KeeForge goes to the background still keeps it so you can paste. The default stays 30 seconds.
+- Sorting by title puts entries with the same title in order of their user name, such as several verification codes for one service (#271).
+- Scanning a verification-code QR code or pasting a setup link in the entry editor fills an empty title and user name from the code's issuer and account, as adding a code from New already did (#270). A title or user name you already entered is kept.
+- AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
+  - An entry for an IP address, such as a router, is suggested only on that exact address. Before, entries for other addresses ending in the same two numbers appeared as possible matches.
+  - An entry for a subdomain is no longer suggested or filled on a parent that unrelated sites share, such as `localhost`, `github.io`, or `co.uk`.
+  - A passkey saved for `www.co.uk` is no longer offered on `co.uk`.
+  - A page on `www.www.example.com` no longer fills every entry for `example.com`.
+  - An entry URL that starts with another scheme and `://`, such as `androidapp://`, `ftp://`, or `ssh://`, no longer matches a website or appears in the system's suggestions. Before, an Android app stored as `androidapp://com.mybank.app` matched the website `mybank.app`.
+  - A URL is read the way browsers read it: a backslash counts as a slash, so `https://example.com\@other.example` matches `example.com`, not `other.example`.
 
 ## v1.22.0 (2026-11-10)
 

@@ -25,7 +25,7 @@ struct MacSSHAgentSettingsTab: View {
                 case nil:
                     EmptyView()
                 }
-                settingsCaption("SSH clients can sign in with the keys you choose below while their database is unlocked in KeeForge. Locking or closing the database makes its keys unavailable right away.", indented: true)
+                settingsCaption("SSH clients can use the keys you choose below only while their database is unlocked.", indented: true)
             }
             if controller.isEnabled {
                 MacSettingsSeparator()
@@ -47,7 +47,7 @@ struct MacSSHAgentSettingsTab: View {
                 MacSettingsRow {
                     databasePicker
                     GroupBox { keyRows.padding(4).frame(maxWidth: .infinity, alignment: .leading) }
-                    settingsCaption("KeeForge offers an entry's OpenSSH private key attachment, the format ssh-keygen creates. Ed25519, ECDSA, and RSA keys without a passphrase are supported.")
+                    settingsCaption("KeeForge offers entries' OpenSSH private key attachments: Ed25519, ECDSA or RSA keys without a passphrase.")
                 } label: {
                     if !controller.concealsKeyList, controller.settingsSessions.count == 1, let session {
                         Text("Keys in \(session.databaseReference.displayName):")

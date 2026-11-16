@@ -154,37 +154,37 @@ evidence yet: [candidate gates](candidate.md#wait-for-all-cloud-gates-and-local-
 ci_scripts/candidate_manifest.py init --rc-tag rc/{version}-b{repoBuild}
 ```
 
-The tag push triggers Xcode Cloud's RC workflow (iOS tests plus iOS and Mac App Store
-archives/uploads) and `.github/workflows/tests.yml`. Xcode Cloud has no Mac test action (see
-[xcode-cloud-setup.md](xcode-cloud-setup.md)); the Mac unit suite runs only in that workflow's
-`macos-unit-tests` job. Its iPad job, `ios-rc-tests / KeeForge (iPad (A16))`, runs the two regular-width UI
-classes that skip on every Cloud device and is a gate. Its iPhone jobs are an unmetered GitHub copy
-of the three Cloud test schemes and are not a separate manifest gate. If Xcode Cloud shows no run for the tag, follow "Recovering a missing
+The tag push triggers Xcode Cloud's RC workflow (the iOS and Mac App Store archives/uploads; it runs
+no tests, see [xcode-cloud-setup.md](xcode-cloud-setup.md)) and `.github/workflows/tests.yml`, which
+carries every hosted test gate: the Mac unit suite in `macos-unit-tests`, the three RC test schemes
+on iPhone 18 Pro and iPhone SE (3rd generation) in six `ios-rc-tests` jobs, and the two
+regular-width UI classes in `ios-rc-tests / KeeForge (iPad (A16))`. The iPhone Duo job is not a
+manifest gate. If Xcode Cloud shows no run for the tag, follow "Recovering a missing
 tag-triggered run" in [xcode-cloud-setup.md](xcode-cloud-setup.md); never move or re-create the RC tag to retrigger it.
 
 ## Wait for all cloud gates and local Mac smoke
 
-The RC tag starts three cloud verdicts. All three, plus the two KDBX verdicts from [KDBX gates](candidate.md#regenerate-and-run-the-kdbx-gates) and the
+The RC tag starts four cloud verdicts: the Xcode Cloud archives and the Mac, iPhone, and iPad
+GitHub Actions gates. All four, plus the two KDBX verdicts from [KDBX gates](candidate.md#regenerate-and-run-the-kdbx-gates) and the
 local Mac smoke suite, must be accepted before either App Store build is distributed to external
 testers or the direct build is called a release candidate.
 
-1. Monitor Xcode Cloud through GitHub — it mirrors onto the RC commit as check runs for Test -
-   iOS and both archive actions:
+1. Monitor Xcode Cloud through GitHub — it mirrors onto the RC commit as check runs for both
+   archive actions:
    ```bash
    gh api repos/KeeForge/KeeForge/commits/{rc-sha}/check-runs \
      --jq '.check_runs[] | select(.app.name=="Xcode Cloud") | "\(.name) | \(.status) | \(.conclusion // "-")"'
    ```
-2. Monitor the two GitHub Actions gates, the `macos-unit-tests` and `ios-rc-tests / KeeForge (iPad (A16))` jobs
-   of `tests.yml`:
+2. Monitor the GitHub Actions gates of `tests.yml`: `macos-unit-tests`, the six
+   `ios-rc-tests / KeeForgeCloud*` iPhone jobs, and `ios-rc-tests / KeeForge (iPad (A16))`:
    ```bash
    gh run list --workflow tests.yml --event push
    gh run watch <run-id>
    ```
    Find the run whose `headBranch` is the RC tag and whose `headSha` is the RC commit. The run's
-   overall conclusion also covers the iPhone `ios-rc-tests` jobs, so read each gate job's own
-   conclusion.
-3. Record the Xcode Cloud URL and both job URLs, commit SHA, status, and conclusion in the manifest
-   (`gates.xcodeCloud`, `gates.githubMac`, `gates.githubIPad`). All three must target the same RC
+   overall conclusion also covers the iPhone Duo job, so read each gate job's own conclusion.
+3. Record the Xcode Cloud URL and every gate job URL, commit SHA, status, and conclusion in the manifest
+   (`gates.xcodeCloud`, `gates.githubMac`, `gates.githubIPhone`, `gates.githubIPad`). All four must target the same RC
    commit.
    An automatic GitHub test-gate pass requires its uploaded canonical `.xcresult` summary to report
    `result=Passed`, zero failures, and at least one executed test; exit 65 is accepted only then.
@@ -233,8 +233,8 @@ testers or the direct build is called a release candidate.
    a build whose gates are unresolved; a local pass cannot override a non-test infrastructure
    failure.
 
-Xcode Cloud's test and archive actions run in parallel. A red test action may still upload a build,
-but that build remains blocked from external distribution until the failure is adjudicated and all
+Xcode Cloud archives and uploads while the GitHub tests run. A build uploaded before a test gate
+turns red remains blocked from external distribution until the failure is adjudicated and all
 required gates are accepted. External TestFlight distribution is always a deliberate manual action
 in App Store Connect, independently for iOS and Mac.
 

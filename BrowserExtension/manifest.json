@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "KeeForge",
+  "version": "0.0.0",
+  "minimum_chrome_version": "133",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "browser-extension@keeforge.com",
+      "strict_min_version": "130.0"
+    }
+  },
+  "permissions": ["nativeMessaging", "activeTab", "scripting", "storage"],
+  "action": {"default_title": "KeeForge"},
+  "background": {
+    "service_worker": "src/background.js",
+    "scripts": ["src/background.js"],
+    "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'none'; script-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+  }
+}

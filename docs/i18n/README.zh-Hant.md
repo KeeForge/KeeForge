@@ -34,7 +34,7 @@
 
 ## 為什麼選擇 KeeForge？
 
-KeeForge 是適用於 iPhone、iPad 與 Mac 的原生 KeePass 用戶端。本機檔案與 WebDAV 可在所有平台使用；iCloud 雲碟、Dropbox、OneDrive 與其他「檔案」提供者可在 iPhone 與 iPad 使用。你可以用主密碼、金鑰檔案或生物辨識管理保險庫，不必交給託管式密碼服務。
+KeeForge 是適用於 iPhone、iPad 與 Mac 的原生 KeePass 用戶端。本機檔案、WebDAV 與 FTP 可在所有平台使用；iCloud 雲碟、Dropbox、OneDrive 與其他「檔案」提供者可在 iPhone 與 iPad 使用。你可以用主密碼、金鑰檔案或生物辨識管理保險庫，不必交給託管式密碼服務。
 
 ## 公開測試版
 
@@ -48,12 +48,12 @@ Apple 審核各平台的建置版本期間，iPhone、iPad 和 Mac 測試版的�
 | --- | --- |
 | **KeePass 相容性** | 讀取與寫入採用 AES-256、ChaCha20 或 Twofish 加密，以及 AES-KDF、Argon2d 或 Argon2id 的 KDBX 4.x 資料庫。也能以唯讀模式開啟 KDBX 3.1 資料庫。 |
 | **本機優先編輯** | 建立、編輯、移動與刪除項目與群組；儲存時進行衝突檢查、產生帶時間戳記的備份，並保留項目歷史記錄與未知的 XML 內容。 |
-| **新資料庫** | 在所有平台於本機或透過 WebDAV 建立 KDBX 4.x 資料庫；Dropbox 與 OneDrive 可在 iPhone 與 iPad 使用。 |
+| **新資料庫** | 在所有平台於本機或透過 WebDAV 或 FTP 建立 KDBX 4.x 資料庫；Dropbox 與 OneDrive 可在 iPhone 與 iPad 使用。 |
 | **複合金鑰** | 以密碼、金鑰檔案或兩者搭配解鎖，支援二進位、十六進位、XML v1/v2（`.key`/`.keyx`）與任意格式的金鑰檔案。 |
 | **自動填寫** | 在 App 與瀏覽器中原生自動填寫，並支援生物辨識解鎖及全平台通行金鑰註冊；iPhone 與 iPad 另支援 QuickType 與從延伸功能建立密碼項目。 |
 | **通行金鑰** | 偵測並驗證儲存在 KeePassXC 相容自訂欄位中的 FIDO2/WebAuthn 通行金鑰。 |
 | **TOTP** | 在所有平台即時顯示、拷貝與倒數計時，並在 iOS 18 以上與 Mac 自動填寫驗證碼。 |
-| **雲端同步** | 所有平台都支援 WebDAV。Dropbox 與 OneDrive 目前可在 iPhone 與 iPad 使用；Mac 可將其同步資料夾當成本機檔案開啟。 |
+| **雲端同步** | 所有平台都支援 WebDAV 與 FTP。Dropbox 與 OneDrive 目前可在 iPhone 與 iPad 使用；Mac 可將其同步資料夾當成本機檔案開啟。 |
 | **附件** | 檢視 KeePass 項目附件、以 QuickLook 預覽支援的檔案，並透過短暫存在的受保護暫存檔分享。可在項目編輯器中新增和移除附件。 |
 | **每個螢幕都原生** | iPhone 上專注的導覽、iPad 上分割顯示的工作區，以及具備選單、指令與 Touch ID、針對桌面最佳化的原生 Mac App。 |
 | **安全性** | AES-GCM 記憶體內機密加密、解鎖失敗後的退避延遲、解壓縮炸彈防護上限，以及恆定時間的 HMAC 比對。 |

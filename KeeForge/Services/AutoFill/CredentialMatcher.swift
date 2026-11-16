@@ -13,19 +13,28 @@ extension SiteRequest {
     }
 }
 
-/// AutoFill's bridge to `SiteMatching`: requests from service identifiers,
+/// The app's bridge to `SiteMatching`: requests from sites or service identifiers,
 /// candidates from entries. Expired entries never become candidates.
 enum CredentialMatcher {
     static func interactiveMatches(from entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> (exact: [KPEntry], possible: [KPEntry]) {
+        interactiveMatches(from: entries, for: identifiers.map(SiteRequest.init))
+    }
+
+    static func interactiveMatches(from entries: [KPEntry], for requests: [SiteRequest]) -> (exact: [KPEntry], possible: [KPEntry]) {
         let eligible = eligibleEntries(entries)
-        let matches = SiteMatcher.interactiveMatches(eligible.map(candidate), for: identifiers.map(SiteRequest.init))
+        let matches = SiteMatcher.interactiveMatches(eligible.map(candidate), for: requests)
         return (orderedEntries(withIDs: matches.exact, in: eligible), orderedEntries(withIDs: matches.possible, in: eligible))
     }
 
     /// The only matches safe to fill without the user choosing.
     static func strictMatchedEntries(from entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> [KPEntry] {
+        strictMatchedEntries(from: entries, for: identifiers.map(SiteRequest.init))
+    }
+
+    /// The only matches safe to fill without the user choosing.
+    static func strictMatchedEntries(from entries: [KPEntry], for requests: [SiteRequest]) -> [KPEntry] {
         let eligible = eligibleEntries(entries)
-        let ids = Set(SiteMatcher.strictMatches(eligible.map(candidate), for: identifiers.map(SiteRequest.init)))
+        let ids = Set(SiteMatcher.strictMatches(eligible.map(candidate), for: requests))
         return eligible.filter { ids.contains($0.id) }
     }
 
@@ -34,8 +43,13 @@ enum CredentialMatcher {
     /// A suggestion carries the host it was published for, so a subdomain the
     /// entry moved to no longer counts, unlike in `strictMatchedEntries`.
     static func listsRequestedSite(_ entry: KPEntry, for identifiers: [ASCredentialServiceIdentifier]) -> Bool {
+        listsRequestedSite(entry, for: identifiers.map(SiteRequest.init))
+    }
+
+    /// Requires the requested host itself, regardless of expiry.
+    static func listsRequestedSite(_ entry: KPEntry, for requests: [SiteRequest]) -> Bool {
         let stored = Set(webURLs(of: entry).compactMap { SiteHost($0) })
-        return identifiers.compactMap { SiteRequest($0).host }.contains(where: stored.contains)
+        return requests.compactMap(\.host).contains(where: stored.contains)
     }
 
     static func hasWebHost(_ identifiers: [ASCredentialServiceIdentifier]) -> Bool {

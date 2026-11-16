@@ -56,6 +56,61 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertTrue(CredentialMatcher.hasWebHost(identifiers))
     }
 
+    func testSiteRequestsMatchServiceIdentifiersForWebHosts() {
+        let parent = makeEntry(title: "Parent", url: "https://example.com")
+        let subdomain = makeEntry(title: "Subdomain", url: "https://login.example.com")
+        let additional = makeEntry(title: "Additional", url: "https://example.net", customFields: [
+            "KP2A_URL_1": "https://www.example.com/signin",
+        ])
+        let app = makeEntry(title: "App", url: "A1B2C3D4E5.com.mybank.app")
+        let expired = makeEntry(title: "Expired", url: "https://example.com", expired: true)
+        let entries = [subdomain, additional, app, parent, expired]
+        let cases: [(host: String, exact: [UUID], possible: [UUID], strict: [UUID], listed: [UUID])] = [
+            ("example.com", [additional.id, parent.id], [], [subdomain.id, additional.id, parent.id], [additional.id, parent.id, expired.id]),
+            ("login.example.com", [subdomain.id], [], [subdomain.id], [subdomain.id]),
+            ("accounts.example.com", [], [subdomain.id, additional.id, parent.id], [], []),
+            ("example.net", [additional.id], [], [additional.id], [additional.id]),
+            ("unrelated.org", [], [], [], []),
+            ("mybank.app", [], [], [], []),
+        ]
+
+        for item in cases {
+            let origin = "https://\(item.host)"
+            let requests: [SiteRequest] = [.url(origin)]
+            let matches = CredentialMatcher.interactiveMatches(from: entries, for: requests)
+            let strict = CredentialMatcher.strictMatchedEntries(from: entries, for: requests).map(\.id)
+            let listed = entries.filter { CredentialMatcher.listsRequestedSite($0, for: requests) }.map(\.id)
+            XCTAssertEqual(matches.exact.map(\.id), item.exact, item.host)
+            XCTAssertEqual(matches.possible.map(\.id), item.possible, item.host)
+            XCTAssertEqual(strict, item.strict, item.host)
+            XCTAssertEqual(listed, item.listed, item.host)
+
+            for identifier in [
+                ASCredentialServiceIdentifier(identifier: item.host, type: .domain),
+                ASCredentialServiceIdentifier(identifier: origin, type: .URL),
+            ] {
+                let identifierMatches = CredentialMatcher.interactiveMatches(from: entries, for: [identifier])
+                XCTAssertEqual(matches.exact.map(\.id), identifierMatches.exact.map(\.id), item.host)
+                XCTAssertEqual(matches.possible.map(\.id), identifierMatches.possible.map(\.id), item.host)
+                XCTAssertEqual(strict, CredentialMatcher.strictMatchedEntries(from: entries, for: [identifier]).map(\.id), item.host)
+                XCTAssertEqual(listed, entries.filter { CredentialMatcher.listsRequestedSite($0, for: [identifier]) }.map(\.id), item.host)
+            }
+        }
+    }
+
+    func testSiteRequestRejectsSuggestionMovedToSubdomain() {
+        let requests: [SiteRequest] = [.url("https://example.com")]
+        var entry = makeEntry(title: "Example", url: "https://www.example.com/login")
+        XCTAssertTrue(CredentialMatcher.listsRequestedSite(entry, for: requests))
+
+        entry.url = "https://admin.example.com"
+        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: [entry], for: requests).map(\.id), [entry.id])
+        XCTAssertFalse(CredentialMatcher.listsRequestedSite(entry, for: requests), "Issue 292: a stale suggestion requires its original host")
+
+        entry.customFields["KP2A_URL_1"] = "https://example.com"
+        XCTAssertTrue(CredentialMatcher.listsRequestedSite(entry, for: requests))
+    }
+
     func testAppIdentifierHasNoWebHost() throws {
         let entries = [makeEntry(title: "Website", url: "https://mybank.app")]
         let app = try makeAppIdentifier()
