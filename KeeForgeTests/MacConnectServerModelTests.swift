@@ -57,14 +57,14 @@ final class MacConnectServerModelTests: XCTestCase {
         let provider = CloudProviderKind.webDAV.rawValue
         let first = CloudAccount(id: "account", displayName: "A", provider: provider)
         let later = CloudAccount(id: "p8-later", displayName: "Z", provider: provider)
+        var credentials: [String: Data] = [:]
         for account in [first, later] {
             CloudAccountStore.upsert(account)
             let credential = WebDAVCredential(serverURL: "https://" + account.displayName.lowercased() + ".test/", username: account.displayName, password: "stored")
-            XCTAssertTrue(CloudTokenStore.setTokenData(try JSONEncoder().encode(credential), provider: provider, accountId: account.id))
+            credentials[account.id] = try JSONEncoder().encode(credential)
         }
         defer {
             for account in [first, later] {
-                CloudTokenStore.deleteToken(provider: provider, accountId: account.id)
                 CloudAccountStore.remove(provider: provider, accountId: account.id)
             }
         }
@@ -76,7 +76,10 @@ final class MacConnectServerModelTests: XCTestCase {
         await connector.started()
         await connector.finish(fails: false)
         _ = await connection.value
-        let next = MacConnectServerModel()
+        let storedCredentials = credentials
+        let next = MacConnectServerModel(credentialData: { requestedProvider, id in
+            requestedProvider == provider ? storedCredentials[id] : nil
+        })
         XCTAssertEqual(next.webDAV.serverURL, "https://a.test/")
         XCTAssertEqual(next.webDAV.username, "A")
         XCTAssertEqual(next.webDAV.password, "")
@@ -88,12 +91,13 @@ final class MacConnectServerModelTests: XCTestCase {
         let account = CloudAccount(id: id, displayName: "Test", provider: CloudProviderKind.webDAV.rawValue)
         let credential = WebDAVCredential(serverURL: "http://vault.test/", username: "alex", password: "stored secret")
         CloudAccountStore.upsert(account)
-        XCTAssertTrue(CloudTokenStore.setTokenData(try JSONEncoder().encode(credential), provider: account.provider, accountId: id))
+        let storedCredential = try JSONEncoder().encode(credential)
         defer {
-            CloudTokenStore.deleteToken(provider: account.provider, accountId: id)
             CloudAccountStore.remove(provider: account.provider, accountId: id)
         }
-        let model = MacConnectServerModel()
+        let model = MacConnectServerModel(credentialData: { provider, accountID in
+            provider == account.provider && accountID == id ? storedCredential : nil
+        })
         XCTAssertEqual(model.webDAV.serverURL, "http://vault.test/")
         XCTAssertEqual(model.webDAV.username, "alex")
         XCTAssertTrue(model.webDAV.allowsUnencryptedHTTP)

@@ -74,3 +74,5 @@ Mac behaviour lives in `@Observable` models and AppKit controllers tested headle
 - Quit clearing KeeForge's clipboard copy only when it goes ahead: `MacWindowCoordinatorTests`.
 
 - Local-save recovery is available from Database Settings even for a locked database. Shared recovery content uses the same captured receipts as iOS; Mac discard confirmation is a native alert with Cancel as the default. Both security sheets finish uncertain writes with Done and never repeat the completed operation. Tests: `MacDatabaseSettingsModelTests`, `MacDatabaseExporterTests`, `MacMasterKeySheetTests`, `MacEncryptionSettingsSheetTests`.
+
+- Workspace column widths and divider positions use the split view’s arranged-column coordinates. AppKit may inset a controller’s content inside its column; those inner frames cannot define a column’s saved width or full-height extent.
