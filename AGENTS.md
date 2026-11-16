@@ -17,7 +17,8 @@ Entry point for coding agents working on KeeForge. This file holds the repo-wide
 - Swift 6, SwiftUI, iOS 18+ / macOS 15+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`; target-membership rules live in `KeeForge/AGENTS.md`
 - Xcode Cloud runs the `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB` schemes; the partition rules are in `ci_scripts/AGENTS.md`.
-- Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`
+- Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeBrowserHost` (the Mac app's embedded native-messaging host, `BrowserHost/`), `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`
+- `BrowserExtension/` is the Chrome/Firefox extension: plain JavaScript with Node tests and no Xcode target; its wire contract with the Mac app is `docs/browser-bridge-protocol.md`.
 
 ## Find The Right Doc
 
@@ -101,4 +102,5 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - Composite keys live in Keychain, not raw master passwords.
 - Local saves compare the open-time SHA-512 before overwrite, create timestamped backups, and refresh the shared cached copy for AutoFill.
 - App Group and security-scoped bookmark behavior affect both the app and AutoFill extension.
+- The Mac browser bridge is off by default, lists matching logins without secrets, and releases one password at a time behind the device-owner gate; the threat model's bridge rows record its limits.
 - Network egress stays limited to cloud sync, opt-in favicon fetching (DuckDuckGo, `icons.duckduckgo.com`), the user-initiated feedback form (`feedback.keeforge.com`), OS-mediated StoreKit requests for the tip jar and review prompt in App Store builds, and, in the direct Mac build only, Sparkle's daily update check (on by default; Settings → About → Updates).

@@ -4,13 +4,13 @@ Manifest V3, plain ES modules, no packages. Requires Chrome-family 133+ or Firef
 
 ## Load for development
 
-Run `tools/build.sh`. In Chrome enable Developer mode at `chrome://extensions`, choose Load unpacked, and select `build/chrome`. In Firefox open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on and select `build/firefox/manifest.json`. The manifest intentionally has no development `key`; the store-assigned Chrome id is added to the native-host allowlist later. Unpacked ids can change with the extension path.
+Run `tools/build.sh`. In Chrome enable Developer mode at `chrome://extensions`, choose Load unpacked, and select `build/chrome`. In Firefox open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on and select `build/firefox/manifest.json`. The manifest's development `key` gives the unpacked Chrome copy a fixed ID (see Development ID below); the store-assigned Chrome ID is added to the native-host allowlist later.
 
 The same manifest is used in both archives. Chrome 121+ ignores `background.scripts` and runs `background.service_worker`; Firefox uses `background.scripts` as an event page. Both support `background.type: "module"` at our minimum versions (Chrome 92+, Firefox 112+). See [MDN background](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/background) and [Mozilla compatibility data](https://github.com/mdn/browser-compat-data/blob/main/webextensions/manifest/background.json). [X25519 compatibility](https://github.com/mdn/browser-compat-data/blob/main/api/SubtleCrypto.json) sets the higher browser minimums. These are documentation checks; neither browser has been launched to validate loading, IndexedDB CryptoKey persistence or script injection.
 
 ## Manual native mock
 
-`tools/mock-host.mjs` is a real stdio native-messaging host backed by `test/mock-app.js`. It does no network I/O and writes only framed protocol objects on stdout. It automatically allows pairing and serves disposable demo credentials. Options: `--decline`, `--busy`, `--pending`, `--locked`, `--empty`, `--mixed`, `--hold-credential`, `--unavailable` (a mock `launch` makes it available). App keys and registered clients last only for the host process; after it exits, pair again. To exercise persistent app pairing use the real host/app from the other items. Do not use the mock with real vault data.
+`tools/mock-host.mjs` is a real stdio native-messaging host backed by `test/mock-app.js`. It does no network I/O and writes only framed protocol objects on stdout. It automatically allows pairing and serves disposable demo credentials. Options: `--decline`, `--busy`, `--pending`, `--locked`, `--empty`, `--mixed`, `--hold-credential`, `--unavailable` (a mock `launch` makes it available). App keys and registered clients last only for the host process; after it exits, pair again. To exercise persistent pairing, use a debug build of KeeForge with the browser set up in Settings ▸ Browsers. Do not use the mock with real vault data.
 
 No native-host manifest is installed by these tools. To set one up manually, create an executable wrapper with an absolute path to your Node binary and an absolute path to `tools/mock-host.mjs`, then point the browser's native-host registration at that wrapper. The host JSON is:
 
@@ -53,7 +53,7 @@ Probe and fill use the same self-contained function for visibility and open shad
 
 Exact matches precede a separate possible-match section. Multiple databases get separate headings within each section. Enter fills the first login, Up/Down selects a login, and Tab reaches code and reveal actions. A code action fills only a verification code. Retryable popup errors offer a localized Try Again button, and reopening after disconnect or timeout tries a fresh connection. Pairing polling does not reconnect over a terminal result. Waiting for a credential shows “Confirm in KeeForge”; the popup requests no close until filling succeeds. Browser-enforced popup dismissal when focus moves to another app remains outside extension control.
 
-Pairing opens a separate tab, shows the browser label sent to KeeForge, and displays the comparison code until the app accepts or declines. Browser naming uses available brands, user agent and optional Brave detection; browsers hiding their identity (notably Arc and Vivaldi) may appear as Chrome. No extra permission is requested.
+Pairing opens a separate tab, shows the browser label sent to KeeForge, and displays the comparison code until the app accepts or declines, with a line telling the user to switch to KeeForge if it does not come forward. Browser naming uses available brands, user agent and optional Brave detection; browsers hiding their identity (notably Arc and Vivaldi) may appear as Chrome. No extra permission is requested.
 
 All nine locales ship under `_locales/`; zh-Hans maps to zh_CN and zh-Hant to zh_TW. Pages use external scripts/styles only, system fonts, light/dark colors, and a shipped SVG key glyph. Toolbar/extension PNG artwork is intentionally omitted; the owner should supply production icons. No deterministic SVG-to-PNG rasterizer is included in this dependency-free project.
 
@@ -78,7 +78,7 @@ Run this checklist in both real Chrome and Firefox with a manually registered `t
 - [ ] Browser pages, file URLs, ordinary HTTP, and pages without editable fields show a one-line reason. Loopback HTTP remains allowed by the protocol.
 - [ ] Assign/test the shortcut in each browser. It opens a visible popup and never fills on its own.
 
-The mock uses disposable demo credentials only; do not point it at real databases. Real native-host installation, app-side policy, locked-database recovery, Touch ID, and hardware behavior require integration testing with the other browser-bridge items.
+The mock uses disposable demo credentials only; do not point it at real databases. Real native-host installation, app-side policy, locked-database recovery, Touch ID, and hardware behavior need the real app; none has been checked in a signed build.
 
 ## Development ID
 

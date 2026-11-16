@@ -352,17 +352,37 @@ ssh -T git@github.com   # or any host that trusts the key
 both commands find no key; quit KeeForge or turn the agent off and they cannot reach
 the agent at all.
 
+## Browser Bridge
+
+Settings ▸ Browsers turns on a bridge that lets the KeeForge browser extension
+(`../BrowserExtension/`) fill logins from an unlocked database (#299). It is off
+by default. The app side is `../KeeForge/Services/BrowserBridge/`, the browser's
+native-messaging host is `../BrowserHost/`, the wire contract is
+[browser-bridge-protocol.md](../docs/browser-bridge-protocol.md), and the security
+boundary is in [SECURITY.md](SECURITY.md#browser-bridge). The pairing alert and
+window fronting are `App/MacBrowserBridgePrompts.swift`.
+
+Setup: turn the bridge on, click Set Up… for each installed browser and grant the
+folder KeeForge suggests in the open panel with Grant Access (KeeForge writes
+`com.keevault.browser.json` there), install the extension, and choose Pair in it.
+Allow the pairing only when the code in the alert matches the one in the
+browser's pairing tab. Release builds can set up Firefox only until the Chromium
+store extension ID is added to `BrowserBridgeIdentifiers.swift`; debug builds
+also allow the development ID. None of this has run in a signed build or a real
+browser yet.
+
 ## Build contracts
 
 The app requires macOS 15. Source membership and AutoFill sharing rules belong
 in [the shared-source guidance](../KeeForge/AGENTS.md). Both channels produce
-`KeeForge.app`; all four product targets share the iOS marketing version and
-build number. Mac unit tests run hosted in the app and compile the shared test
+`KeeForge.app`; all four product targets and the browser host share the iOS marketing
+version and build number. Mac unit tests run hosted in the app and compile the shared test
 suite. Native window interactions belong in the Mac UI suite.
 
 ## Entitlements Gotchas
 
-- App Sandbox + Hardened Runtime, user-selected read-write files, network client, app-scoped security bookmarks, App Group `group.com.keevault.shared`.
+- App Sandbox + Hardened Runtime, user-selected read-write files, network client, app-scoped security bookmarks, App Group `group.com.keevault.shared`. The app also has the team-prefixed `$(TeamIdentifierPrefix)com.keevault.browser` group for the browser bridge socket; AutoFill does not. Both host and app find that group by reading their own entitlements, so an unsigned build has no group and the bridge reports itself unavailable.
+- The embedded `keeforge-browser-host` has its own `BrowserHost/BrowserHost.entitlements`: App Sandbox and the browser group only. `ci_scripts/verify_mac_artifact.sh` fails a release whose host has any other entitlement, no Hardened Runtime, another signing team, or a version or build that differs from the app's.
 - `keychain-access-groups`: the app and the extension both list exactly one group, `com.keevault.sharedkeychain`. Ordering matters the moment a second one is added — items stored without an explicit `kSecAttrAccessGroup` land in the **first** listed group, so the shared group must stay first (see comments in both entitlements files). MSAL's macOS token cache group (`com.microsoft.identity.universalstorage`) is deliberately absent: the Mac app offers only WebDAV and FTP, so nothing authenticates through MSAL. Re-enabling OneDrive means adding it back *and* regenerating the Developer ID profiles, which embed the entitlements.
 
 ## Info.plist Sync
@@ -385,6 +405,8 @@ One target, two channels, chosen when the project is generated rather than when 
 
 - `xcodegen generate` — **Mac App Store**: no Sparkle in the binary and StoreKit tip jar. Adding macOS to the existing App Store Connect app record established universal purchase with iOS; there is no separate toggle. This is the default, so every ordinary workflow and every CI job builds this.
 - `xcodegen generate --spec project-direct.yml` — **Developer ID direct download**: links Sparkle, compiles `KEEFORGE_DIRECT_DOWNLOAD`, shows GitHub Sponsors instead of the tip jar, never calls StoreKit. It is also the only spec that selects `KeeForgeMacDirect.entitlements` and sets `SUEnableInstallerLauncherService` and `SUEnableAutomaticChecks` (daily checks from the first launch, switchable in Settings → About): a sandboxed app cannot submit Sparkle's installer job itself, and without the `-spks`/`-spki` mach-lookup exceptions an update downloads and verifies and then hangs forever at the progress window. Those two entitlement files must stay identical apart from that one key. `ci_scripts/build_mac_direct.sh` drives it and restores the App Store spec on exit.
+
+Both specs build the `KeeForgeBrowserHost` tool target and copy its `keeforge-browser-host` product into `Contents/MacOS`, signed on copy. It is a bare executable, not a bundle, so its Info.plist (bundle identifier, marketing version, build number) is embedded in the binary, and its version must move with the app's.
 
 Two specs rather than two targets: both channels ship an app named `KeeForge.app` (the executable name is inside the signature and cannot be renamed afterwards), and two targets producing the same product path is a hard Xcode error. Separate specs also make the channels mutually exclusive by construction — an App Store build must never contain an updater.
 
