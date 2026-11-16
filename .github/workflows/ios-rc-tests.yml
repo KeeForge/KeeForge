@@ -5,11 +5,9 @@ name: iOS RC tests
 # `${{ matrix.* }}` name on every pull request, while a skipped call shows
 # as one plain `ios-rc-tests` job.
 #
-# The three Xcode Cloud "Tests (RC)" schemes on the same two devices at the
-# newest usable iOS runtime. Xcode Cloud meters its test actions against a
-# monthly compute allowance; this lane is unmetered, so a candidate still
-# gets a latest-runtime verdict once the allowance is spent. The schemes
-# select their own tests (ci_scripts/AGENTS.md, "Xcode Cloud test
+# The three RC test schemes on iPhone 18 Pro and iPhone SE (3rd generation) at
+# the newest usable iOS runtime; Xcode Cloud only archives. The schemes
+# select their own tests (ci_scripts/AGENTS.md, "RC test
 # partition"). The extra iPad lane runs the two regular-width UI classes,
 # which XCTSkip on every compact-width device. The iPhone Duo lane boots
 # closed, on its 466pt outer display; no simulator can open it from a test,
@@ -170,7 +168,7 @@ jobs:
             selection+=("-only-testing:$test")
           done
 
-          # Test timeouts are on, as in Xcode Cloud, so the suites' execution
+          # Test timeouts are on, so the suites' execution
           # allowances are enforced.
           set +e
           xcodebuild test-without-building \

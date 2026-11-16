@@ -34,7 +34,7 @@
 
 ## Pourquoi KeeForge ?
 
-KeeForge est un client KeePass natif pour iPhone, iPad et Mac. Les fichiers locaux et WebDAV fonctionnent sur toutes les plateformes ; iCloud Drive, Dropbox, OneDrive et les autres fournisseurs Fichiers sont disponibles sur iPhone et iPad. Déverrouillez avec un mot de passe principal, un fichier de clé ou la biométrie, sans confier votre coffre-fort à un service hébergé.
+KeeForge est un client KeePass natif pour iPhone, iPad et Mac. Les fichiers locaux, WebDAV et FTP fonctionnent sur toutes les plateformes ; iCloud Drive, Dropbox, OneDrive et les autres fournisseurs Fichiers sont disponibles sur iPhone et iPad. Déverrouillez avec un mot de passe principal, un fichier de clé ou la biométrie, sans confier votre coffre-fort à un service hébergé.
 
 ## Bêta publique
 
@@ -48,12 +48,12 @@ La disponibilité de la bêta peut varier entre iPhone, iPad et Mac pendant qu�
 | --- | --- |
 | **Compatibilité KeePass** | Lit et écrit des bases de données KDBX 4.x avec chiffrement AES-256, ChaCha20 ou Twofish, et AES-KDF, Argon2d ou Argon2id. Ouvre aussi les bases de données KDBX 3.1 en lecture seule. |
 | **Édition locale** | Créez, modifiez, déplacez et supprimez des entrées et des groupes ; enregistrez avec vérification des conflits, sauvegardes horodatées, et conservation de l’historique des entrées et du XML inconnu. |
-| **Nouvelles bases de données** | Créez des bases KDBX 4.x localement ou via WebDAV sur toutes les plateformes ; Dropbox et OneDrive sont disponibles sur iPhone et iPad. |
+| **Nouvelles bases de données** | Créez des bases KDBX 4.x localement ou via WebDAV ou FTP sur toutes les plateformes ; Dropbox et OneDrive sont disponibles sur iPhone et iPad. |
 | **Clés composites** | Déverrouillez avec un mot de passe, un fichier de clé, ou les deux — y compris des fichiers de clé binaires, hexadécimaux, XML v1/v2 (`.key`/`.keyx`) et arbitraires. |
 | **Remplissage automatique** | Remplissage natif dans les apps et navigateurs avec déverrouillage biométrique, plus l’enregistrement de passkeys sur toutes les plateformes ; QuickType et la création d’entrées de mot de passe depuis l’extension sont aussi disponibles sur iPhone et iPad. |
 | **Clés d’accès** | Détecte et authentifie les clés d’accès FIDO2/WebAuthn stockées dans des champs personnalisés compatibles KeePassXC. |
 | **TOTP** | Affichage, copie et compte à rebours sur toutes les plateformes, plus le remplissage automatique des codes à partir d’iOS 18 et sur Mac. |
-| **Synchronisation cloud** | WebDAV sur toutes les plateformes. Dropbox et OneDrive sont actuellement disponibles sur iPhone et iPad ; sur Mac, ouvrez leurs dossiers synchronisés comme fichiers locaux. |
+| **Synchronisation cloud** | WebDAV et FTP sur toutes les plateformes. Dropbox et OneDrive sont actuellement disponibles sur iPhone et iPad ; sur Mac, ouvrez leurs dossiers synchronisés comme fichiers locaux. |
 | **Pièces jointes** | Affichez les pièces jointes des entrées KeePass, prévisualisez les fichiers pris en charge avec QuickLook, et partagez-les depuis des fichiers temporaires protégés et de courte durée. Ajoutez et supprimez des pièces jointes dans l’éditeur d’entrée. |
 | **Natif sur chaque écran** | Navigation ciblée sur iPhone, espace de travail scindé sur iPad et app Mac native optimisée pour le bureau, avec menus, commandes et Touch ID. |
 | **Sécurité** | Chiffrement AES-GCM des secrets en mémoire, ralentissement après échec de déverrouillage, limites contre les bombes de décompression, et comparaison HMAC à temps constant. |
