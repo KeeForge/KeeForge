@@ -56,6 +56,31 @@ final class MacDatabasesLauncherViewControllerTests: XCTestCase {
         XCTAssertEqual(list.frame.minY, 0, "No bar under the list; the brand panel and menus add and remove")
     }
 
+    /// A tall sheet grows the window only once it is attached: resizing first made the SwiftUI host
+    /// present What's New twice, and dismissing it then took the Databases window away.
+    func testATallSheetGrowsTheWindowAfterItIsAttached() throws {
+        let window = DatabasesWindow(contentRect: NSRect(origin: NSPoint(x: 100, y: 100), size: DatabasesWindowController.contentSize),
+            styleMask: DatabasesWindowController.styleMask, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        addTeardownBlock { @MainActor in window.close() }
+        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: MacSheetMetrics.maxHeight),
+            styleMask: [.titled], backing: .buffered, defer: false)
+        sheet.isReleasedWhenClosed = false
+        var attachedWhenResized: [Bool] = []
+        let observer = NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: window,
+                                                              queue: nil) { _ in
+            MainActor.assumeIsolated { attachedWhenResized.append(window.attachedSheet === sheet) }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        window.beginSheet(sheet)
+        XCTAssertTrue(window.attachedSheet === sheet)
+        XCTAssertFalse(attachedWhenResized.isEmpty, "The window grew for the sheet")
+        XCTAssertEqual(attachedWhenResized, attachedWhenResized.map { _ in true }, "Never resized before the sheet attached")
+        XCTAssertGreaterThanOrEqual(window.contentLayoutRect.height, MacSheetMetrics.maxHeight)
+        window.endSheet(sheet)
+        sheet.orderOut(nil)
+    }
+
     /// The press background is the button's own and clears when the click, and the action it sent, ends.
     func testActionButtonClearsItsPressedBackgroundAfterTheClick() async throws {
         let (controller, _, _) = await makeController([])

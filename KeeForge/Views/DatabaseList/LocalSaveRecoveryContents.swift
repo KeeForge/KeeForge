@@ -7,8 +7,16 @@ struct LocalSaveRecoveryContents: View {
     let requestDiscard: (PendingLocalSaveStore.RecoverySnapshot, Bool) -> Void
     let refresh: () async -> Void
 
+    var hasContent: Bool { showsSnapshot || recovery.errorMessage != nil }
+
+    private var showsSnapshot: Bool {
+        guard let snapshot = recovery.snapshot else { return false }
+        return !snapshot.entries.isEmpty || snapshot.needsRecovery || snapshot.keyEvidence?.targetDurabilityUnconfirmed == true
+            || snapshot.requiresAssociationRecovery(for: reference) || recovery.targetNeedsRecovery
+    }
+
     var body: some View {
-        if let localRecovery = recovery.snapshot, !localRecovery.entries.isEmpty || localRecovery.needsRecovery || localRecovery.keyEvidence?.targetDurabilityUnconfirmed == true || localRecovery.requiresAssociationRecovery(for: reference) || recovery.targetNeedsRecovery {
+        if let localRecovery = recovery.snapshot, showsSnapshot {
             Section("Local Save Recovery") {
                 if localRecovery.admission?.purpose == .ordinarySave, localRecovery.admission?.knownTarget != nil {
                     Text("The file contains this change, but its durability or recovery record is unconfirmed. You can make a new explicit save from this version without discarding recovery. Discarding the record does not undo the file change or discard your open draft.")

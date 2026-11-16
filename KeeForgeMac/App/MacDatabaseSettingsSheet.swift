@@ -132,33 +132,33 @@ private struct MacDatabaseSettingsContent: View {
 
     var body: some View {
         ScrollView {
-            Form {
+            VStack(alignment: .leading, spacing: 20) {
                 if model.current.isCloudBacked {
                     Button("Cloud Recovery", action: showCloudRecovery)
                         .accessibilityIdentifier("database-details.cloud-recovery")
                 }
-                if !model.current.isCloudBacked {
-                    if model.showsLocalDraftExport, let session = model.session {
-                        Section {
-                            Text("Export a full encrypted copy of your unsaved changes before closing this session. Open it with the master key used by this unlocked session. Exporting keeps your edits here.")
-                            Button("Export Unsaved Changes…") {
-                                exportTask?.cancel()
-                                exportTask = Task {
-                                    do {
-                                        let payload = try await session.makeLocalRecoveryExport()
-                                        guard !Task.isCancelled else { return }
-                                        exportRequest = .localRecovery(UUID(), payload.data, payload.suggestedFilename)
-                                    } catch {
-                                        guard !Task.isCancelled, let window = window() else { return }
-                                        MacDatabaseExporter.showError(error.localizedDescription, on: window)
+                if !model.current.isCloudBacked && (model.showsLocalDraftExport || recoveryContents.hasContent) {
+                    Form {
+                        if model.showsLocalDraftExport, let session = model.session {
+                            Section {
+                                Text("Export a full encrypted copy of your unsaved changes before closing this session. Open it with the master key used by this unlocked session. Exporting keeps your edits here.")
+                                Button("Export Unsaved Changes…") {
+                                    exportTask?.cancel()
+                                    exportTask = Task {
+                                        do {
+                                            let payload = try await session.makeLocalRecoveryExport()
+                                            guard !Task.isCancelled else { return }
+                                            exportRequest = .localRecovery(UUID(), payload.data, payload.suggestedFilename)
+                                        } catch {
+                                            guard !Task.isCancelled, let window = window() else { return }
+                                            MacDatabaseExporter.showError(error.localizedDescription, on: window)
+                                        }
                                     }
-                                }
-                            }.accessibilityIdentifier("database-details.local-recovery.export-draft")
+                                }.accessibilityIdentifier("database-details.local-recovery.export-draft")
+                            }
                         }
-                    }
-                    LocalSaveRecoveryContents(recovery: model.localRecovery, reference: model.current,
-                        export: exportDatabaseCopy, requestDiscard: discardRecovery,
-                        refresh: { await refreshRecovery() })
+                        recoveryContents
+                    }.formStyle(.columns)
                 }
                 switch model.selection {
                 case .general: MacDatabaseGeneralTab(model: model, showIcons: { icons = true })
@@ -168,8 +168,11 @@ private struct MacDatabaseSettingsContent: View {
                 case .backups: MacDatabaseBackupsTab(model: model, export: exportDatabaseCopy)
                 }
             }
-            .formStyle(.columns)
-            .padding(20)
+            // With the shell's 20 pt margin this matches the Settings window's insets.
+            .padding(.horizontal, 12)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .task(id: model.session?.openTimeSHA512) { await model.refreshFactsIfNeeded() }
         .task { await refreshRecovery() }
@@ -188,6 +191,11 @@ private struct MacDatabaseSettingsContent: View {
         .databaseExporter(request: $exportRequest)
     }
 
+    private var recoveryContents: LocalSaveRecoveryContents {
+        LocalSaveRecoveryContents(recovery: model.localRecovery, reference: model.current,
+            export: exportDatabaseCopy, requestDiscard: discardRecovery, refresh: { await refreshRecovery() })
+    }
+
     private func refreshRecovery() async {
         guard !model.current.isCloudBacked else { return }
         model.list.reload()
@@ -202,47 +210,42 @@ private struct MacDatabaseGeneralTab: View {
     let showIcons: () -> Void
     @FocusState private var editingName: Bool
     var body: some View {
-        LabeledContent("Custom name:") {
-            VStack(alignment: .leading) {
+        MacSettingsForm {
+            MacSettingsRow("Custom name:") {
                 TextField("Custom Name", text: $model.nickname, prompt: Text("Use filename")).labelsHidden().frame(maxWidth: 280)
                     .focused($editingName)
                     .onSubmit { model.commitNickname() }
+                    .onChange(of: editingName) { _, focused in if !focused { model.commitNickname() } }
                     .accessibilityIdentifier("database-details.nickname-field")
-                Text("Filename: \(model.current.filename)").font(.caption).foregroundStyle(.secondary)
+                settingsCaption("Filename: \(model.current.filename)")
             }
-        }
-        .onChange(of: editingName) { _, focused in if !focused { model.commitNickname() } }
-        LabeledContent("Opening:") {
-            VStack(alignment: .leading) {
+            MacSettingsRow("Opening:") {
                 Toggle("Quick Launch", isOn: Binding(get: { model.current.isQuickLaunch }, set: { value in
                     if value != model.current.isQuickLaunch { model.list.toggleQuickLaunch(for: model.current) }
                 })).accessibilityIdentifier("database-details.quick-launch-toggle")
-                caption("Quick Launch opens this database automatically on app launch.")
+                settingsCaption("Quick Launch opens this database automatically on app launch.", indented: true)
             }
-        }
-        Divider()
-        LabeledContent("Editing:") {
-            VStack(alignment: .leading, spacing: 8) {
+            MacSettingsSeparator()
+            MacSettingsRow("Editing:") {
                 Toggle("Read-Only", isOn: Binding(get: { model.isReadOnly }, set: { model.setReadOnly($0) }))
                     .disabled(model.fixedReadOnly || model.isLoading)
                     .accessibilityIdentifier("database-row.read-only-toggle")
-                Text(model.readOnlyCaption).font(.caption).foregroundStyle(.secondary)
+                noteCaption(model.readOnlyCaption, indented: true)
                     .accessibilityIdentifier("database-details.read-only-footer")
                 if model.session != nil {
                     Button("Manage Custom Icons…", action: showIcons)
                         .disabled(model.session?.state != .unlocked || model.session?.isSaving == true)
                         .accessibilityIdentifier("database-details.custom-icons")
+                        .padding(.top, 4)
                 }
             }
-        }
-        Divider()
-        LabeledContent("Database file:") {
-            VStack(alignment: .leading, spacing: 6) {
-                if model.isLoading { ProgressView("Reading database file…") }
+            MacSettingsSeparator()
+            MacSettingsRow("Database file:") {
+                if model.isLoading { ProgressView("Reading database file…").controlSize(.small) }
                 else if model.facts.isEmpty { Text("File details are unavailable.") }
-                else { Text(model.facts).accessibilityIdentifier("database-details.file-format") }
-                Text(model.cachedCopyCaption).font(.caption).foregroundStyle(.secondary)
-                Text(model.history).font(.caption).foregroundStyle(.secondary)
+                else { Text(model.facts).textSelection(.enabled).accessibilityIdentifier("database-details.file-format") }
+                noteCaption(model.cachedCopyCaption)
+                noteCaption(model.history)
             }
         }
     }
@@ -253,25 +256,25 @@ private struct MacDatabaseSecurityTab: View {
     let changeMasterKey: @MainActor () -> Void
     let changeEncryption: @MainActor () -> Void
     var body: some View {
-        LabeledContent("Master key:") {
-            VStack(alignment: .leading, spacing: 8) {
+        MacSettingsForm {
+            MacSettingsRow("Master key:") {
                 Text(model.masterKeySummary)
-                if let changed = model.masterKeyChangedText { Text(changed).font(.caption).foregroundStyle(.secondary) }
+                if let changed = model.masterKeyChangedText { noteCaption(changed) }
                 Button("Change Master Key…", action: changeMasterKey).disabled(!model.canChangeSecurity)
                     .accessibilityIdentifier("database-details.change-master-key")
+                    .padding(.top, 4)
             }
-        }
-        Divider()
-        LabeledContent("Encryption:") {
-            VStack(alignment: .leading, spacing: 8) {
+            MacSettingsSeparator()
+            MacSettingsRow("Encryption:") {
                 if let summary = model.fileInfo?.summary {
                     Text(DatabaseSettingsSummary.encryption(summary) ?? "")
-                    Text(SettingsSummaryText.joined([summary.keyDerivationDetailText, summary.compressionDisplayName])).font(.caption).foregroundStyle(.secondary)
+                    noteCaption(SettingsSummaryText.joined([summary.keyDerivationDetailText, summary.compressionDisplayName]))
                 } else { Text("File details are unavailable.") }
                 Button("Change Encryption Settings…", action: changeEncryption)
                     .disabled(!model.canChangeSecurity || model.fileInfo?.summary == nil)
                     .accessibilityIdentifier("database-details.change-encryption-settings")
-                caption("Most databases never need this. The wrong values can make a database slow to open on your other devices.")
+                    .padding(.top, 4)
+                settingsCaption("Most databases never need this. The wrong values can make a database slow to open on your other devices.")
             }
         }
     }
@@ -281,36 +284,72 @@ private struct MacDatabaseSyncTab: View {
     let model: MacDatabaseSettingsModel
     var body: some View {
         if let metadata = model.current.cloudSyncMetadata, let state = model.list.cloudState(for: model.current) {
-            LabeledContent("Provider:", value: state.providerName)
-            LabeledContent("Account:", value: state.accountLabel)
-            LabeledContent("Path:", value: metadata.displayPath)
-            if let date = metadata.remoteModifiedAt { LabeledContent("Remote modified:", value: date.formatted(date: .abbreviated, time: .shortened)) }
-            if let date = metadata.lastSyncedAt { LabeledContent("Last sync:", value: date.formatted(date: .abbreviated, time: .shortened)) }
-            LabeledContent("Status:") {
-                HStack {
-                    Circle().fill(state.warningText == nil ? Color.green : .orange).frame(width: 7, height: 7)
-                    Text(state.warningText ?? String(localized: "Healthy"))
+            let status = model.syncStatus
+            MacSettingsForm {
+                MacSettingsRow("Provider:") { Text(state.providerName) }
+                MacSettingsRow("Account:") { Text(state.accountLabel).textSelection(.enabled) }
+                MacSettingsRow("Path:") {
+                    // Wraps rather than truncates, so the whole path stays readable and selectable.
+                    Text(metadata.displayPath)
+                        .font(.body.monospaced())
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .help(metadata.displayPath)
+                        .accessibilityIdentifier("database-details.sync-path")
                 }
-            }
-            Divider()
-            LabeledContent("When opening:") {
-                VStack(alignment: .leading, spacing: 8) {
+                MacSettingsSeparator()
+                MacSettingsRow("Status:") {
+                    HStack(spacing: 6) {
+                        Circle().fill(status.tone.color).frame(width: 8, height: 8).accessibilityHidden(true)
+                        Text(status.text).accessibilityIdentifier("database-details.sync-status")
+                    }
+                    if let action = status.action {
+                        Button(action.title) { model.performStatusAction?(action) }
+                            .disabled(!status.isActionEnabled)
+                            .accessibilityIdentifier("database-details.sync-status-action")
+                    }
+                }
+                if let date = metadata.lastSyncedAt {
+                    MacSettingsRow("Last sync:") { Text(date.formatted(date: .abbreviated, time: .shortened)) }
+                }
+                if let date = metadata.remoteModifiedAt {
+                    MacSettingsRow("Remote modified:") { Text(date.formatted(date: .abbreviated, time: .shortened)) }
+                }
+                MacSettingsSeparator()
+                MacSettingsRow("When opening:") {
                     Toggle("Sync When Opening", isOn: Binding(get: { model.current.cloudSyncPolicy == .onOpen }, set: { model.setSyncOnOpen($0) }))
                         .accessibilityIdentifier("database-details.sync-on-open-toggle")
                     if !state.isConnected {
-                        caption("This account is disconnected. KeeForge keeps the cached copy until you remove the database.")
+                        settingsCaption("This account is disconnected. KeeForge keeps the cached copy until you remove the database.", indented: true)
                     } else if model.current.cloudSyncPolicy == .manual {
-                        caption("KeeForge opens the copy saved on this device without checking the cloud. Use Sync Now in the unlocked database to get newer changes. Saving still checks the cloud copy first and stops if it changed. AutoFill uses the cached copy only.")
+                        settingsCaption("KeeForge opens the copy saved on this device without checking the cloud. Use Sync Now in the unlocked database to get newer changes. Saving still checks the cloud copy first and stops if it changed. AutoFill uses the cached copy only.", indented: true)
                     } else {
-                        caption("Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.")
+                        settingsCaption("Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.", indented: true)
                     }
-                    Button("Sync Now") { Task { await model.syncNow() } }
-                        .disabled(model.session?.canSyncCloudNow != true)
-                        .accessibilityIdentifier("database-details.sync-now")
-                    if let outcome = model.session?.cloudSyncOutcome { Text(outcome.message).font(.caption).foregroundStyle(.secondary) }
-                    else if model.session?.isDirty == true || model.session?.hasUnsavedEditor == true { caption("Save your changes before syncing.") }
+                }
+                MacSettingsRow {
+                    HStack(spacing: 8) {
+                        Button("Sync Now") { Task { await model.syncNow() } }
+                            .disabled(!model.canSyncNow)
+                            .accessibilityIdentifier("database-details.sync-now")
+                        if model.isSyncing {
+                            ProgressView().controlSize(.small)
+                            Text("Syncing…").foregroundStyle(.secondary)
+                        }
+                    }
+                    if let note = model.syncNowNote { noteCaption(note) }
                 }
             }
+        }
+    }
+}
+
+private extension MacDatabaseSettingsModel.SyncStatus.Tone {
+    var color: Color {
+        switch self {
+        case .healthy: .green
+        case .neutral: .secondary
+        case .warning: .orange
         }
     }
 }
@@ -321,25 +360,23 @@ private struct MacDatabaseAutoFillTab: View {
     @State private var picker: MacFormSheetController?
     @Environment(\.macSheetCancellationScope) private var cancellationScope
     var body: some View {
-        LabeledContent("AutoFill:") {
-            VStack(alignment: .leading, spacing: 8) {
+        MacSettingsForm {
+            MacSettingsRow("AutoFill:") {
                 Toggle("Include in AutoFill", isOn: Binding(get: { model.current.autoFillEnabled }, set: { enabled in Task { await model.setAutoFillEnabled(enabled) } }))
                     .accessibilityIdentifier("database-details.autofill-toggle")
-                caption("When off, passwords, passkeys, and verification codes from this database are neither suggested nor available in AutoFill. After you turn it back on, suggestions return the next time you unlock this database.")
+                settingsCaption("When off, passwords, passkeys, and verification codes from this database are neither suggested nor available in AutoFill. After you turn it back on, suggestions return the next time you unlock this database.", indented: true)
             }
-        }
-        if model.hasDestination, let session = model.session, let group = session.autoFillDestinationGroup {
-            Divider()
-            LabeledContent("Save new entries to:") {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
+            if model.hasDestination, let session = model.session, let group = session.autoFillDestinationGroup {
+                MacSettingsSeparator()
+                MacSettingsRow("Save new entries to:") {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Label(group.name, systemImage: "folder")
                         Button("Select Group…") { selectGroup(session) }
                             .disabled(model.isReadOnly || session.isSaving)
                             .accessibilityIdentifier("database-details.autofill-destination")
                             .onDisappear { picker?.end(); picker = nil }
                     }
-                    caption("Passwords and passkeys saved from AutoFill go into this group.")
+                    settingsCaption("Passwords and passkeys saved from AutoFill go into this group.")
                 }
             }
         }
@@ -368,16 +405,14 @@ private struct MacDatabaseBackupsTab: View {
     let model: MacDatabaseSettingsModel
     let export: (DatabaseExportRequest) -> Void
     var body: some View {
-        LabeledContent("Export:") {
-            VStack(alignment: .leading, spacing: 8) {
+        MacSettingsForm {
+            MacSettingsRow("Export:") {
                 Button("Export Copy…") { export(.currentCopy(model.current)) }
                     .accessibilityIdentifier("database-details.export-copy")
-                caption("Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
+                settingsCaption("Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
             }
-        }
-        Divider()
-        LabeledContent("Backups:") {
-            VStack(alignment: .leading, spacing: 8) {
+            MacSettingsSeparator()
+            MacSettingsRow("Backups:") {
                 if model.backups.isEmpty { Text("No backups on this device.").foregroundStyle(.secondary).accessibilityIdentifier("database-details.backups-empty") }
                 else {
                     GroupBox {
@@ -390,10 +425,14 @@ private struct MacDatabaseBackupsTab: View {
                         }
                     }
                 }
-                caption("KeeForge keeps the last five backups it made before saving or replacing this database on this device.")
+                settingsCaption("KeeForge keeps the last five backups it made before saving or replacing this database on this device.")
             }
         }
     }
 }
 
-private func caption(_ key: LocalizedStringKey) -> some View { Text(key).font(.caption).foregroundStyle(.secondary) }
+private func noteCaption(_ text: String, indented: Bool = false) -> some View {
+    Text(verbatim: text).font(.caption).foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.leading, indented ? MacSettingsLayout.checkboxIndent : 0)
+}

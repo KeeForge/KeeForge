@@ -169,8 +169,18 @@ final class MacWorkspaceSheets {
             picker.onSelectionChange = { [weak shell] in shell?.canConfirm = model.canConfirm }
             picker.onDoubleClick = { [weak shell] in shell?.performDefault() }
         } else {
-            let settings = MacDatabaseSettingsSheet(model: MacDatabaseSettingsModel(reference: session.databaseReference, session: session))
+            let model = MacDatabaseSettingsModel(reference: session.databaseReference, session: session)
+            let settings = MacDatabaseSettingsSheet(model: model)
             settings.presentChild = { [weak self] in self?.present($0, $1, $2) }
+            let session = session, presentation = presentation, window = window
+            model.windowStatus = { MacDatabaseStatus.make(session: session, presentation: presentation) }
+            // The card's action belongs to the window, so the sheet steps aside first.
+            model.performStatusAction = { [weak settings] action in
+                settings?.shell.end()
+                Task { @MainActor in
+                    MacDatabaseStatusActions(session: session, presentation: presentation).perform(action, from: window())
+                }
+            }
             databaseSettings = settings
             shell = settings.shell
         }

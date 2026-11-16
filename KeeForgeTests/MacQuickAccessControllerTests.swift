@@ -467,6 +467,59 @@ final class MacQuickAccessControllerTests: XCTestCase {
         XCTAssertEqual(controller.searchModel.content, .noDatabase)
     }
 
+    // MARK: - Status item menu
+
+    func testStatusItemMenuOffersOpenAndQuitAndRunsTheirActions() throws {
+        let statusMenu = MacStatusItemMenu()
+        var calls: [String] = []
+        statusMenu.onOpenApp = { calls.append("open") }
+        statusMenu.onQuit = { calls.append("quit") }
+
+        let items = statusMenu.menu.items.filter { !$0.isSeparatorItem }
+        XCTAssertEqual(items.map(\.title), [String(localized: "Open KeeForge"), String(localized: "Quit KeeForge")])
+        XCTAssertTrue(items.allSatisfy { $0.isEnabled && $0.target === statusMenu && $0.keyEquivalent.isEmpty })
+
+        statusMenu.menu.performActionForItem(at: try XCTUnwrap(statusMenu.menu.items.firstIndex(of: items[0])))
+        statusMenu.menu.performActionForItem(at: try XCTUnwrap(statusMenu.menu.items.firstIndex(of: items[1])))
+        XCTAssertEqual(calls, ["open", "quit"])
+    }
+
+    func testRightClickAndControlClickOpenTheMenuAndAPlainClickDoesNot() {
+        XCTAssertTrue(MacStatusItemMenu.opensMenu(for: .rightMouseUp, modifiers: []))
+        XCTAssertTrue(MacStatusItemMenu.opensMenu(for: .leftMouseUp, modifiers: .control))
+        XCTAssertFalse(MacStatusItemMenu.opensMenu(for: .leftMouseUp, modifiers: []))
+        XCTAssertFalse(MacStatusItemMenu.opensMenu(for: .leftMouseUp, modifiers: .command))
+    }
+
+    func testOpenKeeForgeHidesThePanelActivatesAndReopensLikeTheDock() {
+        SettingsService.macMenuBarQuickAccessEnabled = true
+        var calls: [String] = []
+        let controller = MacQuickAccessController(presenter: presenter, hotKey: hotKey,
+                                                  activateApp: { calls.append("activate") }, quitApp: { calls.append("quit") })
+        controller.reopenApp = { calls.append("reopen") }
+        controller.start()
+        controller.togglePanel()
+
+        presenter.onOpenAppRequested?()
+
+        XCTAssertFalse(presenter.isPanelVisible)
+        XCTAssertEqual(presenter.hideCalls.last, false)
+        XCTAssertEqual(calls, ["activate", "reopen"])
+    }
+
+    func testQuitKeeForgeGoesThroughTheTerminatePath() {
+        SettingsService.macMenuBarQuickAccessEnabled = true
+        var calls: [String] = []
+        let controller = MacQuickAccessController(presenter: presenter, hotKey: hotKey,
+                                                  activateApp: { calls.append("activate") }, quitApp: { calls.append("quit") })
+        controller.reopenApp = { calls.append("reopen") }
+        controller.start()
+
+        presenter.onQuitRequested?()
+
+        XCTAssertEqual(calls, ["quit"])
+    }
+
     // MARK: - Helpers
 
     private func makeSession(nickname: String? = nil) throws -> DatabaseViewModel {
@@ -523,6 +576,8 @@ private struct ContentProbe: View {
 private final class FakePresenter: MacQuickSearchPanelPresenting {
     var isPanelVisible = false
     var onToggleRequested: (() -> Void)?
+    var onOpenAppRequested: (() -> Void)?
+    var onQuitRequested: (() -> Void)?
     var statusItemVisible: Bool?
     var hideCalls: [Bool] = []
 

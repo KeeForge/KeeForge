@@ -8885,20 +8885,36 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(stored.keyFileFilename, "vault.key")
     }
 
-    func testAMasterKeyChangeFinishingAfterRemovalDoesNotAddTheDatabaseBack() async throws {
-        let reference = try makeReference()
-        DatabaseListStore.testUpsert(reference)
-        let vm = try makeViewModel(
-            reference: reference,
-            localSaveOperation: { _, _, _, _, _, _, _ in
-                await MainActor.run { DatabaseListStore.remove(id: reference.id) }
-                return .saved(newSHA512: Data("rekeyed-hash".utf8))
-            }
-        )
+    func testRemovalDuringInstalledMasterKeyChangeRetainsRecoveryAndRejectsPublication() async throws {
+        let url = try fixtureURL()
+        let reference = try DatabaseListStore.add(url: url)
+        let vm = try makeViewModel(reference: reference,
+            localSaveOperation: { draft, reference, key, hash, reconciled, newKey, settings in
+                let result = try await LocalDatabaseSaver.save(draft: draft, reference: reference,
+                    compositeKey: key, openTimeSHA512: hash, reconciledRemoteSHA512: reconciled,
+                    kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings)
+                let removed = await MainActor.run { DatabaseListStore.remove(id: reference.id) }
+                XCTAssertFalse(removed, "An installed key change must retain its recovery before removal")
+                return result
+            })
+        defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
-        try await vm.changeMasterKey(newPassword: "rotated", newKeyFileData: nil,
-            newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
-        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+        do {
+            try await vm.changeMasterKey(newPassword: "rotated", newKeyFileData: nil,
+                newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+            XCTFail("Removal must prevent publication through the retired reference")
+        } catch {
+            XCTAssertEqual((error as? SaveAssociationWarning)?.reason, .authorityChanged)
+        }
+        XCTAssertTrue(DatabaseListStore.databases.contains { $0.id == reference.id })
+        let recovery = try PendingLocalSaveStore.recovery(for: reference.id)
+        XCTAssertTrue(recovery.isRevoked)
+        XCTAssertNotNil(recovery.admission)
+        let bytes = try Data(contentsOf: url)
+        let newKey = KDBXCrypto.compositeKey(password: "rotated")
+        _ = try KDBXParser.parse(data: bytes, compositeKey: newKey, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertThrowsError(try KDBXParser.parse(data: bytes,
+            compositeKey: KDBXCrypto.compositeKey(password: fixturePassword), sessionKey: SymmetricKey(size: .bits256)))
     }
 
     func testChangeMasterKeyRemovingKeyFileClearsAssociationOnReference() async throws {
