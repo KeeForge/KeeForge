@@ -43,7 +43,7 @@ function render() {
       const primary = button('', () => fill(current)); primary.className = 'login'; primary.dataset.index = current;
       primary.setAttribute('aria-label', message('fillLogin', [entry.title, entry.username]));
       primary.addEventListener('focus', () => { model.selected = current; });
-      if (entry.hasTotp) { const icon = document.createElement('img'); icon.src = 'icons/key.svg'; icon.alt = message('verificationCode'); primary.append(icon); }
+      if (entry.hasTotp) { const icon = document.createElement('img'); icon.src = 'images/key.svg'; icon.alt = message('verificationCode'); primary.append(icon); }
       const title = document.createElement('strong'); title.textContent = entry.title;
       const username = document.createElement('span'); username.textContent = entry.username;
       primary.append(title, username); row.append(primary);
