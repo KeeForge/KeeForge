@@ -14,6 +14,9 @@ enum MacSettingsLayout {
     static let itemSpacing: CGFloat = 6
     /// Lines a caption up with the title of the checkbox above it.
     static let checkboxIndent: CGFloat = 20
+    static let captionSize: CGFloat = 12
+    static let captionLineSpacing: CGFloat = 2
+    static let helpPopoverWidth: CGFloat = 320
     static let minimumHeight: CGFloat = 120
     static let maximumHeight: CGFloat = 680
 
@@ -140,7 +143,7 @@ struct MacSecuritySettingsTab: View {
                 if BiometricService.isAvailable {
                     Toggle("Auto-Unlock with Touch ID", isOn: $settings.autoUnlockWithFaceID)
                         .accessibilityIdentifier("settings.security.auto-unlock-toggle")
-                    settingsCaption("Automatically prompt when opening a database or returning to its locked window. This setting also applies to AutoFill.", indented: true)
+                    settingsCaption("Prompts when you open a database or return to its locked window, here and in AutoFill.", indented: true)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("Ask for the master password:")
@@ -150,22 +153,30 @@ struct MacSecuritySettingsTab: View {
                     .macSettingsPopUp()
                     .accessibilityIdentifier("settings.security.require-password-picker")
                 }
-                settingsCaption("Touch ID and Apple Watch stop unlocking a database this long after its master password was last entered, until you enter it again. With Always, KeeForge saves no unlock key and asks for the master password every time. This also applies to AutoFill.")
+                settingsCaption("Touch ID and Apple Watch stop unlocking after this long, here and in AutoFill; with Always, no unlock key is saved.")
             }
             MacSettingsSeparator()
             MacSettingsRow("Clear clipboard:") {
-                Picker("Clipboard Clear Timeout", selection: $settings.clipboardTimeout) {
-                    ForEach(SettingsService.ClipboardTimeout.allCases, id: \.self) { Text($0.title).tag($0) }
-                }.macSettingsPopUp()
-                settingsCaption("Copied values are cleared after this timeout (unless you copied something else since) and when the database locks, and are hidden from clipboard-manager apps. With Never, a copy stays until the database locks. Unlike iOS, macOS cannot exclude copies from Handoff's Universal Clipboard, so a copied password may appear on your other devices' clipboards.")
+                MacSettingsHelpRow(help: MacSettingsHelpButton(label: "Clipboard Help",
+                    text: "KeeForge leaves the clipboard alone if you copied something else since. With Never, a copy stays until the database locks. Unlike iOS, macOS cannot exclude copies from Handoff's Universal Clipboard, so a copied password may appear on your other devices' clipboards.",
+                    identifier: "settings.security.clipboard.help")) {
+                    Picker("Clipboard Clear Timeout", selection: $settings.clipboardTimeout) {
+                        ForEach(SettingsService.ClipboardTimeout.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }.macSettingsPopUp()
+                }
+                settingsCaption("Copied values are cleared after this time or when the database locks, and hidden from clipboard managers.")
             }
             MacSettingsSeparator()
             MacSettingsRow("Screen capture:") {
-                Toggle(isOn: $settings.blockScreenCapture) {
-                    Text("Hide database windows from screen recording and screenshots").fixedSize(horizontal: false, vertical: true)
+                MacSettingsHelpRow(help: MacSettingsHelpButton(label: "Screen Capture Help",
+                    text: "This is best-effort: on macOS 15 and later, ScreenCaptureKit-based recorders can capture the window anyway. When it works, a screenshot of KeeForge comes out black or fails — that is the protection doing its job. Regardless of this setting, KeeForge blurs its windows whenever it loses focus.",
+                    identifier: "settings.security.screen-capture.help")) {
+                    Toggle(isOn: $settings.blockScreenCapture) {
+                        Text("Hide database windows from screen recording and screenshots").fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityIdentifier("settings.block-screen-capture.toggle")
                 }
-                .accessibilityIdentifier("settings.block-screen-capture.toggle")
-                settingsCaption("Asks macOS to exclude KeeForge's windows from screenshots and screen recordings. This is best-effort: on macOS 15 and later, ScreenCaptureKit-based recorders can capture the window anyway. When it works, a screenshot of KeeForge comes out black or fails — that is the protection doing its job. Regardless of this setting, KeeForge blurs its windows whenever it loses focus.", indented: true)
+                settingsCaption("Asks macOS to keep KeeForge's windows out of screenshots and screen recordings.", indented: true)
             }
             MacSettingsSeparator()
             MacSettingsRow("Reveal and copy:") {
@@ -174,7 +185,7 @@ struct MacSecuritySettingsTab: View {
                 }
                 .macSettingsPopUp()
                 .accessibilityIdentifier("settings.security.authentication-grace-picker")
-                settingsCaption("After you unlock a database or authenticate, passwords and protected fields can be shown and copied for this long without asking again. Locking the database ends it. AutoFill is not affected.")
+                settingsCaption("Protected fields can be shown and copied for this long after you authenticate, until the database locks, except in AutoFill.")
             }
         }
     }
@@ -195,7 +206,7 @@ struct MacGeneralSettingsTab: View {
                     Text("Ascending").tag(true)
                     Text("Descending").tag(false)
                 }.macSettingsPopUp()
-                settingsCaption("New database windows start with this order. Title, Date Created or Date Modified.")
+                settingsCaption("New database windows start with this order.")
             }
             MacSettingsSeparator()
             MacSettingsRow("Databases window:") {
@@ -206,7 +217,7 @@ struct MacGeneralSettingsTab: View {
             MacSettingsRow("Website icons:") {
                 Toggle("Download Website Favicons", isOn: $settings.showWebsiteIcons)
                     .accessibilityIdentifier("settings.display.favicons-toggle")
-                settingsCaption("Fetches icons from DuckDuckGo. Only the website domain is sent.", indented: true)
+                settingsCaption("Icons come from DuckDuckGo, which receives only the website's domain.", indented: true)
                 if settings.showWebsiteIcons {
                     Button("Clear Favicon Cache", action: settings.clearFaviconCache)
                         .accessibilityIdentifier("settings.display.clear-favicon-cache")
@@ -273,7 +284,7 @@ struct MacAppearanceSettingsTab: View {
                         .disabled(settings.appAccentColor == nil)
                         .accessibilityIdentifier("settings.display.accent-color-reset")
                 }
-                settingsCaption("Tints buttons, selection and links in every KeeForge window. The default follows KeeForge blue.")
+                settingsCaption("Tints buttons, selections and links in every KeeForge window; the default is KeeForge blue.")
             }
         }
     }
@@ -309,7 +320,7 @@ struct MacAutoFillSettingsTab: View {
                     Button("Turn On AutoFill") { Task { await listViewModel.requestEnableAutoFill() } }
                         .accessibilityIdentifier("settings.autofill.turn-on")
                     if listViewModel.isAutoFillEnableRequestRejected {
-                        settingsCaption("The last attempt did not turn it on. Open AutoFill Settings and enable KeeForge there.")
+                        settingsCaption("The last attempt did not turn it on, so enable KeeForge in AutoFill Settings.")
                     }
                 }
                 Button("Open AutoFill Settings…") { Task { await AutoFillStatusService.openAutoFillSettings() } }
@@ -318,7 +329,7 @@ struct MacAutoFillSettingsTab: View {
             MacSettingsSeparator()
             MacSettingsRow("Suggestions:") {
                 Toggle("Quick AutoFill", isOn: $settings.quickAutoFillEnabled)
-                settingsCaption("KeeForge suggests credentials from the databases selected below when macOS offers to fill a password. Authentication is required when you choose a suggestion.", indented: true)
+                settingsCaption("When macOS offers to fill a password, KeeForge suggests entries from the databases below and asks you to authenticate.", indented: true)
             }
             MacSettingsRow("Databases:") {
                 GroupBox {
@@ -345,14 +356,14 @@ struct MacAutoFillSettingsTab: View {
                     settingsCaption("AutoFill is on, but no databases are selected.")
                 }
                 if settings.quickAutoFillEnabled, listViewModel.isAutoFillLimitedToOneDatabase {
-                    settingsCaption("macOS shows suggestions from one database at a time — whichever you unlocked most recently. Unlock another selected database to switch which entries appear.")
+                    settingsCaption("macOS suggests entries from one database at a time: the one you unlocked most recently.")
                 }
             }
             MacSettingsSeparator()
             MacSettingsRow {
                 Button("Clear AutoFill Entries…", action: clearEntries)
                     .accessibilityIdentifier("settings.autofill.clear-entries")
-                settingsCaption("This removes all suggestions from AutoFill. Suggestions return the next time you unlock each database that has AutoFill turned on.")
+                settingsCaption("Suggestions return the next time you unlock each database that has AutoFill turned on.")
             }
         }
         .onAppear { listViewModel.reload() }
@@ -437,7 +448,7 @@ struct MacAboutSettingsTab: View {
                 if let url = URL(string: "https://github.com/sponsors/crazytan") {
                     Button("Sponsor KeeForge") { openURL(url) }.accessibilityIdentifier("support.sponsors")
                 }
-                settingsCaption("KeeForge is free and open source. Sponsorship covers the Apple Developer Program and the time that goes into it.")
+                settingsCaption("KeeForge is free and open source; sponsorship pays for the Apple Developer Program and the work on it.")
                 #else
                 TipJarView()
                 #endif
@@ -483,10 +494,61 @@ private struct MacSoftwareUpdateSettingsGroup: View {
 }
 #endif
 
+extension View {
+    /// The one caption style for every Mac settings view: 12 pt, secondary, a little extra leading.
+    func macSettingsCaptionStyle() -> some View {
+        font(.system(size: MacSettingsLayout.captionSize))
+            .foregroundStyle(.secondary)
+            .lineSpacing(MacSettingsLayout.captionLineSpacing)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 /// Secondary text under a control; `indented` lines it up with a checkbox's title.
+@MainActor
 func settingsCaption(_ text: LocalizedStringKey, indented: Bool = false) -> some View {
-    Text(text).font(.caption).foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
+    Text(text).macSettingsCaptionStyle()
         .padding(.leading, indented ? MacSettingsLayout.checkboxIndent : 0)
+}
+
+@MainActor
+func settingsCaption(verbatim text: String, indented: Bool = false) -> some View {
+    Text(verbatim: text).macSettingsCaptionStyle()
+        .padding(.leading, indented ? MacSettingsLayout.checkboxIndent : 0)
+}
+
+/// The round "?" at a settings row's trailing edge, for a caveat too long for its caption.
+struct MacSettingsHelpButton: View {
+    let label: LocalizedStringKey
+    let text: LocalizedStringKey
+    let identifier: String
+    @State private var isShowing = false
+
+    var body: some View {
+        HelpLink { isShowing.toggle() }
+            .accessibilityLabel(Text(label))
+            .accessibilityIdentifier(identifier)
+            .popover(isPresented: $isShowing, arrowEdge: .trailing) {
+                Text(text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: MacSettingsLayout.helpPopoverWidth, alignment: .leading)
+                    .padding(16)
+                    .accessibilityIdentifier(identifier + ".text")
+            }
+    }
+}
+
+/// A control with its help button at the row's trailing edge.
+struct MacSettingsHelpRow<Control: View>: View {
+    let help: MacSettingsHelpButton
+    @ViewBuilder let control: Control
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            control
+            Spacer(minLength: 8)
+            help
+        }
+    }
 }
 #endif

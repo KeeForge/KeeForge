@@ -110,6 +110,6 @@ struct MacNewDatabaseSheet: View {
     }
 
     private func caption(_ text: Text) -> some View {
-        text.font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        text.macSettingsCaptionStyle()
     }
 }

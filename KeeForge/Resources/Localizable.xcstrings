@@ -7748,6 +7748,58 @@
         }
       }
     },
+    "AES-KDF only strengthens the master key; the Encryption setting above chooses the cipher." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF verstärkt nur den Master-Schlüssel; die Einstellung „Verschlüsselung“ oben wählt die Chiffre."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF solo refuerza la clave maestra; el ajuste Cifrado de arriba elige el algoritmo de cifrado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF ne fait que renforcer la clé principale ; le réglage Chiffrement ci-dessus choisit l'algorithme de chiffrement."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF rafforza solo la chiave principale; l'impostazione Crittografia qui sopra sceglie l'algoritmo di cifratura."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF はマスターキーを強化するだけです。暗号方式は上の「暗号化」設定で選びます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF только усиливает мастер-ключ; алгоритм шифрования выбирает параметр «Шифрование» выше."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF 仅用于加强主密钥；加密算法由上方的“加密”设置选择。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-KDF 僅用於加強主金鑰；加密演算法由上方的「加密」設定選擇。"
+          }
+        }
+      }
+    },
     "AES-KDF only strengthens the master key. The Encryption setting above still chooses the cipher that encrypts the database." : {
       "localizations" : {
         "de" : {
@@ -7796,6 +7848,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AES-KDF 僅用於強化主金鑰。加密資料庫所用的演算法仍由上方的「加密」設定決定。"
+          }
+        }
+      }
+    },
+    "After the change, the database needs this key file; clear it to unlock with the master password alone." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach der Änderung braucht die Datenbank diese Schlüsseldatei; entferne sie, um nur mit dem Master-Passwort zu entsperren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tras el cambio, la base de datos necesita este archivo de clave; bórralo para desbloquear solo con la contraseña maestra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après la modification, la base de données exige ce fichier de clé ; effacez-le pour déverrouiller avec le seul mot de passe principal."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dopo la modifica, il database richiede questo file chiave; cancellalo per sbloccare con la sola password principale."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更後、データベースにはこのキーファイルが必要です。マスターパスワードだけでロック解除するには消去してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "После изменения базе данных нужен этот файл ключа; очистите его, чтобы разблокировать только мастер-паролем."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改后，数据库需要此密钥文件；清除它即可仅用主密码解锁。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變更後，資料庫需要此金鑰檔案；清除它即可僅用主密碼解鎖。"
+          }
+        }
+      }
+    },
+    "After the change, the master password alone unlocks the database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach der Änderung entsperrt das Master-Passwort allein die Datenbank."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tras el cambio, la contraseña maestra sola desbloquea la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après la modification, le mot de passe principal seul déverrouille la base de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dopo la modifica, la sola password principale sblocca il database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更後は、マスターパスワードだけでデータベースのロックを解除できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "После изменения базу данных разблокирует один мастер-пароль."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改后，仅凭主密码即可解锁数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變更後，僅憑主密碼即可解鎖資料庫。"
           }
         }
       }
@@ -8016,58 +8172,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "點一下「建立」後，「檔案」App 會詢問加密 .kdbx 資料庫的儲存位置。"
-          }
-        }
-      }
-    },
-    "After you unlock a database or authenticate, passwords and protected fields can be shown and copied for this long without asking again. Locking the database ends it. AutoFill is not affected." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nachdem du eine Datenbank entsperrt oder dich authentifiziert hast, können Passwörter und geschützte Felder so lange ohne erneute Abfrage angezeigt und kopiert werden. Das Sperren der Datenbank beendet diese Zeit. AutoFill ist davon nicht betroffen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Después de desbloquear una base de datos o autenticarte, las contraseñas y los campos protegidos se pueden mostrar y copiar durante este tiempo sin volver a preguntar. Bloquear la base de datos lo termina. El autorrelleno no se ve afectado."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Après avoir déverrouillé une base de données ou vous être authentifié, les mots de passe et les champs protégés peuvent être affichés et copiés pendant cette durée sans nouvelle demande. Verrouiller la base de données y met fin. Le remplissage automatique n'est pas concerné."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dopo aver sbloccato un database o completato l'autenticazione, puoi visualizzare e copiare password e campi protetti per questo intervallo senza una nuova richiesta. Il blocco del database termina questo intervallo. L'inserimento automatico non è interessato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "データベースのロックを解除するか認証したあと、この時間内は再度確認せずにパスワードと保護されたフィールドを表示およびコピーできます。データベースをロックすると終了します。自動入力には影響しません。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "После разблокировки базы данных или аутентификации пароли и защищённые поля можно показывать и копировать в течение этого времени без повторного запроса. Блокировка базы данных завершает этот период. На автозаполнение это не влияет."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解锁数据库或通过身份验证后，在这段时间内可以显示和拷贝密码及受保护字段，无需再次询问。锁定数据库会结束这段时间。自动填充不受影响。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解鎖資料庫或通過身分驗證後，在這段時間內可以顯示和拷貝密碼及受保護欄位，無須再次詢問。鎖定資料庫會結束這段時間。自動填寫不受影響。"
           }
         }
       }
@@ -9598,54 +9702,54 @@
         }
       }
     },
-    "Asks macOS to exclude KeeForge's windows from screenshots and screen recordings. This is best-effort: on macOS 15 and later, ScreenCaptureKit-based recorders can capture the window anyway. When it works, a screenshot of KeeForge comes out black or fails — that is the protection doing its job. Regardless of this setting, KeeForge blurs its windows whenever it loses focus." : {
+    "Asks macOS to keep KeeForge's windows out of screenshots and screen recordings." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fordert macOS auf, KeeForge-Fenster von Bildschirmfotos und -aufnahmen auszuschließen. Dies bietet nur eingeschränkten Schutz: Unter macOS 15 und neuer können auf ScreenCaptureKit basierende Aufnahmeprogramme das Fenster trotzdem erfassen. Wenn der Schutz funktioniert, ist KeeForge auf einem Bildschirmfoto schwarz oder die Aufnahme schlägt fehl – dann erfüllt der Schutz seinen Zweck. Unabhängig von dieser Einstellung macht KeeForge seine Fenster unkenntlich, sobald die App den Fokus verliert."
+            "value" : "Bittet macOS, KeeForge-Fenster aus Bildschirmfotos und Bildschirmaufnahmen herauszuhalten."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Solicita a macOS que excluya las ventanas de KeeForge de las capturas y grabaciones de pantalla. Esto ofrece una protección limitada: en macOS 15 y versiones posteriores, las apps de grabación basadas en ScreenCaptureKit pueden capturar la ventana de todos modos. Cuando la protección funciona, una captura de pantalla de KeeForge sale en negro o la grabación falla; en ese caso, la protección está cumpliendo su función. Independientemente de este ajuste, KeeForge difumina sus ventanas en cuanto pierde el foco."
+            "value" : "Pide a macOS que deje las ventanas de KeeForge fuera de las capturas y grabaciones de pantalla."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Demande à macOS d'exclure les fenêtres de KeeForge des captures d'écran et des enregistrements d'écran. Cette protection est limitée : à partir de macOS 15, les logiciels d'enregistrement basés sur ScreenCaptureKit peuvent malgré tout capturer la fenêtre. Lorsque la protection fonctionne, une capture d'écran de KeeForge apparaît noire ou échoue – c'est le signe que la protection remplit son rôle. Quel que soit ce réglage, KeeForge floute ses fenêtres dès que l'app perd le focus."
+            "value" : "Demande à macOS d'exclure les fenêtres de KeeForge des captures et enregistrements d'écran."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chiede a macOS di escludere le finestre di KeeForge dagli screenshot e dalle registrazioni dello schermo. Non è una garanzia: su macOS 15 e versioni successive, i registratori basati su ScreenCaptureKit possono comunque acquisire la finestra. Quando funziona, uno screenshot di KeeForge risulta nero o non riesce: è la protezione che fa il suo lavoro. Indipendentemente da questa impostazione, KeeForge sfoca le sue finestre ogni volta che perde il focus."
+            "value" : "Chiede a macOS di escludere le finestre di KeeForge da istantanee e registrazioni dello schermo."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge のウインドウをスクリーンショットや画面収録から除外するよう macOS に要求します。これは可能な範囲での対応です。macOS 15 以降では、ScreenCaptureKit を使う収録ツールがウインドウを取り込めてしまう場合があります。有効に働いた場合、KeeForge のスクリーンショットは黒くなるか、撮影に失敗します。これは保護が機能している証拠です。この設定にかかわらず、KeeForge はフォーカスを失うたびにウインドウをぼかします。"
+            "value" : "KeeForge のウインドウをスクリーンショットと画面収録から除外するよう macOS に求めます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Просит macOS исключать окна KeeForge из снимков экрана и записей экрана. Это работает не всегда: в macOS 15 и новее программы записи на основе ScreenCaptureKit всё равно могут захватить окно. Если защита сработала, снимок экрана KeeForge получится чёрным или не создастся — так и должно быть. Независимо от этого параметра KeeForge размывает свои окна, когда теряет фокус."
+            "value" : "Просит macOS не включать окна KeeForge в снимки и записи экрана."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请求 macOS 将 KeeForge 的窗口排除在屏幕快照和屏幕录制之外。此功能尽力而为：在 macOS 15 及更高版本中，基于 ScreenCaptureKit 的录制工具仍可能捕捉到窗口。当它生效时，KeeForge 的屏幕快照会显示为黑色或失败——这正是保护在起作用。无论此设置如何，KeeForge 都会在窗口失去焦点时将其模糊处理。"
+            "value" : "请求 macOS 将 KeeForge 窗口排除在截屏和录屏之外。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "要求 macOS 將 KeeForge 的視窗排除在螢幕快照與螢幕錄影之外。此功能僅屬盡力而為：在 macOS 15 及之後版本，以 ScreenCaptureKit 為基礎的錄影工具仍可能擷取到視窗。當其生效時，KeeForge 的螢幕快照會呈現黑色或失敗——這正是保護機制在發揮作用。無論此設定為何，KeeForge 的視窗在失去焦點時都會加以模糊。"
+            "value" : "要求 macOS 將 KeeForge 視窗排除在截圖和螢幕錄影之外。"
           }
         }
       }
@@ -11060,54 +11164,54 @@
         }
       }
     },
-    "Automatically prompt when opening a database or returning to its locked window. This setting also applies to AutoFill." : {
+    "Avoid editing this database elsewhere at the same time: FTP can’t stop a concurrent change from being overwritten." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Beim Öffnen einer Datenbank oder bei der Rückkehr zu ihrem gesperrten Fenster automatisch zur Entsperrung auffordern. Diese Einstellung gilt auch für AutoFill."
+            "value" : "Bearbeite diese Datenbank nicht gleichzeitig anderswo: FTP kann nicht verhindern, dass eine gleichzeitige Änderung überschrieben wird."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Solicitar la autenticación automáticamente al abrir una base de datos o volver a su ventana bloqueada. Este ajuste también se aplica a Autorrelleno."
+            "value" : "Evita editar esta base de datos en otro sitio a la vez: FTP no puede impedir que se sobrescriba un cambio simultáneo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Afficher automatiquement une demande à l’ouverture d’une base de données ou au retour à sa fenêtre verrouillée. Ce réglage s’applique aussi au remplissage automatique."
+            "value" : "Évitez de modifier cette base de données ailleurs en même temps : FTP ne peut pas empêcher l'écrasement d'une modification simultanée."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Richiedi automaticamente l’autenticazione quando apri un database o torni alla sua finestra bloccata. Questa impostazione vale anche per il riempimento automatico."
+            "value" : "Evita di modificare questo database altrove nello stesso momento: FTP non può impedire che una modifica simultanea venga sovrascritta."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "データベースを開いたときや、ロックされたウインドウに戻ったときに、自動的に認証を求めます。この設定は自動入力にも適用されます。"
+            "value" : "このデータベースをほかの場所で同時に編集しないでください。FTP では同時に行われた変更の上書きを防げません。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Автоматически запрашивать аутентификацию при открытии базы данных или возврате к её заблокированному окну. Этот параметр также действует для автозаполнения."
+            "value" : "Не редактируйте эту базу данных одновременно в другом месте: FTP не может предотвратить перезапись одновременного изменения."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打开数据库或返回其已锁定的窗口时，自动提示认证。此设置也适用于自动填充。"
+            "value" : "请避免同时在其他地方编辑此数据库：FTP 无法防止同时进行的更改被覆盖。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "開啟資料庫或返回其已鎖定的視窗時，自動提示認證。此設定也適用於自動填寫。"
+            "value" : "請避免同時在其他地方編輯此資料庫：FTP 無法防止同時進行的變更被覆寫。"
           }
         }
       }
@@ -11380,6 +11484,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "備份與匯出"
+          }
+        }
+      }
+    },
+    "Backups and copies made before the change still open with the previous master key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sicherungskopien und Kopien von vor der Änderung öffnen weiterhin mit dem vorherigen Master-Schlüssel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las copias de seguridad y copias hechas antes del cambio se siguen abriendo con la clave maestra anterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les sauvegardes et copies faites avant la modification s'ouvrent toujours avec la clé principale précédente."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I backup e le copie fatti prima della modifica si aprono ancora con la chiave principale precedente."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更前に作成したバックアップやコピーは、以前のマスターキーで開けるままです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Резервные копии и копии, сделанные до изменения, по-прежнему открываются прежним мастер-ключом."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改前创建的备份和副本仍可使用之前的主密钥打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變更前建立的備份和副本仍可使用先前的主金鑰開啟。"
           }
         }
       }
@@ -15777,60 +15933,54 @@
         }
       }
     },
-    "Click to record a new shortcut. It needs ⌘, ⌥ or ⌃; Escape cancels." : {
+    "Click to record a shortcut with ⌘, ⌥ or ⌃; Escape cancels." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Klicke, um einen neuen Kurzbefehl aufzunehmen. Er benötigt ⌘, ⌥ oder ⌃; Escape bricht ab."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Click to record a new shortcut. It needs ⌘, ⌥ or ⌃; Escape cancels."
+            "value" : "Klicke, um einen Tastenkürzel mit ⌘, ⌥ oder ⌃ aufzunehmen; Escape bricht ab."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Haz clic para grabar un atajo. Debe incluir ⌘, ⌥ o ⌃; Escape cancela."
+            "value" : "Haz clic para grabar una atajo con ⌘, ⌥ o ⌃; Escape cancela."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cliquez pour enregistrer un raccourci. Il nécessite ⌘, ⌥ ou ⌃ ; Échap annule."
+            "value" : "Cliquez pour enregistrer un raccourci avec ⌘, ⌥ ou ⌃ ; Échap annule."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fai clic per registrare una scorciatoia. Deve includere ⌘, ⌥ o ⌃; Esc annulla."
+            "value" : "Fai clic per registrare un'abbreviazione con ⌘, ⌥ o ⌃; Esc annulla."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "クリックして新しいショートカットを記録します。⌘、⌥、⌃ のいずれかが必要です。Escape でキャンセルします。"
+            "value" : "クリックして ⌘、⌥、⌃ のいずれかを含むショートカットを記録します。Esc でキャンセルします。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Нажмите для записи сочетания с ⌘, ⌥ или ⌃; Escape отменяет запись."
+            "value" : "Нажмите, чтобы записать сочетание клавиш с ⌘, ⌥ или ⌃; Escape отменяет."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "点按以录制新快捷键。需包含 ⌘、⌥ 或 ⌃；Escape 取消。"
+            "value" : "点按以录制包含 ⌘、⌥ 或 ⌃ 的快捷键；按 Esc 取消。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "按一下以錄製新快速鍵。需包含 ⌘、⌥ 或 ⌃；Escape 取消。"
+            "value" : "按一下以錄製包含 ⌘、⌥ 或 ⌃ 的快速鍵；按 Esc 取消。"
           }
         }
       }
@@ -15883,6 +16033,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "剪貼板清除時限"
+          }
+        }
+      }
+    },
+    "Clipboard Help" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hilfe zur Zwischenablage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ayuda sobre el portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aide sur le presse-papiers"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aiuto sugli appunti"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボードのヘルプ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Справка о буфере обмена"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪贴板帮助"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪貼簿輔助說明"
           }
         }
       }
@@ -17915,54 +18117,54 @@
         }
       }
     },
-    "Copied values are cleared after this timeout (unless you copied something else since) and when the database locks, and are hidden from clipboard-manager apps. With Never, a copy stays until the database locks. Unlike iOS, macOS cannot exclude copies from Handoff's Universal Clipboard, so a copied password may appear on your other devices' clipboards." : {
+    "Copied values are cleared after this time or when the database locks, and hidden from clipboard managers." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kopierte Werte werden nach Ablauf dieser Frist gelöscht (sofern du zwischenzeitlich nichts anderes kopiert hast) oder wenn die Datenbank gesperrt wird, und sind vor Apps zur Verwaltung der Zwischenablage verborgen. Mit „Nie“ bleibt eine Kopie erhalten, bis die Datenbank gesperrt wird. Anders als iOS kann macOS Kopien nicht von der universellen Zwischenablage von Handoff ausschließen. Daher kann ein kopiertes Passwort in den Zwischenablagen deiner anderen Geräte erscheinen."
+            "value" : "Kopierte Werte werden nach dieser Zeit oder beim Sperren der Datenbank gelöscht und vor Zwischenablage-Managern verborgen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los valores copiados se borran al vencer este plazo (a menos que hayas copiado algo más mientras tanto) y cuando se bloquea la base de datos, y se ocultan de las apps de gestión del portapapeles. Con «Nunca», una copia permanece hasta que se bloquea la base de datos. A diferencia de iOS, macOS no puede excluir las copias del portapapeles universal de Handoff, por lo que una contraseña copiada puede aparecer en el portapapeles de tus otros dispositivos."
+            "value" : "Los valores copiados se borran tras este tiempo o al bloquearse la base de datos, y se ocultan a los gestores del portapapeles."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les valeurs copiées sont effacées à l'expiration de ce délai (sauf si vous avez copié autre chose entre-temps) et lorsque la base de données se verrouille, et sont masquées aux apps de gestion du presse-papiers. Avec « Jamais », une copie reste jusqu'au verrouillage de la base de données. Contrairement à iOS, macOS ne peut pas exclure les copies du presse-papiers universel de Handoff. Un mot de passe copié peut donc apparaître dans les presse-papiers de vos autres appareils."
+            "value" : "Les valeurs copiées sont effacées après ce délai ou au verrouillage de la base de données, et masquées aux gestionnaires de presse-papiers."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "I valori copiati vengono cancellati allo scadere di questo tempo (a meno che nel frattempo tu non abbia copiato altro) e quando il database si blocca, e sono nascosti alle app di gestione degli appunti. Con Mai, una copia resta finché il database non si blocca. A differenza di iOS, macOS non può escludere le copie dagli Appunti condivisi di Handoff, quindi una password copiata potrebbe comparire negli appunti dei tuoi altri dispositivi."
+            "value" : "I valori copiati vengono cancellati dopo questo tempo o quando il database si blocca, e nascosti ai gestori degli appunti."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "コピーした値は、この時間が過ぎると消去され（その間に別のものをコピーした場合を除く）、データベースのロック時にも消去されます。クリップボード管理 App からは見えません。「しない」を選ぶと、コピーはデータベースがロックされるまで残ります。iOS とは異なり、macOS では Handoff のユニバーサルクリップボードからコピーを除外できないため、コピーしたパスワードが他のデバイスのクリップボードに表示されることがあります。"
+            "value" : "コピーした値はこの時間の後かデータベースのロック時に消去され、クリップボード管理アプリからは隠されます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Скопированные значения очищаются по истечении этого времени (если вы с тех пор не скопировали что-то другое) и при блокировке базы данных, а также скрыты от менеджеров буфера обмена. При значении «Никогда» скопированное остаётся до блокировки базы данных. В отличие от iOS, macOS не позволяет исключить скопированное из универсального буфера обмена Handoff, поэтому скопированный пароль может появиться в буфере обмена других ваших устройств."
+            "value" : "Скопированные значения стираются по истечении этого времени или при блокировке базы данных и скрыты от менеджеров буфера обмена."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "拷贝的值会在此时限后被清除（除非此后你又拷贝了其他内容），数据库锁定时也会清除，并对剪贴板管理类 App 隐藏。选择“从不”时，拷贝的内容会保留到数据库锁定为止。与 iOS 不同，macOS 无法将拷贝内容排除在“接力”的通用剪贴板之外，因此拷贝的密码可能会出现在你其他设备的剪贴板上。"
+            "value" : "拷贝的值会在此时间后或数据库锁定时清除，并对剪贴板管理器隐藏。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "拷貝的值會在此時限後清除（除非之後你又拷貝了其他內容），資料庫鎖定時也會清除，並對剪貼板管理類 App 隱藏。選擇「永不」時，拷貝的內容會保留到資料庫鎖定為止。與 iOS 不同，macOS 無法將拷貝內容排除在「接力」的通用剪貼板之外，因此拷貝的密碼可能會出現在你其他裝置的剪貼板上。"
+            "value" : "拷貝的值會在此時間後或資料庫鎖定時清除，並對剪貼簿管理工具隱藏。"
           }
         }
       }
@@ -23259,6 +23461,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 YubiKey 解鎖的資料庫目前以唯讀方式開啟，暫不支援儲存。"
+          }
+        }
+      }
+    },
+    "Databases unlocked with a YubiKey open read-only, because saving them is not supported yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit einem YubiKey entsperrte Datenbanken öffnen schreibgeschützt, weil das Sichern noch nicht unterstützt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las bases de datos desbloqueadas con una YubiKey se abren en solo lectura, porque aún no se pueden guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les bases de données déverrouillées avec une YubiKey s'ouvrent en lecture seule, car leur enregistrement n'est pas encore pris en charge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I database sbloccati con una YubiKey si aprono in sola lettura, perché il salvataggio non è ancora supportato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey でロック解除したデータベースは、保存にまだ対応していないため読み出し専用で開きます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Базы данных, разблокированные YubiKey, открываются только для чтения, потому что их сохранение пока не поддерживается."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 YubiKey 解锁的数据库以只读方式打开，因为尚不支持保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 YubiKey 解鎖的資料庫以唯讀方式開啟，因為尚不支援儲存。"
           }
         }
       }
@@ -28793,6 +29047,58 @@
         }
       }
     },
+    "Entries appear only while that database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the database window." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einträge erscheinen nur, solange diese Datenbank entsperrt ist, und das Kopieren eines Passworts verlangt Touch ID oder dein Anmeldepasswort, wie im Datenbankfenster."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las entradas solo aparecen mientras esa base de datos está desbloqueada, y copiar una contraseña pide Touch ID o tu contraseña de inicio de sesión, como en la ventana de la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les entrées n'apparaissent que tant que cette base de données est déverrouillée, et copier un mot de passe demande Touch ID ou votre mot de passe de session, comme dans la fenêtre de la base de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le voci compaiono solo mentre quel database è sbloccato, e copiare una password richiede Touch ID o la password di login, come nella finestra del database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリはそのデータベースのロックが解除されている間だけ表示され、パスワードをコピーするときはデータベースウインドウと同様に Touch ID またはログインパスワードを求めます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записи видны, только пока эта база данных разблокирована, а копирование пароля запрашивает Touch ID или пароль для входа, как в окне базы данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条目仅在该数据库解锁时显示，拷贝密码时会像在数据库窗口中一样要求触控 ID 或登录密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目僅在該資料庫解鎖時顯示，拷貝密碼時會像在資料庫視窗中一樣要求觸控 ID 或登入密碼。"
+          }
+        }
+      }
+    },
     "Entries in a hidden group and its subgroups stay in the database but don't appear in search or AutoFill suggestions." : {
       "localizations" : {
         "de" : {
@@ -32405,6 +32711,58 @@
         }
       }
     },
+    "FTP sends your username, password and database unencrypted, so use it only on a local network you trust." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP sendet Benutzername, Passwort und Datenbank unverschlüsselt, verwende es daher nur in einem vertrauenswürdigen lokalen Netzwerk."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP envía tu nombre de usuario, contraseña y base de datos sin cifrar, así que úsalo solo en una red local de confianza."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP envoie votre nom d'utilisateur, votre mot de passe et la base de données sans chiffrement : utilisez-le uniquement sur un réseau local de confiance."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP invia nome utente, password e database senza crittografia, quindi usalo solo su una rete locale di cui ti fidi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP ではユーザ名、パスワード、データベースが暗号化されずに送信されるため、信頼できるローカルネットワークでのみ使ってください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP передаёт имя пользователя, пароль и базу данных без шифрования, поэтому используйте его только в доверенной локальной сети."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 会以未加密方式发送你的用户名、密码和数据库，因此仅在你信任的本地网络上使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 會以未加密方式傳送你的使用者名稱、密碼和資料庫，因此僅在你信任的區域網路上使用。"
+          }
+        }
+      }
+    },
     "FTP sends your username, password, and database file without encryption. Only use it on a local network you trust." : {
       "localizations" : {
         "de" : {
@@ -34567,6 +34925,58 @@
         }
       }
     },
+    "HTTP sends your username, password and database unencrypted, so use it only on a local network you trust." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP sendet Benutzername, Passwort und Datenbank unverschlüsselt, verwende es daher nur in einem vertrauenswürdigen lokalen Netzwerk."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP envía tu nombre de usuario, contraseña y base de datos sin cifrar, así que úsalo solo en una red local de confianza."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP envoie votre nom d'utilisateur, votre mot de passe et la base de données sans chiffrement : utilisez-le uniquement sur un réseau local de confiance."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP invia nome utente, password e database senza crittografia, quindi usalo solo su una rete locale di cui ti fidi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP ではユーザ名、パスワード、データベースが暗号化されずに送信されるため、信頼できるローカルネットワークでのみ使ってください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP передаёт имя пользователя, пароль и базу данных без шифрования, поэтому используйте его только в доверенной локальной сети."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP 会以未加密方式发送你的用户名、密码和数据库，因此仅在你信任的本地网络上使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP 會以未加密方式傳送你的使用者名稱、密碼和資料庫，因此僅在你信任的區域網路上使用。"
+          }
+        }
+      }
+    },
     "HTTP sends your WebDAV username, password, and database traffic without encryption. Only use it on a local network you trust." : {
       "localizations" : {
         "de" : {
@@ -34783,6 +35193,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "圖示："
+          }
+        }
+      }
+    },
+    "Icons come from DuckDuckGo, which receives only the website's domain." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symbole kommen von DuckDuckGo, das nur die Domain der Website erhält."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los iconos proceden de DuckDuckGo, que solo recibe el dominio del sitio web."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les icônes proviennent de DuckDuckGo, qui ne reçoit que le domaine du site."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le icone provengono da DuckDuckGo, che riceve solo il dominio del sito."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アイコンは DuckDuckGo から取得され、送信されるのは Web サイトのドメインだけです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Значки загружаются из DuckDuckGo, который получает только домен сайта."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图标来自 DuckDuckGo，它只会收到网站的域名。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖像來自 DuckDuckGo，它只會收到網站的網域。"
           }
         }
       }
@@ -37699,6 +38161,58 @@
         }
       }
     },
+    "KeeForge is free and open source; sponsorship pays for the Apple Developer Program and the work on it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ist kostenlos und quelloffen; Sponsoring bezahlt das Apple Developer Program und die Arbeit daran."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge es gratuito y de código abierto; el patrocinio paga el Apple Developer Program y el trabajo en él."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge est gratuit et open source ; le parrainage finance l'Apple Developer Program et le travail sur l'app."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge è gratuito e open source; la sponsorizzazione paga l'Apple Developer Program e il lavoro su di esso."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge は無料のオープンソースです。スポンサーの支援は Apple Developer Program と開発作業に充てられます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge бесплатен и имеет открытый исходный код; спонсорство оплачивает Apple Developer Program и работу над ним."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 免费且开源；赞助用于支付 Apple Developer Program 和开发工作。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 免費且開源；贊助用於支付 Apple Developer Program 和開發工作。"
+          }
+        }
+      }
+    },
     "KeeForge is free and open source. Sponsorship covers the Apple Developer Program and the time that goes into it." : {
       "localizations" : {
         "de" : {
@@ -38375,6 +38889,58 @@
         }
       }
     },
+    "KeeForge leaves the clipboard alone if you copied something else since. With Never, a copy stays until the database locks. Unlike iOS, macOS cannot exclude copies from Handoff's Universal Clipboard, so a copied password may appear on your other devices' clipboards." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hast du seitdem etwas anderes kopiert, lässt KeeForge die Zwischenablage unverändert. Mit „Nie“ bleibt eine Kopie erhalten, bis die Datenbank gesperrt wird. Anders als iOS kann macOS Kopien nicht von der universellen Zwischenablage von Handoff ausnehmen, daher kann ein kopiertes Passwort in den Zwischenablagen deiner anderen Geräte erscheinen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no toca el portapapeles si has copiado otra cosa desde entonces. Con «Nunca», una copia se mantiene hasta que se bloquea la base de datos. A diferencia de iOS, macOS no puede excluir las copias del portapapeles universal de Handoff, así que una contraseña copiada puede aparecer en el portapapeles de tus otros dispositivos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ne touche pas au presse-papiers si vous avez copié autre chose entre-temps. Avec « Jamais », une copie reste jusqu'au verrouillage de la base de données. Contrairement à iOS, macOS ne peut pas exclure les copies du presse-papiers universel de Handoff : un mot de passe copié peut donc apparaître dans le presse-papiers de vos autres appareils."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non tocca gli appunti se nel frattempo hai copiato altro. Con “Mai”, una copia resta finché il database non si blocca. A differenza di iOS, macOS non può escludere le copie dagli appunti universali di Handoff, quindi una password copiata può comparire negli appunti degli altri tuoi dispositivi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その後に別のものをコピーした場合、KeeForge はクリップボードを変更しません。「しない」では、データベースがロックされるまでコピーが残ります。iOS と異なり、macOS では Handoff のユニバーサルクリップボードからコピーを除外できないため、コピーしたパスワードがほかのデバイスのクリップボードに表示されることがあります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если вы с тех пор скопировали что-то другое, KeeForge не трогает буфер обмена. При «Никогда» копия остаётся до блокировки базы данных. В отличие от iOS, macOS не может исключить копии из универсального буфера обмена Handoff, поэтому скопированный пароль может появиться в буфере обмена других ваших устройств."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果你之后拷贝了其他内容，KeeForge 不会改动剪贴板。选择“永不”时，拷贝会保留到数据库锁定为止。与 iOS 不同，macOS 无法将拷贝排除在“接力”的通用剪贴板之外，因此拷贝的密码可能会出现在你其他设备的剪贴板中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果你之後拷貝了其他內容，KeeForge 不會變更剪貼簿。選擇「永不」時，拷貝會保留到資料庫鎖定為止。與 iOS 不同，macOS 無法將拷貝排除在「接力」的通用剪貼簿之外，因此拷貝的密碼可能會出現在你其他裝置的剪貼簿中。"
+          }
+        }
+      }
+    },
     "KeeForge needs refreshed cloud access before it can continue with this database." : {
       "localizations" : {
         "de" : {
@@ -38635,54 +39201,106 @@
         }
       }
     },
-    "KeeForge offers an entry's OpenSSH private key attachment, the format ssh-keygen creates. Ed25519, ECDSA, and RSA keys without a passphrase are supported." : {
+    "KeeForge offers entries' OpenSSH private key attachments: Ed25519, ECDSA or RSA keys without a passphrase." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge stellt den privaten OpenSSH-Schlüssel bereit, der an einen Eintrag angehängt ist, im Format, das ssh-keygen erstellt. Unterstützt werden Ed25519-, ECDSA- und RSA-Schlüssel ohne Passphrase."
+            "value" : "KeeForge bietet die OpenSSH-Privatschlüssel-Anhänge von Einträgen an: Ed25519-, ECDSA- oder RSA-Schlüssel ohne Passphrase."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge ofrece la clave privada OpenSSH adjunta a una entrada, en el formato que crea ssh-keygen. Se admiten claves Ed25519, ECDSA y RSA sin frase de contraseña."
+            "value" : "KeeForge ofrece los adjuntos de clave privada OpenSSH de las entradas: claves Ed25519, ECDSA o RSA sin frase de contraseña."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge propose la clé privée OpenSSH jointe à une entrée, au format créé par ssh-keygen. Les clés Ed25519, ECDSA et RSA sans phrase de passe sont prises en charge."
+            "value" : "KeeForge propose les pièces jointes de clé privée OpenSSH des entrées : clés Ed25519, ECDSA ou RSA sans phrase secrète."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge offre la chiave privata OpenSSH allegata a una voce, nel formato creato da ssh-keygen. Sono supportate le chiavi Ed25519, ECDSA e RSA senza passphrase."
+            "value" : "KeeForge offre gli allegati con chiave privata OpenSSH delle voci: chiavi Ed25519, ECDSA o RSA senza passphrase."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge は、エントリに添付された OpenSSH 秘密鍵（ssh-keygen が作成する形式）を提供します。パスフレーズのない Ed25519、ECDSA、RSA 鍵に対応しています。"
+            "value" : "KeeForge はエントリに添付された OpenSSH 秘密鍵（パスフレーズなしの Ed25519、ECDSA、RSA 鍵）を提供します。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge предлагает закрытый ключ OpenSSH, вложенный в запись, в формате, который создаёт ssh-keygen. Поддерживаются ключи Ed25519, ECDSA и RSA без парольной фразы."
+            "value" : "KeeForge предлагает вложения записей с закрытыми ключами OpenSSH: ключи Ed25519, ECDSA или RSA без парольной фразы."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 会提供条目附件中的 OpenSSH 私钥，即 ssh-keygen 创建的格式。支持不带密码短语的 Ed25519、ECDSA 和 RSA 密钥。"
+            "value" : "KeeForge 提供条目中的 OpenSSH 私钥附件：不带密码短语的 Ed25519、ECDSA 或 RSA 密钥。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 會提供項目附件中的 OpenSSH 私密金鑰，即 ssh-keygen 建立的格式。支援不含密碼片語的 Ed25519、ECDSA 和 RSA 金鑰。"
+            "value" : "KeeForge 提供項目中的 OpenSSH 私密金鑰附件：不含密碼片語的 Ed25519、ECDSA 或 RSA 金鑰。"
+          }
+        }
+      }
+    },
+    "KeeForge opens the copy on this Mac without checking the server; use Sync Now to get newer changes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge öffnet die Kopie auf diesem Mac, ohne den Server zu prüfen; verwende „Jetzt synchronisieren“ für neuere Änderungen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge abre la copia de este Mac sin consultar el servidor; usa «Sincronizar ahora» para obtener los cambios más recientes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ouvre la copie sur ce Mac sans vérifier le serveur ; utilisez « Synchroniser maintenant » pour obtenir les modifications récentes."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge apre la copia su questo Mac senza controllare il server; usa “Sincronizza ora” per ottenere le modifiche più recenti."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge はサーバを確認せずにこの Mac 上のコピーを開きます。新しい変更を取得するには「今すぐ同期」を使います。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge открывает копию на этом Mac, не проверяя сервер; чтобы получить новые изменения, используйте «Синхронизировать»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 会直接打开此 Mac 上的副本而不检查服务器；使用“立即同步”获取更新的更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 會直接開啟此 Mac 上的副本而不檢查伺服器；使用「立即同步」取得較新的變更。"
           }
         }
       }
@@ -38791,6 +39409,58 @@
         }
       }
     },
+    "KeeForge refreshes the cached copy whenever you open the database; AutoFill uses the cached copy only." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge aktualisiert die Cache-Kopie bei jedem Öffnen der Datenbank; AutoFill verwendet nur die Cache-Kopie."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge actualiza la copia en caché cada vez que abres la base de datos; el autorrelleno solo usa la copia en caché."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge actualise la copie mise en cache à chaque ouverture de la base de données ; le remplissage automatique n'utilise que la copie mise en cache."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge aggiorna la copia nella cache ogni volta che apri il database; l'inserimento automatico usa solo la copia nella cache."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge はデータベースを開くたびにキャッシュされたコピーを更新します。自動入力はキャッシュされたコピーのみを使います。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge обновляет кэшированную копию при каждом открытии базы данных; автозаполнение использует только кэшированную копию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次打开数据库时，KeeForge 都会刷新缓存副本；自动填充仅使用缓存副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次開啟資料庫時，KeeForge 都會重新整理快取副本；自動填寫僅使用快取副本。"
+          }
+        }
+      }
+    },
     "KeeForge remembers this key file and prefills it when unlocking. To change the key file the database requires, change the master key." : {
       "localizations" : {
         "de" : {
@@ -38891,58 +39561,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 會在鍵盤列中根據下方所選的資料庫提供憑證建議。點一下建議時需要進行驗證。"
-          }
-        }
-      }
-    },
-    "KeeForge suggests credentials from the databases selected below when macOS offers to fill a password. Authentication is required when you choose a suggestion." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge schlägt Zugangsdaten aus den unten ausgewählten Datenbanken vor, wenn macOS anbietet, ein Passwort auszufüllen. Beim Auswählen eines Vorschlags ist eine Authentifizierung erforderlich."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge sugiere credenciales de las bases de datos seleccionadas a continuación cuando macOS ofrece rellenar una contraseña. Se requiere autenticación al elegir una sugerencia."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge suggère des identifiants provenant des bases de données sélectionnées ci-dessous lorsque macOS propose de remplir un mot de passe. Une authentification est requise lorsque vous choisissez une suggestion."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge suggerisce le credenziali dei database selezionati qui sotto quando macOS propone di inserire una password. Quando scegli un suggerimento è richiesta l'autenticazione."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS がパスワードの入力を提案するとき、KeeForge は下で選択したデータベースの認証情報を候補として表示します。候補を選ぶと認証が必要です。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge предлагает учётные данные из выбранных ниже баз данных, когда macOS предлагает заполнить пароль. При выборе подсказки требуется аутентификация."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "当 macOS 提示填充密码时，KeeForge 会根据下方所选的数据库提供凭据建议。选择建议时需要进行验证。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "當 macOS 提示填寫密碼時，KeeForge 會根據下方所選的資料庫提供憑證建議。選擇建議時需要進行驗證。"
           }
         }
       }
@@ -39099,6 +39717,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 的「文件」資料夾現在會顯示在 Finder 和 Windows 檔案共享中。將 .kdbx 檔案放入其中，它會自動加入你的資料庫清單。"
+          }
+        }
+      }
+    },
+    "Keep a copy of the key file somewhere safe: without it, the database can’t be opened." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewahre eine Kopie der Schlüsseldatei sicher auf: Ohne sie lässt sich die Datenbank nicht öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarda una copia del archivo de clave en un lugar seguro: sin él, la base de datos no se puede abrir."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conservez une copie du fichier de clé en lieu sûr : sans lui, la base de données ne peut pas être ouverte."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conserva una copia del file chiave in un posto sicuro: senza di esso il database non si può aprire."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルのコピーを安全な場所に保管してください。キーファイルがないとデータベースを開けません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Храните копию файла ключа в надёжном месте: без него базу данных не открыть."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请将密钥文件的副本存放在安全的地方：没有它，数据库将无法打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請將金鑰檔案的副本存放在安全的地方：沒有它，資料庫將無法開啟。"
           }
         }
       }
@@ -42156,54 +42826,54 @@
         }
       }
     },
-    "macOS shows suggestions from one database at a time — whichever you unlocked most recently. Unlock another selected database to switch which entries appear." : {
+    "macOS suggests entries from one database at a time: the one you unlocked most recently." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS zeigt Vorschläge immer nur aus einer Datenbank – aus der zuletzt entsperrten. Entsperre eine andere ausgewählte Datenbank, um zu wechseln, welche Einträge erscheinen."
+            "value" : "macOS schlägt Einträge aus jeweils einer Datenbank vor: der zuletzt entsperrten."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS muestra sugerencias de una sola base de datos a la vez: la que hayas desbloqueado más recientemente. Desbloquea otra base de datos seleccionada para cambiar qué entradas aparecen."
+            "value" : "macOS sugiere entradas de una sola base de datos a la vez: la que desbloqueaste más recientemente."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS n'affiche les suggestions que d'une seule base de données à la fois : la dernière que vous avez déverrouillée. Déverrouillez une autre base de données sélectionnée pour changer les entrées proposées."
+            "value" : "macOS suggère les entrées d'une seule base de données à la fois : la dernière déverrouillée."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS mostra i suggerimenti di un solo database alla volta: quello sbloccato più di recente. Sblocca un altro database selezionato per cambiare le voci visualizzate."
+            "value" : "macOS suggerisce voci da un database alla volta: quello sbloccato più di recente."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS では、一度に 1 つのデータベースの候補だけが表示されます。表示されるのは、最後にロックを解除したデータベースです。表示するエントリを切り替えるには、選択済みの別のデータベースのロックを解除してください。"
+            "value" : "macOS が候補に出すのは一度に 1 つのデータベース、つまり最後にロック解除したもののエントリです。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS показывает подсказки только из одной базы данных — той, что была разблокирована последней. Разблокируйте другую выбранную базу данных, чтобы сменить показываемые записи."
+            "value" : "macOS предлагает записи только из одной базы данных: последней разблокированной."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS 一次只显示一个数据库的建议，即最近解锁的那个。解锁另一个已选择的数据库，即可切换出现的条目。"
+            "value" : "macOS 每次只建议一个数据库中的条目：即你最近解锁的那个。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS 一次只顯示一個資料庫的建議，即最近解鎖的那個。解鎖另一個已選取的資料庫，即可切換出現的條目。"
+            "value" : "macOS 每次只建議一個資料庫中的項目：即你最近解鎖的那個。"
           }
         }
       }
@@ -43584,54 +44254,54 @@
         }
       }
     },
-    "Most databases never need this. The wrong values can make a database slow to open on your other devices." : {
+    "Most databases never need this; the wrong values can make a database slow to open on your other devices." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die meisten Datenbanken benötigen dies nie. Falsche Werte können das Öffnen einer Datenbank auf deinen anderen Geräten verlangsamen."
+            "value" : "Die meisten Datenbanken brauchen das nie; falsche Werte können das Öffnen auf deinen anderen Geräten verlangsamen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La mayoría de las bases de datos nunca lo necesitan. Los valores incorrectos pueden hacer que una base de datos tarde en abrirse en tus otros dispositivos."
+            "value" : "La mayoría de las bases de datos nunca lo necesitan; unos valores incorrectos pueden hacer que tarde en abrirse en tus otros dispositivos."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La plupart des bases de données n'en ont jamais besoin. Des valeurs inadaptées peuvent ralentir l'ouverture sur vos autres appareils."
+            "value" : "La plupart des bases de données n'en ont jamais besoin ; de mauvaises valeurs peuvent ralentir leur ouverture sur vos autres appareils."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La maggior parte dei database non ne ha mai bisogno. Valori errati possono rallentare l'apertura di un database sugli altri tuoi dispositivi."
+            "value" : "La maggior parte dei database non ne ha mai bisogno; valori sbagliati possono rallentarne l'apertura sugli altri tuoi dispositivi."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ほとんどのデータベースでは変更する必要はありません。値が適切でないと、ほかのデバイスでデータベースを開くのが遅くなることがあります。"
+            "value" : "ほとんどのデータベースでは不要です。値を誤ると、ほかのデバイスで開くのが遅くなることがあります。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Большинству баз данных это не нужно. Неверные значения могут замедлить открытие базы данных на других ваших устройствах."
+            "value" : "Большинству баз данных это не нужно; неверные значения могут замедлить открытие базы на других ваших устройствах."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "大多数数据库无需更改这些设置。错误的值可能导致数据库在你的其他设备上打开缓慢。"
+            "value" : "大多数数据库都不需要此项；错误的值可能会让数据库在你的其他设备上打开缓慢。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "大多數資料庫無需更改這些設定。錯誤的值可能導致資料庫在你的其他裝置上開啟緩慢。"
+            "value" : "大多數資料庫都不需要此項；錯誤的值可能會讓資料庫在你的其他裝置上開啟緩慢。"
           }
         }
       }
@@ -44428,60 +45098,54 @@
         }
       }
     },
-    "New database windows start with this order. Title, Date Created or Date Modified." : {
+    "New database windows start with this order." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neue Datenbankfenster beginnen mit dieser Reihenfolge: Titel, Erstellungsdatum oder Änderungsdatum."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New database windows start with this order. Title, Date Created or Date Modified."
+            "value" : "Neue Datenbankfenster beginnen mit dieser Reihenfolge."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Las nuevas ventanas usan este orden: título, fecha de creación o de modificación."
+            "value" : "Las nuevas ventanas de base de datos empiezan con este orden."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les nouvelles fenêtres de base utilisent cet ordre : titre, date de création ou de modification."
+            "value" : "Les nouvelles fenêtres de base de données s'ouvrent avec cet ordre."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le nuove finestre usano questo ordine: titolo, data di creazione o di modifica."
+            "value" : "Le nuove finestre del database iniziano con questo ordine."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新しいデータベースウインドウはこの順序で開きます。タイトル、作成日、変更日から選べます。"
+            "value" : "新しいデータベースウインドウはこの順序で始まります。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Новые окна баз данных используют этот порядок: название, дата создания или изменения."
+            "value" : "Новые окна баз данных открываются с этим порядком."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新数据库窗口按此顺序排列：标题、创建日期或修改日期。"
+            "value" : "新的数据库窗口以此顺序开始。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新的資料庫視窗會依此順序排列：標題、建立日期或修改日期。"
+            "value" : "新的資料庫視窗以此順序開始。"
           }
         }
       }
@@ -51184,6 +51848,58 @@
         }
       }
     },
+    "Prompts when you open a database or return to its locked window, here and in AutoFill." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fragt nach, wenn du eine Datenbank öffnest oder zu ihrem gesperrten Fenster zurückkehrst, hier und im AutoFill."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo pide al abrir una base de datos o volver a su ventana bloqueada, aquí y en el autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demande Touch ID lorsque vous ouvrez une base de données ou revenez à sa fenêtre verrouillée, ici et dans le remplissage automatique."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo richiede quando apri un database o torni alla sua finestra bloccata, qui e nell'inserimento automatico."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースを開くときやロックされたウインドウに戻るときに、ここと自動入力で求めます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запрашивается при открытии базы данных или возврате к её заблокированному окну, здесь и в автозаполнении."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在打开数据库或返回其锁定窗口时提示，此处和自动填充中均适用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在開啟資料庫或返回其鎖定視窗時提示，此處和自動填寫中皆適用。"
+          }
+        }
+      }
+    },
     "Protect Field" : {
       "localizations" : {
         "de" : {
@@ -51296,6 +52012,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保護欄位 %@"
+          }
+        }
+      }
+    },
+    "Protected fields can be shown and copied for this long after you authenticate, until the database locks, except in AutoFill." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geschützte Felder lassen sich nach der Authentifizierung so lange anzeigen und kopieren, bis die Datenbank gesperrt wird, außer im AutoFill."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los campos protegidos se pueden mostrar y copiar durante este tiempo tras autenticarte, hasta que la base de datos se bloquee, salvo en el autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les champs protégés peuvent être affichés et copiés pendant ce délai après authentification, jusqu'au verrouillage de la base de données, sauf dans le remplissage automatique."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I campi protetti possono essere mostrati e copiati per questo tempo dopo l'autenticazione, finché il database non si blocca, tranne nell'inserimento automatico."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認証後この時間内は、データベースがロックされるまで保護されたフィールドを表示およびコピーできます（自動入力を除く）。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Защищённые поля можно показывать и копировать в течение этого времени после проверки подлинности, пока база данных не заблокирована, кроме автозаполнения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "认证后在此时间内，受保护的字段可以显示和拷贝，直到数据库锁定（自动填充除外）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認證後在此時間內，受保護的欄位可以顯示和拷貝，直到資料庫鎖定（自動填寫除外）。"
           }
         }
       }
@@ -52076,6 +52844,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快速搜尋"
+          }
+        }
+      }
+    },
+    "Quick Search Help" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hilfe zur Schnellsuche"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ayuda sobre la búsqueda rápida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aide sur la recherche rapide"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aiuto sulla ricerca rapida"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイック検索のヘルプ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Справка о быстром поиске"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速搜索帮助"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速搜尋輔助說明"
           }
         }
       }
@@ -57319,54 +58139,54 @@
         }
       }
     },
-    "Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
+    "Saves KeeForge's cached copy, for example to merge a stuck upload in another KeePass app." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Speichert die lokal zwischengespeicherte Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwende sie, um Änderungen mit einer anderen KeePass-App in deine Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
+            "value" : "Sichert die Cache-Kopie von KeeForge, etwa um einen hängenden Upload in einer anderen KeePass-App zusammenzuführen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Guarda la copia almacenada localmente en caché de la base de datos tal como la tiene KeeForge actualmente. Úsala para combinar los cambios en tu archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
+            "value" : "Guarda la copia en caché de KeeForge, por ejemplo para combinar una carga atascada en otra app de KeePass."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enregistre la copie mise en cache localement de la base de données telle que KeeForge la possède actuellement. Utilisez-la pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
+            "value" : "Enregistre la copie mise en cache de KeeForge, par exemple pour fusionner un envoi bloqué dans une autre app KeePass."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Salva la copia del database nella cache locale così come si trova attualmente in KeeForge. Usala per unire le modifiche al tuo file principale con un'altra app KeePass quando un caricamento sul cloud è bloccato."
+            "value" : "Salva la copia nella cache di KeeForge, ad esempio per unire un caricamento bloccato in un'altra app KeePass."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge が現在保持している、ローカルにキャッシュされたデータベースのコピーを保存します。クラウドへのアップロードが滞っているときに、他の KeePass App でメインのファイルに変更を統合するために使用できます。"
+            "value" : "KeeForge のキャッシュされたコピーを保存します。たとえば、止まったアップロードをほかの KeePass App でマージするときに使います。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сохраняет локальную кэшированную копию базы данных в том виде, в каком она сейчас есть в KeeForge. Используйте её, чтобы объединить изменения с основным файлом в другом приложении KeePass, если облачная отправка застряла."
+            "value" : "Сохраняет кэшированную копию KeeForge, например чтобы объединить застрявшую отправку в другом приложении KeePass."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "保存 KeeForge 当前所持有的数据库本地缓存副本。当云端上传卡住时，可用它在其他 KeePass App 中将更改合并到你的主文件。"
+            "value" : "保存 KeeForge 的缓存副本，例如用于在其他 KeePass App 中合并卡住的上传。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "儲存 KeeForge 目前所持有的資料庫本機快取副本。當雲端上傳卡住時，可用它在其他 KeePass App 中將變更合併到你的主檔案。"
+            "value" : "儲存 KeeForge 的快取副本，例如用於在其他 KeePass App 中合併卡住的上傳。"
           }
         }
       }
@@ -57579,6 +58399,58 @@
         }
       }
     },
+    "Saving re-encrypts the file; it keeps its master key, and backups made before the change keep the previous settings." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Sichern wird die Datei neu verschlüsselt; sie behält ihren Master-Schlüssel, und Sicherungskopien von vor der Änderung behalten die vorherigen Einstellungen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al guardar se vuelve a cifrar el archivo; conserva su clave maestra, y las copias de seguridad anteriores al cambio conservan los ajustes previos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'enregistrement rechiffre le fichier ; il garde sa clé principale, et les sauvegardes antérieures gardent les réglages précédents."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il salvataggio cifra di nuovo il file; mantiene la sua chiave principale, e i backup precedenti alla modifica mantengono le impostazioni precedenti."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存するとファイルが再暗号化されます。マスターキーは変わらず、変更前のバックアップは以前の設定のままです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При сохранении файл шифруется заново; мастер-ключ остаётся прежним, а резервные копии, сделанные до изменения, сохраняют прежние параметры."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存会重新加密文件；主密钥不变，更改前创建的备份保留之前的设置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存會重新加密檔案；主金鑰不變，變更前建立的備份保留先前的設定。"
+          }
+        }
+      }
+    },
     "Saving re-encrypts this database file. It still opens with the same master key, and backups made before the change keep the previous settings." : {
       "localizations" : {
         "de" : {
@@ -57627,6 +58499,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存時會重新加密此資料庫檔案。它仍可用相同的主金鑰開啟，更改前建立的備份會保留先前的設定。"
+          }
+        }
+      }
+    },
+    "Saving still checks the server's copy first and stops if it changed. AutoFill uses the cached copy only." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Sichern wird trotzdem zuerst die Kopie auf dem Server geprüft und abgebrochen, wenn sie sich geändert hat. AutoFill verwendet nur die Cache-Kopie."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al guardar, primero se comprueba la copia del servidor y se detiene si ha cambiado. El autorrelleno solo usa la copia en caché."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'enregistrement vérifie quand même d'abord la copie du serveur et s'arrête si elle a changé. Le remplissage automatique n'utilise que la copie mise en cache."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il salvataggio controlla comunque prima la copia sul server e si interrompe se è cambiata. L'inserimento automatico usa solo la copia nella cache."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存時は引き続きまずサーバ上のコピーを確認し、変更されていれば中止します。自動入力はキャッシュされたコピーのみを使います。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При сохранении копия на сервере всё равно проверяется первой, и сохранение останавливается, если она изменилась. Автозаполнение использует только кэшированную копию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存时仍会先检查服务器上的副本，如有更改则停止。自动填充仅使用缓存副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存時仍會先檢查伺服器上的副本，如有變更則停止。自動填寫僅使用快取副本。"
           }
         }
       }
@@ -57789,6 +58713,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "掃描 QR 碼"
+          }
+        }
+      }
+    },
+    "Screen Capture Help" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hilfe zur Bildschirmaufnahme"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ayuda sobre la captura de pantalla"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aide sur la capture d'écran"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aiuto sulla cattura dello schermo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面収録のヘルプ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Справка о захвате экрана"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕捕捉帮助"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "螢幕擷取輔助說明"
           }
         }
       }
@@ -58377,54 +59353,54 @@
         }
       }
     },
-    "Search the database whose window you used last from the menu bar, or press the shortcut in any app. Entries appear only while that database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the database window." : {
+    "Search the database whose window you used last, from the menu bar or with the shortcut in any app." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durchsuche über die Menüleiste die Datenbank, deren Fenster du zuletzt verwendet hast, oder drücke das Tastenkürzel in einer beliebigen App. Einträge erscheinen nur, solange diese Datenbank entsperrt ist, und zum Kopieren eines Passworts werden wie im Datenbankfenster Touch ID oder dein Anmeldepasswort abgefragt."
+            "value" : "Durchsuche die Datenbank, deren Fenster du zuletzt verwendet hast, über die Menüleiste oder mit dem Tastenkürzel in jeder App."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Busca desde la barra de menús en la base de datos cuya ventana usaste por última vez, o pulsa el atajo en cualquier app. Las entradas solo aparecen mientras esa base de datos está desbloqueada y, para copiar una contraseña, se pide Touch ID o tu contraseña de inicio de sesión, igual que en la ventana de la base de datos."
+            "value" : "Busca en la base de datos cuya ventana usaste por última vez, desde la barra de menús o con el atajo en cualquier app."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Recherchez depuis la barre des menus dans la base de données dont vous avez utilisé la fenêtre en dernier, ou appuyez sur le raccourci dans n'importe quelle app. Les entrées n'apparaissent que lorsque cette base de données est déverrouillée, et la copie d'un mot de passe demande Touch ID ou votre mot de passe de session, comme dans la fenêtre de la base de données."
+            "value" : "Recherchez dans la base de données dont vous avez utilisé la fenêtre en dernier, depuis la barre des menus ou avec le raccourci dans n'importe quelle app."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cerca dalla barra dei menu nel database di cui hai usato la finestra per ultimo, oppure premi l'abbreviazione in qualsiasi app. Le voci compaiono solo mentre quel database è sbloccato e, per copiare una password, vengono richiesti Touch ID o la password di login, come nella finestra del database."
+            "value" : "Cerca nel database di cui hai usato per ultima la finestra, dalla barra dei menu o con l'abbreviazione in qualsiasi app."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メニューバーから、またはどのアプリでもショートカットを押して、最後に使ったウインドウのデータベースを検索できます。エントリはそのデータベースのロックが解除されている間だけ表示され、パスワードをコピーするときはデータベースウインドウと同様に Touch ID またはログインパスワードが求められます。"
+            "value" : "最後に使ったウインドウのデータベースを、メニューバーから、またはどの App からでもショートカットで検索できます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ищите из строки меню в базе данных, окно которой вы использовали последним, или нажмите сочетание клавиш в любом приложении. Записи появляются, только пока эта база данных разблокирована, а при копировании пароля запрашивается Touch ID или пароль для входа, как в окне базы данных."
+            "value" : "Ищите в базе данных, окно которой вы использовали последним, из строки меню или с помощью сочетания клавиш в любом приложении."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "从菜单栏搜索你最近使用的窗口所对应的数据库，或在任意 App 中按下快捷键。条目仅在该数据库解锁时显示；与数据库窗口一样，拷贝密码时需要触控 ID 或登录密码。"
+            "value" : "从菜单栏或在任意 App 中使用快捷键，搜索你上次使用其窗口的数据库。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "從選單列搜尋你最近使用的視窗所對應的資料庫，或在任何 App 中按下快速鍵。項目僅在該資料庫解鎖時顯示；與資料庫視窗相同，拷貝密碼時需要觸控 ID 或登入密碼。"
+            "value" : "從選單列或在任何 App 中使用快速鍵，搜尋你上次使用其視窗的資料庫。"
           }
         }
       }
@@ -62649,54 +63625,54 @@
         }
       }
     },
-    "SSH clients can sign in with the keys you choose below while their database is unlocked in KeeForge. Locking or closing the database makes its keys unavailable right away." : {
+    "SSH clients can use the keys you choose below only while their database is unlocked." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SSH-Clients können sich mit den unten ausgewählten Schlüsseln anmelden, solange deren Datenbank in KeeForge entsperrt ist. Wenn du die Datenbank sperrst oder schließt, sind ihre Schlüssel sofort nicht mehr verfügbar."
+            "value" : "SSH-Clients können die unten gewählten Schlüssel nur verwenden, solange ihre Datenbank entsperrt ist."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los clientes SSH pueden iniciar sesión con las claves que elijas abajo mientras su base de datos esté desbloqueada en KeeForge. Al bloquear o cerrar la base de datos, sus claves dejan de estar disponibles al instante."
+            "value" : "Los clientes SSH solo pueden usar las claves que elijas abajo mientras su base de datos esté desbloqueada."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les clients SSH peuvent se connecter avec les clés choisies ci-dessous tant que leur base de données est déverrouillée dans KeeForge. Verrouiller ou fermer la base de données rend ses clés indisponibles immédiatement."
+            "value" : "Les clients SSH ne peuvent utiliser les clés choisies ci-dessous que tant que leur base de données est déverrouillée."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "I client SSH possono accedere con le chiavi che scegli qui sotto finché il loro database è sbloccato in KeeForge. Se blocchi o chiudi il database, le sue chiavi non sono più disponibili da subito."
+            "value" : "I client SSH possono usare le chiavi scelte qui sotto solo mentre il loro database è sbloccato."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "以下で選択した鍵は、その鍵を含むデータベースが KeeForge でロック解除されている間、SSH クライアントのサインインに使用できます。データベースをロックするか閉じると、その鍵はすぐに使用できなくなります。"
+            "value" : "SSH クライアントは、下で選んだ鍵をそのデータベースのロックが解除されている間だけ使えます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SSH-клиенты могут выполнять вход с ключами, выбранными ниже, пока их база данных разблокирована в KeeForge. При блокировке или закрытии базы данных её ключи сразу становятся недоступны."
+            "value" : "SSH-клиенты могут использовать выбранные ниже ключи, только пока их база данных разблокирована."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "当密钥所在的数据库在 KeeForge 中处于解锁状态时，SSH 客户端可以使用你在下方选择的密钥登录。锁定或关闭数据库后，其密钥会立即不可用。"
+            "value" : "SSH 客户端仅能在其数据库解锁时使用你在下方选择的密钥。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "當金鑰所在的資料庫在 KeeForge 中處於解鎖狀態時，SSH 用戶端可以使用你在下方選擇的金鑰登入。鎖定或關閉資料庫後，其金鑰會立即無法使用。"
+            "value" : "SSH 用戶端僅能在其資料庫解鎖時使用你在下方選擇的金鑰。"
           }
         }
       }
@@ -63113,6 +64089,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建議的密碼"
+          }
+        }
+      }
+    },
+    "Suggestions return the next time you unlock each database that has AutoFill turned on." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschläge kehren zurück, wenn du die einzelnen Datenbanken mit aktiviertem AutoFill das nächste Mal entsperrst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las sugerencias vuelven la próxima vez que desbloquees cada base de datos con el autorrelleno activado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les suggestions reviennent la prochaine fois que vous déverrouillez chaque base de données où le remplissage automatique est activé."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I suggerimenti tornano la prossima volta che sblocchi ciascun database con l'inserimento automatico attivo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力がオンの各データベースを次にロック解除すると、候補が戻ります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предложения вернутся при следующей разблокировке каждой базы данных с включённым автозаполнением."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下次解锁每个已开启自动填充的数据库时，建议会恢复。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下次解鎖每個已開啟自動填寫的資料庫時，建議會恢復。"
           }
         }
       }
@@ -63801,6 +64829,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟時同步"
+          }
+        }
+      }
+    },
+    "Sync When Opening Help" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hilfe zu „Beim Öffnen synchronisieren“"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ayuda sobre «Sincronizar al abrir»"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aide sur « Synchroniser à l'ouverture »"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aiuto su “Sincronizza all'apertura”"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「開くときに同期」のヘルプ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Справка о синхронизации при открытии"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“打开时同步”帮助"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「開啟時同步」輔助說明"
           }
         }
       }
@@ -67950,36 +69030,30 @@
         }
       }
     },
-    "The last attempt did not turn it on. Open AutoFill Settings and enable KeeForge there." : {
+    "The last attempt did not turn it on, so enable KeeForge in AutoFill Settings." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der letzte Versuch hat AutoFill nicht aktiviert. Öffne die AutoFill-Einstellungen und aktiviere KeeForge dort."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The last attempt did not turn it on. Open AutoFill Settings and enable KeeForge there."
+            "value" : "Der letzte Versuch hat es nicht aktiviert, aktiviere KeeForge daher in den AutoFill-Einstellungen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El último intento no lo activó. Abre los ajustes de Autorrelleno y activa KeeForge allí."
+            "value" : "El último intento no lo activó, así que activa KeeForge en los ajustes de autorrelleno."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La dernière tentative n’a pas activé le remplissage automatique. Ouvrez ses réglages et activez KeeForge."
+            "value" : "La dernière tentative ne l'a pas activé : activez KeeForge dans les réglages du remplissage automatique."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "L'ultimo tentativo non lo ha attivato. Apri le impostazioni dell'inserimento automatico e abilita KeeForge lì."
+            "value" : "L'ultimo tentativo non l'ha attivato, quindi abilita KeeForge nelle impostazioni dell'inserimento automatico."
           }
         },
         "ja" : {
@@ -67991,19 +69065,19 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Последняя попытка не включила автозаполнение. Откройте его настройки и включите KeeForge."
+            "value" : "Последняя попытка не включила его, поэтому включите KeeForge в настройках автозаполнения."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "上次尝试未能开启。请打开自动填充设置并启用 KeeForge。"
+            "value" : "上次尝试未能开启，请在自动填充设置中启用 KeeForge。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "上次嘗試未能開啟。請開啟自動填寫設定並啟用 KeeForge。"
+            "value" : "上次嘗試未能開啟，請在自動填寫設定中啟用 KeeForge。"
           }
         }
       }
@@ -70195,6 +71269,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這些選擇僅在上方將 KeeForge 啟用為自動填寫提供者後才會生效。"
+          }
+        }
+      }
+    },
+    "This account is disconnected, so KeeForge keeps the cached copy until you remove the database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Konto ist getrennt, daher behält KeeForge die Cache-Kopie, bis du die Datenbank entfernst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta cuenta está desconectada, así que KeeForge conserva la copia en caché hasta que quites la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce compte est déconnecté : KeeForge conserve la copie mise en cache jusqu'à ce que vous supprimiez la base de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo account è scollegato, quindi KeeForge conserva la copia nella cache finché non rimuovi il database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアカウントは接続が解除されているため、データベースを削除するまで KeeForge はキャッシュされたコピーを保持します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта учётная запись отключена, поэтому KeeForge хранит кэшированную копию, пока вы не удалите базу данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此账户已断开连接，因此 KeeForge 会保留缓存副本，直到你移除数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此帳號已中斷連線，因此 KeeForge 會保留快取副本，直到你移除資料庫。"
           }
         }
       }
@@ -73089,6 +74215,58 @@
         }
       }
     },
+    "This is best-effort: on macOS 15 and later, ScreenCaptureKit-based recorders can capture the window anyway. When it works, a screenshot of KeeForge comes out black or fails — that is the protection doing its job. Regardless of this setting, KeeForge blurs its windows whenever it loses focus." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das geschieht nach bestem Bemühen: Ab macOS 15 können auf ScreenCaptureKit basierende Aufnahme-Apps das Fenster trotzdem aufnehmen. Wenn es greift, wird ein Bildschirmfoto von KeeForge schwarz oder schlägt fehl – dann wirkt der Schutz. Unabhängig von dieser Einstellung macht KeeForge seine Fenster unscharf, sobald es den Fokus verliert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es una protección de mejor esfuerzo: en macOS 15 y posterior, las grabadoras basadas en ScreenCaptureKit pueden capturar la ventana igualmente. Cuando funciona, una captura de KeeForge sale en negro o falla: es la protección actuando. Independientemente de este ajuste, KeeForge desenfoca sus ventanas cuando pierde el foco."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "C'est une protection au mieux : depuis macOS 15, les enregistreurs basés sur ScreenCaptureKit peuvent tout de même capturer la fenêtre. Quand elle fonctionne, une capture de KeeForge est noire ou échoue : c'est la protection qui agit. Quel que soit ce réglage, KeeForge floute ses fenêtres dès qu'il perd le focus."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "È una protezione al meglio delle possibilità: da macOS 15 i registratori basati su ScreenCaptureKit possono comunque catturare la finestra. Quando funziona, un'istantanea di KeeForge risulta nera o non riesce: è la protezione che agisce. Indipendentemente da questa impostazione, KeeForge sfoca le sue finestre quando perde lo stato attivo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これはベストエフォートです。macOS 15 以降では、ScreenCaptureKit を使う収録アプリはウインドウを収録できてしまいます。機能している場合、KeeForge のスクリーンショットは黒くなるか失敗します。これは保護が働いている状態です。この設定に関係なく、KeeForge はフォーカスを失うとウインドウをぼかします。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Защита не гарантирована: в macOS 15 и новее программы записи на основе ScreenCaptureKit всё равно могут захватить окно. Когда защита срабатывает, снимок KeeForge получается чёрным или не создаётся — это и есть её работа. Независимо от этого параметра KeeForge размывает свои окна, когда теряет фокус."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这只是尽力而为：在 macOS 15 及更高版本中，基于 ScreenCaptureKit 的录制工具仍可捕获该窗口。生效时，KeeForge 的截屏会是黑色或失败——这正是保护在起作用。无论此设置如何，KeeForge 在失去焦点时都会模糊其窗口。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這只是盡力而為：在 macOS 15 及以上版本中，以 ScreenCaptureKit 為基礎的錄影工具仍可擷取該視窗。生效時，KeeForge 的截圖會是黑色或失敗——這正是保護在發揮作用。無論此設定為何，KeeForge 在失去焦點時都會模糊其視窗。"
+          }
+        }
+      }
+    },
     "This is the new native Mac app, with AutoFill and your local and WebDAV databases." : {
       "localizations" : {
         "de" : {
@@ -74077,60 +75255,54 @@
         }
       }
     },
-    "Tints buttons, selection and links in every KeeForge window. The default follows KeeForge blue." : {
+    "Tints buttons, selections and links in every KeeForge window; the default is KeeForge blue." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Färbt Tasten, Auswahl und Links in jedem KeeForge-Fenster. Standard ist KeeForge-Blau."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tints buttons, selection and links in every KeeForge window. The default follows KeeForge blue."
+            "value" : "Färbt Tasten, Auswahlen und Links in allen KeeForge-Fenstern; Standard ist KeeForge-Blau."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Colorea botones, selección y enlaces en todas las ventanas de KeeForge. El valor predeterminado es el azul de KeeForge."
+            "value" : "Tiñe botones, selecciones y enlaces en todas las ventanas de KeeForge; por omisión, el azul de KeeForge."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Colore les boutons, la sélection et les liens de chaque fenêtre KeeForge. La couleur par défaut est le bleu KeeForge."
+            "value" : "Colore les boutons, sélections et liens de toutes les fenêtres KeeForge ; par défaut, le bleu KeeForge."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Colora pulsanti, selezione e link in ogni finestra di KeeForge. Il colore predefinito è il blu KeeForge."
+            "value" : "Colora pulsanti, selezioni e link in ogni finestra di KeeForge; l'impostazione predefinita è il blu KeeForge."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "すべての KeeForge ウインドウのボタン、選択範囲、リンクに適用されます。デフォルトは KeeForge の青です。"
+            "value" : "KeeForge のすべてのウインドウのボタン、選択項目、リンクに色を付けます。デフォルトは KeeForge ブルーです。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Окрашивает кнопки, выделение и ссылки во всех окнах KeeForge. По умолчанию используется синий цвет KeeForge."
+            "value" : "Окрашивает кнопки, выделение и ссылки во всех окнах KeeForge; по умолчанию — синий KeeForge."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "为所有 KeeForge 窗口的按钮、选择和链接着色。默认使用 KeeForge 蓝色。"
+            "value" : "为所有 KeeForge 窗口中的按钮、所选内容和链接着色；默认为 KeeForge 蓝。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "為所有 KeeForge 視窗的按鈕、選取範圍和連結著色。預設使用 KeeForge 藍色。"
+            "value" : "為所有 KeeForge 視窗中的按鈕、所選內容和連結著色；預設為 KeeForge 藍。"
           }
         }
       }
@@ -74811,54 +75983,54 @@
         }
       }
     },
-    "Touch ID and Apple Watch stop unlocking a database this long after its master password was last entered, until you enter it again. With Always, KeeForge saves no unlock key and asks for the master password every time. This also applies to AutoFill." : {
+    "Touch ID and Apple Watch stop unlocking after this long, here and in AutoFill; with Always, no unlock key is saved." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "So lange nach der letzten Eingabe des Master-Passworts entsperren Touch ID und Apple Watch eine Datenbank nicht mehr, bis du es erneut eingibst. Bei „Immer“ speichert KeeForge keinen Entsperrschlüssel und fragt jedes Mal nach dem Master-Passwort. Das gilt auch für AutoFill."
+            "value" : "Nach dieser Zeit entsperren Touch ID und Apple Watch nicht mehr, hier und im AutoFill; bei „Immer“ wird kein Entsperrschlüssel gesichert."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pasado este tiempo desde la última vez que introdujiste la contraseña maestra de una base de datos, Touch ID y el Apple Watch dejan de desbloquearla hasta que la vuelvas a introducir. Con Siempre, KeeForge no guarda ninguna clave de desbloqueo y pide la contraseña maestra cada vez. También se aplica al autorrelleno."
+            "value" : "Touch ID y el Apple Watch dejan de desbloquear tras este tiempo, aquí y en el autorrelleno; con «Siempre» no se guarda ninguna clave de desbloqueo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Passé ce délai après la dernière saisie du mot de passe principal d'une base de données, Touch ID et l’Apple Watch ne la déverrouillent plus tant que vous ne l'avez pas saisi à nouveau. Avec Toujours, KeeForge n'enregistre aucune clé de déverrouillage et demande le mot de passe principal à chaque fois. Cela s'applique aussi au remplissage automatique."
+            "value" : "Touch ID et l'Apple Watch cessent de déverrouiller après ce délai, ici et dans le remplissage automatique ; avec « Toujours », aucune clé de déverrouillage n'est enregistrée."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trascorso questo intervallo dall'ultimo inserimento della password principale di un database, Touch ID e Apple Watch non lo sbloccano più finché non la inserisci di nuovo. Con Sempre, KeeForge non salva alcuna chiave di sblocco e chiede la password principale ogni volta. Vale anche per l'inserimento automatico."
+            "value" : "Dopo questo tempo Touch ID e Apple Watch smettono di sbloccare, qui e nell'inserimento automatico; con “Sempre” non viene salvata alcuna chiave di sblocco."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "データベースのマスターパスワードを最後に入力してからこの期間が過ぎると、もう一度入力するまで Touch ID と Apple Watch ではロックを解除できなくなります。「常に」を選ぶと、KeeForge はロック解除キーを保存せず、毎回マスターパスワードを求めます。自動入力にも適用されます。"
+            "value" : "この時間が過ぎると、ここと自動入力で Touch ID と Apple Watch によるロック解除が止まります。「常に」ではロック解除キーを保存しません。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "По истечении этого времени с последнего ввода мастер-пароля базы данных Touch ID и Apple Watch перестают её разблокировать, пока вы не введёте пароль снова. При варианте «Всегда» KeeForge не сохраняет ключ разблокировки и каждый раз запрашивает мастер-пароль. Это также относится к автозаполнению."
+            "value" : "По истечении этого времени Touch ID и Apple Watch перестают разблокировать, здесь и в автозаполнении; при «Всегда» ключ разблокировки не сохраняется."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "距上次输入数据库主密码超过这段时间后，Touch ID 和 Apple Watch 将无法解锁该数据库，直到你再次输入主密码。选择“始终”时，KeeForge 不会保存解锁密钥，每次都会要求输入主密码。此设置也适用于自动填充。"
+            "value" : "超过此时间后，此处和自动填充中的触控 ID 与 Apple Watch 将停止解锁；选择“始终”时不保存解锁密钥。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "距上次輸入資料庫主密碼超過這段時間後，Touch ID 和 Apple Watch 將無法解鎖該資料庫，直到你再次輸入主密碼。選擇「一律」時，KeeForge 不會儲存解鎖密鑰，每次都會要求輸入主密碼。此設定也適用於自動填寫。"
+            "value" : "超過此時間後，此處和自動填寫中的觸控 ID 與 Apple Watch 會停止解鎖；選擇「一律」時不儲存解鎖金鑰。"
           }
         }
       }
@@ -81187,6 +82359,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "當 KeeForge 不在前景時"
+          }
+        }
+      }
+    },
+    "When macOS offers to fill a password, KeeForge suggests entries from the databases below and asks you to authenticate." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn macOS ein Passwort ausfüllen möchte, schlägt KeeForge Einträge aus den Datenbanken unten vor und fragt nach deiner Authentifizierung."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuando macOS ofrece rellenar una contraseña, KeeForge sugiere entradas de las bases de datos de abajo y te pide autenticarte."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quand macOS propose de remplir un mot de passe, KeeForge suggère des entrées des bases de données ci-dessous et vous demande de vous authentifier."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quando macOS propone di inserire una password, KeeForge suggerisce voci dai database qui sotto e ti chiede di autenticarti."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS がパスワードの入力を提案すると、KeeForge は下のデータベースのエントリを候補に出し、認証を求めます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Когда macOS предлагает заполнить пароль, KeeForge предлагает записи из баз данных ниже и запрашивает проверку подлинности."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当 macOS 提出填充密码时，KeeForge 会建议下方数据库中的条目，并要求你进行认证。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當 macOS 提議填寫密碼時，KeeForge 會建議下方資料庫中的項目，並要求你進行認證。"
+          }
+        }
+      }
+    },
+    "When off, AutoFill offers nothing from this database; turned back on, it suggests again after the next unlock." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn aus, bietet AutoFill nichts aus dieser Datenbank an; wieder eingeschaltet, schlägt es nach dem nächsten Entsperren wieder vor."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desactivado, el autorrelleno no ofrece nada de esta base de datos; al reactivarlo, vuelve a sugerir tras el siguiente desbloqueo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactivé, le remplissage automatique ne propose rien de cette base de données ; réactivé, il suggère à nouveau après le prochain déverrouillage."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se disattivato, l'inserimento automatico non offre nulla da questo database; riattivato, torna a suggerire dopo il prossimo sblocco."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフにすると、自動入力はこのデータベースから何も提示しません。再びオンにすると、次のロック解除後に候補を出します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если выключено, автозаполнение ничего не предлагает из этой базы данных; после включения предложения вернутся при следующей разблокировке."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭后，自动填充不会提供此数据库中的任何内容；重新开启后，会在下次解锁后再次建议。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉後，自動填寫不會提供此資料庫中的任何內容；重新開啟後，會在下次解鎖後再次建議。"
           }
         }
       }

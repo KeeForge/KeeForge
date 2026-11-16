@@ -208,7 +208,7 @@ private struct MacMasterKeyForm: View {
                         PasswordStrengthIndicator(password: model.newPassword, caption: .passwordStrength)
                     }
                     if let warning = model.passwordStrengthWarning {
-                        Text(warning).font(.caption).foregroundStyle(Theme.State.warning).fixedSize(horizontal: false, vertical: true)
+                        Text(warning).macSettingsCaptionStyle().foregroundStyle(Theme.State.warning)
                     }
                 }
             }
@@ -224,7 +224,7 @@ private struct MacMasterKeyForm: View {
                             .toggleStyle(.checkbox)
                             .accessibilityIdentifier("master-key.remove-password")
                     }
-                    caption(String(localized: "The new master key protects this database file from now on. Backups and copies made before the change still open with the previous master key."))
+                    caption(String(localized: "Backups and copies made before the change still open with the previous master key."))
                 }
             }
             Divider()
@@ -239,9 +239,9 @@ private struct MacMasterKeyForm: View {
                         }
                     }
                     caption(model.hasEffectiveKeyFile
-                        ? String(localized: "The database requires this key file after the change. Clear it to unlock with the master password only.")
-                        : String(localized: "No key file will be required after the change. The master password alone will unlock the database."))
-                    caption(String(localized: "Create Key File saves a new key file where you choose. Keep a copy somewhere safe: without the key file, the database can’t be opened."))
+                        ? String(localized: "After the change, the database needs this key file; clear it to unlock with the master password alone.")
+                        : String(localized: "After the change, the master password alone unlocks the database."))
+                    caption(String(localized: "Keep a copy of the key file somewhere safe: without it, the database can’t be opened."))
                 }
             }
         }
@@ -251,6 +251,6 @@ private struct MacMasterKeyForm: View {
     }
 
     private func caption(_ text: String) -> some View {
-        Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        settingsCaption(verbatim: text)
     }
 }

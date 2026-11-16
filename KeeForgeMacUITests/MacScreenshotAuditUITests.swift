@@ -1765,6 +1765,25 @@ final class MacScreenshotAuditUITests: MacUITestCase {
                 continue
             }
             await snapSurface(hosting: contentIdentifier, name)
+            if contentIdentifier == "settings.tab.security" {
+                // 7a1. A caption's caveat behind its help button.
+                let helpName = "07a1-settings-security-clipboard-help"
+                let help = settingsWindow.descendants(matching: .any)["settings.security.clipboard.help"].firstMatch
+                let popover = app.popovers.firstMatch
+                if help.waitForExistence(timeout: 3) {
+                    help.click()
+                    if popover.waitForExistence(timeout: 3) {
+                        settle(0.4)
+                        await snapWindow(popover, helpName)
+                    } else {
+                        noteSkip(helpName, reason: "the help popover never opened")
+                    }
+                    app.typeKey(.escape, modifierFlags: [])
+                    _ = popover.waitForNonExistence(timeout: 3)
+                } else {
+                    noteSkip(helpName, reason: "the clipboard row has no help button")
+                }
+            }
         }
     }
 

@@ -28,6 +28,7 @@
 
 ### Changes
 
+- On Mac, explanations in Settings, Database Settings and the master key, encryption and server sheets are larger and shorter, with the longer caveats behind a help button.
 - On Mac, Auto-Lock now defaults to 5 minutes of inactivity and offers 30 seconds, 1 minute, 5 minutes, or Never. Immediately is gone on Mac, where it never locked a database you left open; Mac installs set to Immediately, or never changed, now lock after 5 minutes of inactivity. To lock as soon as you leave KeeForge, turn on “When KeeForge is in the background for” in Settings ▸ Security. iPhone and iPad are unchanged.
 - On Mac, quick search and the AutoFill picker have a new look that matches the rest of the app, and the Light, Dark, or System theme in Settings ▸ Appearance now applies to every window, sheet, panel, and alert.
 - Clipboard Clear Timeout in Settings has a Never option, on iPhone, iPad, and Mac (#210). A copied value then stays until you copy something else or the database locks; on iPhone and iPad, locking when KeeForge goes to the background still keeps it so you can paste. The default stays 30 seconds.

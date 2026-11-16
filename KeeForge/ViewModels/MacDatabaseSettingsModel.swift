@@ -107,7 +107,7 @@ final class MacDatabaseSettingsModel {
             return String(localized: "Legacy KDBX 3.1 databases can be opened, but KeeForge intentionally keeps them read-only.")
         }
         if session?.sessionUsesHardwareKey == true || current.hardwareKey != nil {
-            return String(localized: "Databases unlocked with a YubiKey open read-only for now. Saving them is not supported yet.")
+            return String(localized: "Databases unlocked with a YubiKey open read-only, because saving them is not supported yet.")
         }
         return String(localized: "You can still open this database, but create, edit, and delete actions stay blocked until you turn editing back on.")
     }
