@@ -154,6 +154,33 @@ final class TOTPEnrollmentCoordinatorTests: XCTestCase {
         XCTAssertFalse(routing.canApplyEnrollment(id: enrollment.id, session: session(reopened)))
     }
 
+    func testLinkArrivingOverALockedDatabaseFollowsTheUserToTheDatabaseTheyUnlock() throws {
+        let first = NSObject(), second = NSObject()
+        let routing = TOTPEnrollmentCoordinator()
+        routing.receiveEnrollment(try makeURI(), showing: session(first, isUnlocked: false))
+        let enrollment = try XCTUnwrap(routing.pendingEnrollment)
+        XCTAssertEqual(routing.enrollmentAlert, .unlockNeeded)
+        XCTAssertNil(routing.destinationDatabaseID)
+
+        routing.updateSession(nil)
+        XCTAssertEqual(routing.pendingEnrollment?.id, enrollment.id, "Leaving the locked database keeps the link")
+        let other = session(second)
+        routing.updateSession(other)
+        let request = try XCTUnwrap(routing.deferredPresentation)
+        routing.completeDeferredPresentation(id: request.id)
+        XCTAssertEqual(routing.presentedEnrollment?.id, enrollment.id)
+        XCTAssertTrue(routing.canApplyEnrollment(id: enrollment.id, session: other))
+    }
+
+    func testLinkArrivingOverAnUnlockedDatabaseIsBoundToIt() throws {
+        let owner = NSObject()
+        let routing = TOTPEnrollmentCoordinator()
+        let unlocked = session(owner)
+        routing.receiveEnrollment(try makeURI(), showing: unlocked)
+        XCTAssertNotNil(routing.presentedEnrollment)
+        XCTAssertEqual(routing.destinationDatabaseID, unlocked.databaseID)
+    }
+
     func testDismissedPresentationDoesNotReturnOnLaterUnlock() throws {
         let owner = NSObject()
         let routing = TOTPEnrollmentCoordinator()

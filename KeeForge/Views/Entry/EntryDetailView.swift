@@ -151,9 +151,9 @@ struct EntryDetailView: View {
                     }
 
                     if !entry.notes.isEmpty {
-                        ReferenceAwareFieldRow(label: String(localized: "Notes"), raw: entry.notes,
-                                               viewModel: viewModel, isCurrent: secretActionIsCurrent) { notes in
-                            Section("Notes") {
+                        Section("Notes") {
+                            ReferenceAwareFieldRow(label: String(localized: "Notes"), raw: entry.notes,
+                                                   viewModel: viewModel, isCurrent: secretActionIsCurrent) { notes in
                                 SelectableNotesText(notes)
                                     .accessibilityIdentifier("entry.notes")
                             }

@@ -279,7 +279,7 @@ struct AppRootView: View {
         routing.enrollment.updateSession(routingSession)
         switch AppRoutingCoordinator.classify(url) {
         case .enrollment(let uri):
-            routing.enrollment.receiveEnrollment(uri, destination: routingSession)
+            routing.enrollment.receiveEnrollment(uri, showing: routingSession)
             return
         case .invalidEnrollment(let alert):
             routing.enrollment.enrollmentAlert = alert
