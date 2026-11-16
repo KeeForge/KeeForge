@@ -26,6 +26,7 @@
 - `clipboardTimeout` is shared so the app and extension agree on expiry; its getter migrates the older app-local value on first read.
 - `AuthenticationGracePeriod` defaults to Always Ask and is bounded at five minutes; do not add an unbounded option. `../Security/SecretAccessGate` reads it.
 - The SSH agent's settings (`macSSHAgentEnabled(in:)`, `macSSHAgentSelectedEntryIDs(in:)`, and their setters) take the `UserDefaults` to use instead of reading `.standard`. `../SSHAgent/MacSSHAgentController` passes the app's own and its tests a suite of their own, so a Mac test run never changes a developer's agent.
+- The browser bridge's switch and its paired-browser records take the `UserDefaults` to use in the same way. `../BrowserBridge/BrowserPairingStore` owns the record format; none of it goes in the App Group defaults.
 
 ### Clipboard
 
