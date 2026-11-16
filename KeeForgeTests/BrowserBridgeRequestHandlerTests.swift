@@ -319,7 +319,10 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         let db = session.databaseReference.id
         var revealed: [UUID] = []
         var unlocked: [UUID?] = []
-        let handler = BrowserBridgeRequestHandler(sessionsProvider: { self.sessions }, appVersion: "test", reveal: { revealed = [$0, $1] }, unlock: { unlocked.append($0) })
+        var instant = ContinuousClock.now
+        // Each request a second apart, under the reveal and unlock rate limit.
+        let handler = BrowserBridgeRequestHandler(sessionsProvider: { self.sessions }, appVersion: "test", reveal: { revealed = [$0, $1] }, unlock: { unlocked.append($0) },
+                                                  now: { instant += .seconds(1); return instant })
         let before = await send(.reveal(entry: entry.id, db: db), to: handler)
         XCTAssertEqual(before, .failure(.notOffered))
         _ = try await matches(handler)
@@ -337,6 +340,49 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         let gone = await send(.reveal(entry: entry.id, db: db), to: handler)
         XCTAssertEqual(gone, .failure(.unavailable))
         session.lockRequest(force: true)
+    }
+
+    func testRevealAndUnlockShareABurstOfThreeThenOnePerSecondPerConnection() async throws {
+        let entry = try entry()
+        let session = try await makeSession([entry])
+        let db = session.databaseReference.id
+        var instant = ContinuousClock.now
+        var fronts = 0
+        func make() -> BrowserBridgeRequestHandler {
+            BrowserBridgeRequestHandler(sessionsProvider: { self.sessions }, appVersion: "test",
+                                        reveal: { _, _ in fronts += 1 }, unlock: { _ in fronts += 1 }, now: { instant })
+        }
+        let handler = make()
+        _ = try await matches(handler)
+        let reveal = BrowserBridgeRequest.Operation.reveal(entry: entry.id, db: db)
+        var results: [BrowserBridgeReply.Result] = []
+        for op in [reveal, .unlock(db: db), .unlock(db: nil), reveal, .unlock(db: nil)] {
+            results.append(await send(op, to: handler))
+        }
+        XCTAssertEqual(results, [.empty, .empty, .empty, .failure(.rateLimited), .failure(.rateLimited)])
+        XCTAssertEqual(fronts, 3, "A refused request fronts nothing")
+
+        let other = make()
+        let unaffected = await send(.unlock(db: nil), to: other)
+        XCTAssertEqual(unaffected, .empty, "Each connection has its own allowance")
+        XCTAssertEqual(fronts, 4)
+
+        instant += .milliseconds(999)
+        let early = await send(.unlock(db: nil), to: handler)
+        XCTAssertEqual(early, .failure(.rateLimited))
+        instant += .milliseconds(1)
+        let afterOneSecond = await send(reveal, to: handler)
+        XCTAssertEqual(afterOneSecond, .empty)
+        let again = await send(reveal, to: handler)
+        XCTAssertEqual(again, .failure(.rateLimited), "One per second after the burst")
+
+        instant += .seconds(60)
+        results = []
+        for _ in 0..<4 { results.append(await send(.unlock(db: nil), to: handler)) }
+        XCTAssertEqual(results, [.empty, .empty, .empty, .failure(.rateLimited)], "Idling refills the burst, never beyond 3")
+        let status = await send(.status, to: handler)
+        XCTAssertEqual(status, .status(app: "test", unlocked: 1, locked: 0), "Other requests are not limited")
+        XCTAssertEqual(fronts, 8)
     }
 
     func testOfferedCredentialLocksAndEntryRemovalAreRefused() async throws {

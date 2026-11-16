@@ -6,7 +6,7 @@ import Observation
 protocol BrowserHostInstalling: AnyObject {
     func state(for browser: HostBrowser) -> BrowserHostInstallerState
     func setUp(_ browser: HostBrowser) async throws
-    @discardableResult func repairAll() -> [HostBrowser: BrowserHostInstallerState]
+    func repairAll()
     func remove(_ browser: HostBrowser) throws
 }
 
@@ -30,11 +30,6 @@ final class MacBrowserBridgeSettingsModel {
         let lastUsed: String
     }
 
-    enum Confirmation: Equatable {
-        case remove(clientID: String, name: String)
-        case removeAll
-    }
-
     let controller: MacBrowserBridgeController
     @ObservationIgnored private let installer: any BrowserHostInstalling
     @ObservationIgnored private let now: () -> Date
@@ -45,7 +40,6 @@ final class MacBrowserBridgeSettingsModel {
     /// A browser whose folder panel or file change is in progress; every row's buttons wait for it.
     private(set) var busyBrowser: HostBrowser?
     private(set) var removalFailed = false
-    var confirmation: Confirmation?
 
     init(controller: MacBrowserBridgeController, installer: any BrowserHostInstalling,
          now: @escaping () -> Date = { Date() }, locale: Locale = .autoupdatingCurrent) {
@@ -76,8 +70,6 @@ final class MacBrowserBridgeSettingsModel {
         }
     }
 
-    var showsPairingFailure: Bool { controller.pairingFailed }
-
     var pairedRows: [PairedRow] {
         controller.pairedBrowsers.map { browser in
             PairedRow(id: browser.clientID, name: BrowserPairingStore.displayName(browser.name),
@@ -96,7 +88,6 @@ final class MacBrowserBridgeSettingsModel {
 
     /// Called whenever Settings is shown: rereads the browsers and drops last time's messages.
     func reload() {
-        controller.clearPairingFailure()
         hostErrors = [:]
         removalFailed = false
         refreshHosts()
@@ -149,31 +140,18 @@ final class MacBrowserBridgeSettingsModel {
         refreshHosts()
     }
 
-    func requestRemove(_ row: PairedRow) {
-        confirmation = .remove(clientID: row.id, name: row.name)
+    /// Settings calls these only after the user confirms; the confirmation alert is AppKit's.
+    func remove(clientID: String) async {
+        await runRemoval { try await self.controller.removeBrowser(clientID: clientID) }
     }
 
-    func requestRemoveAll() {
-        confirmation = .removeAll
+    func removeAll() async {
+        await runRemoval { try await self.controller.removeAllBrowsers() }
     }
 
-    /// Runs the confirmed removal; the view calls it only from the confirmation's destructive button.
-    func confirm() async {
-        guard let confirmation else { return }
-        self.confirmation = nil
+    private func runRemoval(_ removal: () async throws -> Void) async {
         removalFailed = false
-        do {
-            switch confirmation {
-            case .remove(let clientID, _): try await controller.removeBrowser(clientID: clientID)
-            case .removeAll: try await controller.removeAllBrowsers()
-            }
-        } catch {
-            removalFailed = true
-        }
-    }
-
-    func cancelConfirmation() {
-        confirmation = nil
+        do { try await removal() } catch { removalFailed = true }
     }
 
     private static func installerError(_ error: any Error) -> BrowserHostInstallerError {

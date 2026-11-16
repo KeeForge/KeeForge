@@ -130,5 +130,79 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertEqual(refreshed, 0)
         window.close()
     }
+
+    /// The Browsers tab's Remove… and Remove All… buttons call these. The alert is gone before its
+    /// completion runs, as with a real sheet, so the confirmed removal must not depend on state the dismissal clears.
+    func testBrowserRemovalConfirmationsRemoveOnlyAfterTheDestructiveAnswer() async throws {
+        let suite = "SettingsWindowControllerTests.browsers.\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let keychain = FakeBrowserBridgeKeychain()
+        let store = BrowserPairingStore(defaults: UserDefaults(suiteName: suite)!, keychain: keychain)
+        func browser(_ name: String, byte: UInt8) -> PairedBrowser {
+            let key = Data(repeating: byte, count: 32)
+            return PairedBrowser(clientID: BrowserBridgeCrypto.clientID(key), publicKey: key, name: name, pairedAt: Date())
+        }
+        let brave = browser("Brave", byte: 1), arc = browser("Arc", byte: 2)
+        try await store.addOrReplace(brave)
+        try await store.addOrReplace(arc)
+        let bridge = MacBrowserBridgeController(defaults: defaults, store: store, socketPath: nil)
+        defer { bridge.stop() }
+        bridge.start()
+        let model = MacBrowserBridgeSettingsModel(controller: bridge, installer: FakeBrowserHostInstaller())
+        func wait(_ what: String, _ condition: @MainActor () async throws -> Bool) async throws {
+            var tries = 0
+            while try await !condition(), tries < 500 {
+                tries += 1
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            let met = try await condition()
+            XCTAssertTrue(met, what)
+        }
+        try await wait("Loaded") { model.pairedRows.count == 2 }
+        let tabs = MacSettingsTabController(listViewModel: DatabaseListViewModel(), sessionStore: nil,
+                                            quickAccess: nil, sshAgent: nil, browserBridge: model)
+        let window = NSWindow(contentViewController: tabs)
+        defer { window.close() }
+        var shown: NSAlert?
+        var answer: ((NSApplication.ModalResponse) -> Void)?
+        tabs.presentAlert = { alert, parent, completion in
+            XCTAssertTrue(parent === window)
+            shown = alert
+            answer = completion
+        }
+        let row = try XCTUnwrap(model.pairedRows.first { $0.name == "Brave" })
+
+        tabs.confirmRemoveBrowser(row)
+        let alert = try XCTUnwrap(shown)
+        XCTAssertEqual(alert.messageText, String(localized: "Remove “\("Brave")”?"))
+        XCTAssertEqual(alert.buttons.map(\.title), [String(localized: "Remove"), String(localized: "Cancel")])
+        XCTAssertEqual(alert.buttons.first?.accessibilityIdentifier(), "settings.browsers.remove.confirm")
+        XCTAssertTrue(alert.buttons.first?.hasDestructiveAction == true)
+        try await Task.sleep(for: .milliseconds(50))
+        var listed = try await store.list()
+        XCTAssertEqual(listed.count, 2, "Asking removes nothing")
+        answer?(.alertSecondButtonReturn)
+        try await Task.sleep(for: .milliseconds(50))
+        listed = try await store.list()
+        XCTAssertEqual(listed.count, 2, "Cancel removes nothing")
+
+        tabs.confirmRemoveBrowser(row)
+        answer?(.alertFirstButtonReturn)
+        try await wait("Brave removed") { try await store.list().map(\.clientID) == [arc.clientID] }
+        try await wait("The tab's list follows") { model.pairedRows.map(\.id) == [arc.clientID] }
+        XCTAssertFalse(model.removalFailed)
+
+        tabs.confirmRemoveAllBrowsers()
+        XCTAssertEqual(shown?.messageText, String(localized: "Remove All Browsers?"))
+        answer?(.alertSecondButtonReturn)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(keychain.deletions, 0)
+        tabs.confirmRemoveAllBrowsers()
+        answer?(.alertFirstButtonReturn)
+        try await wait("All removed") { try await store.list().isEmpty }
+        try await wait("Key deleted") { keychain.deletions == 1 }
+        XCTAssertFalse(model.removalFailed)
+    }
 }
 #endif

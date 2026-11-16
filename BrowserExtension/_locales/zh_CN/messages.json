@@ -90,13 +90,16 @@
     "message": "配对已被拒绝。"
   },
   "pairBusy": {
-    "message": "另一个配对正在进行。"
+    "message": "现在无法开始配对。请在一分钟后重试。"
   },
   "paired": {
     "message": "已与 KeeForge 配对。你可以关闭此标签页。"
   },
   "compareCode": {
     "message": "检查 KeeForge 是否显示相同的代码，然后在其中点按“允许”。"
+  },
+  "switchToApp": {
+    "message": "如果 KeeForge 没有出现在最前面，请切换到 KeeForge。"
   },
   "browserLabel": {
     "message": "浏览器：$1"

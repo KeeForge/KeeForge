@@ -293,12 +293,21 @@ final class BrowserHostInstaller {
         defaults.set(bookmark, forKey: bookmarkKey(browser))
     }
 
-    @discardableResult
-    func repairAll() -> [HostBrowser: BrowserHostInstallerState] {
+    func repairAll() {
         for browser in HostBrowser.allCases where state(for: browser) == .needsRepair {
             try? withStoredGrant(browser) { try files.write(manifest(for: browser), in: $0) }
         }
-        return Dictionary(uniqueKeysWithValues: HostBrowser.allCases.map { ($0, state(for: $0)) })
+    }
+
+    /// Whether this copy may point every browser's manifest at itself without asking: only while
+    /// its bridge is listening (on, and not served by another copy) and only from an Applications
+    /// folder, never a translocated or downloaded copy run in place.
+    nonisolated static func mayRepairAtLaunch(appBundle: URL, home: URL, bridgeListening: Bool) -> Bool {
+        guard bridgeListening else { return false }
+        let path = appBundle.resolvingSymlinksInPath().standardizedFileURL.path
+        guard !path.contains("/AppTranslocation/") else { return false }
+        let folders = ["/Applications", home.appendingPathComponent("Applications").standardizedFileURL.path]
+        return folders.contains { path.hasPrefix($0 + "/") }
     }
 
     func remove(_ browser: HostBrowser) throws {

@@ -90,13 +90,16 @@
     "message": "ペアリングが拒否されました。"
   },
   "pairBusy": {
-    "message": "別のペアリングが進行中です。"
+    "message": "現在ペアリングを開始できません。1 分後にもう一度お試しください。"
   },
   "paired": {
     "message": "KeeForge とペアリングしました。このタブを閉じることができます。"
   },
   "compareCode": {
     "message": "KeeForge に同じコードが表示されていることを確認し、KeeForge で「許可」をクリックしてください。"
+  },
+  "switchToApp": {
+    "message": "KeeForge が前面に表示されない場合は、KeeForge に切り替えてください。"
   },
   "browserLabel": {
     "message": "ブラウザ：$1"

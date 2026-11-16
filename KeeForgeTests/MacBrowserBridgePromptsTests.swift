@@ -30,6 +30,7 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
     final class Shell: MacBrowserBridgeShell {
         enum Call: Equatable {
             case activate
+            case requestAttention
             case showDatabaseWindow(UUID)
             case showDatabasesWindow
             case revealEntry(UUID, UUID)
@@ -43,8 +44,10 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
         var answers: [@MainActor (Bool) -> Void] = []
         var visiblePairingAlerts = 0
         var mostVisiblePairingAlerts = 0
+        var isActive = true
 
         func activate() { calls.append(.activate) }
+        func requestAttention() { calls.append(.requestAttention) }
         func windowState(of databaseID: UUID) -> MacBrowserBridgeWindowState { states[databaseID] ?? .closed }
         func showDatabaseWindow(_ databaseID: UUID) { calls.append(.showDatabaseWindow(databaseID)) }
         func showDatabasesWindow() { calls.append(.showDatabasesWindow) }
@@ -89,7 +92,7 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
         await settle()
         let content = MacBrowserPairingAlertContent(browserName: "Firefox", code: "012345")
         XCTAssertEqual(shell.calls, [.activate, .showPairing(content)])
-        XCTAssertEqual(content.title, String(localized: "Pair with \("Firefox")?"))
+        XCTAssertEqual(content.title, String(localized: "Pair with “\("Firefox")”?"))
         XCTAssertEqual(content.code, "012 345")
         XCTAssertTrue(source.answers.isEmpty, "Showing the alert answers nothing")
 
@@ -161,6 +164,29 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
         withExtendedLifetime(prompts) {}
     }
 
+    func testRefusedActivationRequestsAttentionForEveryFront() async {
+        let source = Source()
+        let shell = Shell()
+        shell.isActive = false
+        let prompts = MacBrowserBridgePrompts(source: source, shell: shell)
+        let content = MacBrowserPairingAlertContent(browserName: "Firefox", code: "012345")
+        source.pendingPairing = pending()
+        await settle()
+        XCTAssertEqual(shell.calls, [.activate, .requestAttention, .showPairing(content)])
+        source.pairingFailed = true
+        await settle()
+        XCTAssertEqual(shell.calls.suffix(3), [.activate, .requestAttention, .showPairingFailure])
+        shell.calls = []
+        prompts.unlock(databaseID: nil)
+        prompts.reveal(entryID: UUID(), databaseID: UUID())
+        XCTAssertEqual(shell.calls, [.activate, .requestAttention, .showDatabasesWindow,
+                                     .activate, .requestAttention, .showDatabasesWindow])
+        shell.isActive = true
+        shell.calls = []
+        prompts.unlock(databaseID: nil)
+        XCTAssertEqual(shell.calls, [.activate, .showDatabasesWindow], "An active app asks for no attention")
+    }
+
     func testCodeIsGroupedAsTwoTriplesKeepingLeadingZeros() {
         XCTAssertEqual(MacBrowserPairingAlertContent.groupedCode("000007"), "000 007")
         XCTAssertEqual(MacBrowserPairingAlertContent.groupedCode("123456"), "123 456")
@@ -173,11 +199,11 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
         let expected = BrowserPairingStore.sanitizedName(name)
         XCTAssertFalse(expected.unicodeScalars.contains { CharacterSet.controlCharacters.contains($0) })
         XCTAssertEqual(expected.count, 64)
-        XCTAssertEqual(content.title, String(localized: "Pair with \(expected)?"))
+        XCTAssertEqual(content.title, String(localized: "Pair with “\(expected)”?"))
         let alert = MacBrowserPairingAlert.make(content)
         XCTAssertEqual(alert.messageText, content.title, "Markup is shown as typed, never rendered")
         let unnamed = MacBrowserPairingAlertContent(browserName: "\u{202E}\n", code: "123456")
-        XCTAssertEqual(unnamed.title, String(localized: "Pair with \(String(localized: "Unnamed browser"))?"))
+        XCTAssertEqual(unnamed.title, String(localized: "Pair with “\(String(localized: "Unnamed browser"))”?"))
     }
 
     func testAlertDefaultsToDontAllowOnReturnAndEscape() throws {
@@ -193,6 +219,27 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
         XCTAssertEqual(MacBrowserPairingAlert.allows(.alertFirstButtonReturn), false)
         XCTAssertEqual(MacBrowserPairingAlert.allows(.alertSecondButtonReturn), true)
         XCTAssertNil(MacBrowserPairingAlert.allows(.cancel), "A dismissed alert answers nothing")
+    }
+
+    /// With Full Keyboard Access, Space presses the focused button; AppKit would focus Allow, the non-default one.
+    func testAllowStartsDisabledUnfocusableAndUnarmedUntilArmed() throws {
+        let alert = MacBrowserPairingAlert.make(MacBrowserPairingAlertContent(browserName: "Safari", code: "042042"))
+        let refuse = alert.buttons[0], allow = alert.buttons[1]
+        XCTAssertFalse(allow.isEnabled)
+        XCTAssertTrue(allow.refusesFirstResponder)
+        XCTAssertFalse(allow.canBecomeKeyView)
+        XCTAssertTrue(alert.window.initialFirstResponder === refuse)
+        XCTAssertFalse(MacBrowserPairingAlert.isArmed(alert))
+        alert.layout()
+        MacBrowserPairingAlert.focusRefusal(in: alert)
+        XCTAssertTrue(alert.window.initialFirstResponder === refuse, "Layout does not hand initial focus to Allow")
+        XCTAssertFalse(alert.window.firstResponder === allow)
+        XCTAssertFalse(allow.acceptsFirstResponder, "Allow cannot take focus before it is armed")
+        MacBrowserPairingAlert.arm(alert)
+        XCTAssertTrue(allow.isEnabled)
+        XCTAssertFalse(allow.refusesFirstResponder, "Once armed, a keyboard user can reach Allow with Tab")
+        XCTAssertTrue(MacBrowserPairingAlert.isArmed(alert))
+        XCTAssertEqual(MacBrowserPairingAlert.allowDelay, .milliseconds(1500))
     }
 
     // MARK: - Reveal and unlock

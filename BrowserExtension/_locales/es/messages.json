@@ -90,13 +90,16 @@
     "message": "Se rechazó el enlace."
   },
   "pairBusy": {
-    "message": "Hay otro enlace en curso."
+    "message": "No se puede iniciar el enlace ahora. Vuelve a intentarlo en un minuto."
   },
   "paired": {
     "message": "Enlazado con KeeForge. Puedes cerrar esta pestaña."
   },
   "compareCode": {
     "message": "Comprueba que KeeForge muestra el mismo código y haz clic en Permitir allí."
+  },
+  "switchToApp": {
+    "message": "Si KeeForge no pasa a primer plano, cambia a KeeForge."
   },
   "browserLabel": {
     "message": "Navegador: $1"

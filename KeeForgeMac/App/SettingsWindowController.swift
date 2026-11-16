@@ -109,7 +109,9 @@ final class MacSettingsTabController: NSTabViewController {
                 content = AnyView(MacSSHAgentSettingsTab(controller: sshAgent))
             case .browsers:
                 guard let browserBridge else { continue }
-                content = AnyView(MacBrowsersSettingsTab(model: browserBridge))
+                content = AnyView(MacBrowsersSettingsTab(model: browserBridge,
+                                                         remove: { [weak self] in self?.confirmRemoveBrowser($0) },
+                                                         removeAll: { [weak self] in self?.confirmRemoveAllBrowsers() }))
             case .appearance: content = AnyView(MacAppearanceSettingsTab(settings: settings))
             case .servers:
                 content = AnyView(MacServersSettingsTab(settings: settings, disconnect: { [weak self] in self?.confirmDisconnect($0) }))
@@ -198,6 +200,26 @@ final class MacSettingsTabController: NSTabViewController {
                 message: String(localized: "Disconnect \(account.displayName)? KeeForge will keep any cached databases until you remove them."),
                 button: String(localized: "Disconnect"), identifier: "settings.cloud.signout.confirm") { [weak self] in
             self?.settings.signOut(account)
+        }
+    }
+
+    /// The removal gets the row's id now, so nothing the alert's dismissal does can change what is removed.
+    func confirmRemoveBrowser(_ row: MacBrowserBridgeSettingsModel.PairedRow) {
+        guard let browserBridge else { return }
+        let clientID = row.id
+        confirm(title: String(localized: "Remove “\(row.name)”?"),
+                message: String(localized: "This browser must pair again before it can fill from KeeForge."),
+                button: String(localized: "Remove"), identifier: "settings.browsers.remove.confirm") {
+            Task { await browserBridge.remove(clientID: clientID) }
+        }
+    }
+
+    func confirmRemoveAllBrowsers() {
+        guard let browserBridge else { return }
+        confirm(title: String(localized: "Remove All Browsers?"),
+                message: String(localized: "Every browser must pair again before it can fill from KeeForge."),
+                button: String(localized: "Remove All"), identifier: "settings.browsers.remove.confirm") {
+            Task { await browserBridge.removeAll() }
         }
     }
 

@@ -13,6 +13,9 @@ final class BrowserBridgeRequestHandler {
 
     /// `matches` fields the extension only displays are cut to this many characters.
     static let displayFieldLimit = 256
+    /// `reveal` and `unlock` together: a burst of 3, then one per second.
+    static let frontBurst = 3
+    static let frontInterval: Duration = .seconds(1)
 
     private struct Pair: Hashable {
         let entry: UUID
@@ -30,6 +33,8 @@ final class BrowserBridgeRequestHandler {
     private var activeIDs = Set<Int>()
     private var credentialInFlight = false
     private var credentialTimes: [ContinuousClock.Instant] = []
+    /// When the front allowance is next fully spent (GCRA's theoretical arrival time).
+    private var frontsDue: ContinuousClock.Instant?
 
     init(
         sessionsProvider: @escaping SessionsProvider,
@@ -71,6 +76,10 @@ final class BrowserBridgeRequestHandler {
             return reply(.failure(.badRequest))
         }
         guard activeIDs.count < 16 else { return reply(.failure(.rateLimited)) }
+        switch request.operation {
+        case .reveal, .unlock: guard admitFront() else { return reply(.failure(.rateLimited)) }
+        default: break
+        }
         let isCredential: Bool
         if case .credential = request.operation { isCredential = true } else { isCredential = false }
         if isCredential {
@@ -88,6 +97,14 @@ final class BrowserBridgeRequestHandler {
         await Task.yield()
         guard !Task.isCancelled else { return reply(.failure(.badRequest)) }
         return reply(await perform(request.operation))
+    }
+
+    private func admitFront() -> Bool {
+        let instant = now()
+        let due = max(frontsDue ?? instant, instant)
+        guard due - instant <= Self.frontInterval * (Self.frontBurst - 1) else { return false }
+        frontsDue = due + Self.frontInterval
+        return true
     }
 
     private func perform(_ operation: BrowserBridgeRequest.Operation) async -> BrowserBridgeReply.Result {

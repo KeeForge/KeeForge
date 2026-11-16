@@ -181,46 +181,27 @@ final class MacBrowserBridgeSettingsModelTests: XCTestCase {
         XCTAssertEqual(german.lastUsedText(now.addingTimeInterval(-2 * 3_600)), String(localized: "Last used \("vor 2 Stunden")"))
     }
 
-    func testRemoveNeedsConfirmationAndCallsTheControllerWithThatBrowser() async throws {
+    func testRemoveCallsTheControllerWithThatBrowser() async throws {
         let brave = browser("Brave", byte: 1), arc = browser("Arc", byte: 2)
         try await seed([brave, arc])
         let model = makeModel()
-        let row = try XCTUnwrap(model.pairedRows.first { $0.name == "Brave" })
-        model.requestRemove(row)
-        XCTAssertEqual(model.confirmation, .remove(clientID: brave.clientID, name: "Brave"))
-        let untouched = try await store.list()
-        XCTAssertEqual(untouched.count, 2, "Asking removes nothing")
-
-        model.cancelConfirmation()
-        XCTAssertNil(model.confirmation)
-        await model.confirm()
-        let afterCancel = try await store.list()
-        XCTAssertEqual(afterCancel.count, 2, "Confirm without a pending question does nothing")
-
-        model.requestRemove(row)
-        await model.confirm()
-        XCTAssertNil(model.confirmation)
+        await model.remove(clientID: brave.clientID)
         let remaining = try await store.list()
         XCTAssertEqual(remaining.map(\.clientID), [arc.clientID])
         XCTAssertEqual(model.pairedRows.map(\.id), [arc.clientID], "The list follows the controller")
         XCTAssertFalse(model.removalFailed)
     }
 
-    func testRemoveAllNeedsConfirmationAndReportsFailure() async throws {
+    func testRemoveAllReportsFailureAndClearsItOnSuccess() async throws {
         try await seed([browser("Brave", byte: 1), browser("Arc", byte: 2)])
         let model = makeModel()
-        model.requestRemoveAll()
-        XCTAssertEqual(model.confirmation, .removeAll)
-        XCTAssertEqual(model.pairedRows.count, 2)
-
         keychain.fails = true
-        await model.confirm()
+        await model.removeAll()
         XCTAssertTrue(model.removalFailed)
         XCTAssertEqual(keychain.deletions, 0)
 
         keychain.fails = false
-        model.requestRemoveAll()
-        await model.confirm()
+        await model.removeAll()
         XCTAssertFalse(model.removalFailed)
         XCTAssertEqual(keychain.deletions, 1)
         XCTAssertTrue(model.pairedRows.isEmpty)
@@ -238,7 +219,6 @@ final class MacBrowserBridgeSettingsModelTests: XCTestCase {
         model.reload()
         XCTAssertNil(model.errorMessage(for: .chrome))
         XCTAssertEqual(model.hostRows.map(\.browser), [.chrome, .firefox])
-        XCTAssertFalse(model.showsPairingFailure)
     }
 }
 #endif

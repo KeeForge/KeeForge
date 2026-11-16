@@ -90,13 +90,16 @@
     "message": "Pairing was declined."
   },
   "pairBusy": {
-    "message": "Another pairing is in progress."
+    "message": "Pairing cannot start right now. Try again in a minute."
   },
   "paired": {
     "message": "Paired with KeeForge. You can close this tab."
   },
   "compareCode": {
     "message": "Check that KeeForge shows the same code, then click Allow there."
+  },
+  "switchToApp": {
+    "message": "If KeeForge does not come forward, switch to it."
   },
   "browserLabel": {
     "message": "Browser: $1"

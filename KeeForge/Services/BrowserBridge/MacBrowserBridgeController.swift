@@ -327,7 +327,8 @@ final class MacBrowserBridgeController {
             appVersion: appVersion,
             reveal: { [weak self] in self?.reveal($0, $1) },
             unlock: { [weak self] in self?.unlock($0) },
-            authenticateDeviceOwner: authenticate
+            authenticateDeviceOwner: authenticate,
+            now: clock.now
         )
         handlers[connection.id] = handler
         return handler

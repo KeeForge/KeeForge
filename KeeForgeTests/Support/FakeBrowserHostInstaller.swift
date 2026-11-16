@@ -25,11 +25,9 @@ final class FakeBrowserHostInstaller: BrowserHostInstalling {
         states[browser] = .ready
     }
 
-    @discardableResult
-    func repairAll() -> [HostBrowser: BrowserHostInstallerState] {
+    func repairAll() {
         repairCalls += 1
         if let statesAfterRepair { states = statesAfterRepair }
-        return states
     }
 
     func remove(_ browser: HostBrowser) throws {

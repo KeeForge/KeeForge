@@ -8,7 +8,7 @@
 - Add a preference effect to the model with a headless test, not to a view `onChange`. `ci_scripts/validate_architecture.py` fails any `SettingsService.<property> =` assignment in `SettingsView.swift`.
 - Every per-database AutoFill toggle goes through the `DatabaseListViewModel` passed in as `listViewModel` (`setAutoFillEnabled`), never `DatabaseListStore`. That instance carries the `autoFillEnabledRefreshHandler` bridge and the system-provider state, so this screen and the list's tip card cannot disagree.
 - `MacSSHAgentSettingsTab` (macOS) renders over `MacSSHAgentController` and is shown only when the app put one in the environment (`../../Services/SSHAgent/AGENTS.md`).
-- `MacBrowsersSettingsTab` (macOS) only renders `MacBrowserBridgeSettingsModel`, which owns row states, actions, confirmations and formatted dates over `MacBrowserBridgeController` and the browser host installer (`../../Services/BrowserBridge/AGENTS.md`). The folder-grant open panel is AppKit, built by `MacFilePanels` and injected by `AppDelegate`, which also runs the installer's prompt-free repair once at launch while the bridge is on.
+- `MacBrowsersSettingsTab` (macOS) only renders `MacBrowserBridgeSettingsModel`, which owns row states, actions and formatted dates over `MacBrowserBridgeController` and the browser host installer (`../../Services/BrowserBridge/AGENTS.md`). The folder-grant open panel is AppKit, built by `MacFilePanels` and injected by `AppDelegate`, which also runs the installer's prompt-free repair once per launch when the bridge first listens, and only when `BrowserHostInstaller.mayRepairAtLaunch` allows it (an Applications folder, never translocated).
 - Summary wording for the iOS root is the pure `AppSettingsSummary`. `SupportKeeForgeSection` picks the support surface so call sites do not know the build channel.
 
 ## Invariants
@@ -34,8 +34,8 @@
 ### Browsers tab
 
 - Only browsers this Mac has get a set-up row; Repair rewrites through the installer's repair without a panel, and a cancelled folder panel shows no message.
-- Removing one paired browser and removing them all each go through a confirmation; only the confirmed action calls the controller, and a thrown removal shows a line under the list.
-- The failed-pairing line follows `MacBrowserBridgeController.pairingFailed`; every show of the Settings window clears it and the installer messages (`reload()`).
+- Removing one paired browser and removing them all each go through an NSAlert sheet from `MacSettingsTabController`, like Disconnect and Clear Entries; the confirmed action captures what it removes when asked, so the alert's dismissal cannot change it. A thrown removal shows a line under the list.
+- A pairing that could not be saved is reported by the bridge's alert (`KeeForgeMac/AGENTS.md`), not here. Every show of the Settings window clears the installer and removal messages (`reload()`).
 - Identifiers: `settings.tab.browsers`, `settings.browsers.{toggle,host-list,paired-list,remove-all}`, `settings.browsers.host.<browser>.{set-up,repair,remove}`, `settings.browsers.paired.<client-id>.remove`, `settings.browsers.remove.confirm`.
 
 ### Layout
@@ -61,10 +61,10 @@
 
 ## Tests
 
-- `SettingsWindowControllerTests` covers the native tabs, title, shared width and content-sized heights, within-process selection, non-main window, capture policy, channel-specific updates and accepted/cancelled confirmation effects.
+- `SettingsWindowControllerTests` covers the native tabs, title, shared width and content-sized heights, within-process selection, non-main window, capture policy, channel-specific updates and accepted/cancelled confirmation effects, including both browser removals against a real controller and store.
 - `AppSettingsViewModelTests`, `AppSettingsSummaryTests`, `AutoFillStoreInspectorGroupingTests`, `FeedbackSubmissionServiceTests`; `DatabaseListViewModelTests` for the one-database footer condition.
 - `MacSSHAgentControllerTests` (`KeeForgeMacTests` only): the candidate list, its concealment, and the database the list edits. The tab itself has no UI test.
-- `MacBrowserBridgeSettingsModelTests` (`KeeForgeMacTests` only): row states, installer and controller calls, confirmations, unavailability text and date formatting with an injected clock and locale; `MacFilePanelsTests` for the folder panel. The tab itself has no UI test.
+- `MacBrowserBridgeSettingsModelTests` (`KeeForgeMacTests` only): row states, installer and controller calls, removal failures, unavailability text and date formatting with an injected clock and locale; `MacFilePanelsTests` for the folder panel. The tab itself has no UI test.
 - UI: `AutoFillTipUITests`, `MacAppSuggestionUITests`, `WhatsNewUITests`, `AutoFillStoreInspectorSmokeUITests`; `AutoFillStoreUITests` needs a provisioned device.
 
 ## See also

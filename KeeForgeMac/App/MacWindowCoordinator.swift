@@ -260,12 +260,12 @@ final class MacWindowCoordinator {
         makeWindow(for: session)
     }
 
-    /// An explicit request to show this database: it also counts as the user
-    /// turning to a restored window.
+    /// An explicit request to show this database. Unless `deliberate` is false (a request
+    /// from outside the app), it also counts as the user turning to a restored window.
     @discardableResult
-    func showDatabaseWindow(_ databaseID: UUID) -> Bool {
+    func showDatabaseWindow(_ databaseID: UUID, deliberate: Bool = true) -> Bool {
         guard let controller = databaseWindows[databaseID], controller.window != nil else { return false }
-        noteDeliberateFocus(databaseID)
+        if deliberate { noteDeliberateFocus(databaseID) }
         present(controller)
         return true
     }

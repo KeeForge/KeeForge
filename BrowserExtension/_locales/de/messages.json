@@ -90,13 +90,16 @@
     "message": "Die Kopplung wurde abgelehnt."
   },
   "pairBusy": {
-    "message": "Eine andere Kopplung läuft bereits."
+    "message": "Die Kopplung kann gerade nicht starten. Versuche es in einer Minute erneut."
   },
   "paired": {
     "message": "Mit KeeForge gekoppelt. Du kannst diesen Tab schließen."
   },
   "compareCode": {
     "message": "Prüfe, ob KeeForge denselben Code zeigt, und klicke dort auf Erlauben."
+  },
+  "switchToApp": {
+    "message": "Wenn KeeForge nicht in den Vordergrund kommt, wechsle zu KeeForge."
   },
   "browserLabel": {
     "message": "Browser: $1"

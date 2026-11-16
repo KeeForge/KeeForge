@@ -13,8 +13,8 @@
 - `BrowserPairingStore` owns the paired-browser records (client id, public key, sanitized name, dates) in the app's own defaults through `SettingsService`, and the installation's X25519 private key in the Keychain. It is an actor; a caller that needs a synchronous lookup keeps its own snapshot.
 - The main-actor request handler owns connection-local offers (50 pairs per origin, most recent 8 origins), origin validation, all-open-session reads and the session’s device-owner gate. Eligibility shares `KPGroup.autoFillEntries` with AutoFill, respects database participation, and excludes expired entries and entries with neither a password nor a verification code (the bridge fills no passkeys).
 - Credentials require an offer for that exact origin and database/entry pair. Recheck session identity, unlocked/no-pending-lock state, lock cycle and interactive match after authentication; decrypt off actor, then recheck the lease and content revision before releasing. Never block the main actor on socket work.
-- `BrowserHostInstaller` owns each browser's `com.keevault.browser.json` and the app-local bookmark of that browser's `NativeMessagingHosts` folder. Settings supplies the folder-grant closure (the open panel). It asks for `NativeMessagingHosts` when that exists, else its browser parent, and creates only `NativeMessagingHosts` inside the grant; it never creates a missing browser folder. A parent grant is used once and never bookmarked; a stored bookmark that resolves anywhere but that `NativeMessagingHosts` folder is access lost. Launch repair uses stored grants and never prompts.
-- Per connection: 16 requests in flight, one credential in flight, 30 credential attempts per rolling minute on an injected monotonic clock.
+- `BrowserHostInstaller` owns each browser's `com.keevault.browser.json` and the app-local bookmark of that browser's `NativeMessagingHosts` folder. Settings supplies the folder-grant closure (the open panel). It asks for `NativeMessagingHosts` when that exists, else its browser parent, and creates only `NativeMessagingHosts` inside the grant; it never creates a missing browser folder. A parent grant is used once and never bookmarked; a stored bookmark that resolves anywhere but that `NativeMessagingHosts` folder is access lost. Launch repair uses stored grants, never prompts, and runs only from an Applications folder while this copy's bridge listens (`mayRepairAtLaunch`).
+- Per connection: 16 requests in flight, one credential in flight, 30 credential attempts per rolling minute, and `reveal` and `unlock` together a burst of 3 then one per second, on an injected monotonic clock.
 
 ## Invariants
 
@@ -32,7 +32,7 @@
 - `BrowserBridgeProtocolTests` in `KeeForgeMacTests`: framing, strict decoding, pairing, handshake, rejection paths, authenticated counters and deterministic vectors. The reference client is shared test support.
 - `../../../BrowserExtension/test/vectors.json` is bundled by `UnitTestFixtures`; regeneration instructions are in the test header. The extension tests consume the same file.
 - `BrowserHostInstallerTests`: fake home, isolated defaults, fake bookmarks, the real file code in a temporary directory. No panel and no real browser folder.
-- `BrowserPairingStoreTests`: records, name sanitizing, last-used coalescing and key lifetime, with an injected clock and a fake Keychain. Tests never touch the real Keychain.
+- `BrowserPairingStoreTests`: records, name sanitizing (separators, controls, combining marks, caps), last-used coalescing and key lifetime, with an injected clock and a fake Keychain. Tests never touch the real Keychain.
 
 ## See also
 

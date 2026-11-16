@@ -90,13 +90,16 @@
     "message": "L'abbinamento è stato rifiutato."
   },
   "pairBusy": {
-    "message": "Un altro abbinamento è in corso."
+    "message": "Impossibile avviare l'abbinamento ora. Riprova tra un minuto."
   },
   "paired": {
     "message": "Abbinato a KeeForge. Puoi chiudere questa scheda."
   },
   "compareCode": {
     "message": "Verifica che KeeForge mostri lo stesso codice, poi fai clic su Consenti in KeeForge."
+  },
+  "switchToApp": {
+    "message": "Se KeeForge non compare in primo piano, passa a KeeForge."
   },
   "browserLabel": {
     "message": "Browser: $1"

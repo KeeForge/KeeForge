@@ -5,6 +5,9 @@ import SwiftUI
 /// this Mac, and the browsers paired with it.
 struct MacBrowsersSettingsTab: View {
     @Bindable var model: MacBrowserBridgeSettingsModel
+    /// Each asks for confirmation in an AppKit alert before calling the model.
+    let remove: (MacBrowserBridgeSettingsModel.PairedRow) -> Void
+    let removeAll: () -> Void
 
     var body: some View {
         MacSettingsForm {
@@ -14,7 +17,7 @@ struct MacBrowsersSettingsTab: View {
                 if let message = model.unavailabilityMessage {
                     Text(message).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
                 }
-                settingsCaption("When on, a paired browser can ask for the logins that match the page you’re on, one at a time, while a database is unlocked.", indented: true)
+                settingsCaption("When on, a paired browser can see which logins match a site and fill one after you confirm, while a database is unlocked.", indented: true)
             }
             MacSettingsSeparator()
             MacSettingsRow("Set up a browser:") {
@@ -26,32 +29,17 @@ struct MacBrowsersSettingsTab: View {
             MacSettingsRow("Paired browsers:") {
                 GroupBox { pairedRows.padding(4).frame(maxWidth: .infinity, alignment: .leading) }
                     .accessibilityIdentifier("settings.browsers.paired-list")
-                if model.showsPairingFailure {
-                    Text("Couldn’t save the pairing. Try again from the browser.")
-                        .foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
-                }
                 if model.removalFailed {
                     Text("KeeForge couldn’t remove the pairing. Try again.")
                         .foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
                 }
                 if !model.pairedRows.isEmpty {
-                    Button("Remove All…") { model.requestRemoveAll() }
+                    Button("Remove All…") { removeAll() }
                         .accessibilityIdentifier("settings.browsers.remove-all")
                 }
             }
         }
         .onAppear { model.refreshHosts() }
-        .alert(confirmationTitle, isPresented: Binding {
-            model.confirmation != nil
-        } set: { shown in
-            if !shown { model.cancelConfirmation() }
-        }) {
-            Button(confirmationButton, role: .destructive) { Task { await model.confirm() } }
-                .accessibilityIdentifier("settings.browsers.remove.confirm")
-            Button("Cancel", role: .cancel) { model.cancelConfirmation() }
-        } message: {
-            Text(confirmationMessage)
-        }
     }
 
     @ViewBuilder
@@ -131,32 +119,11 @@ struct MacBrowsersSettingsTab: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("Remove…") { model.requestRemove(row) }
+                        Button("Remove…") { remove(row) }
                             .accessibilityIdentifier("settings.browsers.paired.\(row.id).remove")
                     }
                 }
             }
-        }
-    }
-
-    private var confirmationTitle: String {
-        switch model.confirmation {
-        case .remove(_, let name): String(localized: "Remove \(name)?")
-        case .removeAll, nil: String(localized: "Remove All Browsers?")
-        }
-    }
-
-    private var confirmationMessage: String {
-        switch model.confirmation {
-        case .remove: String(localized: "This browser must pair again before it can fill from KeeForge.")
-        case .removeAll, nil: String(localized: "Every browser must pair again before it can fill from KeeForge.")
-        }
-    }
-
-    private var confirmationButton: String {
-        switch model.confirmation {
-        case .remove: String(localized: "Remove")
-        case .removeAll, nil: String(localized: "Remove All")
         }
     }
 }

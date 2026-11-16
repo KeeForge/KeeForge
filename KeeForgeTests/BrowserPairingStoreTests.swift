@@ -66,7 +66,7 @@ final class BrowserPairingStoreTests: XCTestCase {
         let sanitize = BrowserPairingStore.sanitizedName
         XCTAssertEqual(sanitize("Chrome\nCode matches \u{202E}wolla\u{202C}"), "Chrome Code matches wolla")
         XCTAssertEqual(sanitize("  Fire\u{200B}fox \t\u{2028} Dev\u{2066}\u{FEFF}  "), "Firefox Dev")
-        XCTAssertEqual(sanitize("ab" + "e" + String(repeating: "\u{0301}", count: 300)), "ab", "One grapheme cannot carry hundreds of marks")
+        XCTAssertEqual(sanitize("ab" + "e" + String(repeating: "\u{0301}", count: 300)), "abe\u{0301}\u{0301}", "One grapheme cannot carry hundreds of marks")
         XCTAssertEqual(sanitize(String(repeating: "a ", count: 40)).count, 63, "Capped at 64 characters, then trimmed")
         XCTAssertEqual(sanitize("\u{202E}\n \u{200F}"), "")
         for name in ["Chrome\nCode matches \u{202E}wolla\u{202C}", String(repeating: "x y", count: 30)] {
@@ -74,6 +74,25 @@ final class BrowserPairingStoreTests: XCTestCase {
         }
         XCTAssertEqual(BrowserPairingStore.displayName("\u{202E} "), String(localized: "Unnamed browser"))
         XCTAssertEqual(BrowserPairingStore.displayName(" Safari "), "Safari")
+    }
+
+    func testSanitizerFoldsSeparatorsAndLimitsCombiningMarks() {
+        let sanitize = BrowserPairingStore.sanitizedName
+        XCTAssertEqual(sanitize("Chrome\u{2028}Allow\u{2029}now\r\nOK\u{000B}\u{000C}\u{0085}x"), "Chrome Allow now OK x",
+                       "Line and paragraph separators and every newline become one space")
+        XCTAssertEqual(sanitize("A\u{00A0}B\u{2003}C\u{3000}D\u{202F}E\u{205F}F\u{1680}G"), "A B C D E F G",
+                       "Non-plain spaces fold to a plain space")
+        XCTAssertEqual(sanitize("a\u{0301}\u{0302}\u{0303}\u{0304}b"), "a\u{0301}\u{0302}b", "At most 2 marks per character")
+        XCTAssertEqual(sanitize("a\u{0301}\u{200B}\u{0302}\u{2066}\u{0303}"), "a\u{0301}\u{0302}",
+                       "Removed format characters do not reset the mark count")
+        XCTAssertEqual(sanitize("a\u{20DD}\u{0903}\u{0301}"), "a\u{20DD}\u{0903}", "Enclosing and spacing marks count too")
+        XCTAssertEqual(sanitize("e\u{0301}\u{0301} e\u{0301}\u{0301}"), "e\u{0301}\u{0301} e\u{0301}\u{0301}", "Each character gets its own 2")
+        let marked = String(repeating: "e\u{0301}\u{0301}", count: 100)
+        let capped = sanitize(marked)
+        XCTAssertEqual(capped.count, 64)
+        XCTAssertLessThanOrEqual(capped.unicodeScalars.count, 256)
+        let zalgo = sanitize(String(repeating: "Z" + String(repeating: "\u{0336}", count: 50), count: 20))
+        XCTAssertEqual(zalgo, String(repeating: "Z\u{0336}\u{0336}", count: 20))
     }
 
     func testRejectsNonRaw32BytePublicKeys() async throws {

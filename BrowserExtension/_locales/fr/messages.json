@@ -90,13 +90,16 @@
     "message": "Le jumelage a été refusé."
   },
   "pairBusy": {
-    "message": "Un autre jumelage est en cours."
+    "message": "Impossible de lancer le jumelage pour le moment. Réessayez dans une minute."
   },
   "paired": {
     "message": "Jumelé avec KeeForge. Vous pouvez fermer cet onglet."
   },
   "compareCode": {
     "message": "Vérifiez que KeeForge affiche le même code, puis cliquez sur Autoriser dans KeeForge."
+  },
+  "switchToApp": {
+    "message": "Si KeeForge ne passe pas au premier plan, basculez vers KeeForge."
   },
   "browserLabel": {
     "message": "Navigateur : $1"

@@ -51,19 +51,25 @@ actor BrowserPairingStore {
     }
 
     /// The browser-supplied name as plain text: whitespace runs become one space, control
-    /// and format characters (bidirectional overrides included) are removed, and the result is
-    /// trimmed and capped at 64 characters and 256 Unicode scalars. It can be empty; show it with `displayName(_:)`.
+    /// and format characters (bidirectional overrides included) are removed, each character keeps
+    /// at most 2 combining marks, and the result is trimmed and capped at 64 characters and 256
+    /// Unicode scalars. It can be empty; show it with `displayName(_:)`.
     static func sanitizedName(_ name: String) -> String {
         var scalars = String.UnicodeScalarView()
         var pendingSpace = false
+        var marks = 0
         for scalar in name.unicodeScalars {
             if scalar.properties.isWhitespace {
                 pendingSpace = !scalars.isEmpty
+                marks = 0
                 continue
             }
             switch scalar.properties.generalCategory {
             case .control, .format, .lineSeparator, .paragraphSeparator: continue
-            default: break
+            case .nonspacingMark, .spacingMark, .enclosingMark:
+                marks += 1
+                guard marks <= 2 else { continue }
+            default: marks = 0
             }
             if pendingSpace { scalars.append(" ") }
             pendingSpace = false

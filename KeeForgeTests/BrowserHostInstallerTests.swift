@@ -129,9 +129,28 @@ final class BrowserHostInstallerTests: XCTestCase {
         defaults.set(Data(directory.deletingLastPathComponent().path.utf8), forKey: storedBookmarkKey)
         let moved = installer(app: "/elsewhere/KeeForge.app")
         XCTAssertEqual(moved.state(for: .chrome), .accessLost)
-        XCTAssertEqual(moved.repairAll()[.chrome], .accessLost)
+        moved.repairAll()
+        XCTAssertEqual(moved.state(for: .chrome), .accessLost)
         await assertError(.accessLost) { try moved.remove(.chrome) }
         XCTAssertEqual(try Data(contentsOf: manifestURL(directory)), original)
+    }
+
+    func testLaunchRepairOnlyFromAnApplicationsFolderWhileTheBridgeListens() {
+        let home = URL(fileURLWithPath: "/Users/test", isDirectory: true)
+        func may(_ path: String, listening: Bool = true) -> Bool {
+            BrowserHostInstaller.mayRepairAtLaunch(appBundle: URL(fileURLWithPath: path), home: home, bridgeListening: listening)
+        }
+        XCTAssertTrue(may("/Applications/KeeForge.app"))
+        XCTAssertTrue(may("/Applications/Utilities/KeeForge.app"))
+        XCTAssertTrue(may("/Users/test/Applications/KeeForge.app"))
+        XCTAssertFalse(may("/Applications/KeeForge.app", listening: false), "Off, unavailable, or served by another copy")
+        XCTAssertFalse(may("/private/var/folders/xy/abc/T/AppTranslocation/1234-ABCD/d/KeeForge.app"), "Translocated")
+        XCTAssertFalse(may("/Users/test/Downloads/KeeForge.app"))
+        XCTAssertFalse(may("/Users/test/Library/Developer/Xcode/DerivedData/KeeForge/Build/Products/Debug/KeeForge.app"))
+        XCTAssertFalse(may("/Volumes/KeeForge/KeeForge.app"), "Run from the disk image")
+        XCTAssertFalse(may("/ApplicationsOld/KeeForge.app"))
+        XCTAssertFalse(may("/Users/other/Applications/KeeForge.app"))
+        XCTAssertFalse(may("/Applications/../Users/test/Downloads/KeeForge.app"))
     }
 
     func testMissingBrowserParentRefused() async {
@@ -145,12 +164,14 @@ final class BrowserHostInstallerTests: XCTestCase {
         try await subject.setUp(.chrome)
         try FileManager.default.removeItem(at: manifestURL(directory))
         XCTAssertEqual(subject.state(for: .chrome), .needsRepair)
-        XCTAssertEqual(subject.repairAll()[.chrome], .ready)
+        subject.repairAll()
+        XCTAssertEqual(subject.state(for: .chrome), .ready)
         var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL(directory))) as? [String: Any])
         json["description"] = "outdated"
         try JSONSerialization.data(withJSONObject: json).write(to: manifestURL(directory))
         XCTAssertEqual(subject.state(for: .chrome), .needsRepair)
-        XCTAssertEqual(subject.repairAll()[.chrome], .ready)
+        subject.repairAll()
+        XCTAssertEqual(subject.state(for: .chrome), .ready)
         XCTAssertEqual(requests.count, 1)
     }
 
@@ -159,7 +180,8 @@ final class BrowserHostInstallerTests: XCTestCase {
         try await installer().setUp(.chrome)
         let moved = installer(app: "/Users/test/Applications/KeeForge.app")
         XCTAssertEqual(moved.state(for: .chrome), .needsRepair)
-        XCTAssertEqual(moved.repairAll()[.chrome], .ready)
+        moved.repairAll()
+        XCTAssertEqual(moved.state(for: .chrome), .ready)
         XCTAssertEqual(try Data(contentsOf: manifestURL(directory)), try moved.manifest(for: .chrome))
         XCTAssertEqual(requests.count, 1)
     }
@@ -171,7 +193,8 @@ final class BrowserHostInstallerTests: XCTestCase {
         stale = true
         let moved = installer(app: "/elsewhere/KeeForge.app")
         XCTAssertEqual(moved.state(for: .chrome), .accessLost)
-        XCTAssertEqual(moved.repairAll()[.chrome], .accessLost)
+        moved.repairAll()
+        XCTAssertEqual(moved.state(for: .chrome), .accessLost)
         XCTAssertEqual(try Data(contentsOf: manifestURL(directory)), original)
         XCTAssertEqual(requests.count, 1)
     }
@@ -203,7 +226,8 @@ final class BrowserHostInstallerTests: XCTestCase {
         try await subject.setUp(.chrome)
         let foreign = Data(#"{"name":"foreign","path":"/Applications/KeeForge.app/host"}"#.utf8)
         try foreign.write(to: manifestURL(directory))
-        XCTAssertEqual(subject.repairAll()[.chrome], .needsRepair)
+        subject.repairAll()
+        XCTAssertEqual(subject.state(for: .chrome), .needsRepair)
         await assertError(.foreignManifest) { try await subject.setUp(.chrome) }
         await assertError(.foreignManifest) { try subject.remove(.chrome) }
         XCTAssertEqual(try Data(contentsOf: manifestURL(directory)), foreign)
@@ -248,7 +272,8 @@ final class BrowserHostInstallerTests: XCTestCase {
         try original.write(to: outside)
         try FileManager.default.removeItem(at: manifestURL(directory))
         try FileManager.default.createSymbolicLink(at: manifestURL(directory), withDestinationURL: outside)
-        XCTAssertEqual(subject.repairAll()[.chrome], .needsRepair)
+        subject.repairAll()
+        XCTAssertEqual(subject.state(for: .chrome), .needsRepair)
         await assertError(.unsafeManifest) { try await subject.setUp(.chrome) }
         await assertError(.unsafeManifest) { try subject.remove(.chrome) }
         XCTAssertEqual(try Data(contentsOf: outside), original)
