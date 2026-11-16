@@ -491,7 +491,15 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         await captureLauncherSheet(
             opening: { self.databasesWindow.buttons["databases.create-new"].firstMatch.click() },
             hosting: "database-create.cancel-button",
-            "01b-databases-create-new"
+            "01b-databases-create-new",
+            then: [
+                ("01b1-databases-create-advanced", { $0.buttons["database-create.advanced-options"].firstMatch.click() }),
+                ("01b2-databases-create-webdav", { sheet in
+                    sheet.popUpButtons["database-create.destination-picker"].firstMatch.click()
+                    self.app.menuItems["WebDAV"].firstMatch.click()
+                }),
+                ("01b3-databases-create-advanced-closed", { $0.buttons["database-create.advanced-options"].firstMatch.click() }),
+            ]
         ) {
             self.app.buttons["database-create.cancel-button"].firstMatch.click()
         }
@@ -1642,6 +1650,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         opening open: () -> Void,
         hosting identifier: String?,
         _ name: String,
+        then steps: [(name: String, step: (XCUIElement) -> Void)] = [],
         closing close: () -> Void
     ) async {
         guard waitForStableForeground() else {
@@ -1658,6 +1667,11 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         }
         settle(0.6)
         await snapWindow(sheet, name)
+        for (stepName, step) in steps {
+            step(sheet)
+            settle(0.6)
+            await snapWindow(sheet, stepName)
+        }
         close()
         if sheet.waitForNonExistence(timeout: 5) == false {
             app.typeKey(.escape, modifierFlags: [])

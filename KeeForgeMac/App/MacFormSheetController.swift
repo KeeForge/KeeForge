@@ -37,13 +37,14 @@ final class MacFormSheetController: NSWindowController {
     init(title: String, content: NSViewController, size: NSSize,
          cancelTitle: String = String(localized: "Cancel"), defaultTitle: String = String(localized: "Save"),
          showsFooter: Bool = true, tabs: NSView? = nil, accessory: NSView? = nil,
+         maxHeight: CGFloat = MacSheetMetrics.maxHeight,
          cancellationScope: MacSheetCancellationScope = MacSheetCancellationScope()) {
         self.cancellationScope = cancellationScope
         ownsFooter = showsFooter
         bodyController = content
         cancelButton = NSButton(title: cancelTitle, target: nil, action: nil)
         defaultButton = NSButton(title: defaultTitle, target: nil, action: nil)
-        let contentSize = NSSize(width: size.width, height: min(size.height, MacSheetMetrics.maxHeight))
+        let contentSize = NSSize(width: size.width, height: min(size.height, maxHeight))
         let window = FormSheetWindow(contentRect: NSRect(origin: .zero, size: contentSize),
                                      styleMask: [.titled], backing: .buffered, defer: true)
         window.isReleasedWhenClosed = false
@@ -145,12 +146,14 @@ final class MacFormSheetController: NSWindowController {
         }
     }
 
-    convenience init<Content: View>(title: String, content: Content, size: NSSize, showsFooter: Bool = true) {
+    /// `maxHeight` above `MacSheetMetrics.maxHeight` only for a sheet on the Databases window, which grows to fit it.
+    convenience init<Content: View>(title: String, content: Content, size: NSSize, showsFooter: Bool = true,
+                                    maxHeight: CGFloat = MacSheetMetrics.maxHeight) {
         let scope = MacSheetCancellationScope()
         let host = NSHostingController(rootView: AnyView(content.disabled(false).environment(\.macSheetCancellationScope, scope).modifier(MacHostingAppearance())))
         host.sizingOptions = []
         // The transitional forms retain their own navigation toolbar.
-        self.init(title: title, content: host, size: size, showsFooter: showsFooter, cancellationScope: scope)
+        self.init(title: title, content: host, size: size, showsFooter: showsFooter, maxHeight: maxHeight, cancellationScope: scope)
         updateHostedBusy = { [weak host] busy in
             host?.rootView = AnyView(content.disabled(busy).environment(\.macSheetCancellationScope, scope).modifier(MacHostingAppearance()))
         }

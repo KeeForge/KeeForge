@@ -32,6 +32,8 @@ struct PasswordInputRow<Actions: View>: View {
     private let usesPasswordAutoFill: Bool
     /// `.vertical` lets a revealed value wrap and grow; the masked field stays one line.
     private let axis: Axis
+    /// Replaces the title as placeholder, for a row whose label already names the field.
+    private let prompt: Text?
     private let actions: Actions
 
     init(
@@ -43,6 +45,7 @@ struct PasswordInputRow<Actions: View>: View {
         onVisibilityToggle: (() -> Void)? = nil,
         usesPasswordAutoFill: Bool = true,
         axis: Axis = .horizontal,
+        prompt: Text? = nil,
         @ViewBuilder actions: () -> Actions = { EmptyView() }
     ) {
         self.title = title
@@ -53,6 +56,7 @@ struct PasswordInputRow<Actions: View>: View {
         self.onVisibilityToggle = onVisibilityToggle
         self.usesPasswordAutoFill = usesPasswordAutoFill
         self.axis = axis
+        self.prompt = prompt
         self.actions = actions()
     }
 
@@ -60,9 +64,9 @@ struct PasswordInputRow<Actions: View>: View {
         HStack(spacing: 12) {
             Group {
                 if isVisible {
-                    TextField(title, text: $text, axis: axis)
+                    TextField(title, text: $text, prompt: prompt, axis: axis)
                 } else {
-                    SecureField(title, text: $text)
+                    SecureField(title, text: $text, prompt: prompt)
                 }
             }
             .textContentType(usesPasswordAutoFill ? .newPassword : nil)
