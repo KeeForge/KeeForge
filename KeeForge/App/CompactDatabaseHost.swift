@@ -70,6 +70,11 @@ struct CompactDatabaseHost: View {
             }
 
             if hasUnlockedInThisSession, case .locked = newValue {
+                if viewModel.staysSelectedAfterLock {
+                    // Re-presents this database's unlock page over the list.
+                    hasUnlockedInThisSession = false
+                    return
+                }
                 // Manual locks only. An automatic lock can fire as the app is
                 // being backgrounded, and a snapshot added at that moment is
                 // exactly what iOS would capture for the app switcher — the

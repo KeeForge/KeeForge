@@ -526,6 +526,16 @@ final class DatabaseViewModel {
     var didManuallyLock = false
     /// Why the session last locked from open; nil before the first unlock and after each one.
     private(set) var lastLockCause: LockCause?
+
+    /// Whether the last lock leaves this database selected on its unlock page,
+    /// where biometric auto-unlock can run, rather than closing it to the list.
+    var staysSelectedAfterLock: Bool {
+        switch lastLockCause {
+        case .inactivity, .background: true
+        case .manual, .system, nil: false
+        }
+    }
+
     private(set) var rootGroup: KPGroup? {
         didSet { rebuildDerivedState() }
     }

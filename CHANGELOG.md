@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- On iPhone, and on iPad in a narrow window, a database that locks by itself, after the Auto-Lock timeout or when you leave the app, now stays on its unlock page instead of going back to the database list, so Auto-Unlock with Face ID or Touch ID opens it again right away (#312). Locking with the Lock button still returns to the list.
+
 ## v1.23.0 (2026-11-15)
 
 ### New Features

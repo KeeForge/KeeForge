@@ -25,6 +25,18 @@ final class LockUnlockUITests: KeeForgeUITestCase {
         )
     }
 
+    func testManualLockOnCompactReturnsToTheDatabaseList() throws {
+        unlockSuccessfully()
+        guard usesRegularWidthLayout == false else {
+            throw XCTSkip("The regular layout keeps the locked database in the detail column")
+        }
+
+        tapElement(currentLockButton())
+
+        XCTAssertTrue(app.buttons["database.row"].waitForExistence(timeout: 10), "A manual lock must return to the database list")
+        XCTAssertFalse(app.secureTextFields["unlock.password.field"].exists)
+    }
+
     // Repeated-failure/lockout behavior is BackoffUITests' responsibility
     // (5 wrong unlocks asserting the backoff message); this test only proves
     // a single wrong attempt surfaces an error before the correct password
@@ -62,5 +74,60 @@ final class LockUnlockUITests: KeeForgeUITestCase {
             app.secureTextFields["unlock.password.field"].waitForExistence(timeout: 5),
             "Password field should become secure again after hiding"
         )
+    }
+}
+
+/// An automatic lock leaves the database on its unlock page, where biometric
+/// auto-unlock runs, instead of closing it back to the list (#312). The
+/// simulator has no enrolled biometrics, so the page shows the password form.
+@MainActor
+class AutomaticLockUnlockPageUITestCase: KeeForgeUITestCase {
+    func leaveAndReturnToTheApp() {
+        XCUIDevice.shared.press(.home)
+        _ = app.wait(for: .runningBackground, timeout: 10)
+        app.activate()
+        _ = app.wait(for: .runningForeground, timeout: 10)
+    }
+
+    func assertLandsOnTheUnlockPage(file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(
+            app.secureTextFields["unlock.password.field"].waitForExistence(timeout: 10),
+            "An automatic lock must leave the database on its unlock page",
+            file: file,
+            line: line
+        )
+        XCTAssertFalse(app.buttons["lock.button"].exists, "The vault must be locked", file: file, line: line)
+
+        unlockSuccessfully(file: file, line: line)
+    }
+}
+
+@MainActor
+final class BackgroundLockUnlockPageUITests: AutomaticLockUnlockPageUITestCase {
+    override func configureLaunch(app: XCUIApplication) throws {
+        app.launchArguments += ["-KeeForge.lockOnBackground", "YES"]
+    }
+
+    func testBackgroundLockStaysOnTheUnlockPage() {
+        unlockSuccessfully()
+
+        leaveAndReturnToTheApp()
+
+        assertLandsOnTheUnlockPage()
+    }
+}
+
+@MainActor
+final class InactivityLockUnlockPageUITests: AutomaticLockUnlockPageUITestCase {
+    override func configureLaunch(app: XCUIApplication) throws {
+        app.launchArguments += ["-KeeForge.lockOnBackground", "NO", "-KeeForge.autoLockTimeout", "Immediately"]
+    }
+
+    func testInactivityLockStaysOnTheUnlockPage() {
+        unlockSuccessfully()
+
+        leaveAndReturnToTheApp()
+
+        assertLandsOnTheUnlockPage()
     }
 }
