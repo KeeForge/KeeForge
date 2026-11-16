@@ -5552,6 +5552,58 @@
         }
       }
     },
+    "A clearer Recycle Bin" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein übersichtlicherer Papierkorb"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una Papelera más clara"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une Corbeille plus claire"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un Cestino più chiaro"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ごみ箱がわかりやすくなりました"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Более понятная Корзина"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更清晰的回收站"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更清楚的資源回收筒"
+          }
+        }
+      }
+    },
     "A database with this name already exists in this cloud folder." : {
       "localizations" : {
         "de" : {
@@ -5756,6 +5808,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「新增資料庫」表單中新增的「進階」部分，可讓你選擇 AES-256 或 ChaCha20，以及解鎖所需的運算強度——均衡、強或最高。預設設定維持不變。"
+          }
+        }
+      }
+    },
+    "A new KeeForge for Mac" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein neues KeeForge für den Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nuevo KeeForge para Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nouveau KeeForge pour Mac"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nuovo KeeForge per Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 用 KeeForge が新しくなりました"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новый KeeForge для Mac"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全新的 Mac 版 KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全新的 Mac 版 KeeForge"
           }
         }
       }
@@ -10952,6 +11056,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自動填寫已開啟，但未選取任何資料庫。"
+          }
+        }
+      }
+    },
+    "AutoFill now unlocks in a sheet that names the database, with your master password and Face ID together." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill wird jetzt in einer eigenen Ansicht entsperrt, die die Datenbank nennt und dein Master-Passwort und Face ID zusammen anbietet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El autorrelleno ahora se desbloquea en una hoja que indica la base de datos y reúne tu contraseña maestra y Face ID."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le remplissage automatique se déverrouille désormais dans une fenêtre qui indique la base de données et réunit votre mot de passe principal et Face ID."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'inserimento automatico ora si sblocca in una schermata che indica il database e riunisce la password principale e Face ID."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力のロック解除は、データベース名が表示されるシートで行うようになり、マスターパスワードと Face ID を同じ画面で使えます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автозаполнение теперь разблокируется на отдельном экране, где указана база данных и собраны вместе мастер-пароль и Face ID."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动填充现在在一个显示数据库名称的面板中解锁，主密码和 Face ID 集中在一起。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動填寫現在在一個顯示資料庫名稱的面板中解鎖，主密碼和 Face ID 集中在一起。"
+          }
+        }
+      }
+    },
+    "AutoFill now unlocks in a sheet that names the database, with your master password and Touch ID together." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill wird jetzt in einer eigenen Ansicht entsperrt, die die Datenbank nennt und dein Master-Passwort und Touch ID zusammen anbietet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El autorrelleno ahora se desbloquea en una hoja que indica la base de datos y reúne tu contraseña maestra y Touch ID."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le remplissage automatique se déverrouille désormais dans une fenêtre qui indique la base de données et réunit votre mot de passe principal et Touch ID."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'inserimento automatico ora si sblocca in una schermata che indica il database e riunisce la password principale e Touch ID."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力のロック解除は、データベース名が表示されるシートで行うようになり、マスターパスワードと Touch ID を同じ画面で使えます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автозаполнение теперь разблокируется на отдельном экране, где указана база данных и собраны вместе мастер-пароль и Touch ID."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动填充现在在一个显示数据库名称的面板中解锁，主密码和触控 ID 集中在一起。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動填寫現在在一個顯示資料庫名稱的面板中解鎖，主密碼和觸控 ID 集中在一起。"
           }
         }
       }
@@ -26903,6 +27111,58 @@
         }
       }
     },
+    "Each database opens in its own window, and closing a window locks only that database. Choose Window → Databases to open, add, or create another." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jede Datenbank öffnet sich in einem eigenen Fenster, und das Schließen eines Fensters sperrt nur diese Datenbank. Wähle Fenster → Datenbanken, um eine weitere zu öffnen, hinzuzufügen oder zu erstellen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada base de datos se abre en su propia ventana, y al cerrar una ventana solo se bloquea esa base de datos. Elige Ventana → Bases de datos para abrir, añadir o crear otra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque base de données s'ouvre dans sa propre fenêtre, et fermer une fenêtre ne verrouille que cette base de données. Choisissez Fenêtre → Bases de données pour en ouvrir, en ajouter ou en créer une autre."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ogni database si apre in una finestra propria e chiudere una finestra blocca solo quel database. Scegli Finestra → Database per aprirne, aggiungerne o crearne un altro."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースはそれぞれ専用のウインドウで開き、ウインドウを閉じるとそのデータベースだけがロックされます。ほかのデータベースを開く、追加する、作成するには、「ウインドウ」→「データベース」を選びます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каждая база данных открывается в отдельном окне, а закрытие окна блокирует только эту базу данных. Выберите Окно → Базы данных, чтобы открыть, добавить или создать ещё одну."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每个数据库在各自的窗口中打开，关闭窗口只会锁定该数据库。选择“窗口”→“数据库”可打开、添加或创建其他数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個資料庫在各自的視窗中開啟，關閉視窗只會鎖定該資料庫。選擇「視窗」→「資料庫」可開啟、加入或建立其他資料庫。"
+          }
+        }
+      }
+    },
     "Earlier Version" : {
       "localizations" : {
         "de" : {
@@ -38577,6 +38837,58 @@
         }
       }
     },
+    "KeeForge is rebuilt as a native Mac app. Each database window shows the sidebar, your entries, and the selected entry side by side, and you edit an entry right where you read it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge wurde als native Mac-App neu entwickelt. Jedes Datenbankfenster zeigt die Seitenleiste, deine Einträge und den ausgewählten Eintrag nebeneinander, und du bearbeitest einen Eintrag direkt dort, wo du ihn liest."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge se ha rehecho como una app nativa para Mac. Cada ventana de base de datos muestra la barra lateral, tus entradas y la entrada seleccionada una al lado de la otra, y editas una entrada justo donde la lees."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge a été entièrement repensé comme une app Mac native. Chaque fenêtre de base de données affiche côte à côte la barre latérale, vos entrées et l'entrée sélectionnée, et vous modifiez une entrée là où vous la lisez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge è stato ricostruito come app nativa per Mac. Ogni finestra di database mostra affiancati la barra laterale, le tue voci e la voce selezionata, e modifichi una voce proprio dove la leggi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge はネイティブの Mac アプリとして作り直されました。各データベースウインドウには、サイドバー、エントリの一覧、選択したエントリが並んで表示され、エントリは表示している場所でそのまま編集できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge создан заново как нативное приложение для Mac. В каждом окне базы данных рядом показаны боковая панель, ваши записи и выбранная запись, а редактировать запись можно прямо там, где вы её читаете."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 已重新打造为原生 Mac App。每个数据库窗口并排显示边栏、你的条目和所选条目，你可以在查看条目的位置直接编辑。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 已重新打造為原生 Mac App。每個資料庫視窗並排顯示側邊欄、你的項目和所選項目，你可以在檢視項目的位置直接編輯。"
+          }
+        }
+      }
+    },
     "KeeForge is still saving this database. Try again in a moment." : {
       "localizations" : {
         "de" : {
@@ -44202,6 +44514,58 @@
         }
       }
     },
+    "More when you touch and hold" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehr beim Gedrückthalten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más opciones al mantener pulsado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus d'options avec un appui prolongé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Più opzioni tenendo premuto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "長押しでできることが増えました"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Больше действий при касании с удержанием"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住即可使用更多操作"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住即可使用更多操作"
+          }
+        }
+      }
+    },
     "Most databases never need this" : {
       "localizations" : {
         "de" : {
@@ -49278,6 +49642,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟「設定」"
+          }
+        }
+      }
+    },
+    "Open several databases at once" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehrere Datenbanken gleichzeitig öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre varias bases de datos a la vez"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez plusieurs bases de données à la fois"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri più database contemporaneamente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数のデータベースを同時に開く"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открывайте несколько баз данных одновременно"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同时打开多个数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同時開啟多個資料庫"
           }
         }
       }
@@ -69655,6 +70071,58 @@
         }
       }
     },
+    "The Recycle Bin shows which group each item came from and when it was deleted. Touch and hold an item to restore it, or choose Restore to Group… to put it somewhere else." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Papierkorb zeigt, aus welcher Gruppe jedes Objekt stammt und wann es gelöscht wurde. Halte ein Objekt gedrückt, um es wiederherzustellen, oder wähle „In Gruppe wiederherstellen …“, um es woanders abzulegen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La Papelera muestra de qué grupo procede cada elemento y cuándo se eliminó. Mantén pulsado un elemento para restaurarlo, o elige «Restaurar en grupo…» para colocarlo en otro lugar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La Corbeille indique de quel groupe provient chaque élément et quand il a été supprimé. Maintenez le doigt sur un élément pour le restaurer, ou choisissez « Restaurer dans un groupe… » pour le placer ailleurs."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il Cestino mostra da quale gruppo proviene ogni elemento e quando è stato eliminato. Tieni premuto un elemento per ripristinarlo, oppure scegli “Ripristina nel gruppo…” per metterlo altrove."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ごみ箱に、各項目の元のグループと削除日時が表示されます。項目を長押しすると復元でき、「グループに復元…」を選ぶと別の場所に戻せます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В Корзине видно, из какой группы каждый объект и когда он был удалён. Коснитесь объекта и удерживайте его, чтобы восстановить, или выберите «Восстановить в группу…», чтобы поместить его в другое место."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回收站会显示每个项目原来所在的群组和删除时间。按住项目即可恢复，或选择“恢复到群组…”将其放到其他位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資源回收筒會顯示每一項原本所在的群組和刪除時間。按住其中一項即可回復，或選擇「回復至群組…」將其放到其他位置。"
+          }
+        }
+      }
+    },
     "The remote database could not be found." : {
       "localizations" : {
         "de" : {
@@ -75723,6 +76191,58 @@
         }
       }
     },
+    "Touch and hold an entry in any list to copy its verification code or change its icon." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte einen Eintrag in einer beliebigen Liste gedrückt, um seinen Bestätigungscode zu kopieren oder sein Symbol zu ändern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantén pulsada una entrada en cualquier lista para copiar su código de verificación o cambiar su icono."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maintenez le doigt sur une entrée dans n'importe quelle liste pour copier son code de vérification ou changer son icône."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tieni premuta una voce in qualsiasi elenco per copiarne il codice di verifica o cambiarne l'icona."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どのリストでも、エントリを長押しすると確認コードをコピーしたり、アイコンを変更したりできます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Коснитесь записи в любом списке и удерживайте её, чтобы скопировать код проверки или изменить значок."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在任意列表中按住条目，即可拷贝其验证码或更改其图标。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在任何列表中按住項目，即可拷貝其驗證碼或更改其圖示。"
+          }
+        }
+      }
+    },
     "Touch and hold an entry in the list to copy its username or password. Copying a password still asks for Face ID, Touch ID, or your passcode." : {
       "localizations" : {
         "de" : {
@@ -77493,6 +78013,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖資料庫以檢視群組和項目。"
+          }
+        }
+      }
+    },
+    "Unlock AutoFill in one place" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill an einem Ort entsperren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea el autorrelleno en un solo lugar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez le remplissage automatique au même endroit"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca l'inserimento automatico in un unico posto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力のロック解除を 1 か所で"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разблокировка автозаполнения в одном месте"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在一处解锁自动填充"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在同一處解鎖自動填寫"
           }
         }
       }

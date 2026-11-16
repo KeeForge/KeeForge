@@ -110,6 +110,26 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
         )
     }
 
+    func testVersion123CatalogShowsEachPlatformItsOwnHighlightsAndNamesTheDeviceBiometry() throws {
+        let iOSRelease = try XCTUnwrap(
+            WhatsNewCatalog.release(version: "1.23.0", platform: .iOS, deviceHasTouchID: false)
+        )
+        let touchIDRelease = try XCTUnwrap(
+            WhatsNewCatalog.release(version: "1.23.0", platform: .iOS, deviceHasTouchID: true)
+        )
+        let macOSRelease = try XCTUnwrap(
+            WhatsNewCatalog.release(version: "1.23.0", platform: .macOS)
+        )
+
+        XCTAssertEqual(
+            iOSRelease.features.map(\.id),
+            ["entry-row-menu", "recycle-bin-origin", "autofill-unlock-sheet"]
+        )
+        XCTAssertEqual(macOSRelease.features.map(\.id), ["mac-native-app", "mac-multiple-databases"])
+        XCTAssertTrue(String(localized: try XCTUnwrap(iOSRelease.features.last).detail).contains("Face ID"))
+        XCTAssertTrue(String(localized: try XCTUnwrap(touchIDRelease.features.last).detail).contains("Touch ID"))
+    }
+
     func testCatalogFiltersPlatformSpecificFeatures() throws {
         let iOSRelease = try XCTUnwrap(
             WhatsNewCatalog.release(version: "1.10.1", platform: .iOS)

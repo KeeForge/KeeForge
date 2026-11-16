@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.23.0 (2026-11-15)
+
 ### New Features
 
 - On Mac, open several databases at once, each in its own window. A new Databases window lists your databases and opens, adds, creates, or connects to them; Window ▸ Databases brings it back. Closing a database's window locks that database only. Windows that were open when you quit come back on relaunch, locked, where you left them. Database ▸ Lock All Databases locks every open database.
@@ -26,22 +28,6 @@
 - In the entry editor on iPhone and iPad, each custom field is one row with its name and value. Protect Field and Remove Field are in the row's menu, and Reorder Fields moves them.
 - On Mac, right-click or Control-click KeeForge's menu bar icon for Open KeeForge and Quit KeeForge.
 
-### Changes
-
-- On Mac, explanations in Settings, Database Settings and the master key, encryption and server sheets are larger and shorter, with the longer caveats behind a help button.
-- On Mac, Auto-Lock now defaults to 5 minutes of inactivity and offers 30 seconds, 1 minute, 5 minutes, or Never. Immediately is gone on Mac, where it never locked a database you left open; Mac installs set to Immediately, or never changed, now lock after 5 minutes of inactivity. To lock as soon as you leave KeeForge, turn on “When KeeForge is in the background for” in Settings ▸ Security. iPhone and iPad are unchanged.
-- On Mac, quick search and the AutoFill picker have a new look that matches the rest of the app, and the Light, Dark, or System theme in Settings ▸ Appearance now applies to every window, sheet, panel, and alert.
-- Clipboard Clear Timeout in Settings has a Never option, on iPhone, iPad, and Mac (#210). A copied value then stays until you copy something else or the database locks; on iPhone and iPad, locking when KeeForge goes to the background still keeps it so you can paste. The default stays 30 seconds.
-- Sorting by title puts entries with the same title in order of their user name, such as several verification codes for one service (#271).
-- Scanning a verification-code QR code or pasting a setup link in the entry editor fills an empty title and user name from the code's issuer and account, as adding a code from New already did (#270). A title or user name you already entered is kept.
-- AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
-  - An entry for an IP address, such as a router, is suggested only on that exact address. Before, entries for other addresses ending in the same two numbers appeared as possible matches.
-  - An entry for a subdomain is no longer suggested or filled on a parent that unrelated sites share, such as `localhost`, `github.io`, or `co.uk`.
-  - A passkey saved for `www.co.uk` is no longer offered on `co.uk`.
-  - A page on `www.www.example.com` no longer fills every entry for `example.com`.
-  - An entry URL that starts with another scheme and `://`, such as `androidapp://`, `ftp://`, or `ssh://`, no longer matches a website or appears in the system's suggestions. Before, an Android app stored as `androidapp://com.mybank.app` matched the website `mybank.app`.
-  - A URL is read the way browsers read it: a backslash counts as a slash, so `https://example.com\@other.example` matches `example.com`, not `other.example`.
-
 ### Fixes
 
 - On iPhone, iPad, and Mac, an entry's website opens only when it is an `http` or `https` address, or a bare address such as `example.com`, which opens as `https://example.com`. Any other value, such as a `file:`, `javascript:`, or another app's link, is shown as plain text you can copy, with no open button.
@@ -61,6 +47,22 @@
 - An AutoFill suggestion for a website no longer fills an entry whose URL has since changed to another site; the picker opens instead.
 - Password import skips rows that contain a KeePass field reference (`{REF:…}`) and lists them with the other skipped rows. A verification-code setup link no longer prefills a title or user name that contains one.
 - A database whose groups or data nest more than 256 levels deep now reports that it can't be opened instead of closing KeeForge or AutoFill, and a save that would nest that deeply is refused with the group or entry named.
+
+### Changes
+
+- On Mac, explanations in Settings, Database Settings and the master key, encryption and server sheets are larger and shorter, with the longer caveats behind a help button.
+- On Mac, Auto-Lock now defaults to 5 minutes of inactivity and offers 30 seconds, 1 minute, 5 minutes, or Never. Immediately is gone on Mac, where it never locked a database you left open; Mac installs set to Immediately, or never changed, now lock after 5 minutes of inactivity. To lock as soon as you leave KeeForge, turn on “When KeeForge is in the background for” in Settings ▸ Security. iPhone and iPad are unchanged.
+- On Mac, quick search and the AutoFill picker have a new look that matches the rest of the app, and the Light, Dark, or System theme in Settings ▸ Appearance now applies to every window, sheet, panel, and alert.
+- Clipboard Clear Timeout in Settings has a Never option, on iPhone, iPad, and Mac (#210). A copied value then stays until you copy something else or the database locks; on iPhone and iPad, locking when KeeForge goes to the background still keeps it so you can paste. The default stays 30 seconds.
+- Sorting by title puts entries with the same title in order of their user name, such as several verification codes for one service (#271).
+- Scanning a verification-code QR code or pasting a setup link in the entry editor fills an empty title and user name from the code's issuer and account, as adding a code from New already did (#270). A title or user name you already entered is kept.
+- AutoFill now matches sites by one written set of rules (#285), which narrows a few matches:
+  - An entry for an IP address, such as a router, is suggested only on that exact address. Before, entries for other addresses ending in the same two numbers appeared as possible matches.
+  - An entry for a subdomain is no longer suggested or filled on a parent that unrelated sites share, such as `localhost`, `github.io`, or `co.uk`.
+  - A passkey saved for `www.co.uk` is no longer offered on `co.uk`.
+  - A page on `www.www.example.com` no longer fills every entry for `example.com`.
+  - An entry URL that starts with another scheme and `://`, such as `androidapp://`, `ftp://`, or `ssh://`, no longer matches a website or appears in the system's suggestions. Before, an Android app stored as `androidapp://com.mybank.app` matched the website `mybank.app`.
+  - A URL is read the way browsers read it: a backslash counts as a slash, so `https://example.com\@other.example` matches `example.com`, not `other.example`.
 
 ## v1.22.0 (2026-11-10)
 
