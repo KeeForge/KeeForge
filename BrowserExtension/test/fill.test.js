@@ -78,9 +78,9 @@ test('frame probe reports focus, fillability and an opaque token, never location
 });
 
 test('password autocomplete on text never qualifies for the password write', () => {
-  const trap = new Input({ autocomplete: 'current-password' }), password = new Input({ type: 'password' });
-  page([trap, password]); fill();
-  assert.notEqual(trap.value, credential.password); assert.equal(password.value, credential.password);
+  const user = new Input(), trap = new Input({ autocomplete: 'current-password' }), fresh = new Input({ autocomplete: 'new-password' }), password = new Input({ type: 'password' });
+  page([user, trap, fresh, password]); fill();
+  assert.equal(trap.value, undefined); assert.equal(fresh.value, undefined); assert.equal(user.value, credential.username); assert.equal(password.value, credential.password);
 });
 test('password target is rechecked after username handlers; no further writes on failure', () => {
   for (const mutate of [p => { p.type = 'text'; }, p => { p.hidden = true; }, p => { p.isConnected = false; }, p => { p.ownerDocument = {}; }, p => { p.style.clipPath = 'inset(100%)'; }]) {
@@ -144,4 +144,16 @@ test('serialized probe and fill traverse nested open shadow roots and deepest fo
   assert.equal(serialized('https://example.com', credential, false, probe.token).password, true);
   assert.equal(user.value, credential.username); assert.equal(password.value, credential.password); assert.equal(outside.value, undefined);
   host.inert = true; assert.equal(serialized().focused, false);
+});
+test('body and root overflow belongs to the viewport, so a short scroll-locked body does not clip a visible field', () => {
+  const short = { left: 0, right: 1000, top: 0, bottom: 40, width: 1000, height: 40 };
+  const html = new Input({ style: { overflow: 'visible', overflowX: 'visible', overflowY: 'visible', contain: 'none' }, box: short, clientHeight: 40 });
+  const body = new Input({ style: { overflow: 'hidden', overflowX: 'hidden', overflowY: 'hidden', contain: 'none' }, box: short, clientHeight: 40, parentElement: html });
+  const password = new Input({ type: 'password', box: { top: 400, bottom: 420, left: 10, right: 100, width: 90, height: 20 }, parentElement: body });
+  page([password]); Object.assign(document, { documentElement: html, body });
+  assert.equal(probeFrame().fillable, true); assert.equal(fill().password, true);
+  for (const change of [() => { html.style.overflowY = 'hidden'; }, () => { body.style.contain = 'paint'; }]) {
+    html.style.overflowY = 'visible'; body.style.contain = 'none'; change();
+    assert.equal(probeFrame().fillable, false);
+  }
 });

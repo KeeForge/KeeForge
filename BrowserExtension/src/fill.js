@@ -7,6 +7,9 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
   if (probing) globalThis[pinKey] = [...crypto.getRandomValues(new Uint8Array(32))].map(n => n.toString(16).padStart(2, '0')).join('');
   else if (!expectedToken || globalThis[pinKey] !== expectedToken) return result;
   const parent = node => node.assignedSlot || node.parentElement || node.getRootNode?.().host;
+  const root = document.documentElement, body = document.body;
+  // Overflow on these elements moves to the viewport, which the initial bounds already intersect.
+  const scrollsViewport = node => (node === root && getComputedStyle(root).contain === 'none') || (node === body && [root, body].every(element => getComputedStyle(element).contain === 'none') && ['overflowX', 'overflowY'].every(axis => getComputedStyle(root)[axis] === 'visible'));
   const visible = input => {
     if (!(input instanceof HTMLInputElement) || !input.isConnected || input.ownerDocument !== document || input.disabled || input.matches(':disabled') || input.readOnly || input.hidden) return false;
     let box = input.getBoundingClientRect();
@@ -17,7 +20,7 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
       if (node.hidden || node.inert || (node.localName === 'details' && !node.open) || style.display === 'none' || ['hidden', 'collapse'].includes(style.visibility) || style.contentVisibility === 'hidden' || Number(style.opacity) === 0) return false;
       // Reject even partial clips/masks rather than guessing at their painted geometry.
       if ([style.clipPath, style.clip, style.maskImage, style.webkitMaskImage].some(value => value && !['none', 'auto'].includes(value))) return false;
-      if (node !== input) {
+      if (node !== input && !scrollsViewport(node)) {
         box = node.getBoundingClientRect();
         if (box.width <= 0 || box.height <= 0) return false;
         const clipsX = ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowX || style.overflow);
@@ -45,7 +48,7 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
   if (probing) return { focused: document.hasFocus() && fields.includes(active), fillable: fields.length > 0, token: globalThis[pinKey] };
   const focused = fields.includes(active) ? active : null;
   const hint = (input, token) => (input.autocomplete || '').toLowerCase().split(/\s+/).includes(token);
-  const text = input => ['text', 'email', 'tel', ''].includes(input.type);
+  const text = input => ['text', 'email', 'tel', ''].includes(input.type) && !hint(input, 'current-password') && !hint(input, 'new-password');
   const candidates = focused ? fields.filter(input => input.form === focused.form) : fields;
   const password = (focused?.type === 'password' ? focused : null) || candidates.find(input => input.type === 'password' && hint(input, 'current-password')) || candidates.find(input => input.type === 'password');
   const sameForm = password ? fields.filter(input => input.form === password.form) : candidates;

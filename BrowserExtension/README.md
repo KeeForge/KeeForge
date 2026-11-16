@@ -83,3 +83,7 @@ The mock uses disposable demo credentials only; do not point it at real database
 ## Development ID
 
 `manifest.json` carries a `key` so an unpacked copy always loads in Chromium browsers as `pihelgeaeflnpjjdajbdmfmcpgeoefbf`; debug builds of KeeForge allow that ID. Nobody holds the private half, so it cannot sign a package, and `tools/build.sh` removes the key from the store archives. Release builds of KeeForge allow only the store-assigned ID.
+
+## Real-browser check
+
+`env -u NODE_USE_SYSTEM_CA node tools/browser-check.mjs` runs the fill and probe code from `src/fill.js` against the pages in `test/pages/` in headless Chrome (temporary profile, localhost only) and exits non-zero on any mismatch. It needs Google Chrome installed and is not part of `node --test`.

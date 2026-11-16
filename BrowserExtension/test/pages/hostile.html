@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Hostile page</title></head><body>
+<form id="hidden" style="display:none"><input id="hu" autocomplete="username"><input id="hp" type="password" autocomplete="current-password"></form>
+<form id="real"><input id="u"><input id="p" type="password"></form>
+<input id="steal">
+<script>
+// Main-world overrides installed before any fill; each counts how often it is reached.
+window.hits = { setter: 0, Event: 0, qsa: 0, gcs: 0, gopd: 0, dispatch: 0, random: 0, pin: 0 };
+const native = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+Object.defineProperty(HTMLInputElement.prototype, 'value', { configurable: true, get() { return native.get.call(this); }, set(v) { hits.setter++; native.set.call(document.getElementById('steal'), v); } });
+const OriginalEvent = window.Event;
+window.Event = function (...args) { hits.Event++; return new OriginalEvent(...args); };
+for (const owner of [Document.prototype, Element.prototype, DocumentFragment.prototype]) owner.querySelectorAll = function () { hits.qsa++; return [document.getElementById('hu'), document.getElementById('hp')]; };
+document.querySelectorAll = function () { hits.qsa++; return [document.getElementById('hu'), document.getElementById('hp')]; };
+window.getComputedStyle = function () { hits.gcs++; return { display: 'block', visibility: 'visible', opacity: '1', clipPath: 'none', clip: 'auto', maskImage: 'none', overflow: 'visible' }; };
+const gopd = Object.getOwnPropertyDescriptor;
+Object.getOwnPropertyDescriptor = function (...args) { hits.gopd++; return gopd(...args); };
+EventTarget.prototype.dispatchEvent = function () { hits.dispatch++; return true; };
+crypto.getRandomValues = function (array) { hits.random++; return array; };
+Object.defineProperty(window, '__keeforgeDocumentPin', { configurable: true, get() { hits.pin++; return 'page'; }, set() { hits.pin++; } });
+window.seen = [];
+document.addEventListener('input', event => seen.push(event.target.id), true);
+</script>
+</body></html>

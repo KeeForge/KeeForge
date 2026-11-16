@@ -61,7 +61,8 @@ export class Background {
           this.popupTarget = null;
           const tabId = message.tabId ?? (await this.api.tabs.query({ active: true, currentWindow: true }))[0]?.id;
           requireThat(integer(tabId), 'bad-origin');
-          const probes = await this.api.scripting.executeScript({ target: { tabId, allFrames: true }, world: 'ISOLATED', func: probeFrame });
+          // Browser pages and tabs without an activeTab grant reject injection outright.
+          const probes = await this.api.scripting.executeScript({ target: { tabId, allFrames: true }, world: 'ISOLATED', func: probeFrame }).catch(() => { throw new ProtocolError('bad-origin'); });
           const frameId = chooseFrame(probes);
           requireThat(probes.some(p => p.frameId === frameId && !p.error && p.result?.fillable), 'no-fields');
           const selected = probes.find(p => p.frameId === frameId);

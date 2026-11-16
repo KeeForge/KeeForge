@@ -125,6 +125,10 @@ test('popup target is background-derived, focused frame is pinned through matchi
   await assert.rejects(s.handle({ type: 'fill', tabId: 1, frameId: 3, entry: 'e', db: 'd' }), /bad-origin/);
   assert.equal(s.calls.some(call => call.type === 'credential'), false);
 });
+test('a tab that refuses injection reports a page reason, not unavailable', async () => {
+  const s = setup(); s.api.scripting.executeScript = async () => { throw new Error('Cannot access a chrome:// URL'); };
+  await assert.rejects(s.handle({ type: 'getTarget', tabId: 1 }), /bad-origin/);
+});
 test('popup refuses a target without any visible editable field', async () => {
   const s = setup(); s.api.scripting.executeScript = async () => [{ frameId: 0, result: { focused: false, fillable: false } }];
   await assert.rejects(s.handle({ type: 'getTarget', tabId: 1 }), /no-fields/);
