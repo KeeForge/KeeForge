@@ -748,9 +748,14 @@ struct DatabaseOpenFailure: Equatable, Sendable {
                 canChooseDifferentFile: true
             )
         case .fileReadNoPermission:
+            #if os(macOS)
+            let summary = String(localized: "KeeForge no longer has permission to read this database file. Choose it again with Locate Database File to refresh access.")
+            #else
+            let summary = String(localized: "KeeForge no longer has permission to read this database file. Choose it again from the database list to refresh access.")
+            #endif
             return DatabaseOpenFailure(
                 title: String(localized: "Database Permission Needed"),
-                summary: String(localized: "KeeForge no longer has permission to read this database file. Choose it again from the database list to refresh access."),
+                summary: summary,
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "file.permission_denied",
                 category: .fileAccess,

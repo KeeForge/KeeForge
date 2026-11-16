@@ -22,7 +22,7 @@ struct MacQuickSearchSettingsTab: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 settingsCaption("Click to record a new shortcut. It needs ⌘, ⌥ or ⌃; Escape cancels.")
-                settingsCaption("Search the open database from the menu bar, or press the shortcut in any app. Entries appear only while the database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the main window.")
+                settingsCaption("Search the database whose window you used last from the menu bar, or press the shortcut in any app. Entries appear only while that database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the database window.")
             }
         }
         .onChange(of: controller.isMenuBarItemEnabled) { _, isEnabled in

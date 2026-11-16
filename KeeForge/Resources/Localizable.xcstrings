@@ -7858,58 +7858,6 @@
         }
       }
     },
-    "After you click Create, KeeForge asks where to save the encrypted .kdbx database." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nachdem du auf „Erstellen“ geklickt hast, fragt KeeForge, wo die verschlüsselte .kdbx-Datenbank gesichert werden soll."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Después de hacer clic en «Crear», KeeForge te preguntará dónde guardar la base de datos .kdbx cifrada."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Après avoir cliqué sur « Créer », KeeForge vous demandera où enregistrer la base de données .kdbx chiffrée."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dopo aver fatto clic su Crea, KeeForge chiede dove salvare il database .kdbx crittografato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「作成」をクリックすると、KeeForge が暗号化された .kdbx データベースの保存場所をたずねます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "После нажатия «Создать» KeeForge спросит, где сохранить зашифрованную базу данных .kdbx."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "点按“创建”后，KeeForge 会询问加密 .kdbx 数据库的保存位置。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點按「建立」後，KeeForge 會詢問加密 .kdbx 資料庫的儲存位置。"
-          }
-        }
-      }
-    },
     "After you click Create, KeeForge asks where to save the encrypted .kdbx database. Other choices: WebDAV, FTP." : {
       "localizations" : {
         "de" : {
@@ -10794,58 +10742,6 @@
         }
       }
     },
-    "AutoFill in macOS" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AutoFill unter macOS"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Autorrelleno en macOS"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remplissage automatique dans macOS"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Inserimento automatico in macOS"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS の自動入力"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Автозаполнение в macOS"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS 中的自动填充"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS 中的自動填寫"
-          }
-        }
-      }
-    },
     "AutoFill in macOS:" : {
       "localizations" : {
         "de" : {
@@ -11952,58 +11848,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "區塊 HMAC 無效——密碼錯誤或檔案已損毀"
-          }
-        }
-      }
-    },
-    "Block Screen Capture" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildschirmaufnahmen blockieren"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bloquear capturas de pantalla"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bloquer les captures d'écran"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Blocca acquisizione dello schermo"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "画面キャプチャをブロック"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Блокировать запись экрана"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "阻止屏幕捕捉"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "阻擋螢幕擷取"
           }
         }
       }
@@ -15564,7 +15408,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "清除剪貼簿："
+            "value" : "清除剪貼板："
           }
         }
       }
@@ -15987,58 +15831,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按一下以錄製新快速鍵。需包含 ⌘、⌥ 或 ⌃；Escape 取消。"
-          }
-        }
-      }
-    },
-    "Clipboard" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zwischenablage"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Portapapeles"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Presse-papiers"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Appunti"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "クリップボード"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Буфер обмена"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "剪贴板"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "剪貼板"
           }
         }
       }
@@ -21892,7 +21684,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "目前的檔案夾"
+            "value" : "目前的資料夾"
           }
         }
       }
@@ -23494,7 +23286,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fenêtre des bases :"
+            "value" : "Fenêtre des bases de données :"
           }
         },
         "it" : {
@@ -25706,13 +25498,13 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "¿Desconectar %@? KeeForge conservará las bases en caché hasta que las quites."
+            "value" : "¿Desconectar %@? KeeForge conservará las bases de datos en caché hasta que las quites."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Déconnecter %@ ? KeeForge conservera les bases en cache jusqu’à leur retrait."
+            "value" : "Déconnecter %@ ? KeeForge conservera les bases de données en cache jusqu’à leur retrait."
           }
         },
         "it" : {
@@ -34260,7 +34052,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Masquer les fenêtres des bases dans les enregistrements et captures d’écran"
+            "value" : "Masquer les fenêtres des bases de données dans les enregistrements et captures d’écran"
           }
         },
         "it" : {
@@ -36447,58 +36239,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下次在 App 中解鎖此資料庫時，KeeForge 會將此通行金鑰加入資料庫檔案。"
-          }
-        }
-      }
-    },
-    "KeeForge always locks on screen lock, screensaver, system sleep, and user switching. The stricter option also locks whenever another app becomes active." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge sperrt sich immer bei Bildschirmsperre, Bildschirmschoner, Ruhezustand des Systems und Benutzerwechsel. Die strengere Option sperrt außerdem, sobald eine andere App aktiv wird."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge siempre se bloquea con el bloqueo de pantalla, el salvapantallas, la suspensión del sistema y el cambio de usuario. La opción más estricta también se bloquea en cuanto otra aplicación se activa."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge se verrouille toujours lors du verrouillage de l'écran, de l'écran de veille, de la mise en veille du système et du changement d'utilisateur. L'option la plus stricte verrouille également dès qu'une autre app devient active."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge si blocca sempre al blocco dello schermo, all'avvio del salvaschermo, allo stop del sistema e al cambio utente. L'opzione più restrittiva lo blocca anche ogni volta che un'altra app diventa attiva."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge は、画面ロック、スクリーンセーバ、システムのスリープ、ユーザ切り替えのときは必ずロックします。より厳しい設定では、他の App がアクティブになったときにもロックします。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge всегда блокирует базы данных при блокировке экрана, запуске заставки, переходе в режим сна и смене пользователя. Более строгий вариант блокирует их также при переключении на другое приложение."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "屏幕锁定、屏幕保护程序启动、系统睡眠和切换用户时，KeeForge 始终会锁定。更严格的选项还会在其他 App 变为活跃时锁定。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "螢幕鎖定、螢幕保護程式啟動、系統睡眠和切換使用者時，KeeForge 一律會鎖定。較嚴格的選項還會在其他 App 變為使用中時鎖定。"
           }
         }
       }
@@ -38787,6 +38527,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 已無權讀取此資料庫檔案。請在資料庫清單中重新選擇它以更新存取權限。"
+          }
+        }
+      }
+    },
+    "KeeForge no longer has permission to read this database file. Choose it again with Locate Database File to refresh access." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge hat keine Leseberechtigung für diese Datenbankdatei mehr. Wähle sie mit „Datenbankdatei suchen“ erneut aus, um den Zugriff zu aktualisieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ya no tiene permiso para leer este archivo de base de datos. Selecciónalo de nuevo con «Localizar archivo de base de datos» para actualizar el acceso."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n'a plus l'autorisation de lire ce fichier de base de données. Sélectionnez-le à nouveau avec « Localiser le fichier de base de données » pour actualiser l'accès."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non ha più l'autorizzazione per leggere questo file di database. Sceglilo di nuovo con Individua file del database per aggiornare l'accesso."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースファイルを読み取る権限がなくなりました。アクセス権を更新するには、「データベースファイルを探す」でもう一度選択してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У KeeForge больше нет разрешения на чтение этого файла базы данных. Выберите его снова с помощью «Найти файл базы данных», чтобы обновить доступ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 已无权读取此数据库文件。请使用“查找数据库文件”重新选择它以刷新访问权限。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 已無權讀取此資料庫檔案。請使用「尋找資料庫檔案」重新選擇它以更新存取權限。"
           }
         }
       }
@@ -41728,58 +41520,6 @@
         }
       }
     },
-    "Lock Automatically" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Automatisch sperren"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bloquear automáticamente"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Verrouiller automatiquement"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Blocca automaticamente"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動ロック"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Блокировать автоматически"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动锁定"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動鎖定"
-          }
-        }
-      }
-    },
     "Lock Database" : {
       "localizations" : {
         "de" : {
@@ -41855,7 +41595,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verrouiller les bases :"
+            "value" : "Verrouiller les bases de données :"
           }
         },
         "it" : {
@@ -43152,58 +42892,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最高"
-          }
-        }
-      }
-    },
-    "Menu Bar" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Menüleiste"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Barra de menús"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Barre des menus"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Barra dei menu"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "メニューバー"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Строка меню"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "菜单栏"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選單列"
           }
         }
       }
@@ -48254,59 +47942,6 @@
         }
       }
     },
-    "OneDrive upload failed." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OneDrive-Upload fehlgeschlagen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Carga de OneDrive fallida."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Échec de l'envoi OneDrive."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Caricamento su OneDrive non riuscito."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OneDrive へのアップロードに失敗しました。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ошибка отправки в OneDrive."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OneDrive 上传失败。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OneDrive 上傳失敗。"
-          }
-        }
-      }
-    },
     "Open" : {
       "localizations" : {
         "de" : {
@@ -52441,58 +52076,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快速搜尋"
-          }
-        }
-      }
-    },
-    "Quick Search Shortcut" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tastenkürzel für die Schnellsuche"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atajo de búsqueda rápida"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Raccourci de recherche rapide"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Abbreviazione per la ricerca rapida"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "クイック検索のショートカット"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сочетание клавиш быстрого поиска"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "快速搜索快捷键"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "快速搜尋快速鍵"
           }
         }
       }
@@ -58268,58 +57851,6 @@
         }
       }
     },
-    "Screen Privacy" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildschirmdatenschutz"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Privacidad de pantalla"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Confidentialité de l'écran"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Privacy dello schermo"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "画面のプライバシー"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Конфиденциальность экрана"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "屏幕隐私"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "螢幕隱私"
-          }
-        }
-      }
-    },
     "Search" : {
       "localizations" : {
         "de" : {
@@ -58441,7 +57972,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Búsqueda y Autorrelleno:"
+            "value" : "Búsqueda y autorrelleno:"
           }
         },
         "fr" : {
@@ -58453,7 +57984,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ricerca e riempimento automatico:"
+            "value" : "Ricerca e inserimento automatico:"
           }
         },
         "ja" : {
@@ -58846,54 +58377,54 @@
         }
       }
     },
-    "Search the open database from the menu bar, or press the shortcut in any app. Entries appear only while the database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the main window." : {
+    "Search the database whose window you used last from the menu bar, or press the shortcut in any app. Entries appear only while that database is unlocked, and copying a password asks for Touch ID or your login password, as it does in the database window." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durchsuche die geöffnete Datenbank über die Menüleiste oder drücke das Tastenkürzel in einer beliebigen App. Einträge erscheinen nur, solange die Datenbank entsperrt ist, und zum Kopieren eines Passworts werden wie im Hauptfenster Touch ID oder dein Anmeldepasswort abgefragt."
+            "value" : "Durchsuche über die Menüleiste die Datenbank, deren Fenster du zuletzt verwendet hast, oder drücke das Tastenkürzel in einer beliebigen App. Einträge erscheinen nur, solange diese Datenbank entsperrt ist, und zum Kopieren eines Passworts werden wie im Datenbankfenster Touch ID oder dein Anmeldepasswort abgefragt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Busca en la base de datos abierta desde la barra de menús o pulsa el atajo en cualquier app. Las entradas solo aparecen mientras la base de datos está desbloqueada y, para copiar una contraseña, se pide Touch ID o tu contraseña de inicio de sesión, igual que en la ventana principal."
+            "value" : "Busca desde la barra de menús en la base de datos cuya ventana usaste por última vez, o pulsa el atajo en cualquier app. Las entradas solo aparecen mientras esa base de datos está desbloqueada y, para copiar una contraseña, se pide Touch ID o tu contraseña de inicio de sesión, igual que en la ventana de la base de datos."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Recherchez dans la base de données ouverte depuis la barre des menus, ou appuyez sur le raccourci dans n'importe quelle app. Les entrées n'apparaissent que lorsque la base de données est déverrouillée, et la copie d'un mot de passe demande Touch ID ou votre mot de passe de session, comme dans la fenêtre principale."
+            "value" : "Recherchez depuis la barre des menus dans la base de données dont vous avez utilisé la fenêtre en dernier, ou appuyez sur le raccourci dans n'importe quelle app. Les entrées n'apparaissent que lorsque cette base de données est déverrouillée, et la copie d'un mot de passe demande Touch ID ou votre mot de passe de session, comme dans la fenêtre de la base de données."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cerca nel database aperto dalla barra dei menu oppure premi l'abbreviazione in qualsiasi app. Le voci compaiono solo mentre il database è sbloccato e, per copiare una password, vengono richiesti Touch ID o la password di login, come nella finestra principale."
+            "value" : "Cerca dalla barra dei menu nel database di cui hai usato la finestra per ultimo, oppure premi l'abbreviazione in qualsiasi app. Le voci compaiono solo mentre quel database è sbloccato e, per copiare una password, vengono richiesti Touch ID o la password di login, come nella finestra del database."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メニューバーから、またはどのアプリでもショートカットを押して、開いているデータベースを検索できます。エントリはデータベースのロックが解除されている間だけ表示され、パスワードをコピーするときはメインウインドウと同様に Touch ID またはログインパスワードが求められます。"
+            "value" : "メニューバーから、またはどのアプリでもショートカットを押して、最後に使ったウインドウのデータベースを検索できます。エントリはそのデータベースのロックが解除されている間だけ表示され、パスワードをコピーするときはデータベースウインドウと同様に Touch ID またはログインパスワードが求められます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ищите в открытой базе данных из строки меню или нажмите сочетание клавиш в любом приложении. Записи появляются, только пока база данных разблокирована, а при копировании пароля запрашивается Touch ID или пароль для входа, как в главном окне."
+            "value" : "Ищите из строки меню в базе данных, окно которой вы использовали последним, или нажмите сочетание клавиш в любом приложении. Записи появляются, только пока эта база данных разблокирована, а при копировании пароля запрашивается Touch ID или пароль для входа, как в окне базы данных."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "从菜单栏搜索已打开的数据库，或在任意 App 中按下快捷键。条目仅在数据库解锁时显示；与主窗口一样，拷贝密码时需要触控 ID 或登录密码。"
+            "value" : "从菜单栏搜索你最近使用的窗口所对应的数据库，或在任意 App 中按下快捷键。条目仅在该数据库解锁时显示；与数据库窗口一样，拷贝密码时需要触控 ID 或登录密码。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "從選單列搜尋已開啟的資料庫，或在任何 App 中按下快速鍵。項目僅在資料庫解鎖時顯示；與主視窗相同，拷貝密碼時需要觸控 ID 或登入密碼。"
+            "value" : "從選單列搜尋你最近使用的視窗所對應的資料庫，或在任何 App 中按下快速鍵。項目僅在該資料庫解鎖時顯示；與資料庫視窗相同，拷貝密碼時需要觸控 ID 或登入密碼。"
           }
         }
       }
@@ -60950,58 +60481,6 @@
         }
       }
     },
-    "Setup" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Einrichtung"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Configuración"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Configuration"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Configurazione"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定方法"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Настройка"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "设置方法"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定方式"
-          }
-        }
-      }
-    },
     "Setup Link" : {
       "localizations" : {
         "de" : {
@@ -61102,58 +60581,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定連結或金鑰："
-          }
-        }
-      }
-    },
-    "Share" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Teilen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Compartir"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Partager"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Condividi"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "共有"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Поделиться"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "共享"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分享"
           }
         }
       }
@@ -62383,13 +61810,13 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cerrar sesión detiene las futuras sincronizaciones, pero conserva las bases en caché hasta que las quites."
+            "value" : "Cerrar sesión detiene las futuras sincronizaciones, pero conserva las bases de datos en caché hasta que las quites."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La déconnexion arrête les synchronisations futures mais conserve les bases en cache jusqu’à leur retrait."
+            "value" : "La déconnexion arrête les synchronisations futures mais conserve les bases de données en cache jusqu’à leur retrait."
           }
         },
         "it" : {
@@ -62680,58 +62107,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已略過："
-          }
-        }
-      }
-    },
-    "Socket" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Socket"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Socket"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Socket"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Socket"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ソケット"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сокет"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "套接字"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通訊端"
           }
         }
       }
@@ -68604,7 +67979,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "L’ultimo tentativo non l’ha attivato. Apri le impostazioni di Riempimento automatico e abilita KeeForge."
+            "value" : "L'ultimo tentativo non lo ha attivato. Apri le impostazioni dell'inserimento automatico e abilita KeeForge lì."
           }
         },
         "ja" : {
@@ -78464,58 +77839,6 @@
         }
       }
     },
-    "Updates" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Updates"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Actualizaciones"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mises à jour"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aggiornamenti"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アップデート"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Обновления"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更新"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更新"
-          }
-        }
-      }
-    },
     "Updates:" : {
       "localizations" : {
         "de" : {
@@ -79053,25 +78376,25 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Usa Conectar al servidor en la ventana de bases de datos para añadir uno."
+            "value" : "Usa «Conectarse a un servidor» en la ventana de bases de datos para añadir uno."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Utilisez « Se connecter au serveur » dans la fenêtre des bases pour en ajouter un."
+            "value" : "Utilisez « Se connecter à un serveur » dans la fenêtre des bases de données pour en ajouter un."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Usa Collega al server nella finestra dei database per aggiungerne uno."
+            "value" : "Usa Connetti al server nella finestra dei database per aggiungerne uno."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "追加するには、データベース一覧で「サーバへ接続」を使います。"
+            "value" : "追加するには、データベース一覧で「サーバに接続」を使います。"
           }
         },
         "ru" : {
@@ -79083,7 +78406,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在数据库窗口中使用“连接到服务器”来添加。"
+            "value" : "在数据库窗口中使用“连接服务器”来添加。"
           }
         },
         "zh-Hant" : {
@@ -81233,7 +80556,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "網站圖像："
+            "value" : "網站圖示："
           }
         }
       }
@@ -81864,6 +81187,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "當 KeeForge 不在前景時"
+          }
+        }
+      }
+    },
+    "When off, KeeForge hides last-opened activity from the Databases window." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn diese Option deaktiviert ist, blendet KeeForge die zuletzt geöffnete Aktivität im Fenster „Datenbanken“ aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuando está desactivada, KeeForge oculta la actividad de última apertura en la ventana «Bases de datos»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lorsque cette option est désactivée, KeeForge masque l'activité de dernière ouverture dans la fenêtre « Bases de données »."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se l'opzione è disattivata, KeeForge nasconde le informazioni sull'ultima apertura dalla finestra Database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフにすると、「データベース」ウインドウに最後に開いた記録が表示されなくなります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если выключено, KeeForge скрывает время последнего открытия в окне «Базы данных»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭后，KeeForge 会在“数据库”窗口中隐藏最近打开的活动记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉後，KeeForge 會在「資料庫」視窗中隱藏最近開啟的活動記錄。"
           }
         }
       }

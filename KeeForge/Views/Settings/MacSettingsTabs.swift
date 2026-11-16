@@ -201,7 +201,7 @@ struct MacGeneralSettingsTab: View {
             MacSettingsRow("Databases window:") {
                 Toggle("Show Usage Stats in Database List", isOn: $settings.showDatabaseUsageStats)
                     .accessibilityIdentifier("settings.display.usage-stats-toggle")
-                settingsCaption("When off, KeeForge hides last-opened activity from the locked database list.", indented: true)
+                settingsCaption("When off, KeeForge hides last-opened activity from the Databases window.", indented: true)
             }
             MacSettingsRow("Website icons:") {
                 Toggle("Download Website Favicons", isOn: $settings.showWebsiteIcons)

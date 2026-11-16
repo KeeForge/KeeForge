@@ -48,7 +48,7 @@ Beta availability can differ between iPhone, iPad, and Mac while Apple reviews e
 | --- | --- |
 | **KeePass compatibility** | Reads and writes KDBX 4.x databases with AES-256, ChaCha20, or Twofish encryption and AES-KDF, Argon2d, or Argon2id. Also opens KDBX 3.1 databases in read-only mode. |
 | **Local-first editing** | Create, edit, move, and delete entries and groups; and save with conflict checks, timestamped backups, and preservation of entry history and unknown XML. |
-| **New databases** | Create new KDBX 4.x databases locally or through WebDAV on every platform, and directly inside Dropbox or OneDrive on iPhone and iPad. |
+| **New databases** | Create new KDBX 4.x databases locally or through WebDAV or FTP on every platform, and directly inside Dropbox or OneDrive on iPhone and iPad. |
 | **Composite keys** | Unlock with password, key file, or both, including binary, hex, XML v1/v2 (`.key`/`.keyx`), and arbitrary key files. |
 | **AutoFill** | Native password AutoFill in apps and browsers, with biometric unlock, plus passkey registration on every platform; iPhone and iPad additionally provide QuickType suggestions and password-entry creation from the extension. |
 | **Passkeys** | Detect and authenticate FIDO2/WebAuthn passkeys stored in KeePassXC-compatible custom fields. |

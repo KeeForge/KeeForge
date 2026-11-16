@@ -34,7 +34,7 @@
 
 ## 为什么选择 KeeForge？
 
-KeeForge 是一款适用于 iPhone、iPad 和 Mac 的原生 KeePass 客户端。本地文件和 WebDAV 在所有平台上均可使用；iCloud 云盘、Dropbox、OneDrive 和其他“文件”提供方可在 iPhone 和 iPad 上使用。你可以用主密码、密钥文件或生物识别管理保险库，无需交给托管密码服务。
+KeeForge 是一款适用于 iPhone、iPad 和 Mac 的原生 KeePass 客户端。本地文件、WebDAV 和 FTP 在所有平台上均可使用；iCloud 云盘、Dropbox、OneDrive 和其他“文件”提供方可在 iPhone 和 iPad 上使用。你可以用主密码、密钥文件或生物识别管理保险库，无需交给托管密码服务。
 
 ## 公开测试版
 
@@ -48,12 +48,12 @@ Apple 审核各平台的构建版本期间，iPhone、iPad 和 Mac 测试版的�
 | --- | --- |
 | **KeePass 兼容性** | 读写采用 AES-256、ChaCha20 或 Twofish 加密及 AES-KDF、Argon2d 或 Argon2id 的 KDBX 4.x 数据库。也能以只读模式打开 KDBX 3.1 数据库。 |
 | **本地优先编辑** | 创建、编辑、移动和删除条目与群组；保存时进行冲突检查、生成带时间戳的备份，并保留条目历史记录和未知 XML。 |
-| **新建数据库** | 在所有平台上于本地或通过 WebDAV 创建 KDBX 4.x 数据库；Dropbox 和 OneDrive 可在 iPhone 和 iPad 上使用。 |
+| **新建数据库** | 在所有平台上于本地或通过 WebDAV 或 FTP 创建 KDBX 4.x 数据库；Dropbox 和 OneDrive 可在 iPhone 和 iPad 上使用。 |
 | **组合密钥** | 使用密码、密钥文件或两者组合解锁，支持二进制、十六进制、XML v1/v2（`.key`/`.keyx`）及任意密钥文件。 |
 | **自动填充** | 在 App 和浏览器中原生自动填充，并支持生物识别解锁及全平台通行密钥注册；iPhone 和 iPad 还支持 QuickType 和从扩展创建密码条目。 |
 | **通行密钥** | 检测并验证存储在 KeePassXC 兼容自定义字段中的 FIDO2/WebAuthn 通行密钥。 |
 | **TOTP** | 在所有平台上实时显示、拷贝和倒计时，并在 iOS 18+ 和 Mac 上自动填充验证码。 |
-| **云同步** | 所有平台均支持 WebDAV。Dropbox 和 OneDrive 目前可在 iPhone 和 iPad 上使用；Mac 可将其同步文件夹作为本地文件打开。 |
+| **云同步** | 所有平台均支持 WebDAV 和 FTP。Dropbox 和 OneDrive 目前可在 iPhone 和 iPad 上使用；Mac 可将其同步文件夹作为本地文件打开。 |
 | **附件** | 查看 KeePass 条目附件，通过 QuickLook 预览支持的文件，并从短暂存在的受保护临时文件分享。可在条目编辑器中添加和删除附件。 |
 | **每块屏幕都原生** | iPhone 上专注的导航、iPad 上分栏式工作区，以及带有菜单、命令和 Touch ID、为桌面优化的原生 Mac App。 |
 | **安全** | AES-GCM 内存中机密加密、解锁失败退避、解压炸弹限制，以及恒定时间的 HMAC 比较。 |
