@@ -109,7 +109,7 @@ final class MacMainMenuTests: XCTestCase {
             }
         }
         XCTAssertEqual(separatedTitles(menu.items[1]), [
-            ["New Entry", "New Group"], ["New Database…", "Open Database File…", "Connect to Server…"],
+            ["New Entry", "New Group"], ["New Database…", "Open Database File…", "Connect to Server…", "Cloud Recovery"],
             ["Close Window", "Save"], ["Import Passwords…", "Export…"], ["Close Database"],
         ].map { $0.map(localized) })
         XCTAssertEqual(separatedTitles(menu.items[2]).suffix(3), [

@@ -95,11 +95,13 @@ final class MacDatabaseSettingsSheet {
 
     func showCloudRecovery() {
         guard let parent = childParent() else { return }
-        let host = NSHostingController(rootView: CloudRecoveryView().modifier(MacHostingAppearance()))
+        let lifetime = CloudCreationLifetime()
+        let host = NSHostingController(rootView: CloudRecoveryView(creationLifetime: lifetime).modifier(MacHostingAppearance()))
         let child = MacFormSheetController(title: String(localized: "Cloud Recovery"), content: host,
             size: NSSize(width: 610, height: MacSheetMetrics.maxHeight), defaultTitle: String(localized: "Done"))
         child.cancelButton.isHidden = true
         child.window?.setAccessibilityIdentifier("cloud-recovery.sheet")
+        child.cancellationScope.register { lifetime.cancel() }
         recoverySheet = child
         presentChild(child, parent) { [weak self, weak child] _ in
             if self?.recoverySheet === child { self?.recoverySheet = nil }

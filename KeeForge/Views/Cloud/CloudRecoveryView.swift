@@ -3,13 +3,17 @@ import SwiftUI
 struct CloudRecoveryView: View {
     @State private var uploads: [PendingUploadQueue.StoredMarker] = []
     @State private var creations: [PendingUploadQueue.StoredCreation] = []
-    @State private var creationLifetime: CloudCreationLifetime?
+    @State private var creationLifetime: CloudCreationLifetime
     @State private var references: [UUID: DatabaseReference] = [:]
     @State private var failure: String?
     @State private var busy = false
     @State private var exporting = false
     @State private var document = KDBXExportDocument(data: Data())
     @State private var filename = "KeeForge.kdbx"
+
+    init(creationLifetime: CloudCreationLifetime = CloudCreationLifetime()) {
+        _creationLifetime = State(initialValue: creationLifetime)
+    }
 
     var body: some View {
         List {
@@ -66,7 +70,7 @@ struct CloudRecoveryView: View {
         .navigationBarTitleDisplayMode(.inline)
         .disabled(busy)
         .task { await reload() }
-        .onDisappear { creationLifetime?.cancel() }
+        .onDisappear { creationLifetime.cancel() }
         .fileExporter(isPresented: $exporting, document: document,
             contentType: DocumentPickerService.databaseContentType, defaultFilename: filename) { result in
                 if case .failure(let error) = result { failure = error.localizedDescription }
@@ -113,8 +117,7 @@ struct CloudRecoveryView: View {
     private func runCreation(_ operationID: UUID, retry: Bool) {
         busy = true
         failure = nil
-        let lifetime = CloudCreationLifetime()
-        creationLifetime = lifetime
+        let lifetime = creationLifetime
         Task {
             do {
                 _ = try await Task.detached {
@@ -123,7 +126,6 @@ struct CloudRecoveryView: View {
                     return try CloudFileCreationCoordinator.resumeKnownRegistration(operationID: operationID)
                 }.value
             } catch { failure = error.localizedDescription }
-            creationLifetime = nil
             busy = false
             let actionFailure = failure
             await reload()

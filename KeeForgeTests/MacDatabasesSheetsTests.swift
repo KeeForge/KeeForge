@@ -19,7 +19,10 @@ final class MacDatabasesSheetsTests: XCTestCase {
         XCTAssertEqual(shell.window?.accessibilityIdentifier(), "cloud-recovery.sheet")
         XCTAssertEqual(shell.defaultButton.title, String(localized: "Done"))
         XCTAssertTrue(shell.cancelButton.isHidden)
+        let lifetime = try XCTUnwrap(presenter.recoveryLifetime)
+        XCTAssertNoThrow(try lifetime.claim())
         shell.performDefault()
+        XCTAssertThrowsError(try lifetime.claim()) { XCTAssertTrue($0 is CancellationError) }
         XCTAssertNil(launcher.sheet)
         XCTAssertNil(presenter.shell)
         launcher.requestConnect()
