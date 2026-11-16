@@ -62,10 +62,10 @@ final class AppSettingsViewModelTests: XCTestCase {
             observedTimeouts.append(SettingsService.autoLockTimeout)
         })
 
-        model.autoLockTimeout = .fiveMinutes
-        model.autoLockTimeout = .fiveMinutes
+        model.autoLockTimeout = .oneMinute
+        model.autoLockTimeout = .oneMinute
 
-        XCTAssertEqual(observedTimeouts, [.fiveMinutes])
+        XCTAssertEqual(observedTimeouts, [.oneMinute])
     }
 
     func testQuickAutoFillTransitionsPersistBeforeEffectsAndExplicitClearDoesNotRepublish() {
