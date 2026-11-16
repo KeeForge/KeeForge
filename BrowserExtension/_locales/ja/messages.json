@@ -1,0 +1,107 @@
+{
+  "extensionName": {
+    "message": "KeeForge"
+  },
+  "actionTitle": {
+    "message": "KeeForge"
+  },
+  "extensionDescription": {
+    "message": "KeeForge からログイン情報を入力します。"
+  },
+  "loading": {
+    "message": "接続中…"
+  },
+  "hostMissing": {
+    "message": "KeeForge の「設定」の「ブラウザ」でこのブラウザを設定してください"
+  },
+  "appUnavailable": {
+    "message": "KeeForge が起動していません。"
+  },
+  "openApp": {
+    "message": "KeeForge を開く"
+  },
+  "notPaired": {
+    "message": "このブラウザはペアリングされていません。"
+  },
+  "pair": {
+    "message": "KeeForge とペアリング"
+  },
+  "unlock": {
+    "message": "KeeForge でロック解除"
+  },
+  "confirm": {
+    "message": "KeeForge で確認してください"
+  },
+  "noLogins": {
+    "message": "$1 のログイン情報はありません"
+  },
+  "otherLogins": {
+    "message": "このサイトのその他のログイン情報"
+  },
+  "fillLogin": {
+    "message": "$1、$2 を入力"
+  },
+  "verificationCode": {
+    "message": "確認コード"
+  },
+  "fillCode": {
+    "message": "確認コードを入力"
+  },
+  "reveal": {
+    "message": "KeeForge で表示"
+  },
+  "inFrame": {
+    "message": "このページ内のフレーム"
+  },
+  "filled": {
+    "message": "入力しました。"
+  },
+  "badOrigin": {
+    "message": "このページには入力できません。安全な Web サイトを使用してください。"
+  },
+  "noFields": {
+    "message": "このページに表示中の編集可能なフィールドはありません。"
+  },
+  "noLongerMatches": {
+    "message": "このエントリはサイトに一致しなくなりました。"
+  },
+  "denied": {
+    "message": "確認がキャンセルされたか、失敗しました。"
+  },
+  "notOffered": {
+    "message": "ポップアップを開き直してログイン情報を更新してください。"
+  },
+  "rateLimited": {
+    "message": "リクエストが多すぎます。しばらくしてから再試行してください。"
+  },
+  "disabled": {
+    "message": "KeeForge でブラウザ接続がオフになっています。"
+  },
+  "disconnected": {
+    "message": "接続が閉じられました。ポップアップを開き直してください。"
+  },
+  "unavailable": {
+    "message": "KeeForge またはこのエントリを利用できません。"
+  },
+  "timeout": {
+    "message": "リクエストがタイムアウトしました。再試行してください。"
+  },
+  "pairDeclined": {
+    "message": "ペアリングが拒否されました。"
+  },
+  "pairBusy": {
+    "message": "別のペアリングが進行中です。"
+  },
+  "paired": {
+    "message": "KeeForge とペアリングしました。このタブを閉じることができます。"
+  },
+  "compareCode": {
+    "message": "KeeForge に同じコードが表示されていることを確認し、KeeForge で「許可」をクリックしてください。"
+  },
+  "browserLabel": {
+    "message": "ブラウザ：$1"
+  },
+  "browser": {
+    "message": "ブラウザ"
+  }
+}

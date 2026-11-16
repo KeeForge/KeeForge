@@ -4,8 +4,13 @@ import { Cipher, keyPair, publicBytes, random, fromBase64, toBase64, commitment,
 export const ENTRY = '11111111-1111-4111-8111-111111111111';
 export const DB = '22222222-2222-4222-8222-222222222222';
 export class MockApp {
-  constructor({ decision = 'allow', dropReplies = false } = {}) {
-    this.decision = decision; this.dropReplies = dropReplies; this.clients = new Map();
+  constructor({ decision = 'allow', dropReplies = false, scenario = 'default', holdCredential = false } = {}) {
+    this.decision = decision; this.dropReplies = dropReplies; this.holdCredential = holdCredential; this.scenario = scenario;
+    const first = { entry: ENTRY, db: DB, dbName: 'Development', title: 'Example', username: 'demo', hasTotp: true, exact: true };
+    this.entries = ['locked', 'empty'].includes(scenario) ? [] : scenario === 'mixed' ? [
+      { ...first, entry: '33333333-3333-4333-8333-333333333333', title: 'Related host', exact: false },
+      { ...first, entry: '44444444-4444-4444-8444-444444444444', db: '55555555-5555-4555-8555-555555555555', dbName: 'Work', title: 'Work login', hasTotp: false }, first
+    ] : [first]; this.clients = new Map();
     this.staticReady = keyPair().then(key => { this.static = key; });
   }
   connect(send) { return new MockSession(this, send); }
@@ -45,15 +50,15 @@ export class MockSession {
     }
     requireThat(frame.t === 'msg' && this.phase === 'ready');
     const request = validateRequest(await this.cipher.open(frame));
-    if (this.app.dropReplies) return;
+    if (this.app.dropReplies || (this.app.holdCredential && request.type === 'credential')) return;
     let reply = { id: request.id, ok: true };
     switch (request.type) {
-      case 'status': Object.assign(reply, { app: 'mock', unlocked: 1, locked: 0 }); break;
+      case 'status': Object.assign(reply, { app: 'mock', unlocked: this.app.scenario === 'locked' ? 0 : 1, locked: this.app.scenario === 'locked' ? 1 : 0 }); break;
       case 'matches':
         this.offered.add(request.origin);
-        Object.assign(reply, { entries: [{ entry: ENTRY, db: DB, dbName: 'Development', title: 'Example', username: 'demo', hasTotp: true }], locked: 0 }); break;
+        Object.assign(reply, { entries: this.app.entries, locked: this.app.scenario === 'locked' ? 1 : 0 }); break;
       case 'credential':
-        if (!this.offered.has(request.origin) || request.entry !== ENTRY || request.db !== DB) reply = { id: request.id, ok: false, error: 'not-offered' };
+        if (!this.offered.has(request.origin) || !this.app.entries.some(entry => entry.entry === request.entry && entry.db === request.db)) reply = { id: request.id, ok: false, error: 'not-offered' };
         else Object.assign(reply, { username: 'demo', password: 'mock-password', ...(request.totp ? { totp: '123456' } : {}) });
         break;
     }

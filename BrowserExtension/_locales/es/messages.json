@@ -1,0 +1,107 @@
+{
+  "extensionName": {
+    "message": "KeeForge"
+  },
+  "actionTitle": {
+    "message": "KeeForge"
+  },
+  "extensionDescription": {
+    "message": "Rellena inicios de sesión desde KeeForge."
+  },
+  "loading": {
+    "message": "Conectando…"
+  },
+  "hostMissing": {
+    "message": "Prepara este navegador en KeeForge: Ajustes, Navegadores"
+  },
+  "appUnavailable": {
+    "message": "KeeForge no está abierto."
+  },
+  "openApp": {
+    "message": "Abrir KeeForge"
+  },
+  "notPaired": {
+    "message": "Este navegador no está enlazado."
+  },
+  "pair": {
+    "message": "Enlazar con KeeForge"
+  },
+  "unlock": {
+    "message": "Desbloquear en KeeForge"
+  },
+  "confirm": {
+    "message": "Confirma en KeeForge"
+  },
+  "noLogins": {
+    "message": "No hay inicios de sesión para $1"
+  },
+  "otherLogins": {
+    "message": "Otros inicios de sesión para este sitio"
+  },
+  "fillLogin": {
+    "message": "Rellenar $1, $2"
+  },
+  "verificationCode": {
+    "message": "Código de verificación"
+  },
+  "fillCode": {
+    "message": "Rellenar código de verificación"
+  },
+  "reveal": {
+    "message": "Mostrar en KeeForge"
+  },
+  "inFrame": {
+    "message": "en un marco de esta página"
+  },
+  "filled": {
+    "message": "Rellenado."
+  },
+  "badOrigin": {
+    "message": "No se puede rellenar esta página. Usa un sitio seguro."
+  },
+  "noFields": {
+    "message": "No hay campos visibles y editables en esta página."
+  },
+  "noLongerMatches": {
+    "message": "Esta entrada ya no coincide con el sitio."
+  },
+  "denied": {
+    "message": "La confirmación se canceló o falló."
+  },
+  "notOffered": {
+    "message": "Vuelve a abrir la ventana para actualizar los inicios de sesión."
+  },
+  "rateLimited": {
+    "message": "Demasiadas solicitudes. Reinténtalo en breve."
+  },
+  "disabled": {
+    "message": "La conexión del navegador está desactivada en KeeForge."
+  },
+  "disconnected": {
+    "message": "La conexión se cerró. Vuelve a abrir la ventana."
+  },
+  "unavailable": {
+    "message": "KeeForge o esta entrada no está disponible."
+  },
+  "timeout": {
+    "message": "La solicitud agotó el tiempo de espera. Reinténtalo."
+  },
+  "pairDeclined": {
+    "message": "Se rechazó el enlace."
+  },
+  "pairBusy": {
+    "message": "Hay otro enlace en curso."
+  },
+  "paired": {
+    "message": "Enlazado con KeeForge. Puedes cerrar esta pestaña."
+  },
+  "compareCode": {
+    "message": "Comprueba que KeeForge muestra el mismo código y haz clic en Permitir allí."
+  },
+  "browserLabel": {
+    "message": "Navegador: $1"
+  },
+  "browser": {
+    "message": "Navegador"
+  }
+}

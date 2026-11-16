@@ -1,0 +1,107 @@
+{
+  "extensionName": {
+    "message": "KeeForge"
+  },
+  "actionTitle": {
+    "message": "KeeForge"
+  },
+  "extensionDescription": {
+    "message": "Заполняйте данные для входа из KeeForge."
+  },
+  "loading": {
+    "message": "Подключение…"
+  },
+  "hostMissing": {
+    "message": "Настройте этот браузер в KeeForge: Настройки, Браузеры"
+  },
+  "appUnavailable": {
+    "message": "KeeForge не запущен."
+  },
+  "openApp": {
+    "message": "Открыть KeeForge"
+  },
+  "notPaired": {
+    "message": "Этот браузер не сопряжён."
+  },
+  "pair": {
+    "message": "Сопрячь с KeeForge"
+  },
+  "unlock": {
+    "message": "Разблокировать в KeeForge"
+  },
+  "confirm": {
+    "message": "Подтвердите в KeeForge"
+  },
+  "noLogins": {
+    "message": "Нет данных для входа на $1"
+  },
+  "otherLogins": {
+    "message": "Другие данные для входа на этот сайт"
+  },
+  "fillLogin": {
+    "message": "Заполнить $1, $2"
+  },
+  "verificationCode": {
+    "message": "Код проверки"
+  },
+  "fillCode": {
+    "message": "Заполнить код проверки"
+  },
+  "reveal": {
+    "message": "Показать в KeeForge"
+  },
+  "inFrame": {
+    "message": "во фрейме на этой странице"
+  },
+  "filled": {
+    "message": "Заполнено."
+  },
+  "badOrigin": {
+    "message": "Эту страницу нельзя заполнить. Используйте защищённый сайт."
+  },
+  "noFields": {
+    "message": "На этой странице нет видимых редактируемых полей."
+  },
+  "noLongerMatches": {
+    "message": "Эта запись больше не соответствует сайту."
+  },
+  "denied": {
+    "message": "Подтверждение отменено или не удалось."
+  },
+  "notOffered": {
+    "message": "Откройте всплывающее окно заново, чтобы обновить данные для входа."
+  },
+  "rateLimited": {
+    "message": "Слишком много запросов. Повторите попытку позже."
+  },
+  "disabled": {
+    "message": "Связь с браузером отключена в KeeForge."
+  },
+  "disconnected": {
+    "message": "Соединение закрыто. Откройте всплывающее окно заново."
+  },
+  "unavailable": {
+    "message": "KeeForge или эта запись недоступны."
+  },
+  "timeout": {
+    "message": "Время ожидания истекло. Повторите попытку."
+  },
+  "pairDeclined": {
+    "message": "Сопряжение отклонено."
+  },
+  "pairBusy": {
+    "message": "Уже выполняется другое сопряжение."
+  },
+  "paired": {
+    "message": "Сопряжение с KeeForge выполнено. Можно закрыть эту вкладку."
+  },
+  "compareCode": {
+    "message": "Проверьте, что KeeForge показывает тот же код, затем нажмите «Разрешить» в KeeForge."
+  },
+  "browserLabel": {
+    "message": "Браузер: $1"
+  },
+  "browser": {
+    "message": "Браузер"
+  }
+}

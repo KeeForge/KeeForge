@@ -87,7 +87,12 @@ export class Connection {
     this.close('error', code);
   }
   async hostCommand(cmd) {
-    await this.open();
+    if (cmd === 'launch' && this.phase === 'ready') {
+      // LaunchServices can front a running app; use a fresh socket with no prior hello.
+      this.close();
+      await this.open({ pairing: true });
+      this.suppressHello = false;
+    } else await this.open();
     if (!this.port) return this.getState();
     requireThat(this.phase === 'unavailable' || this.phase === 'unpaired');
     this.phase = 'host-retry'; this.opening = deferred();

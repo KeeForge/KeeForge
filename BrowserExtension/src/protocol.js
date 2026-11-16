@@ -89,8 +89,8 @@ export function validateReply(reply, request) {
     case 'matches':
       requireThat(Array.isArray(reply.entries) && reply.entries.length <= 50 && integer(reply.locked));
       return { ...result, locked: reply.locked, entries: reply.entries.map(e => {
-        requireThat(object(e) && uuid(e.entry) && uuid(e.db) && string(e.dbName) && string(e.title) && string(e.username) && typeof e.hasTotp === 'boolean');
-        return { entry: e.entry, db: e.db, dbName: e.dbName, title: e.title, username: e.username, hasTotp: e.hasTotp };
+        requireThat(object(e) && uuid(e.entry) && uuid(e.db) && string(e.dbName) && string(e.title) && string(e.username) && typeof e.hasTotp === 'boolean' && typeof e.exact === 'boolean');
+        return { entry: e.entry, db: e.db, dbName: e.dbName, title: e.title, username: e.username, hasTotp: e.hasTotp, exact: e.exact };
       }) };
     case 'credential':
       requireThat(string(reply.username) && string(reply.password));

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "KeeForge",
+  "name": "__MSG_extensionName__",
   "version": "0.0.0",
   "minimum_chrome_version": "133",
   "browser_specific_settings": {
@@ -9,14 +9,34 @@
       "strict_min_version": "130.0"
     }
   },
-  "permissions": ["nativeMessaging", "activeTab", "scripting", "storage"],
-  "action": {"default_title": "KeeForge"},
+  "permissions": [
+    "nativeMessaging",
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "action": {
+    "default_title": "__MSG_actionTitle__",
+    "default_popup": "popup.html"
+  },
   "background": {
     "service_worker": "src/background.js",
-    "scripts": ["src/background.js"],
+    "scripts": [
+      "src/background.js"
+    ],
     "type": "module"
   },
   "content_security_policy": {
-    "extension_pages": "default-src 'none'; script-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+  },
+  "description": "__MSG_extensionDescription__",
+  "default_locale": "en",
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      }
+    }
   }
 }

@@ -1,0 +1,107 @@
+{
+  "extensionName": {
+    "message": "KeeForge"
+  },
+  "actionTitle": {
+    "message": "KeeForge"
+  },
+  "extensionDescription": {
+    "message": "Fülle Anmeldedaten aus KeeForge aus."
+  },
+  "loading": {
+    "message": "Verbindung wird hergestellt …"
+  },
+  "hostMissing": {
+    "message": "Richte diesen Browser in KeeForge ein: Einstellungen, Browser"
+  },
+  "appUnavailable": {
+    "message": "KeeForge läuft nicht."
+  },
+  "openApp": {
+    "message": "KeeForge öffnen"
+  },
+  "notPaired": {
+    "message": "Dieser Browser ist nicht gekoppelt."
+  },
+  "pair": {
+    "message": "Mit KeeForge koppeln"
+  },
+  "unlock": {
+    "message": "In KeeForge entsperren"
+  },
+  "confirm": {
+    "message": "In KeeForge bestätigen"
+  },
+  "noLogins": {
+    "message": "Keine Anmeldedaten für $1"
+  },
+  "otherLogins": {
+    "message": "Weitere Anmeldedaten für diese Website"
+  },
+  "fillLogin": {
+    "message": "$1, $2 ausfüllen"
+  },
+  "verificationCode": {
+    "message": "Bestätigungscode"
+  },
+  "fillCode": {
+    "message": "Bestätigungscode ausfüllen"
+  },
+  "reveal": {
+    "message": "In KeeForge anzeigen"
+  },
+  "inFrame": {
+    "message": "in einem Frame auf dieser Seite"
+  },
+  "filled": {
+    "message": "Ausgefüllt."
+  },
+  "badOrigin": {
+    "message": "Diese Seite kann nicht ausgefüllt werden. Verwende eine sichere Website."
+  },
+  "noFields": {
+    "message": "Keine sichtbaren, bearbeitbaren Felder auf dieser Seite."
+  },
+  "noLongerMatches": {
+    "message": "Dieser Eintrag passt nicht mehr zur Website."
+  },
+  "denied": {
+    "message": "Die Bestätigung wurde abgebrochen oder ist fehlgeschlagen."
+  },
+  "notOffered": {
+    "message": "Öffne das Popup erneut, um die Anmeldedaten zu aktualisieren."
+  },
+  "rateLimited": {
+    "message": "Zu viele Anfragen. Versuche es gleich erneut."
+  },
+  "disabled": {
+    "message": "Die Browser-Verbindung ist in KeeForge deaktiviert."
+  },
+  "disconnected": {
+    "message": "Die Verbindung wurde geschlossen. Öffne das Popup erneut."
+  },
+  "unavailable": {
+    "message": "KeeForge oder dieser Eintrag ist nicht verfügbar."
+  },
+  "timeout": {
+    "message": "Die Anfrage hat zu lange gedauert. Versuche es erneut."
+  },
+  "pairDeclined": {
+    "message": "Die Kopplung wurde abgelehnt."
+  },
+  "pairBusy": {
+    "message": "Eine andere Kopplung läuft bereits."
+  },
+  "paired": {
+    "message": "Mit KeeForge gekoppelt. Du kannst diesen Tab schließen."
+  },
+  "compareCode": {
+    "message": "Prüfe, ob KeeForge denselben Code zeigt, und klicke dort auf Erlauben."
+  },
+  "browserLabel": {
+    "message": "Browser: $1"
+  },
+  "browser": {
+    "message": "Browser"
+  }
+}

@@ -36,7 +36,7 @@ test('reject invalid envelope values and canonical base64', () => {
 const requests = [request(1, 'status'), request(1, 'matches', { origin: 'https://example.com' }), request(1, 'credential', { entry: ENTRY, db: DB, origin: 'https://example.com', totp: true }), request(1, 'reveal', { entry: ENTRY, db: DB }), request(1, 'unlock', { db: DB })];
 const replies = [
   { app: '1', unlocked: 0, locked: 1 },
-  { entries: [{ entry: ENTRY, db: DB, dbName: 'db', title: 'title', username: 'user', hasTotp: true }], locked: 0 },
+  { entries: [{ entry: ENTRY, db: DB, dbName: 'db', title: 'title', username: 'user', hasTotp: true, exact: true }], locked: 0 },
   { username: 'user', password: 'password', totp: '123456' }, {}, {}
 ];
 for (const [i, req] of requests.entries()) {
@@ -95,4 +95,9 @@ test('numeric bounds, malformed UUIDs and wrong field value types are rejected',
   assert.throws(() => validateReply({ id: 1, ok: true }, { id: 1, type: 'unknown' }));
   for (const value of [0, 'true', null]) assert.throws(() => request(1, 'credential', { ...requests[2], totp: value }));
   for (const field of ['dbName', 'title', 'username', 'hasTotp']) assert.throws(() => validateReply({ id: 1, ok: true, locked: 0, entries: [{ ...replies[1].entries[0], [field]: field === 'hasTotp' ? 'true' : false }] }, requests[1]));
+});
+test('request ids include zero and the largest exactly representable integer; exact is a required boolean', () => {
+  for (const id of [0, Number.MAX_SAFE_INTEGER]) assert.equal(request(id, 'status').id, id);
+  for (const exact of [true, false]) assert.equal(validateReply({ id: 1, ok: true, locked: 0, entries: [{ ...replies[1].entries[0], exact }] }, requests[1]).entries[0].exact, exact);
+  for (const exact of [undefined, null, 0, 'true']) assert.throws(() => validateReply({ id: 1, ok: true, locked: 0, entries: [{ ...replies[1].entries[0], exact }] }, requests[1]));
 });

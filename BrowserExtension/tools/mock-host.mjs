@@ -2,7 +2,7 @@
 import { MockApp } from '../test/mock-app.js';
 import { envelope, validateEnvelope, object } from '../src/protocol.js';
 
-const app = new MockApp({ decision: process.argv.includes('--decline') ? 'decline' : process.argv.includes('--busy') ? 'busy' : 'allow' });
+const app = new MockApp({ decision: process.argv.includes('--decline') ? 'decline' : process.argv.includes('--busy') ? 'busy' : process.argv.includes('--pending') ? 'pending' : 'allow', scenario: process.argv.includes('--locked') ? 'locked' : process.argv.includes('--empty') ? 'empty' : process.argv.includes('--mixed') ? 'mixed' : 'default', holdCredential: process.argv.includes('--hold-credential') });
 let available = !process.argv.includes('--unavailable');
 let session;
 let input = Buffer.alloc(0), queue = Promise.resolve();

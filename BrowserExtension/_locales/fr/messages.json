@@ -1,0 +1,107 @@
+{
+  "extensionName": {
+    "message": "KeeForge"
+  },
+  "actionTitle": {
+    "message": "KeeForge"
+  },
+  "extensionDescription": {
+    "message": "Remplissez vos identifiants depuis KeeForge."
+  },
+  "loading": {
+    "message": "Connexion…"
+  },
+  "hostMissing": {
+    "message": "Configurez ce navigateur dans KeeForge : Réglages, Navigateurs"
+  },
+  "appUnavailable": {
+    "message": "KeeForge n'est pas ouvert."
+  },
+  "openApp": {
+    "message": "Ouvrir KeeForge"
+  },
+  "notPaired": {
+    "message": "Ce navigateur n'est pas jumelé."
+  },
+  "pair": {
+    "message": "Jumeler avec KeeForge"
+  },
+  "unlock": {
+    "message": "Déverrouiller dans KeeForge"
+  },
+  "confirm": {
+    "message": "Confirmez dans KeeForge"
+  },
+  "noLogins": {
+    "message": "Aucun identifiant pour $1"
+  },
+  "otherLogins": {
+    "message": "Autres identifiants pour ce site"
+  },
+  "fillLogin": {
+    "message": "Remplir $1, $2"
+  },
+  "verificationCode": {
+    "message": "Code de vérification"
+  },
+  "fillCode": {
+    "message": "Remplir le code de vérification"
+  },
+  "reveal": {
+    "message": "Afficher dans KeeForge"
+  },
+  "inFrame": {
+    "message": "dans un cadre de cette page"
+  },
+  "filled": {
+    "message": "Rempli."
+  },
+  "badOrigin": {
+    "message": "Cette page ne peut pas être remplie. Utilisez un site sécurisé."
+  },
+  "noFields": {
+    "message": "Aucun champ visible et modifiable sur cette page."
+  },
+  "noLongerMatches": {
+    "message": "Cette entrée ne correspond plus au site."
+  },
+  "denied": {
+    "message": "La confirmation a été annulée ou a échoué."
+  },
+  "notOffered": {
+    "message": "Rouvrez la fenêtre pour actualiser les identifiants."
+  },
+  "rateLimited": {
+    "message": "Trop de demandes. Réessayez dans un instant."
+  },
+  "disabled": {
+    "message": "La connexion au navigateur est désactivée dans KeeForge."
+  },
+  "disconnected": {
+    "message": "La connexion a été fermée. Rouvrez la fenêtre."
+  },
+  "unavailable": {
+    "message": "KeeForge ou cette entrée est indisponible."
+  },
+  "timeout": {
+    "message": "Le délai de la demande a expiré. Réessayez."
+  },
+  "pairDeclined": {
+    "message": "Le jumelage a été refusé."
+  },
+  "pairBusy": {
+    "message": "Un autre jumelage est en cours."
+  },
+  "paired": {
+    "message": "Jumelé avec KeeForge. Vous pouvez fermer cet onglet."
+  },
+  "compareCode": {
+    "message": "Vérifiez que KeeForge affiche le même code, puis cliquez sur Autoriser dans KeeForge."
+  },
+  "browserLabel": {
+    "message": "Navigateur : $1"
+  },
+  "browser": {
+    "message": "Navigateur"
+  }
+}

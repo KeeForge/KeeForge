@@ -1,0 +1,107 @@
+{
+  "extensionName": {
+    "message": "KeeForge"
+  },
+  "actionTitle": {
+    "message": "KeeForge"
+  },
+  "extensionDescription": {
+    "message": "从 KeeForge 填充登录信息。"
+  },
+  "loading": {
+    "message": "正在连接…"
+  },
+  "hostMissing": {
+    "message": "在 KeeForge 中设置此浏览器：设置、浏览器"
+  },
+  "appUnavailable": {
+    "message": "KeeForge 未运行。"
+  },
+  "openApp": {
+    "message": "打开 KeeForge"
+  },
+  "notPaired": {
+    "message": "此浏览器尚未配对。"
+  },
+  "pair": {
+    "message": "与 KeeForge 配对"
+  },
+  "unlock": {
+    "message": "在 KeeForge 中解锁"
+  },
+  "confirm": {
+    "message": "请在 KeeForge 中确认"
+  },
+  "noLogins": {
+    "message": "没有 $1 的登录信息"
+  },
+  "otherLogins": {
+    "message": "此网站的其他登录信息"
+  },
+  "fillLogin": {
+    "message": "填充 $1，$2"
+  },
+  "verificationCode": {
+    "message": "验证码"
+  },
+  "fillCode": {
+    "message": "填充验证码"
+  },
+  "reveal": {
+    "message": "在 KeeForge 中显示"
+  },
+  "inFrame": {
+    "message": "在此页面的框架中"
+  },
+  "filled": {
+    "message": "已填充。"
+  },
+  "badOrigin": {
+    "message": "无法填充此页面。请使用安全的网站。"
+  },
+  "noFields": {
+    "message": "此页面没有可见且可编辑的字段。"
+  },
+  "noLongerMatches": {
+    "message": "此条目不再与该网站匹配。"
+  },
+  "denied": {
+    "message": "确认已取消或失败。"
+  },
+  "notOffered": {
+    "message": "请重新打开弹出窗口以刷新登录信息。"
+  },
+  "rateLimited": {
+    "message": "请求过多。请稍后重试。"
+  },
+  "disabled": {
+    "message": "KeeForge 中的浏览器连接已关闭。"
+  },
+  "disconnected": {
+    "message": "连接已关闭。请重新打开弹出窗口。"
+  },
+  "unavailable": {
+    "message": "KeeForge 或此条目不可用。"
+  },
+  "timeout": {
+    "message": "请求超时。请重试。"
+  },
+  "pairDeclined": {
+    "message": "配对已被拒绝。"
+  },
+  "pairBusy": {
+    "message": "另一个配对正在进行。"
+  },
+  "paired": {
+    "message": "已与 KeeForge 配对。你可以关闭此标签页。"
+  },
+  "compareCode": {
+    "message": "检查 KeeForge 是否显示相同的代码，然后在其中点按“允许”。"
+  },
+  "browserLabel": {
+    "message": "浏览器：$1"
+  },
+  "browser": {
+    "message": "浏览器"
+  }
+}

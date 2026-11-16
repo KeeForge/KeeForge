@@ -97,3 +97,18 @@ test('Firefox target without documentId uses inspected frame origin; credential 
   assert.deepEqual(await denied.b.handle({ type: 'fill', tabId: 1 }), { ok: false, error: 'denied' });
   assert.equal(denied.fills.length, 0);
 });
+test('popup target is background-derived, focused frame is pinned through matching and filling', async () => {
+  const s = setup();
+  const inspect = s.api.scripting.executeScript;
+  s.api.scripting.executeScript = async options => options.target.allFrames ? [{ frameId: 0, result: { focused: false, fillable: true } }, { frameId: 3, result: { focused: true, fillable: true } }] : inspect(options);
+  s.api.tabs.query = async () => [{ id: 1 }];
+  assert.deepEqual(await s.b.handle({ type: 'getTarget' }), { tabId: 1, frameId: 3, documentId: 'doc', origin: 'https://example.com' });
+  await s.b.handle({ type: 'getMatches', tabId: 1, frameId: 3 });
+  s.navigate({ href: 'https://elsewhere.example', origin: 'https://elsewhere.example' });
+  await assert.rejects(s.b.handle({ type: 'fill', tabId: 1, frameId: 3, entry: 'e', db: 'd' }), /bad-origin/);
+  assert.equal(s.calls.some(call => call.type === 'credential'), false);
+});
+test('popup refuses a target without any visible editable field', async () => {
+  const s = setup(); s.api.scripting.executeScript = async () => [{ frameId: 0, result: { focused: false, fillable: false } }];
+  await assert.rejects(s.b.handle({ type: 'getTarget', tabId: 1 }), /no-fields/);
+});

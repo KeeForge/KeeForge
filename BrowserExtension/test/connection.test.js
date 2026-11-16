@@ -137,3 +137,29 @@ test('pairing while paired uses a new connection; concurrent starts cannot repla
   await assert.rejects(s.connection.startPairing(), /pairing-busy/);
   s.connection.close(); await assert.rejects(p.result);
 });
+test('mock UI scenarios return real protocol matches including mixed exactness and databases', async () => {
+  for (const scenario of ['locked', 'empty', 'mixed']) {
+    const s = await paired({ scenario });
+    const reply = await s.connection.request('matches', { origin: 'https://example.com' });
+    assert.equal(reply.locked, scenario === 'locked' ? 1 : 0);
+    assert.equal(reply.entries.length, scenario === 'mixed' ? 3 : 0);
+    if (scenario === 'mixed') {
+      assert.deepEqual(reply.entries.map(entry => entry.exact), [false, true, true]);
+      assert.equal(new Set(reply.entries.map(entry => entry.db)).size, 2);
+      for (const entry of reply.entries) assert.equal((await s.connection.request('credential', { entry: entry.entry, db: entry.db, origin: 'https://example.com' })).ok, true);
+    }
+    s.connection.close();
+  }
+});
+test('outbound frame cap counts JSON bytes only, excluding the native header', () => {
+  const s = setup(); const frames = []; s.connection.port = { postMessage: frame => frames.push(frame) };
+  const frame = { padding: '' }, overhead = new TextEncoder().encode(JSON.stringify(frame)).length;
+  frame.padding = 'x'.repeat(65536 - overhead); s.connection.send(frame); assert.equal(frames.length, 1);
+  assert.throws(() => s.connection.send({ padding: frame.padding + 'x' }));
+});
+test('Open KeeForge fronts an already-running paired app through launch on a fresh session', async () => {
+  const s = await paired(); const previous = s.connection.port;
+  assert.equal((await s.connection.hostCommand('launch')).state, 'ready');
+  assert.equal(previous.disconnected, true); assert.deepEqual(s.runtime.commands, ['launch']);
+  assert.equal((await s.connection.request('status')).ok, true); s.connection.close();
+});
