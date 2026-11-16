@@ -13,6 +13,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     lazy var databaseWindowRegistry = MacDatabaseWindowRegistry(sessionStore: sessionStore)
     private lazy var macWindowCloseGuard = MacWindowCloseGuard(registry: databaseWindowRegistry)
     private let macQuickAccess = MacQuickAccessController()
+    private let macBrowserBridge = MacBrowserBridgeController()
     private let macSSHAgent = MacSSHAgentController()
     private let appAppearance = MacAppAppearance()
     private(set) lazy var windowCoordinator: MacWindowCoordinator = {
@@ -79,6 +80,8 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         macQuickAccess.start()
         macSSHAgent.sessionsProvider = { sessionStore.openSessions }
         macSSHAgent.start()
+        macBrowserBridge.sessionsProvider = { sessionStore.openSessions }
+        macBrowserBridge.start()
         // Database commands resolve through the coordinator while another window has focus.
         nextResponder = NSApp.nextResponder
         NSApp.nextResponder = self
@@ -90,6 +93,10 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
             whatsNewRelease: transitionNotice ? nil : WhatsNewPresentationService.releaseToPresent(),
             automaticOpenID: transitionNotice ? nil : listViewModel.databaseToAutoOpenOnLaunch()?.id
         )
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        macBrowserBridge.stop()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

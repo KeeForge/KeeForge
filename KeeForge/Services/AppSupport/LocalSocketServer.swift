@@ -84,6 +84,7 @@ final class LocalSocketServer: Sendable {
     private let framing: Framing
     private let makeHandler: @Sendable (Connection) -> any LocalSocketConnectionHandler
     private let maximumConnections: Int
+    private let refusesExcessConnections: Bool
     private let acceptQueue = DispatchQueue(label: "com.keevault.app.local-socket")
     private let state = OSAllocatedUnfairLock(uncheckedState: State())
 
@@ -106,6 +107,7 @@ final class LocalSocketServer: Sendable {
         path: String,
         framing: Framing,
         maximumConnections: Int = LocalSocketServer.defaultMaximumConnections,
+        refusesExcessConnections: Bool = false,
         makeHandler: @escaping @Sendable (Connection) -> any LocalSocketConnectionHandler
     ) {
         self.path = path
@@ -115,6 +117,7 @@ final class LocalSocketServer: Sendable {
         self.framing = framing
         self.makeHandler = makeHandler
         self.maximumConnections = maximumConnections
+        self.refusesExcessConnections = refusesExcessConnections
     }
 
     deinit {
@@ -150,16 +153,17 @@ final class LocalSocketServer: Sendable {
         listener.resume()
     }
 
-    /// Stops listening, removes the socket file if it is still the one this
-    /// server bound, and ends every open connection; a request already being
-    /// answered gets no reply.
-    func stop() {
+    /// Stops listening and removes the socket file if it is still the one this
+    /// server bound. By default it also ends every open connection, and a request
+    /// being answered gets no reply; `closeConnections: false` leaves them open so
+    /// the consumer can send a shutdown frame and close each handle itself.
+    func stop(closeConnections: Bool = true) {
         let (listener, boundFile) = state.withLockUnchecked { state -> ((any DispatchSourceRead)?, FileIdentity?) in
             // Shut down under the lock: `serve` deregisters a descriptor under
             // the same lock before closing it, so none of these can have been
             // closed and reused for another file.
-            for value in state.connections.values {
-                value.connection.close()
+            if closeConnections {
+                for value in state.connections.values { value.connection.close() }
             }
             defer {
                 state.listener = nil
@@ -262,6 +266,7 @@ final class LocalSocketServer: Sendable {
             let isAccepted = state.withLockUnchecked { state -> Bool in
                 guard state.listener != nil else { return false }
                 if state.connections.count >= maximumConnections {
+                    guard !refusesExcessConnections else { return false }
                     guard let stalled = state.connections.min(by: { $0.value.lastRequest < $1.value.lastRequest })?.key else { return false }
                     // Its thread wakes from the read or write it is blocked
                     // in and closes the descriptor.

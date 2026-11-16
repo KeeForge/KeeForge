@@ -13,7 +13,7 @@
 
 ## Ownership
 
-- `AppDelegate` owns the session store, the database list, `MacDatabaseWindowRegistry`, appearance, and the SSH agent and quick-access controllers, and installs the list hooks when it builds the shared models. No Mac code reads or writes `activeSession`/`activeSessionID`.
+- `AppDelegate` owns the session store, the database list, `MacDatabaseWindowRegistry`, appearance, and the browser bridge, SSH agent and quick-access controllers, and installs the list hooks when it builds the shared models. No Mac code reads or writes `activeSession`/`activeSessionID`.
 - `MacWindowCoordinator` owns the Databases window and one `DatabaseWindowController` per open database, keyed by database UUID, and is the only writer of their frames and the restoration topology.
 - `MacWindowCoordinator` applies `MacApplicationRouting` (launch presentations before any open, queued URL and Quick Launch opens, duplicate fronting, Dock reopen) and owns one app-level `TOTPEnrollmentCoordinator`, bound to the database window targeted when a link arrives or to the database chosen in the Databases window.
 - `DatabaseWindowController` holds its session directly for its whole life, with the window's `MacUnlockFormModel`, `MacFilePanels`, `MacWorkspaceSheets`, `MacWorkspaceAlerts` and `MacAttachmentPreviewController`. `MacWindowWorkspace` owns the split controller and toolbar for one unlocked lifetime.

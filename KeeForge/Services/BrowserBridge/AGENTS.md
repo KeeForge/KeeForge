@@ -1,11 +1,12 @@
 # Browser Bridge Services
 
-**Scope:** the macOS-only, opt-in bridge a browser extension asks for credentials through (#299): protocol and crypto for one connection, request authorization against the open database sessions, where pairings and the app's bridge key are kept, and installing the native-messaging manifest into browsers. Every file is `#if os(macOS)`, excluded from iOS in both project specs (the direct spec inherits the base), and absent from both AutoFill allow-lists. No sockets, UI or logging here. Only the request handler reads database sessions.
+**Scope:** the macOS-only, opt-in bridge a browser extension asks for credentials through (#299): protocol and crypto for one connection, request authorization against the open database sessions, where pairings and the app's bridge key are kept, and installing the native-messaging manifest into browsers. Every file is `#if os(macOS)`, excluded from iOS in both project specs (the direct spec inherits the base), and absent from both AutoFill allow-lists. No UI or logging here. Only the request handler reads database sessions.
 
 ## Ownership
 
 - Framing owns directional byte caps; messages own strict wire decoding; crypto owns X25519, HKDF and AES-GCM; the connection state machine owns pairing order, one handshake, counters and pending replies.
-- The caller serializes calls off the main thread, supplies the app static key and client lookup, coordinates pairing admission across connections, persists `.paired`, and drives the 120-second pairing timeout and connection cancellation. The request handler owns origin validation, offers, authorization and database policy.
+- `MacBrowserBridgeController` owns the socket and observable lifecycle. Each connection serializes session calls and writes on its own queue; requests independently await its main-actor handler, so authentication never stalls status. The main actor never waits for those queues or socket threads.
+- The controller reads the bridge key, then loads a lock-protected client-key snapshot, before listening, and adds an allowed pairing to it after the store saves it and before `pair-result` is written. One pairing waits for the user at a time: admission is checked under that lock, a second request is declined unseen, and the injected 120-second timeout is cleared on answer, close or shutdown. Removing a browser takes it out of the snapshot under the same lock and closes its connections. Switching off cancels every request, removes the socket file, then writes each session's `disabled` and closes it on its own queue; nothing else is written after that, including a credential that was waiting on the device-owner prompt.
 - `BrowserPairingStore` owns the paired-browser records (client id, public key, sanitized name, dates) in the app's own defaults through `SettingsService`, and the installation's X25519 private key in the Keychain. It is an actor; a caller that needs a synchronous lookup keeps its own snapshot.
 - The main-actor request handler owns connection-local offers (50 pairs per origin, most recent 8 origins), origin validation, all-open-session reads and the session’s device-owner gate. Eligibility shares `KPGroup.autoFillEntries` with AutoFill, respects database participation, and excludes expired entries and entries with neither a password nor a verification code (the bridge fills no passkeys).
 - Credentials require an offer for that exact origin and database/entry pair. Recheck session identity, unlocked/no-pending-lock state, lock cycle and interactive match after authentication; decrypt off actor, then recheck the lease and content revision before releasing. Never block the main actor on socket work.
@@ -23,8 +24,9 @@
 
 ## Tests
 
+- `MacBrowserBridgeControllerTests`: real Unix sockets, injected Keychain, pairing clock and device-owner gate; lifecycle, admission, revocation, limits and credential concurrency.
 - `BrowserBridgeRequestHandlerTests`: real-session offers, matching, gates, lock races, references and limits.
-- `BrowserBridgeProtocolTests` in `KeeForgeMacTests`: framing, strict decoding, pairing, handshake, rejection paths, authenticated counters and deterministic vectors. The client reference lives only in that test file.
+- `BrowserBridgeProtocolTests` in `KeeForgeMacTests`: framing, strict decoding, pairing, handshake, rejection paths, authenticated counters and deterministic vectors. The reference client is shared test support.
 - `../../../BrowserExtension/test/vectors.json` is bundled by `UnitTestFixtures`; regeneration instructions are in the test header. The extension tests consume the same file.
 - `BrowserHostInstallerTests`: fake home, isolated defaults, fake bookmarks, the real file code in a temporary directory. No panel and no real browser folder.
 - `BrowserPairingStoreTests`: records, name sanitizing, last-used coalescing and key lifetime, with an injected clock and a fake Keychain. Tests never touch the real Keychain.

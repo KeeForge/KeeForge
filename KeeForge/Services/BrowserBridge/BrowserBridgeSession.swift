@@ -8,6 +8,7 @@ final class BrowserBridgeSession {
         case pairingRequested(clientPublicKey: Data, name: String, code: String)
         case paired(clientPublicKey: Data, name: String)
         case pairingCancelled
+        case established(clientID: String)
         case request(BrowserBridgeRequest)
     }
     struct Output {
@@ -67,7 +68,9 @@ final class BrowserBridgeSession {
                 cipher = BrowserBridgeCipher(sending: keys.s2c, receiving: keys.c2s)
                 clearPairing()
                 state = .established
-                return try output(.serverHello(eph: ephemeral.publicKey.rawRepresentation, app: appVersion))
+                var result = try output(.serverHello(eph: ephemeral.publicKey.rawRepresentation, app: appVersion))
+                result.events = [.established(clientID: client)]
+                return result
             case (.established, .message):
                 guard var cipher else { return fail(.badHandshake) }
                 let plaintext = try cipher.open(envelope)
