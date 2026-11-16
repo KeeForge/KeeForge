@@ -14,6 +14,10 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     private lazy var macWindowCloseGuard = MacWindowCloseGuard(registry: databaseWindowRegistry)
     private let macQuickAccess = MacQuickAccessController()
     private let macBrowserBridge = MacBrowserBridgeController()
+    private lazy var browserHosts = BrowserHostInstaller { [weak self] request in
+        await MacFilePanels.presentAsSheet(MacFilePanels.makeBrowserFolderPanel(for: request),
+                                           on: self?.settingsWindowController?.window)
+    }
     private let macSSHAgent = MacSSHAgentController()
     private let appAppearance = MacAppAppearance()
     private(set) lazy var windowCoordinator: MacWindowCoordinator = {
@@ -82,6 +86,8 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         macSSHAgent.start()
         macBrowserBridge.sessionsProvider = { sessionStore.openSessions }
         macBrowserBridge.start()
+        // A moved or updated app rewrites its manifests from the folder access it already has; this never prompts.
+        if macBrowserBridge.isEnabled { browserHosts.repairAll() }
         // Database commands resolve through the coordinator while another window has focus.
         nextResponder = NSApp.nextResponder
         NSApp.nextResponder = self
@@ -129,6 +135,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         if settingsWindowController == nil {
             settingsWindowController = SettingsWindowController(listViewModel: listViewModel, sessionStore: sessionStore,
                 quickAccess: macQuickAccess, sshAgent: macSSHAgent,
+                browserBridge: macBrowserBridge, browserHosts: browserHosts,
                 prepareWindow: { [screenProtectionService] in screenProtectionService.applyCapturePolicy(to: $0) })
         }
         settingsWindowController?.showWindow(sender)

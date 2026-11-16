@@ -38,7 +38,7 @@ final class MacBrowserBridgeController {
     private(set) var isListening = false
     private(set) var pairedBrowsers: [PairedBrowser] = []
     private(set) var pendingPairing: PendingPairing?
-    /// An allowed pairing could not be saved; cleared by the next pairing request.
+    /// An allowed pairing could not be saved; cleared by the next pairing request or by Settings.
     private(set) var pairingFailed = false
 
     @ObservationIgnored var sessionsProvider: SessionsProvider
@@ -122,6 +122,11 @@ final class MacBrowserBridgeController {
             connection.answer(true)
             await self.refreshBrowsers()
         }
+    }
+
+    /// Settings calls this when it is shown again, so a failure is reported once.
+    func clearPairingFailure() {
+        pairingFailed = false
     }
 
     /// Closes the browser's connections; its next `hello` is `unpaired`.

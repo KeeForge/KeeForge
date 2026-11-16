@@ -47,7 +47,7 @@ final class BrowserBridgeRequestHandler {
     static func deviceOwnerGate(_ gate: SecretAccessGate) async -> Bool {
         guard gate.requiresAuthentication else { return true }
         do {
-            try await gate.authenticate(reason: String(localized: "Copy password"))
+            try await gate.authenticate(reason: String(localized: "Fill a login in your browser"))
             return true
         } catch { return false }
     }

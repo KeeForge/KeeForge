@@ -8,6 +8,7 @@
 - Add a preference effect to the model with a headless test, not to a view `onChange`. `ci_scripts/validate_architecture.py` fails any `SettingsService.<property> =` assignment in `SettingsView.swift`.
 - Every per-database AutoFill toggle goes through the `DatabaseListViewModel` passed in as `listViewModel` (`setAutoFillEnabled`), never `DatabaseListStore`. That instance carries the `autoFillEnabledRefreshHandler` bridge and the system-provider state, so this screen and the list's tip card cannot disagree.
 - `MacSSHAgentSettingsTab` (macOS) renders over `MacSSHAgentController` and is shown only when the app put one in the environment (`../../Services/SSHAgent/AGENTS.md`).
+- `MacBrowsersSettingsTab` (macOS) only renders `MacBrowserBridgeSettingsModel`, which owns row states, actions, confirmations and formatted dates over `MacBrowserBridgeController` and the browser host installer (`../../Services/BrowserBridge/AGENTS.md`). The folder-grant open panel is AppKit, built by `MacFilePanels` and injected by `AppDelegate`, which also runs the installer's prompt-free repair once at launch while the bridge is on.
 - Summary wording for the iOS root is the pure `AppSettingsSummary`. `SupportKeeForgeSection` picks the support surface so call sites do not know the build channel.
 
 ## Invariants
@@ -30,11 +31,18 @@
 - Copy SSH Configuration copies without the concealed pasteboard marker: the `IdentityAgent` block holds no secret.
 - Identifiers: `settings.tab.ssh-agent`, `settings.ssh-agent.{toggle,copy-configuration,database-picker}`, and `settings.ssh-agent.key-toggle.<entry-uuid>`.
 
+### Browsers tab
+
+- Only browsers this Mac has get a set-up row; Repair rewrites through the installer's repair without a panel, and a cancelled folder panel shows no message.
+- Removing one paired browser and removing them all each go through a confirmation; only the confirmed action calls the controller, and a thrown removal shows a line under the list.
+- The failed-pairing line follows `MacBrowserBridgeController.pairingFailed`; every show of the Settings window clears it and the installer messages (`reload()`).
+- Identifiers: `settings.tab.browsers`, `settings.browsers.{toggle,host-list,paired-list,remove-all}`, `settings.browsers.host.<browser>.{set-up,repair,remove}`, `settings.browsers.paired.<client-id>.remove`, `settings.browsers.remove.confirm`.
+
 ### Layout
 
-- Mac Settings uses an AppKit `NSTabViewController` with toolbar tabs: General, Security, AutoFill, Quick Search, SSH Agent, Appearance, Servers, About. Every tab lays out on the shared `MacSettingsForm` grid (one right-aligned label column, one control column, separators between groups) at one window width; each tab's height follows its content up to `MacSettingsLayout.maximumHeight`, past which it scrolls, and switching tabs keeps the title bar in place. The title follows the tab; the window can never become main.
+- Mac Settings uses an AppKit `NSTabViewController` with toolbar tabs: General, Security, AutoFill, Quick Search, SSH Agent, Browsers, Appearance, Servers, About. Every tab lays out on the shared `MacSettingsForm` grid (one right-aligned label column, one control column, separators between groups) at one window width; each tab's height follows its content up to `MacSettingsLayout.maximumHeight`, past which it scrolls, and switching tabs keeps the title bar in place. The title follows the tab; the window can never become main.
 - Every Mac settings caption (Settings tabs, Database Settings, Change Master Key, Encryption Settings, Connect to Server, New Database) uses `macSettingsCaptionStyle()` through `settingsCaption`: 12 pt, secondary, extra line spacing. A caption is one sentence of at most two lines at the Settings width; a caveat that still matters (Universal Clipboard, screen-capture limits, quick search's unlock rule, the manual sync policy) moves into a `MacSettingsHelpButton` popover at the row's trailing edge, never dropped. Help buttons carry an accessibility label and a `.help` identifier.
-- A fresh controller selects Security; the retained controller preserves selection across close/reopen within the process. Settings reads no focused window's session; only SSH chooses an explicit database. Content and toolbar ids are `settings.tab.` plus the tab's raw value (`general`, `security`, `autofill`, `quick-search`, `ssh-agent`, `appearance`, `servers`, `about`).
+- A fresh controller selects Security; the retained controller preserves selection across close/reopen within the process. Settings reads no focused window's session; only SSH chooses an explicit database. Content and toolbar ids are `settings.tab.` plus the tab's raw value (`general`, `security`, `autofill`, `quick-search`, `ssh-agent`, `browsers`, `appearance`, `servers`, `about`).
 - Disconnect Server and Clear AutoFill Entries use NSAlert sheets; only an accepted confirmation calls the model. Acknowledgments opens as an attached sheet.
 - The screen-lock checkbox is checked and disabled. The strict background-policy checkbox and delay are separate from inactivity; Immediately preserves existing behavior. Touch ID keeps its automatic-prompt meaning.
 - The support section stays inline on the iOS root; a tip jar behind a row is not seen.
@@ -56,6 +64,7 @@
 - `SettingsWindowControllerTests` covers the native tabs, title, shared width and content-sized heights, within-process selection, non-main window, capture policy, channel-specific updates and accepted/cancelled confirmation effects.
 - `AppSettingsViewModelTests`, `AppSettingsSummaryTests`, `AutoFillStoreInspectorGroupingTests`, `FeedbackSubmissionServiceTests`; `DatabaseListViewModelTests` for the one-database footer condition.
 - `MacSSHAgentControllerTests` (`KeeForgeMacTests` only): the candidate list, its concealment, and the database the list edits. The tab itself has no UI test.
+- `MacBrowserBridgeSettingsModelTests` (`KeeForgeMacTests` only): row states, installer and controller calls, confirmations, unavailability text and date formatting with an injected clock and locale; `MacFilePanelsTests` for the folder panel. The tab itself has no UI test.
 - UI: `AutoFillTipUITests`, `MacAppSuggestionUITests`, `WhatsNewUITests`, `AutoFillStoreInspectorSmokeUITests`; `AutoFillStoreUITests` needs a provisioned device.
 
 ## See also

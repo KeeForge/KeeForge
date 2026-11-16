@@ -10,8 +10,12 @@ final class SettingsWindowControllerTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let agent = MacSSHAgentController(defaults: defaults, notificationCenter: NotificationCenter())
+        let bridgeDefaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let store = BrowserPairingStore(defaults: UserDefaults(suiteName: suite)!, keychain: FakeBrowserBridgeKeychain())
+        let bridge = MacBrowserBridgeController(defaults: bridgeDefaults, store: store, socketPath: nil)
         return SettingsWindowController(listViewModel: DatabaseListViewModel(), sessionStore: DatabaseSessionStore(),
-                                        quickAccess: MacQuickAccessController(), sshAgent: agent)
+                                        quickAccess: MacQuickAccessController(), sshAgent: agent,
+                                        browserBridge: bridge, browserHosts: FakeBrowserHostInstaller())
     }
 
     func testToolbarTabOrderIdentifiersDefaultAndWindowTitle() throws {
@@ -70,7 +74,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         controller.tabs.select(.appearance)
         controller.close()
         controller.tabs.viewWillAppear()
-        XCTAssertEqual(controller.tabs.selectedTabViewItemIndex, 5)
+        XCTAssertEqual(controller.tabs.selectedTabViewItemIndex, 6)
         XCTAssertEqual(controller.window?.title, MacSettingsTab.appearance.title)
         let fresh = try makeController()
         XCTAssertEqual(fresh.tabs.selectedTabViewItemIndex, 1)
@@ -103,7 +107,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         let settings = AppSettingsViewModel(refreshCredentials: { refreshed += 1 }, clearCredentialStore: { cleared += 1 },
                                             loadCloudAccounts: { accounts }, signOut: { _ in accounts = [] })
         let tabs = MacSettingsTabController(listViewModel: DatabaseListViewModel(), sessionStore: nil,
-                                            quickAccess: nil, sshAgent: nil, settings: settings)
+                                            quickAccess: nil, sshAgent: nil, browserBridge: nil, settings: settings)
         let window = NSWindow(contentViewController: tabs)
         var answer: ((NSApplication.ModalResponse) -> Void)?
         tabs.presentAlert = { alert, parent, completion in

@@ -238,9 +238,10 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
     }
 
     func testRealSessionGateGracePeriod() async throws {
-        var prompts = 0
+        var reasons: [String] = []
+        var prompts: Int { reasons.count }
         var instant = ContinuousClock.now
-        let gate = SecretAccessGate(gracePeriod: { .thirtySeconds }, now: { instant }, isAuthenticationAvailable: { true }, prompt: { _ in prompts += 1 })
+        let gate = SecretAccessGate(gracePeriod: { .thirtySeconds }, now: { instant }, isAuthenticationAvailable: { true }, prompt: { reasons.append($0) })
         let entry = try entry()
         let session = try await makeSession([entry], gate: gate)
         gate.invalidate()
@@ -251,6 +252,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
             XCTAssertEqual(result, .credential(username: "user", password: "password-Login", totp: nil))
         }
         XCTAssertEqual(prompts, 1)
+        XCTAssertEqual(reasons, [String(localized: "Fill a login in your browser")])
         instant += .seconds(30)
         _ = await send(credential(entry, session), to: handler)
         XCTAssertEqual(prompts, 2)
