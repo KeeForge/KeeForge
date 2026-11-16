@@ -77,8 +77,8 @@ final class MacFormSheetController: NSWindowController {
             let header = NSStackView(views: [heading, tabs])
             header.orientation = .vertical
             header.alignment = .centerX
-            header.spacing = 6
-            header.edgeInsets = NSEdgeInsets(top: 10, left: 0, bottom: 8, right: 0)
+            header.spacing = 12
+            header.edgeInsets = NSEdgeInsets(top: 14, left: 0, bottom: 8, right: 0)
             let rule = NSBox()
             rule.boxType = .separator
             for view in [header, rule] {

@@ -214,10 +214,12 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         let tabs = sheet.tabs
         XCTAssertEqual(tabs.accessibilityIdentifier(), "database-settings.tabs")
         XCTAssertEqual(tabs.accessibilityRole(), .tabGroup)
-        XCTAssertEqual(tabs.buttons.map(\.title), model.tabs.map(\.title))
+        XCTAssertEqual(tabs.buttons.map(\.tabTitle), model.tabs.map(\.title))
+        XCTAssertEqual(tabs.buttons.map { $0.accessibilityLabel() }, model.tabs.map(\.title))
         XCTAssertEqual(MacDatabaseSettingsModel.Tab.allCases.map(\.symbol),
                        ["gearshape", "lock.shield", "arrow.triangle.2.circlepath", "ellipsis.rectangle", "archivebox"])
-        XCTAssertTrue(tabs.buttons.allSatisfy { $0.image != nil && $0.imagePosition == .imageAbove }, "Every tab draws its icon")
+        XCTAssertTrue(tabs.buttons.allSatisfy { $0.symbolImage != nil }, "Every tab draws its icon")
+        XCTAssertTrue(tabs.buttons.allSatisfy { $0.fittingSize.height == MacSheetTabButton.tileHeight }, "Tabs share the Settings toolbar tile height")
         XCTAssertEqual(tabs.buttons.map(\.isSelected), [true, false, false, false])
         tabs.buttons[3].performClick(nil)
         XCTAssertEqual(model.selection, .backups)
