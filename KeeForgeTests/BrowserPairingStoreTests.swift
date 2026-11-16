@@ -62,6 +62,20 @@ final class BrowserPairingStoreTests: XCTestCase {
         XCTAssertEqual(saved.first?.name, String(repeating: "👩🏽", count: 64))
     }
 
+    func testSanitizerRemovesFormatControlsCollapsesWhitespaceAndCapsScalars() {
+        let sanitize = BrowserPairingStore.sanitizedName
+        XCTAssertEqual(sanitize("Chrome\nCode matches \u{202E}wolla\u{202C}"), "Chrome Code matches wolla")
+        XCTAssertEqual(sanitize("  Fire\u{200B}fox \t\u{2028} Dev\u{2066}\u{FEFF}  "), "Firefox Dev")
+        XCTAssertEqual(sanitize("ab" + "e" + String(repeating: "\u{0301}", count: 300)), "ab", "One grapheme cannot carry hundreds of marks")
+        XCTAssertEqual(sanitize(String(repeating: "a ", count: 40)).count, 63, "Capped at 64 characters, then trimmed")
+        XCTAssertEqual(sanitize("\u{202E}\n \u{200F}"), "")
+        for name in ["Chrome\nCode matches \u{202E}wolla\u{202C}", String(repeating: "x y", count: 30)] {
+            XCTAssertEqual(sanitize(sanitize(name)), sanitize(name), "Sanitizing twice changes nothing")
+        }
+        XCTAssertEqual(BrowserPairingStore.displayName("\u{202E} "), String(localized: "Unnamed browser"))
+        XCTAssertEqual(BrowserPairingStore.displayName(" Safari "), "Safari")
+    }
+
     func testRejectsNonRaw32BytePublicKeys() async throws {
         let store = store()
         let invalid = PairedBrowser(clientID: "bad", publicKey: Data(repeating: 0, count: 31),

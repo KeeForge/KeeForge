@@ -80,7 +80,7 @@ final class MacBrowserBridgeSettingsModel {
 
     var pairedRows: [PairedRow] {
         controller.pairedBrowsers.map { browser in
-            PairedRow(id: browser.clientID, name: browser.name,
+            PairedRow(id: browser.clientID, name: BrowserPairingStore.displayName(browser.name),
                       pairedDate: browser.pairedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)),
                       lastUsed: lastUsedText(browser.lastUsedAt))
         }

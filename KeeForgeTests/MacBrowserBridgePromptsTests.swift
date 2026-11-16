@@ -11,10 +11,12 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
         var pendingPairing: MacBrowserBridgeController.PendingPairing?
         var pairingFailed = false
         @ObservationIgnored var answers: [Bool] = []
+        @ObservationIgnored var answeredIDs: [UUID] = []
         @ObservationIgnored var failureClears = 0
 
-        func answerPairing(_ allow: Bool) {
+        func answerPairing(id: UUID, allow: Bool) {
             answers.append(allow)
+            answeredIDs.append(id)
             pendingPairing = nil
         }
 
@@ -105,13 +107,15 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
             let source = Source()
             let shell = Shell()
             let prompts = MacBrowserBridgePrompts(source: source, shell: shell)
-            source.pendingPairing = pending()
+            let shown = pending()
+            source.pendingPairing = shown
             await settle()
             shell.click(0, allow: allow)
             shell.answers[0](allow)
             shell.answers[0](!allow)
             await settle()
             XCTAssertEqual(source.answers, [allow], "Exactly one answer, with the clicked value")
+            XCTAssertEqual(source.answeredIDs, [shown.id], "The answer names the pairing the alert showed")
             XCTAssertFalse(shell.calls.contains(.dismissPairing), "An answered alert is not dismissed again")
             XCTAssertEqual(shell.calls.filter { if case .showPairing = $0 { true } else { false } }.count, 1)
             withExtendedLifetime(prompts) {}
@@ -172,6 +176,8 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
         XCTAssertEqual(content.title, String(localized: "Pair with \(expected)?"))
         let alert = MacBrowserPairingAlert.make(content)
         XCTAssertEqual(alert.messageText, content.title, "Markup is shown as typed, never rendered")
+        let unnamed = MacBrowserPairingAlertContent(browserName: "\u{202E}\n", code: "123456")
+        XCTAssertEqual(unnamed.title, String(localized: "Pair with \(String(localized: "Unnamed browser"))?"))
     }
 
     func testAlertDefaultsToDontAllowOnReturnAndEscape() throws {

@@ -13,6 +13,7 @@ extension  <-- native messaging (stdio) -->  host  <-- Unix socket -->  Mac app 
 - **Frame:** a 4-byte unsigned length in little-endian order, then that many bytes of UTF-8 JSON (one object). The same framing is used on the browser's pipes and on the socket.
 - **Limits:** the JSON of a frame sent toward the app is at most 65,536 bytes; toward the extension, at most 1,048,576 bytes. The 4-byte length is not counted. A longer frame is a protocol error: the receiver closes the connection.
 - **Socket:** `b.sock` in the container of the app group `<TeamID>.com.keevault.browser`, mode 0600. The app accepts only peers whose effective user is its own (`getpeereid`), and at most 64 connections.
+- **Deadlines:** the app closes a connection that has not sent `hello` or `pair-commit` within 10 seconds of connecting, and one whose peer stops reading: a write that waits 5 seconds, or too much work queued behind a stalled write, closes it.
 - **Native host name:** `com.keevault.browser`. Firefox extension id: `browser-extension@keeforge.com`.
 - The host forwards every frame unchanged, in both directions, except the host control frames in section 2. It never parses or logs any other frame.
 
@@ -46,12 +47,14 @@ Binary values are standard base64 with padding. Public keys are raw 32-byte X255
 
 ## 5. Pairing
 
-Pairing registers `C_pub` with the app after the user compares a six-digit code. It is a commit-then-reveal exchange, so neither a relay nor either side can choose keys after seeing the other's to force a code.
+Pairing registers `C_pub` with the app after the user compares a six-digit code. It is a commit-then-reveal exchange, so neither side can choose its keys after seeing the other's. A same-user process that relays or impersonates the extension can still open its own pairings with the app, compute each one's code before revealing, and reveal only one that equals the code the extension shows; the app's pairing limits bound this to at most 5 code guesses a minute, each a one-in-a-million chance.
+
+The app has one pairing slot. A `pair-commit` takes it before any `pair-key` is sent, and the attempt counts whether or not it is revealed. The app answers `error` `pairing-busy`, without a `pair-key`, while another pairing holds the slot, when 5 attempts have been admitted in the last 60 seconds, and for 10 seconds after a pairing that was declined, timed out, failed, or whose connection closed before the user answered. A committed pairing must reveal within 10 seconds or the app closes its connection and frees the slot.
 
 1. extension → app: `{"v":1,"t":"pair-commit","commit":"<b64 SHA-256(C_pub || ec_pub || nonce)>","name":"<browser name, at most 64 characters>"}`. `nonce` is 32 random bytes. `||` is byte concatenation.
-2. app → extension: `{"v":1,"t":"pair-key","pub":"<b64 S_pub>","eph":"<b64 es_pub>"}`. If another pairing is waiting for the user, the app answers `error` `pairing-busy` instead.
-3. extension → app: `{"v":1,"t":"pair-reveal","pub":"<b64 C_pub>","eph":"<b64 ec_pub>","nonce":"<b64 nonce>"}`. The app recomputes the commitment; a mismatch is `bad-handshake`.
-4. Both sides compute the code and show it: the extension in its pairing tab, the app in its alert.
+2. app → extension: `{"v":1,"t":"pair-key","pub":"<b64 S_pub>","eph":"<b64 es_pub>"}`, or `error` `pairing-busy` when the pairing slot or its limits refuse the attempt (above).
+3. extension → app, within 10 seconds of the commit: `{"v":1,"t":"pair-reveal","pub":"<b64 C_pub>","eph":"<b64 ec_pub>","nonce":"<b64 nonce>"}`. The app recomputes the commitment; a mismatch is `bad-handshake`.
+4. Both sides compute the code and show it: the extension in its pairing tab, the app in its alert. The app shows `name` as plain text, without control, format or bidirectional characters and with whitespace collapsed, and stores it the same way.
    `digest = SHA-256("KeeForge browser pairing v1" || C_pub || S_pub || ec_pub || es_pub)`; `code = (first 4 bytes of digest as a big-endian unsigned integer) mod 1000000`, shown as six digits with leading zeros.
 5. app → extension, when the user answers: `{"v":1,"t":"pair-result","ok":true}` or `error` `pairing-declined`. A pairing the user has not answered within 120 seconds is declined. Closing the connection cancels it and dismisses the alert.
 6. After `ok`, the app stores `{client id, C_pub, name, paired date}`. The extension stores `S_pub`. The extension then starts a session (section 6) on the same connection or a new one.
@@ -61,7 +64,7 @@ Pairing again with a known `C_pub` replaces that record after the same confirmat
 ## 6. Session handshake
 
 1. extension → app: `{"v":1,"t":"hello","client":"<client id>","eph":"<b64 ec_pub>"}`.
-2. app → extension: `{"v":1,"t":"hello","eph":"<b64 es_pub>","app":"<app version>"}`, or `error` `unpaired` when the client id is not registered, or `error` `disabled` when the bridge is being turned off.
+2. app → extension: `{"v":1,"t":"hello","eph":"<b64 es_pub>","app":"<app version>"}`, or `error` `unpaired` when the client id is not registered (including a browser removed while the handshake is in flight), or `error` `disabled` when the bridge is being turned off.
 3. Both sides derive two keys:
 
    ```text
@@ -91,7 +94,7 @@ Requests come from the extension and carry an integer `id` chosen by it (0 to 2^
 
 - `origin` is a serialized web origin: `https://host` or `https://host:port`. `http://` is accepted only for `localhost`, `127.0.0.1` and `[::1]`. Anything else is `bad-origin`.
 - `entry` and `db` are UUID strings. `username` is already resolved (field references included); `matches` never contains a password, a code, or any other field.
-- `matches` returns the entries the app's site matcher offers for that origin from every database that is unlocked and has no lock pending, at most 50. `"exact": true` marks an entry that lists this host itself; the others are possible matches on a related host of the same site, listed after the exact ones, and the extension shows them apart.
+- `matches` returns the entries the app's site matcher offers for that origin from every database that is unlocked and has no lock pending, at most 50. `title`, `username` and `dbName` are cut to 256 characters, and rows are dropped from the end until the reply fits the frame limit; only the rows returned are offered. `"exact": true` marks an entry that lists this host itself; the others are possible matches on a related host of the same site, listed after the exact ones, and the extension shows them apart.
 - `credential` is answered only for an `entry`/`db` pair that a `matches` reply on this connection returned for the same `origin`; otherwise `not-offered`. The app matches again (the entry must still be an exact or possible match for the origin) and checks the lock state again before answering. The reply can take as long as a device-owner prompt; the extension waits up to 120 seconds.
 - `reveal` fronts that database's window and selects the entry. `unlock` fronts the named database's locked window, or the Databases window.
 

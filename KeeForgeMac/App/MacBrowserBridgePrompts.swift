@@ -5,7 +5,7 @@ import AppKit
 protocol MacBrowserPairingSource: AnyObject {
     var pendingPairing: MacBrowserBridgeController.PendingPairing? { get }
     var pairingFailed: Bool { get }
-    func answerPairing(_ allow: Bool)
+    func answerPairing(id: UUID, allow: Bool)
     func clearPairingFailure()
 }
 
@@ -19,7 +19,7 @@ struct MacBrowserPairingAlertContent: Equatable {
     let message: String
 
     init(browserName: String, code: String) {
-        title = String(localized: "Pair with \(BrowserPairingStore.sanitizedName(browserName))?")
+        title = String(localized: "Pair with \(BrowserPairingStore.displayName(browserName))?")
         self.code = Self.groupedCode(code)
         // Digits read one by one, not as a number.
         codeAccessibilityLabel = code.map(String.init).joined(separator: " ")
@@ -115,7 +115,7 @@ final class MacBrowserBridgePrompts {
     private func answer(_ id: UUID, allow: Bool) {
         guard shownPairingID == id, source.pendingPairing?.id == id else { return }
         shownPairingID = nil
-        source.answerPairing(allow)
+        source.answerPairing(id: id, allow: allow)
     }
 }
 

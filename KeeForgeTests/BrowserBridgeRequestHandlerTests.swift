@@ -124,6 +124,33 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         XCTAssertEqual(result, .failure(.notOffered))
     }
 
+    func testLongDisplayFieldsAreTruncatedAndRowsDroppedToFitTheFrame() async throws {
+        // Unbounded titles used to make the reply too large to seal, closing the connection.
+        let long = try (0..<50).map { try entry(String(repeating: "t", count: 30_000) + "\($0)") }
+        let first = try await makeSession(long)
+        let handler = handler()
+        let rows = try await matches(handler)
+        XCTAssertEqual(rows.count, 50)
+        XCTAssertTrue(rows.allSatisfy { $0.title == String(repeating: "t", count: BrowserBridgeRequestHandler.displayFieldLimit) })
+        XCTAssertTrue(rows.allSatisfy { $0.dbName.count <= BrowserBridgeRequestHandler.displayFieldLimit })
+
+        // Each character carries many combining marks, so even cut titles cannot all fit.
+        let heavy = String(repeating: "e" + String(repeating: "\u{0301}", count: 60), count: 300)
+        let entries = try (0..<50).map { _ in try entry(heavy) }
+        first.lockRequest(force: true)
+        let session = try await makeSession(entries)
+        let fitted = try await matches(handler)
+        XCTAssertGreaterThan(fitted.count, 0)
+        XCTAssertLessThan(fitted.count, 50)
+        XCTAssertEqual(fitted.map(\.entry), Array(entries.prefix(fitted.count)).map(\.id), "Rows are dropped from the end")
+        let reply = BrowserBridgeReply(id: 9_007_199_254_740_991, result: .matches(entries: fitted, locked: 1))
+        XCTAssertLessThanOrEqual(try BrowserBridgeJSON.encode(reply).count, BrowserBridgeFraming.maximumReplyPlaintext)
+        let dropped = await send(credential(entries[fitted.count], session), to: handler)
+        XCTAssertEqual(dropped, .failure(.notOffered), "Only returned rows are offered")
+        let kept = await send(credential(entries[0], session), to: handler)
+        XCTAssertEqual(kept, .credential(username: "user", password: "password-\(heavy)", totp: nil))
+    }
+
     func testLockedAndPendingSessionsAreCountedAndWithdrawn() async throws {
         let first = try await makeSession([try entry()])
         let second = try await makeSession([try entry()])

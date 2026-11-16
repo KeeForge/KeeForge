@@ -11,6 +11,9 @@ final class BrowserBridgeRequestHandler {
     typealias SessionsProvider = @MainActor () -> [DatabaseViewModel]
     typealias DeviceOwnerAuthenticator = @MainActor (SecretAccessGate) async -> Bool
 
+    /// `matches` fields the extension only displays are cut to this many characters.
+    static let displayFieldLimit = 256
+
     private struct Pair: Hashable {
         let entry: UUID
         let db: UUID
@@ -110,17 +113,19 @@ final class BrowserBridgeRequestHandler {
                     let isExact = !match.exact.isEmpty
                     let row = BrowserBridgeMatch(
                         entry: entry.id, db: session.databaseReference.id,
-                        dbName: session.databaseReference.displayName, title: entry.title,
-                        username: session.fieldReferenceResolution(of: entry.username).value ?? "",
+                        dbName: Self.displayField(session.databaseReference.displayName),
+                        title: Self.displayField(entry.title),
+                        username: Self.displayField(session.fieldReferenceResolution(of: entry.username).value ?? ""),
                         hasTotp: entry.hasTOTP, exact: isExact
                     )
                     if isExact { if exact.count < 50 { exact.append(row) } }
                     else if possible.count < 50 { possible.append(row) }
                 }
             }
-            let rows = Array((exact + possible).prefix(50))
+            let locked = sessions.count - unlocked.count
+            let rows = Self.fittingReply(Array((exact + possible).prefix(50)), locked: locked)
             remember(Set(rows.map { Pair(entry: $0.entry, db: $0.db) }), for: origin)
-            return .matches(entries: rows, locked: sessions.count - unlocked.count)
+            return .matches(entries: rows, locked: locked)
         case .credential(let entryID, let db, let origin, let totp):
             guard Self.validOrigin(origin) else { return .failure(.badOrigin) }
             guard offers[origin]?.contains(Pair(entry: entryID, db: db)) == true else { return .failure(.notOffered) }
@@ -163,6 +168,25 @@ final class BrowserBridgeRequestHandler {
             unlock(db)
             return .empty
         }
+    }
+
+    private static func displayField(_ value: String) -> String {
+        String(value.prefix(displayFieldLimit))
+    }
+
+    /// The leading rows whose `matches` reply, sealed, fits the frame cap toward the extension.
+    private static func fittingReply(_ rows: [BrowserBridgeMatch], locked: Int) -> [BrowserBridgeMatch] {
+        // The largest request ID gives the longest encoding; rows encode the same alone as inside the array.
+        let reply = BrowserBridgeReply(id: 9_007_199_254_740_991, result: .matches(entries: [], locked: locked))
+        guard var size = try? BrowserBridgeJSON.encode(reply).count else { return [] }
+        var count = 0
+        for row in rows {
+            guard let rowSize = try? BrowserBridgeJSON.encode(row).count else { break }
+            size += rowSize + (count == 0 ? 0 : 1)
+            guard size <= BrowserBridgeFraming.maximumReplyPlaintext else { break }
+            count += 1
+        }
+        return Array(rows.prefix(count))
     }
 
     private func session(_ id: UUID) -> DatabaseViewModel? {

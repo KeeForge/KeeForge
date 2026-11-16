@@ -4,12 +4,21 @@ import Foundation
 import Observation
 import os
 
+/// The bridge's monotonic clock; tests inject one they advance by hand.
+struct BrowserBridgeClock: Sendable {
+    let now: @Sendable () -> ContinuousClock.Instant
+    let sleep: @Sendable (ContinuousClock.Instant) async throws -> Void
+
+    static let continuous = BrowserBridgeClock(now: { .now }, sleep: { try await Task.sleep(until: $0, clock: .continuous) })
+}
+
 /// Owns the browser bridge socket while the bridge is started and switched on,
 /// and the paired browsers and pending pairing that Settings shows.
 @MainActor @Observable
 final class MacBrowserBridgeController {
     typealias SessionsProvider = BrowserBridgeRequestHandler.SessionsProvider
-    typealias Sleep = @Sendable (Duration) async throws -> Void
+    static let pairingAnswerTimeout: Duration = .seconds(120)
+    static let sendTimeout: Duration = .seconds(5)
 
     enum Unavailability: Equatable {
         case noGroupContainer
@@ -48,7 +57,8 @@ final class MacBrowserBridgeController {
     @ObservationIgnored private let store: BrowserPairingStore
     @ObservationIgnored private let socketPath: String?
     @ObservationIgnored private let appVersion: String
-    @ObservationIgnored private let sleep: Sleep
+    @ObservationIgnored private let clock: BrowserBridgeClock
+    @ObservationIgnored private let pairingGate: BrowserPairingGate
     @ObservationIgnored private let authenticate: BrowserBridgeRequestHandler.DeviceOwnerAuthenticator
     @ObservationIgnored private var started = false
     /// Bumped whenever the runtime ends; late callbacks from an older one are dropped.
@@ -67,7 +77,7 @@ final class MacBrowserBridgeController {
         socketPath: String? = BrowserBridgeIdentifiers.socketURL()?.path,
         appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
         sessionsProvider: @escaping SessionsProvider = { [] },
-        sleep: @escaping Sleep = { try await Task.sleep(for: $0) },
+        clock: BrowserBridgeClock = .continuous,
         reveal: @escaping @MainActor (UUID, UUID) -> Void = { _, _ in },
         unlock: @escaping @MainActor (UUID?) -> Void = { _ in },
         authenticateDeviceOwner: @escaping BrowserBridgeRequestHandler.DeviceOwnerAuthenticator = BrowserBridgeRequestHandler.deviceOwnerGate
@@ -77,7 +87,8 @@ final class MacBrowserBridgeController {
         self.socketPath = socketPath
         self.appVersion = appVersion
         self.sessionsProvider = sessionsProvider
-        self.sleep = sleep
+        self.clock = clock
+        pairingGate = BrowserPairingGate(now: clock.now)
         self.reveal = reveal
         self.unlock = unlock
         authenticate = authenticateDeviceOwner
@@ -96,15 +107,16 @@ final class MacBrowserBridgeController {
         endRuntime()
     }
 
-    func answerPairing(_ allow: Bool) {
-        guard let pending = pendingPairing, let pairing else { return }
+    /// An answer for any pairing but the pending one is ignored.
+    func answerPairing(id: UUID, allow: Bool) {
+        guard let pending = pendingPairing, pending.id == id, let pairing else { return }
         let connection = pairing.connection
         let key = pairing.key
         clearPairing()
         guard allow else { connection.answer(false); return }
         let token = generation
         let runtime = runtime
-        // The connection keeps the runtime's pairing slot until it is answered or closes.
+        // The connection keeps the pairing slot until it is answered or closes.
         pairingWrite = Task { [weak self, store] in
             let browser = PairedBrowser(clientID: BrowserBridgeCrypto.clientID(key), publicKey: key,
                                         name: pending.browserName, pairedAt: Date())
@@ -178,6 +190,7 @@ final class MacBrowserBridgeController {
         handlers.removeAll()
         let connections = runtime?.deactivate() ?? []
         runtime = nil
+        pairingGate.abandon()
         // Each connection writes `disabled` and closes itself after the file is gone.
         server?.stop(closeConnections: false)
         for connection in connections { connection.disable() }
@@ -225,13 +238,15 @@ final class MacBrowserBridgeController {
 
     private func listen(at path: String, key: Curve25519.KeyAgreement.PrivateKey, browsers: [PairedBrowser]) {
         let token = generation
-        let runtime = BrowserBridgeRuntime(browsers: browsers)
+        let runtime = BrowserBridgeRuntime(browsers: browsers, pairingGate: pairingGate)
         let appVersion = appVersion
+        let clock = clock
         let framing = LocalSocketServer.Framing(byteOrder: .littleEndian,
                                                 maximumInboundLength: BrowserBridgeFraming.maximumAppPayload,
                                                 maximumOutboundLength: BrowserBridgeFraming.maximumExtensionPayload)
-        let server = LocalSocketServer(path: path, framing: framing, refusesExcessConnections: true) { [weak self] socket in
-            BrowserBridgeConnection(socket: socket, runtime: runtime, key: key, appVersion: appVersion) { [weak self] connection, events, closed in
+        let server = LocalSocketServer(path: path, framing: framing, refusesExcessConnections: true,
+                                       sendTimeout: Self.sendTimeout) { [weak self] socket in
+            BrowserBridgeConnection(socket: socket, runtime: runtime, key: key, appVersion: appVersion, clock: clock) { [weak self] connection, events, closed in
                 Task { @MainActor [weak self] in
                     guard let self, self.generation == token else { return }
                     self.handle(events, from: connection, closed: closed)
@@ -273,13 +288,14 @@ final class MacBrowserBridgeController {
         for event in events {
             switch event {
             case .pairingRequested(let key, let name, let code):
-                // Admission is decided off the main actor; this only guards an alert not yet cleared.
-                guard pendingPairing == nil else { connection.answer(false); continue }
+                // The slot was taken at commit; an alert still shown belongs to a connection that has just ended.
+                guard pendingPairing == nil else { connection.refuseBusy(); continue }
                 let id = UUID()
                 pairingFailed = false
                 pendingPairing = PendingPairing(id: id, browserName: name, code: code)
-                let timeout = Task { [weak self, sleep] in
-                    do { try await sleep(.seconds(120)) } catch { return }
+                let deadline = clock.now() + Self.pairingAnswerTimeout
+                let timeout = Task { [weak self, clock] in
+                    do { try await clock.sleep(deadline) } catch { return }
                     guard let self, self.pendingPairing?.id == id else { return }
                     self.clearPairing()
                     connection.timedOut()
@@ -318,25 +334,79 @@ final class MacBrowserBridgeController {
     }
 }
 
+/// The bridge's one pairing slot and its limits. It outlives each listening runtime, so
+/// switching the bridge off and on resets neither. The slot is taken at `pair-commit`,
+/// before any `pair-key`, so a relay gets at most `attemptLimit` code guesses a minute.
+final class BrowserPairingGate: Sendable {
+    static let attemptLimit = 5
+    static let attemptWindow: Duration = .seconds(60)
+    static let cooldown: Duration = .seconds(10)
+
+    private struct State {
+        var holder: UUID?
+        var attempts: [ContinuousClock.Instant] = []
+        var cooldownEnd: ContinuousClock.Instant?
+    }
+    private let state = OSAllocatedUnfairLock(initialState: State())
+    private let now: @Sendable () -> ContinuousClock.Instant
+
+    init(now: @escaping @Sendable () -> ContinuousClock.Instant) {
+        self.now = now
+    }
+
+    /// Counts an attempt and gives the slot to `id`, unless it is held, cooling down, or the minute's attempts are spent.
+    func admit(_ id: UUID) -> Bool {
+        let instant = now()
+        return state.withLock { state in
+            state.attempts.removeAll { instant - $0 >= Self.attemptWindow }
+            guard state.holder == nil, state.cooldownEnd.map({ instant >= $0 }) ?? true,
+                  state.attempts.count < Self.attemptLimit else { return false }
+            state.attempts.append(instant)
+            state.holder = id
+            return true
+        }
+    }
+
+    /// A slot freed without a pairing (declined, timed out, closed) starts the cooldown.
+    func release(_ id: UUID, paired: Bool) {
+        let instant = now()
+        state.withLock { state in
+            guard state.holder == id else { return }
+            state.holder = nil
+            if !paired { state.cooldownEnd = instant + Self.cooldown }
+        }
+    }
+
+    /// Frees the slot of a runtime that has ended.
+    func abandon() {
+        let instant = now()
+        state.withLock { state in
+            guard state.holder != nil else { return }
+            state.holder = nil
+            state.cooldownEnd = instant + Self.cooldown
+        }
+    }
+}
+
 /// State one listening server shares with its connections' queues: the client-key
-/// snapshot the session's synchronous lookup reads, and the single pairing slot.
-private final class BrowserBridgeRuntime: Sendable {
+/// snapshot the session's synchronous lookup reads, and its connections.
+final class BrowserBridgeRuntime: Sendable {
     private struct State {
         var active = true
         var keys: [String: Data]
-        var pairingConnection: UUID?
         var connections: [UUID: BrowserBridgeConnection] = [:]
         var clients: [UUID: String] = [:]
     }
     private let state: OSAllocatedUnfairLock<State>
+    private let pairingGate: BrowserPairingGate
 
-    init(browsers: [PairedBrowser]) {
+    init(browsers: [PairedBrowser], pairingGate: BrowserPairingGate) {
         let keys = Dictionary(browsers.map { ($0.clientID, $0.publicKey) }, uniquingKeysWith: { _, new in new })
         state = OSAllocatedUnfairLock(initialState: State(keys: keys))
+        self.pairingGate = pairingGate
     }
 
     var isActive: Bool { state.withLock { $0.active } }
-    var isPairingAvailable: Bool { state.withLock { $0.active && $0.pairingConnection == nil } }
     func lookup(_ clientID: String) -> Data? { state.withLock { $0.keys[clientID] } }
 
     func register(_ connection: BrowserBridgeConnection) -> Bool {
@@ -347,25 +417,23 @@ private final class BrowserBridgeRuntime: Sendable {
         }
     }
 
-    /// Two connections can both pass `isPairingAvailable` before either reveals; only one is admitted.
+    /// Under the lock `deactivate` takes, so a runtime that has ended never takes the slot.
     func admitPairing(_ id: UUID) -> Bool {
-        state.withLock { state in
-            guard state.active, state.pairingConnection == nil else { return false }
-            state.pairingConnection = id
-            return true
-        }
+        state.withLock { state in state.active && pairingGate.admit(id) }
     }
 
-    func releasePairing(_ id: UUID) {
-        state.withLock { if $0.pairingConnection == id { $0.pairingConnection = nil } }
+    func releasePairing(_ id: UUID, paired: Bool) {
+        pairingGate.release(id, paired: paired)
     }
 
+    /// Nil when `id` may be established; otherwise the error that ends its handshake.
     /// Checked under the lock `remove` takes, so a removed client never ends up established.
-    func establish(_ id: UUID, clientID: String) -> Bool {
+    func establish(_ id: UUID, clientID: String) -> BrowserBridgeErrorCode? {
         state.withLock { state in
-            guard state.active, state.keys[clientID] != nil else { return false }
+            guard state.active else { return .disabled }
+            guard state.keys[clientID] != nil else { return .unpaired }
             state.clients[id] = clientID
-            return true
+            return nil
         }
     }
 
@@ -373,8 +441,8 @@ private final class BrowserBridgeRuntime: Sendable {
         state.withLock { state in
             state.connections[id] = nil
             state.clients[id] = nil
-            if state.pairingConnection == id { state.pairingConnection = nil }
         }
+        pairingGate.release(id, paired: false)
     }
 
     func add(clientID: String, publicKey: Data) {
@@ -398,99 +466,146 @@ private final class BrowserBridgeRuntime: Sendable {
 }
 
 /// One socket connection. Every session call and every write runs on `queue`.
-private final class BrowserBridgeConnection: LocalSocketConnectionHandler, @unchecked Sendable {
+final class BrowserBridgeConnection: LocalSocketConnectionHandler, @unchecked Sendable {
     typealias Report = @Sendable (BrowserBridgeConnection, [BrowserBridgeSession.Event], Bool) -> Void
+    /// Work waiting on `queue`: a peer that stops reading stalls the writer while frames keep arriving.
+    static let backlogLimit = 64
+    /// How long a new connection has for `hello` or `pair-commit`, and a commitment for `pair-reveal`.
+    static let handshakeDeadline: Duration = .seconds(10)
 
-    let id = UUID()
+    let id: UUID
     private let runtime: BrowserBridgeRuntime
     private let socket: LocalSocketServer.Connection
+    private let clock: BrowserBridgeClock
     private let queue = DispatchQueue(label: "com.keevault.app.browser-bridge.connection")
     /// Touched only on `queue`.
     private let session: BrowserBridgeSession
     private let report: Report
-    private let open = OSAllocatedUnfairLock(initialState: true)
+    private let status = OSAllocatedUnfairLock(initialState: (open: true, backlog: 0))
+    private let deadlines = OSAllocatedUnfairLock<[Task<Void, Never>]>(initialState: [])
 
-    var isActive: Bool { runtime.isActive && open.withLock { $0 } }
+    var isActive: Bool { runtime.isActive && status.withLock { $0.open } }
 
-    init(socket: LocalSocketServer.Connection, runtime: BrowserBridgeRuntime,
-         key: Curve25519.KeyAgreement.PrivateKey, appVersion: String, report: @escaping Report) {
+    init(socket: LocalSocketServer.Connection, runtime: BrowserBridgeRuntime, key: Curve25519.KeyAgreement.PrivateKey,
+         appVersion: String, clock: BrowserBridgeClock, report: @escaping Report) {
+        let id = UUID()
+        self.id = id
         self.socket = socket
         self.runtime = runtime
+        self.clock = clock
         self.report = report
         session = BrowserBridgeSession(appKey: key, appVersion: appVersion,
                                        lookupClient: { runtime.lookup($0) },
-                                       pairingAvailable: { runtime.isPairingAvailable })
-        if !runtime.register(self) { close() }
+                                       admitPairing: { runtime.admitPairing(id) })
+        guard runtime.register(self) else { close(); return }
+        expire(ifStill: .fresh, at: clock.now() + Self.handshakeDeadline)
     }
 
     func receive(_ payload: Data) {
-        queue.async {
-            guard self.isActive, let frame = try? BrowserBridgeFraming.encode(payload, toward: .towardApp) else { return }
-            self.process(self.session.receive(frame))
+        enqueue { connection in
+            guard connection.isActive, let frame = try? BrowserBridgeFraming.encode(payload, toward: .towardApp) else { return }
+            let before = connection.session.state
+            // Read before `pair-key` is written, so the deadline never starts after the peer saw it.
+            let deadline = connection.clock.now() + Self.handshakeDeadline
+            connection.process(connection.session.receive(frame))
+            if before == .fresh, connection.session.state == .committed { connection.expire(ifStill: .committed, at: deadline) }
         }
     }
 
     func answer(_ allow: Bool) {
-        queue.async {
-            guard self.isActive, self.session.state == .awaitingAnswer else { return }
-            self.runtime.releasePairing(self.id)
-            self.process(self.session.pairingAnswered(allow))
+        enqueue { connection in
+            guard connection.isActive, connection.session.state == .awaitingAnswer else { return }
+            connection.runtime.releasePairing(connection.id, paired: allow)
+            connection.process(connection.session.pairingAnswered(allow))
+        }
+    }
+
+    func refuseBusy() {
+        enqueue { connection in
+            guard connection.isActive, connection.session.state == .awaitingAnswer else { return }
+            connection.process(connection.session.refuse(.pairingBusy))
         }
     }
 
     func timedOut() {
-        queue.async {
-            guard self.isActive else { return }
-            self.process(self.session.pairingTimedOut())
+        enqueue { connection in
+            guard connection.isActive else { return }
+            connection.process(connection.session.pairingTimedOut())
         }
     }
 
     func reply(_ result: BrowserBridgeReply.Result, to request: BrowserBridgeRequest) {
-        queue.async {
-            guard self.isActive else { return }
-            self.process(self.session.reply(result, to: request))
+        enqueue { connection in
+            guard connection.isActive else { return }
+            connection.process(connection.session.reply(result, to: request))
         }
     }
 
     /// Runs after the runtime is deactivated: the only output still written then.
+    /// A peer that is not reading gets no `disabled`; its connection just closes.
     func disable() {
-        queue.async { self.process(self.session.disable(), disabling: true) }
+        socket.abandonBlockedSends()
+        queue.async { self.process(self.session.refuse(.disabled), disabling: true) }
     }
 
     func close() {
-        open.withLock { $0 = false }
+        status.withLock { $0.open = false }
         socket.close()
     }
 
     func connectionClosed() {
-        open.withLock { $0 = false }
+        status.withLock { $0.open = false }
         runtime.closed(id)
+        deadlines.withLock { tasks in
+            tasks.forEach { $0.cancel() }
+            tasks.removeAll()
+        }
         queue.async { self.process(self.session.close()) }
+    }
+
+    private func enqueue(_ work: @escaping @Sendable (BrowserBridgeConnection) -> Void) {
+        let admitted = status.withLock { status -> Bool in
+            guard status.backlog < Self.backlogLimit else { return false }
+            status.backlog += 1
+            return true
+        }
+        guard admitted else { close(); return }
+        queue.async {
+            work(self)
+            self.status.withLock { $0.backlog -= 1 }
+        }
+    }
+
+    /// Closes the connection, freeing its pairing slot, if the session is still in `state` at `deadline`.
+    private func expire(ifStill state: BrowserBridgeSession.State, at deadline: ContinuousClock.Instant) {
+        let task = Task { [weak self, clock] in
+            do { try await clock.sleep(deadline) } catch { return }
+            guard !Task.isCancelled else { return }
+            self?.enqueue { connection in
+                guard connection.session.state == state else { return }
+                connection.runtime.releasePairing(connection.id, paired: false)
+                connection.close()
+            }
+        }
+        deadlines.withLock { $0.append(task) }
     }
 
     private func process(_ output: BrowserBridgeSession.Output, disabling: Bool = false) {
         for event in output.events {
-            switch event {
-            case .pairingRequested where !runtime.admitPairing(id):
-                process(session.pairingAnswered(false))
+            if case .established(let clientID) = event, let refusal = runtime.establish(id, clientID: clientID) {
+                process(session.refuse(refusal), disabling: true)
                 return
-            case .established(let clientID) where !runtime.establish(id, clientID: clientID):
-                process(session.disable(), disabling: true)
-                return
-            default:
-                break
             }
         }
+        // Freed before the error frame, so a peer that sees it can already try again.
+        if output.close { runtime.releasePairing(id, paired: false) }
         if disabling || isActive {
             for frame in output.frames {
                 guard let payload = try? BrowserBridgeFraming.decode(frame, toward: .towardExtension),
                       socket.send(payload) else { break }
             }
         }
-        if output.close {
-            close()
-            runtime.releasePairing(id)
-        }
+        if output.close { close() }
         guard output.close || (!output.events.isEmpty && isActive) else { return }
         report(self, output.events, output.close)
     }

@@ -37,14 +37,28 @@ final class LocalSocketServer: Sendable {
     /// Retain this handle for delayed replies. Writes are serialized across threads;
     /// close interrupts blocked I/O, and sends after closure return false.
     final class Connection: Sendable {
+        private struct Lifecycle {
+            var closed = false
+            /// A send is waiting for the peer to read.
+            var blocked = false
+            var abandonsBlockedSends = false
+        }
+        /// With a send timeout, writes go out in pieces no larger than the send low-water
+        /// mark, after `poll` says that much fits, so waiting on the peer is always observable.
+        fileprivate static let boundedWriteSize = 2048
         private let descriptor: Int32
         private let framing: Framing
-        private let lifecycle = OSAllocatedUnfairLock(initialState: false)
+        /// Milliseconds a send may wait for the peer to read; nil waits as long as it takes.
+        private let sendTimeout: Int32?
+        private let lifecycle = OSAllocatedUnfairLock(initialState: Lifecycle())
         private let writer = NSLock()
 
-        fileprivate init(descriptor: Int32, framing: Framing) {
+        fileprivate init(descriptor: Int32, framing: Framing, sendTimeout: Duration?) {
             self.descriptor = descriptor
             self.framing = framing
+            self.sendTimeout = sendTimeout.map {
+                Int32(clamping: $0.components.seconds * 1000 + $0.components.attoseconds / 1_000_000_000_000_000)
+            }
         }
 
         @discardableResult
@@ -55,20 +69,30 @@ final class LocalSocketServer: Sendable {
             }
             writer.lock()
             defer { writer.unlock() }
-            guard !lifecycle.withLock({ $0 }) else { return false }
-            let success = LocalSocketServer.writeBytes(framing.prefix(for: frame.count) + frame, to: descriptor)
+            guard !lifecycle.withLock({ $0.closed }) else { return false }
+            let success = writeBytes(framing.prefix(for: frame.count) + frame)
             if !success { close() }
             return success
         }
 
-        fileprivate var isClosed: Bool { lifecycle.withLock { $0 } }
+        fileprivate var isClosed: Bool { lifecycle.withLock { $0.closed } }
 
         func close() {
-            lifecycle.withLock { closed in
-                guard !closed else { return }
-                closed = true
+            lifecycle.withLock { state in
+                guard !state.closed else { return }
+                state.closed = true
                 shutdown(descriptor, SHUT_RDWR)
             }
+        }
+
+        /// Closes the connection if a send is waiting for the peer to read, now or
+        /// later; a send that fits the socket buffer still completes. Needs a send timeout.
+        func abandonBlockedSends() {
+            let blocked = lifecycle.withLock { state -> Bool in
+                state.abandonsBlockedSends = true
+                return state.blocked
+            }
+            if blocked { close() }
         }
 
         fileprivate func finish() {
@@ -78,6 +102,53 @@ final class LocalSocketServer: Sendable {
             Darwin.close(descriptor)
             writer.unlock()
         }
+
+        private func writeBytes(_ data: Data) -> Bool {
+            let bytes = [UInt8](data)
+            var sent = 0
+            while sent < bytes.count {
+                var count = bytes.count - sent
+                if let sendTimeout {
+                    guard waitUntilWritable(timeout: sendTimeout) else { return false }
+                    count = min(count, Self.boundedWriteSize)
+                }
+                let result = bytes.withUnsafeBytes { buffer in
+                    buffer.baseAddress.map { Darwin.write(descriptor, $0 + sent, count) } ?? -1
+                }
+                if result > 0 {
+                    sent += result
+                } else if result < 0, errno == EINTR {
+                    continue
+                } else {
+                    return false
+                }
+            }
+            return true
+        }
+
+        /// Whether a bounded write fits now or within `timeout`; false once blocked sends are abandoned.
+        private func waitUntilWritable(timeout: Int32) -> Bool {
+            if poll(timeout: 0) { return true }
+            let abandoned = lifecycle.withLock { state -> Bool in
+                guard !state.abandonsBlockedSends, !state.closed else { return true }
+                state.blocked = true
+                return false
+            }
+            guard !abandoned else { return false }
+            defer { lifecycle.withLock { $0.blocked = false } }
+            return poll(timeout: timeout)
+        }
+
+        /// Close shuts the socket down, which wakes a waiting poll with an error or hang-up.
+        private func poll(timeout: Int32) -> Bool {
+            var entry = pollfd(fd: descriptor, events: Int16(POLLOUT), revents: 0)
+            while true {
+                let result = Darwin.poll(&entry, 1, timeout)
+                if result < 0, errno == EINTR { continue }
+                return result == 1 && entry.revents & Int16(POLLOUT) != 0
+                    && entry.revents & Int16(POLLHUP | POLLERR | POLLNVAL) == 0
+            }
+        }
     }
 
     let path: String
@@ -85,6 +156,7 @@ final class LocalSocketServer: Sendable {
     private let makeHandler: @Sendable (Connection) -> any LocalSocketConnectionHandler
     private let maximumConnections: Int
     private let refusesExcessConnections: Bool
+    private let sendTimeout: Duration?
     private let acceptQueue = DispatchQueue(label: "com.keevault.app.local-socket")
     private let state = OSAllocatedUnfairLock(uncheckedState: State())
 
@@ -108,6 +180,7 @@ final class LocalSocketServer: Sendable {
         framing: Framing,
         maximumConnections: Int = LocalSocketServer.defaultMaximumConnections,
         refusesExcessConnections: Bool = false,
+        sendTimeout: Duration? = nil,
         makeHandler: @escaping @Sendable (Connection) -> any LocalSocketConnectionHandler
     ) {
         self.path = path
@@ -118,6 +191,7 @@ final class LocalSocketServer: Sendable {
         self.makeHandler = makeHandler
         self.maximumConnections = maximumConnections
         self.refusesExcessConnections = refusesExcessConnections
+        self.sendTimeout = sendTimeout
     }
 
     deinit {
@@ -262,7 +336,14 @@ final class LocalSocketServer: Sendable {
             setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &noSIGPIPE, socklen_t(MemoryLayout<Int32>.size))
             // Accepted sockets inherit the listener's non-blocking mode.
             _ = fcntl(connection, F_SETFL, fcntl(connection, F_GETFL) & ~O_NONBLOCK)
-            let handle = Connection(descriptor: connection, framing: framing)
+            if let sendTimeout {
+                let (seconds, attoseconds) = sendTimeout.components
+                var timeout = timeval(tv_sec: Int(seconds), tv_usec: Int32(attoseconds / 1_000_000_000_000))
+                setsockopt(connection, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+                var lowWater = Int32(Connection.boundedWriteSize)
+                setsockopt(connection, SOL_SOCKET, SO_SNDLOWAT, &lowWater, socklen_t(MemoryLayout<Int32>.size))
+            }
+            let handle = Connection(descriptor: connection, framing: framing, sendTimeout: sendTimeout)
             let isAccepted = state.withLockUnchecked { state -> Bool in
                 guard state.listener != nil else { return false }
                 if state.connections.count >= maximumConnections {
@@ -336,24 +417,6 @@ final class LocalSocketServer: Sendable {
             }
         }
         return Data(buffer)
-    }
-
-    private static func writeBytes(_ data: Data, to connection: Int32) -> Bool {
-        let bytes = [UInt8](data)
-        var sent = 0
-        while sent < bytes.count {
-            let result = bytes.withUnsafeBytes { buffer in
-                buffer.baseAddress.map { Darwin.write(connection, $0 + sent, bytes.count - sent) } ?? -1
-            }
-            if result > 0 {
-                sent += result
-            } else if result < 0, errno == EINTR {
-                continue
-            } else {
-                return false
-            }
-        }
-        return true
     }
 }
 #endif

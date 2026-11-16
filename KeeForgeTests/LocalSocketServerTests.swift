@@ -1,6 +1,7 @@
 #if os(macOS)
 import Darwin
 import Foundation
+import os
 import XCTest
 @testable import KeeForge
 
@@ -26,11 +27,63 @@ final class LocalSocketServerTests: XCTestCase {
     private func server(
         _ path: String,
         cap: Int = 64,
+        sendTimeout: Duration? = nil,
         makeHandler: @escaping @Sendable (LocalSocketServer.Connection) -> any LocalSocketConnectionHandler = { Handler(connection: $0) }
     ) -> LocalSocketServer {
         LocalSocketServer(path: path, framing: .init(
             byteOrder: .littleEndian, maximumInboundLength: 65_536, maximumOutboundLength: 1_048_576
-        ), maximumConnections: cap, makeHandler: makeHandler)
+        ), maximumConnections: cap, sendTimeout: sendTimeout, makeHandler: makeHandler)
+    }
+
+    /// A handler that, on the first frame, sends large frames from another thread until a send fails.
+    private func flooding(sendFailed: XCTestExpectation, closed: XCTestExpectation,
+                          started: @escaping @Sendable (LocalSocketServer.Connection) -> Void = { _ in })
+        -> @Sendable (LocalSocketServer.Connection) -> any LocalSocketConnectionHandler {
+        { connection in
+            Handler(connection: connection, onFrame: { _, connection in
+                started(connection)
+                DispatchQueue.global().async {
+                    while connection.send(Data(repeating: 1, count: 65_536)) {}
+                    sendFailed.fulfill()
+                }
+            }, onClose: { closed.fulfill() })
+        }
+    }
+
+    func testSendTimeoutClosesConnectionToPeerThatNeverReads() throws {
+        try withPath { path in
+            let sendFailed = expectation(description: "send failed")
+            let closed = expectation(description: "closed")
+            let server = server(path, sendTimeout: .milliseconds(100), makeHandler: flooding(sendFailed: sendFailed, closed: closed))
+            try server.start()
+            defer { server.stop() }
+            let client = try Client.connect(at: path)
+            defer { close(client) }
+            try Client.write(Data([1, 0, 0, 0, 42]), to: client)
+            wait(for: [sendFailed, closed], timeout: 5)
+            XCTAssertTrue(Client.isClosed(client))
+        }
+    }
+
+    func testAbandoningBlockedSendsEndsAStuckSendWithoutWaitingForTheTimeout() throws {
+        try withPath { path in
+            let sendFailed = expectation(description: "send failed")
+            let closed = expectation(description: "closed")
+            let connected = expectation(description: "first frame")
+            let handle = OSAllocatedUnfairLock<LocalSocketServer.Connection?>(initialState: nil)
+            let server = server(path, sendTimeout: .seconds(60), makeHandler: flooding(sendFailed: sendFailed, closed: closed) { connection in
+                handle.withLock { $0 = connection }
+                connected.fulfill()
+            })
+            try server.start()
+            defer { server.stop() }
+            let client = try Client.connect(at: path)
+            defer { close(client) }
+            try Client.write(Data([1, 0, 0, 0, 42]), to: client)
+            wait(for: [connected], timeout: 5)
+            handle.withLock { $0 }?.abandonBlockedSends()
+            wait(for: [sendFailed, closed], timeout: 5)
+        }
     }
 
     func testBindModeAndStopRemovesSocket() throws {

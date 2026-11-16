@@ -50,12 +50,41 @@ actor BrowserPairingStore {
         try records().first { $0.clientID == clientID }
     }
 
-    /// The browser-supplied name without control or format characters, at most 64 characters.
+    /// The browser-supplied name as plain text: whitespace runs become one space, control
+    /// and format characters (bidirectional overrides included) are removed, and the result is
+    /// trimmed and capped at 64 characters and 256 Unicode scalars. It can be empty; show it with `displayName(_:)`.
     static func sanitizedName(_ name: String) -> String {
-        let sanitized = String(String.UnicodeScalarView(name.unicodeScalars.filter {
-            CharacterSet.controlCharacters.contains($0) == false
-        }))
-        return String(sanitized.prefix(64))
+        var scalars = String.UnicodeScalarView()
+        var pendingSpace = false
+        for scalar in name.unicodeScalars {
+            if scalar.properties.isWhitespace {
+                pendingSpace = !scalars.isEmpty
+                continue
+            }
+            switch scalar.properties.generalCategory {
+            case .control, .format, .lineSeparator, .paragraphSeparator: continue
+            default: break
+            }
+            if pendingSpace { scalars.append(" ") }
+            pendingSpace = false
+            scalars.append(scalar)
+        }
+        var result = ""
+        var characters = 0
+        var scalarCount = 0
+        for character in String(scalars) {
+            scalarCount += character.unicodeScalars.count
+            guard characters < 64, scalarCount <= 256 else { break }
+            result.append(character)
+            characters += 1
+        }
+        return result.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// A sanitized name, or a neutral label when the browser sent none.
+    static func displayName(_ name: String) -> String {
+        let sanitized = sanitizedName(name)
+        return sanitized.isEmpty ? String(localized: "Unnamed browser") : sanitized
     }
 
     func addOrReplace(_ browser: PairedBrowser) throws {

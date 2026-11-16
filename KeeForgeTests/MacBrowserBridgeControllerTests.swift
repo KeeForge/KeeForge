@@ -48,6 +48,26 @@ private final class BridgeSocket: @unchecked Sendable {
         }
         return Data(bytes)
     }
+    /// The length prefix of the next frame, leaving its body unread.
+    func receiveLength() async throws -> Int {
+        try await Task.detached { [self] in
+            guard let prefix = try read(4) else { throw POSIXError(.EIO) }
+            return prefix.enumerated().reduce(0) { $0 | Int($1.element) << ($1.offset * 8) }
+        }.value
+    }
+    /// Reads to end of stream and returns how many bytes came first.
+    func drain() async throws -> Int {
+        try await Task.detached { [self] in
+            var buffer = [UInt8](repeating: 0, count: 65_536)
+            var total = 0
+            while true {
+                let n = buffer.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress!, $0.count) }
+                if n == 0 || (n < 0 && errno == ECONNRESET) { return total }
+                guard n > 0 else { throw POSIXError(.EIO) }
+                total += n
+            }
+        }.value
+    }
     func receive() async throws -> BrowserBridgeEnvelope? {
         try await Task.detached { [self] in
             guard let prefix = try read(4) else { return nil }
@@ -58,27 +78,63 @@ private final class BridgeSocket: @unchecked Sendable {
     }
 }
 
-/// Sleepers wait until `advance()`, cancelled ones included, so tests count sleeps rather than poll.
-private actor BridgeTestClock {
-    private var waiting: [CheckedContinuation<Void, any Error>] = []
+/// A bridge clock that moves only when a test advances it. A sleeper whose deadline has
+/// already passed returns at once, so registering late never misses an advance.
+private final class ManualBridgeClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private let origin = ContinuousClock.now
+    private var elapsed: Duration = .zero
+    private var sleepers: [(deadline: ContinuousClock.Instant, continuation: CheckedContinuation<Void, Never>)] = []
     private var watchers: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
-    private(set) var sleeps = 0
-    private(set) var duration: Duration?
-    func sleep(_ duration: Duration) async throws {
-        self.duration = duration
-        try await withCheckedThrowingContinuation { continuation in
-            waiting.append(continuation)
-            sleeps += 1
-            let ready = watchers.filter { $0.count <= sleeps }
-            watchers.removeAll { $0.count <= sleeps }
+    private var registered = 0
+
+    var bridgeClock: BrowserBridgeClock {
+        BrowserBridgeClock(now: { [self] in now }, sleep: { [self] in await sleep(until: $0) })
+    }
+    var now: ContinuousClock.Instant { lock.withLock { origin + elapsed } }
+    /// Every sleep ever started.
+    var registeredSleeps: Int { lock.withLock { registered } }
+
+    func sleep(until deadline: ContinuousClock.Instant) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            registered += 1
+            let ready = watchers.filter { $0.count <= registered }
+            watchers.removeAll { $0.count <= registered }
+            let due = origin + elapsed >= deadline
+            if !due { sleepers.append((deadline, continuation)) }
+            lock.unlock()
+            if due { continuation.resume() }
             ready.forEach { $0.continuation.resume() }
         }
     }
+
     func waitForSleeps(_ count: Int) async {
-        if sleeps >= count { return }
-        await withCheckedContinuation { watchers.append((count, $0)) }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            guard registered < count else { lock.unlock(); continuation.resume(); return }
+            watchers.append((count, continuation))
+            lock.unlock()
+        }
     }
-    func advance() { let all = waiting; waiting = []; all.forEach { $0.resume() } }
+
+    func advance(by duration: Duration) {
+        lock.lock()
+        elapsed += duration
+        let now = origin + elapsed
+        let due = sleepers.filter { $0.deadline <= now }
+        sleepers.removeAll { $0.deadline <= now }
+        lock.unlock()
+        due.forEach { $0.continuation.resume() }
+    }
+
+    func finish() {
+        lock.lock()
+        let all = sleepers
+        sleepers = []
+        lock.unlock()
+        all.forEach { $0.continuation.resume() }
+    }
 }
 
 @MainActor
@@ -90,7 +146,7 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
     private var store: BrowserPairingStore!
     private var keychain: FakeBrowserBridgeKeychain!
     private var sessions: [DatabaseViewModel] = []
-    private var clock: BridgeTestClock!
+    private var clock: ManualBridgeClock!
     private var sockets: [BridgeSocket] = []
     private var path: String { directory.appendingPathComponent("b").path }
 
@@ -101,14 +157,14 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         keychain = FakeBrowserBridgeKeychain()
         store = BrowserPairingStore(defaults: UserDefaults(suiteName: suite)!, keychain: keychain)
-        clock = BridgeTestClock()
+        clock = ManualBridgeClock()
     }
     override func tearDown() async throws {
         controller?.stop()
         sockets.forEach { $0.close() }; sockets = []
         for session in sessions { session.lockRequest(force: true) }
         sessions = []
-        await clock.advance()
+        clock.finish()
         try? FileManager.default.removeItem(at: directory)
         defaults.removePersistentDomain(forName: suite)
         controller = nil
@@ -127,7 +183,7 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
     private func start(gate: @escaping BrowserBridgeRequestHandler.DeviceOwnerAuthenticator = { _ in true }) async {
         controller = MacBrowserBridgeController(defaults: defaults, store: store, socketPath: path,
             appVersion: "test", sessionsProvider: { [weak self] in self?.sessions ?? [] },
-            sleep: { [clock = clock!] in try await clock.sleep($0) }, authenticateDeviceOwner: gate)
+            clock: clock.bridgeClock, authenticateDeviceOwner: gate)
         controller.isEnabled = true
         controller.start()
         await waitFor { self.controller.isListening || self.controller.unavailability != nil }
@@ -149,7 +205,7 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
     }
     private func pair(_ client: inout BrowserBridgeTestClient, _ socket: BridgeSocket) async throws -> Data {
         let app = try await beginPair(client, socket)
-        controller.answerPairing(true)
+        controller.answerPairing(id: try XCTUnwrap(controller.pendingPairing?.id), allow: true)
         let result = try await socket.receive()
         XCTAssertEqual(result, .pairResult(ok: true))
         try socket.send(client.hello)
@@ -163,15 +219,27 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
         return try client.receive(XCTUnwrap(reply)).result
     }
 
-    private func makeSession() async throws -> (DatabaseViewModel, KPEntry) {
+    /// After a pairing ended without being allowed: commits are busy for 10 seconds, then the next is admitted.
+    private func expectCooldown(file: StaticString = #filePath, line: UInt = #line) async throws {
+        for step in [Duration.zero, .seconds(10) - .milliseconds(1)] {
+            clock.advance(by: step)
+            let socket = try connect(); try socket.send(client().commit)
+            let reply = try await socket.receive()
+            XCTAssertEqual(reply, .error(.pairingBusy), file: file, line: line)
+        }
+        clock.advance(by: .milliseconds(1))
+    }
+
+    private func makeSession(entries: [KPEntry]? = nil) async throws -> (DatabaseViewModel, KPEntry) {
         let key = SymmetricKey(size: .bits256)
-        let entry = KPEntry(title: "Bridge entry", username: "entry-user", password: try .encrypt("entry-password", using: key), url: "https://example.com")
+        let entries = try entries ?? [KPEntry(title: "Bridge entry", username: "entry-user", password: .encrypt("entry-password", using: key), url: "https://example.com")]
+        let entry = entries[0]
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
         var reference = try TestDatabaseSupport.makeReference(for: url)
         reference.autoFillEnabled = true
         let session = DatabaseViewModel(databaseReference: reference,
             reloadOperation: { reference, _ in
-                .init(reference: reference, rootGroup: KPGroup(name: "Root", entries: [entry]),
+                .init(reference: reference, rootGroup: KPGroup(name: "Root", entries: entries),
                       meta: KPMeta(), formatVersion: .kdbx4(minor: 1), sessionKey: key,
                       openTimeSHA512: Data("test-hash".utf8), binaryPool: BinaryPool(rawFields: []))
             }, quickUnlockKeyPersistOperation: { _, _, _ in false },
@@ -283,31 +351,36 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
         XCTAssertEqual(replaced.map(\.clientID), [client.id])
     }
 
-    func testDeclineTimeoutCloseAndPairingAdmission() async throws {
+    func testDeclineTimeoutAndCloseEachStartCooldown() async throws {
         await start()
         let first = try connect(); let client = client()
         _ = try await beginPair(client, first)
-        let pending = controller.pendingPairing
+        let pending = try XCTUnwrap(controller.pendingPairing)
         let second = try connect(); try second.send(self.client().commit)
         let busy = try await second.receive()
         XCTAssertEqual(busy, .error(.pairingBusy))
         XCTAssertEqual(controller.pendingPairing, pending)
-        controller.answerPairing(false)
+        controller.answerPairing(id: pending.id, allow: false)
         let declined = try await first.receive()
         XCTAssertEqual(declined, .error(.pairingDeclined))
         XCTAssertNil(controller.pendingPairing)
+        try await expectCooldown()
         let timeout = try connect(); _ = try await beginPair(client, timeout)
-        await clock.waitForSleeps(2)
-        let duration = await clock.duration
-        XCTAssertEqual(duration, .seconds(120))
-        await clock.advance()
+        clock.advance(by: .seconds(120) - .milliseconds(1))
+        XCTAssertNotNil(controller.pendingPairing)
+        clock.advance(by: .milliseconds(1))
         let timedOut = try await timeout.receive()
         XCTAssertEqual(timedOut, .error(.pairingDeclined))
         XCTAssertNil(controller.pendingPairing)
+        try await expectCooldown()
         let closing = try connect(); _ = try await beginPair(client, closing)
+        let closed = try XCTUnwrap(controller.pendingPairing)
         closing.close()
         await waitFor { self.controller.pendingPairing == nil }
-        controller.answerPairing(true)
+        try await expectCooldown()
+        let last = try connect(); _ = try await beginPair(client, last)
+        controller.answerPairing(id: closed.id, allow: true)
+        XCTAssertNotNil(controller.pendingPairing, "An answer to the closed pairing is ignored")
         let records = try await store.list()
         XCTAssertTrue(records.isEmpty)
     }
@@ -344,24 +417,20 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
         XCTAssertTrue(controller.pairedBrowsers.isEmpty)
     }
 
-    func testTwoCommittedPairingsKeepFirstPendingAndAllowIt() async throws {
+    func testSecondCommitIsBusyWhileFirstHoldsSlotAndFirstStillPairs() async throws {
         await start()
         var first = client(); let one = try connect()
-        let second = client(); let two = try connect()
         try one.send(first.commit)
         let key = try await one.receive()
         guard case .pairKey(let app, _) = key else { return XCTFail("Expected pair key") }
-        try two.send(second.commit)
-        let secondKey = try await two.receive()
-        guard case .pairKey = secondKey else { return XCTFail("Expected second commitment accepted") }
+        let two = try connect(); try two.send(client().commit)
+        let rejected = try await two.receive()
+        XCTAssertEqual(rejected, .error(.pairingBusy), "The slot is taken at commit, before any reveal")
+        let rejectedClosed = try await two.receive(); XCTAssertNil(rejectedClosed)
+        XCTAssertNil(controller.pendingPairing)
         try one.send(first.reveal)
         await waitFor { self.controller.pendingPairing != nil }
-        let pending = controller.pendingPairing
-        try two.send(second.reveal)
-        let rejected = try await two.receive()
-        XCTAssertEqual(rejected, .error(.pairingDeclined))
-        XCTAssertEqual(controller.pendingPairing, pending)
-        controller.answerPairing(true)
+        controller.answerPairing(id: try XCTUnwrap(controller.pendingPairing?.id), allow: true)
         let allowed = try await one.receive(); XCTAssertEqual(allowed, .pairResult(ok: true))
         try one.send(first.hello)
         let hello = try await one.receive(); try first.establish(XCTUnwrap(hello), app: app)
@@ -369,6 +438,203 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
         XCTAssertEqual(status, .status(app: "test", unlocked: 0, locked: 0))
         let records = try await store.list()
         XCTAssertEqual(records.map(\.clientID), [first.id])
+    }
+
+    func testPairingGateSlotLimitAndCooldown() {
+        let clock = ManualBridgeClock()
+        let gate = BrowserPairingGate(now: clock.bridgeClock.now)
+        let ids = (0..<8).map { _ in UUID() }
+        XCTAssertTrue(gate.admit(ids[0]))
+        XCTAssertFalse(gate.admit(ids[1]), "One slot")
+        gate.release(ids[1], paired: false)
+        XCTAssertFalse(gate.admit(ids[1]), "Only the holder frees the slot")
+        gate.release(ids[0], paired: true)
+        for id in ids[1...4] {
+            XCTAssertTrue(gate.admit(id))
+            gate.release(id, paired: true)
+        }
+        XCTAssertFalse(gate.admit(ids[5]), "Five admitted commits a minute, allowed ones included")
+        clock.advance(by: .seconds(60))
+        XCTAssertTrue(gate.admit(ids[5]))
+        gate.release(ids[5], paired: false)
+        clock.advance(by: .seconds(10) - .milliseconds(1))
+        XCTAssertFalse(gate.admit(ids[6]), "Cooldown after an unallowed pairing")
+        clock.advance(by: .milliseconds(1))
+        XCTAssertTrue(gate.admit(ids[6]))
+        gate.abandon()
+        XCTAssertFalse(gate.admit(ids[7]), "Abandoning the slot also cools down")
+        clock.advance(by: .seconds(10))
+        XCTAssertTrue(gate.admit(ids[7]))
+    }
+
+    func testCommitFloodGetsAtMostFivePairKeysAMinute() async throws {
+        await start()
+        let attacker = client()
+        var pairKeys = 0, busy = 0
+        // 4,000 commits spread over one minute, each from a connection that never reveals.
+        for _ in 0..<4_000 {
+            clock.advance(by: .milliseconds(15))
+            guard let socket = try? BridgeSocket(path) else { continue }
+            try? socket.send(attacker.commit)
+            switch try? await socket.receive() {
+            case .pairKey: pairKeys += 1
+            case .error(.pairingBusy): busy += 1
+            default: break
+            }
+            socket.close()
+        }
+        XCTAssertLessThanOrEqual(pairKeys, BrowserPairingGate.attemptLimit)
+        XCTAssertGreaterThan(pairKeys, 0)
+        XCTAssertGreaterThan(busy, 0)
+        XCTAssertNil(controller.pendingPairing)
+    }
+
+    func testRelayCannotRaiseMoreThanFivePairingAlertsAMinute() async throws {
+        await start()
+        var alerts = 0
+        for _ in 0..<60 {
+            let socket = try connect(); let attacker = client()
+            try socket.send(attacker.commit)
+            if case .pairKey = try await socket.receive() {
+                try socket.send(attacker.reveal)
+                await waitFor { self.controller.pendingPairing != nil }
+                alerts += 1
+                socket.close()
+                await waitFor { self.controller.pendingPairing == nil }
+            }
+            clock.advance(by: .seconds(1))
+        }
+        XCTAssertEqual(alerts, BrowserPairingGate.attemptLimit)
+    }
+
+    func testAttemptLimitCountsAllowedPairings() async throws {
+        await start()
+        for _ in 0..<BrowserPairingGate.attemptLimit {
+            var browser = client(); let socket = try connect(); _ = try await pair(&browser, socket)
+        }
+        let refused = try connect(); try refused.send(client().commit)
+        let busy = try await refused.receive()
+        XCTAssertEqual(busy, .error(.pairingBusy))
+        clock.advance(by: .seconds(60))
+        var last = client(); let socket = try connect(); _ = try await pair(&last, socket)
+        let records = try await store.list()
+        XCTAssertEqual(records.count, BrowserPairingGate.attemptLimit + 1)
+    }
+
+    func testCommitThatNeverRevealsIsClosedAfterTenSeconds() async throws {
+        await start()
+        let silent = try connect(); try silent.send(client().commit)
+        let key = try await silent.receive()
+        guard case .pairKey = key else { return XCTFail("Expected pair key") }
+        clock.advance(by: .seconds(10) - .milliseconds(1))
+        let held = try connect(); try held.send(client().commit)
+        let busy = try await held.receive()
+        XCTAssertEqual(busy, .error(.pairingBusy), "Still held just before the deadline")
+        clock.advance(by: .milliseconds(1))
+        let closed = try await silent.receive()
+        XCTAssertNil(closed)
+        try await expectCooldown()
+        var browser = client(); let socket = try connect(); _ = try await pair(&browser, socket)
+    }
+
+    func testIdleConnectionsAreClosedAfterTenSeconds() async throws {
+        await start()
+        var browser = client(); let kept = try connect(); let app = try await pair(&browser, kept)
+        // The kept connection's connect, commit and answer deadlines.
+        await clock.waitForSleeps(3)
+        let before = clock.registeredSleeps
+        let idle = try (0..<63).map { _ in try connect() }
+        await clock.waitForSleeps(before + idle.count)
+        let refused = try connect()
+        let refusedClosed = try await refused.receive()
+        XCTAssertNil(refusedClosed, "64 connections are open")
+        clock.advance(by: .seconds(10))
+        for socket in idle {
+            let closed = try await socket.receive()
+            XCTAssertNil(closed)
+        }
+        let status = try await request(.status, id: 1, client: &browser, socket: kept)
+        XCTAssertEqual(status, .status(app: "test", unlocked: 0, locked: 0), "A session that said hello stays open")
+        let next = try connect(); try next.send(browser.hello)
+        let hello = try await next.receive()
+        try browser.establish(XCTUnwrap(hello), app: app)
+    }
+
+    func testPeerThatNeverReadsIsClosed() async throws {
+        await start()
+        var browser = client(); let socket = try connect(); _ = try await pair(&browser, socket)
+        let frames = try (0..<20_000).map {
+            try BrowserBridgeFraming.encode(BrowserBridgeJSON.encode(browser.send(.init(id: $0, operation: .status))), toward: .towardApp)
+        }
+        let sent = await Task.detached {
+            for (count, frame) in frames.enumerated() {
+                guard (try? socket.write(frame)) != nil else { return count }
+            }
+            return frames.count
+        }.value
+        XCTAssertLessThan(sent, frames.count, "The app closed the connection instead of queueing replies without bound")
+    }
+
+    func testSwitchingOffClosesAPeerThatStoppedReading() async throws {
+        let key = SymmetricKey(size: .bits256)
+        let wide = String(repeating: "語", count: 300)
+        let entries = try (0..<50).map { _ in
+            KPEntry(title: wide, username: wide, password: try .encrypt("p", using: key), url: "https://example.com")
+        }
+        _ = try await makeSession(entries: entries)
+        await start()
+        var browser = client(); let socket = try connect(); _ = try await pair(&browser, socket)
+        try socket.send(browser.send(.init(id: 1, operation: .matches(origin: "https://example.com"))))
+        // A reply far larger than the socket buffers: its write is still waiting for this peer.
+        let length = try await socket.receiveLength()
+        XCTAssertGreaterThan(length, 100_000)
+        let instant = ContinuousClock.now
+        controller.isEnabled = false
+        XCTAssertLessThan(ContinuousClock.now - instant, .seconds(1))
+        let received = try await socket.drain()
+        XCTAssertLessThan(received, length, "Closed mid-reply, never finishing it or writing disabled")
+    }
+
+    func testAnswerForAnotherPairingIsIgnored() async throws {
+        await start()
+        let browser = client(); let socket = try connect()
+        _ = try await beginPair(browser, socket)
+        let pending = try XCTUnwrap(controller.pendingPairing)
+        controller.answerPairing(id: UUID(), allow: true)
+        controller.answerPairing(id: UUID(), allow: false)
+        XCTAssertEqual(controller.pendingPairing, pending)
+        controller.answerPairing(id: pending.id, allow: true)
+        let result = try await socket.receive()
+        XCTAssertEqual(result, .pairResult(ok: true))
+    }
+
+    func testPendingPairingNameIsSanitizedBeforeTheAlert() async throws {
+        await start()
+        let browser = client()
+        guard case .pairCommit(let commit, _) = browser.commit else { return XCTFail("Expected commit") }
+        let socket = try connect()
+        try socket.send(.pairCommit(commit: commit, name: "Chrome\nCode matches \u{202E}wolla\u{202C}"))
+        let key = try await socket.receive()
+        guard case .pairKey = key else { return XCTFail("Expected pair key") }
+        try socket.send(browser.reveal)
+        await waitFor { self.controller.pendingPairing != nil }
+        XCTAssertEqual(controller.pendingPairing?.browserName, "Chrome Code matches wolla")
+        controller.answerPairing(id: try XCTUnwrap(controller.pendingPairing?.id), allow: true)
+        let result = try await socket.receive()
+        XCTAssertEqual(result, .pairResult(ok: true))
+        let records = try await store.list()
+        XCTAssertEqual(records.map(\.name), ["Chrome Code matches wolla"])
+    }
+
+    func testHandshakeRefusalIsUnpairedForRemovedClientAndDisabledWhenSwitchedOff() {
+        let browser = PairedBrowser(clientID: "client", publicKey: Data(repeating: 7, count: 32), name: "B", pairedAt: Date())
+        let runtime = BrowserBridgeRuntime(browsers: [browser], pairingGate: BrowserPairingGate(now: { .now }))
+        XCTAssertNil(runtime.establish(UUID(), clientID: "client"))
+        _ = runtime.remove(clientID: "client")
+        XCTAssertEqual(runtime.establish(UUID(), clientID: "client"), .unpaired)
+        runtime.add(clientID: "client", publicKey: browser.publicKey)
+        _ = runtime.deactivate()
+        XCTAssertEqual(runtime.establish(UUID(), clientID: "client"), .disabled)
     }
 
     func testRemoveAllClosesEveryConnectionAndReplacesInstallationKey() async throws {
@@ -396,7 +662,7 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
         let socket = try connect(); let client = client()
         _ = try await beginPair(client, socket)
         SettingsService.setBrowserBridgePairings(Data([0]), in: defaults)
-        controller.answerPairing(true)
+        controller.answerPairing(id: try XCTUnwrap(controller.pendingPairing?.id), allow: true)
         let closed = try await socket.receive(); XCTAssertNil(closed)
         XCTAssertTrue(controller.pairingFailed)
         XCTAssertNil(controller.unavailability)
@@ -423,9 +689,9 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
         var live: [BridgeSocket] = []
         for _ in 0..<64 {
             let socket = try connect()
-            try socket.send(client.commit)
+            try socket.send(client.hello)
             let response = try await socket.receive()
-            guard case .pairKey = response else { return XCTFail("Expected accepted connection") }
+            guard case .serverHello = response else { return XCTFail("Expected accepted connection") }
             live.append(socket)
         }
         let extra = try connect()
