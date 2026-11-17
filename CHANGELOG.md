@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- A cloud database no longer reports "The file couldn't be saved because a file with that name already exists" when two syncs overlap, for example Sync Now while the app refreshes after you return to it.
+
 ## v1.22.0 (2026-11-16)
 
 ### New Features
