@@ -14,7 +14,6 @@ from pathlib import Path
 
 TESTS_YML = Path(".github/workflows/tests.yml")
 RC_YML = Path(".github/workflows/ios-rc-tests.yml")
-MIN_MAC_XCODE = (26, 4)  # Xcode 26.3's actool crashes on KeeForge.icon for macOS.
 PRERELEASE = re.compile(r"beta|release.?candidate|_rc\b", re.I)
 
 
@@ -131,25 +130,23 @@ def report(probe_dir):
     def ver(p, app):
         return p["installed"].get(app, {}).get("version") if app else None
 
-    for job in ("unit-tests", "macos-unit-tests"):
-        if jobs[job]["runs-on"] != mac["label"]:
-            drift.append(f"`{job}` runs on `{jobs[job]['runs-on']}`; the newest stable macOS image is `{mac['label']}`.")
-    if jobs["ios-rc-tests"]["runs-on"] != xc["label"]:
-        drift.append(f"`ios-rc-tests` runs on `{jobs['ios-rc-tests']['runs-on']}`; the newest Xcode image is `{xc['label']}`.")
+    if jobs["unit-tests"]["runs-on"] != mac["label"]:
+        drift.append(f"`unit-tests` runs on `{jobs['unit-tests']['runs-on']}`; the newest stable macOS image is `{mac['label']}`.")
+    for job in ("macos-unit-tests", "ios-rc-tests"):
+        if jobs[job]["runs-on"] != xc["label"]:
+            drift.append(f"`{job}` runs on `{jobs[job]['runs-on']}`; the newest Xcode image is `{xc['label']}`.")
 
-    # unit-tests and macos-unit-tests take the highest Xcode_*.app by `sort -V`.
+    # unit-tests takes the highest Xcode_*.app by `sort -V`.
     picked = mac["newest_sorted"]
     if picked and mac["installed"][picked]["prerelease"]:
         drift.append(f"On `{mac['label']}` the Select Xcode step picks pre-release `{Path(picked).name}`; newest stable is {ver(mac, mac['newest_stable'])}.")
-    if picked and vkey(ver(mac, picked) or "0") < list(MIN_MAC_XCODE):
-        drift.append(f"On `{mac['label']}` the picked Xcode {ver(mac, picked)} is older than 26.4, which Mac builds need.")
     unit = mac["runtimes"].get(picked, {}).get(unit_device, {})
     if not unit.get("created"):
         drift.append(f"On `{mac['label']}` with Xcode {ver(mac, picked)}, no iOS runtime can create `{unit_device}` (unit-tests destination).")
 
-    # ios-rc-tests uses the image default Xcode.
+    # macos-unit-tests and ios-rc-tests use the image default Xcode.
     if xc["newest_stable"] and xc["newest_stable"] != xc["default"]:
-        drift.append(f"On `{xc['label']}` the default Xcode is {ver(xc, xc['default'])}, but stable {ver(xc, xc['newest_stable'])} is installed; `ios-rc-tests` should select it.")
+        drift.append(f"On `{xc['label']}` the default Xcode is {ver(xc, xc['default'])}, but stable {ver(xc, xc['newest_stable'])} is installed; `macos-unit-tests` and `ios-rc-tests` should select it.")
     for name in rc_devices:
         got = xc["runtimes"].get(xc["default"], {}).get(name, {})
         if not got.get("created"):

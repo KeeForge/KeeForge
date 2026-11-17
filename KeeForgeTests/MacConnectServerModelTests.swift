@@ -57,15 +57,17 @@ final class MacConnectServerModelTests: XCTestCase {
         let provider = CloudProviderKind.webDAV.rawValue
         let first = CloudAccount(id: "account", displayName: "A", provider: provider)
         let later = CloudAccount(id: "p8-later", displayName: "Z", provider: provider)
-        for account in [first, later] {
-            CloudAccountStore.upsert(account)
-            let credential = WebDAVCredential(serverURL: "https://" + account.displayName.lowercased() + ".test/", username: account.displayName, password: "stored")
-            XCTAssertTrue(CloudTokenStore.setTokenData(try JSONEncoder().encode(credential), provider: provider, accountId: account.id))
-        }
         defer {
             for account in [first, later] {
                 CloudTokenStore.deleteToken(provider: provider, accountId: account.id)
                 CloudAccountStore.remove(provider: provider, accountId: account.id)
+            }
+        }
+        for account in [first, later] {
+            CloudAccountStore.upsert(account)
+            let credential = WebDAVCredential(serverURL: "https://" + account.displayName.lowercased() + ".test/", username: account.displayName, password: "stored")
+            guard CloudTokenStore.setTokenData(try JSONEncoder().encode(credential), provider: provider, accountId: account.id) else {
+                throw XCTSkip("Keychain writes are unavailable in the current test host.")
             }
         }
         let connector = P8ConnectGate()
@@ -88,7 +90,10 @@ final class MacConnectServerModelTests: XCTestCase {
         let account = CloudAccount(id: id, displayName: "Test", provider: CloudProviderKind.webDAV.rawValue)
         let credential = WebDAVCredential(serverURL: "http://vault.test/", username: "alex", password: "stored secret")
         CloudAccountStore.upsert(account)
-        XCTAssertTrue(CloudTokenStore.setTokenData(try JSONEncoder().encode(credential), provider: account.provider, accountId: id))
+        guard CloudTokenStore.setTokenData(try JSONEncoder().encode(credential), provider: account.provider, accountId: id) else {
+            CloudAccountStore.remove(provider: account.provider, accountId: id)
+            throw XCTSkip("Keychain writes are unavailable in the current test host.")
+        }
         defer {
             CloudTokenStore.deleteToken(provider: account.provider, accountId: id)
             CloudAccountStore.remove(provider: account.provider, accountId: id)

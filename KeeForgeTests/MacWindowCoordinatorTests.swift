@@ -1059,6 +1059,12 @@ final class MacWindowCoordinatorTests: XCTestCase {
         coordinator.open(references[0])
         let first = try XCTUnwrap(coordinator.databaseWindows[references[0].id]?.window)
         let firstFrame = first.frame
+        // AppKit shrinks a cascaded window to the screen, as on a hosted runner's 1024 x 768 display.
+        let visible = try XCTUnwrap(first.screen ?? NSScreen.main).visibleFrame
+        try XCTSkipIf(
+            visible.width < firstFrame.width + 60 || visible.height < firstFrame.height + 60,
+            "The screen is too small to cascade a full-size database window."
+        )
         coordinator.open(references[1])
         let second = try XCTUnwrap(coordinator.databaseWindows[references[1].id]?.window)
         XCTAssertEqual(first.frame, firstFrame, "Opening another window never moves this one")

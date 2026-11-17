@@ -86,6 +86,11 @@ struct AppRootView: View {
         }
         .onChange(of: routingSession, initial: true) { _, session in
             routing.enrollment.updateSession(session)
+            // Unlocking stamps the reference. Reloading only on the way back
+            // races the list's rebuild, which can keep the rows it built first.
+            if session?.isUnlocked == true {
+                listViewModel.reload()
+            }
         }
         .onChange(of: routing.databaseTransition?.id, initial: true) { _, _ in
             finishDatabaseTransitionIfReady()

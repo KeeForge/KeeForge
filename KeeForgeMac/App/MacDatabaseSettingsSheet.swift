@@ -234,7 +234,7 @@ private struct MacDatabaseSyncTab: View {
                     MacSettingsHelpRow(help: MacSettingsHelpButton(label: "Sync When Opening Help",
                         text: "Saving still checks the server's copy first and stops if it changed. AutoFill uses the cached copy only.",
                         identifier: "database-details.sync-policy.help")) {
-                        Toggle("Sync When Opening", isOn: Binding(get: { model.current.cloudSyncPolicy == .onOpen }, set: model.setSyncOnOpen))
+                        Toggle("Sync When Opening", isOn: Binding(get: { model.current.cloudSyncPolicy == .onOpen }, set: { model.setSyncOnOpen($0) }))
                             .accessibilityIdentifier("database-details.sync-on-open-toggle")
                     }
                     if !state.isConnected {
