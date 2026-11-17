@@ -69,10 +69,24 @@ def init(args: argparse.Namespace) -> None:
 
 REQUIRED_GATES = ("xcodeCloud", "githubMac", "githubIPhone", "githubIPad", "kdbxIOS", "kdbxMac", "localMacSmoke", "masArtifact", "directArtifact")
 
-def evidence(gate: object, expected: dict[str, object]) -> bool:
+# The owner may accept a red hosted test gate; artifact, archive and KDBX gates have no exception.
+OWNER_EXCEPTION_GATES = ("githubMac", "githubIPhone", "githubIPad")
+
+def owner_exception(name: str, gate: dict[str, object], exceptions: object) -> bool:
+    if name not in OWNER_EXCEPTION_GATES or not isinstance(exceptions, list): return False
+    if not nonempty_string(gate.get("reason")) or not nonempty_string(gate.get("url")): return False
+    return any(
+        isinstance(record, dict) and record.get("gate") == name
+        and all(nonempty_string(record.get(key)) for key in ("decision", "acceptedAt", "authorizedBy"))
+        for record in exceptions
+    )
+
+def evidence(gate: object, expected: dict[str, object], name: str = "", exceptions: object = None) -> bool:
     if not isinstance(gate, dict): return False
     if any(gate.get(key) != expected[key] for key in ("commitSHA", "sourceTree")):
         return False
+    if gate.get("status") == "ownerException":
+        return owner_exception(name, gate, exceptions)
     if gate.get("status") == "adjudicated":
         return (
             gate.get("failureKind") == "xctest"
@@ -198,7 +212,8 @@ def validate(args: argparse.Namespace) -> None:
     if drift: fail("manifest identity disagrees with RC tag: " + ", ".join(drift))
     if data.get("directCFBundleVersion") != data.get("repoBuild"): fail("directCFBundleVersion must equal repoBuild")
     gates = data.get("gates") if isinstance(data.get("gates"), dict) else {}
-    missing_evidence = [name for name in REQUIRED_GATES if not evidence(gates.get(name), expected)]
+    exceptions = data.get("ownerAcceptedExceptions")
+    missing_evidence = [name for name in REQUIRED_GATES if not evidence(gates.get(name), expected, name, exceptions)]
     ios_build = data.get("iosTestFlightBuild")
     mac_build = data.get("macTestFlightBuild")
     if not testflight_build(ios_build): missing_evidence.append("iosTestFlightBuild")
@@ -307,6 +322,21 @@ def self_test(_: argparse.Namespace) -> None:
             "evidence": {"log": "fixture.log"},
         }
         expect_refusal("non-XCTest adjudication", non_xctest_adjudication)
+        excepted = {**exact, "status": "ownerException", "verdict": "failed", "reason": "fixture", "url": "https://example.invalid/run"}
+        decision = {"decision": "accept", "acceptedAt": "2026-01-01T00:00:00+00:00", "authorizedBy": "owner"}
+        owner_excepted = copy.deepcopy(data)
+        owner_excepted["gates"]["githubMac"] = excepted
+        expect_refusal("owner exception without the owner's record", owner_excepted)
+        owner_excepted["ownerAcceptedExceptions"] = [{**decision, "gate": "githubIPhone"}]
+        expect_refusal("owner exception recorded for another gate", owner_excepted)
+        owner_excepted["ownerAcceptedExceptions"] = [{**decision, "gate": "githubMac"}]
+        write(owner_excepted)
+        validate(validate_args)
+        excepted_artifact = copy.deepcopy(data)
+        excepted_artifact["gates"]["masArtifact"] = excepted
+        excepted_artifact["ownerAcceptedExceptions"] = [{**decision, "gate": "masArtifact"}]
+        expect_refusal("owner exception on an artifact gate", excepted_artifact)
+        write(data)
         missing_artifact_identity = copy.deepcopy(data)
         missing_artifact_identity["artifacts"]["mas"].pop("sourceTree")
         expect_refusal("MAS artifact without source tree", missing_artifact_identity)
