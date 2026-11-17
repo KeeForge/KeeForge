@@ -1100,6 +1100,10 @@ final class FTPCloudProviderTests: XCTestCase {
             } catch let error as CloudProviderError {
                 guard case .conflict = error else { return XCTFail("Expected conflict") }
             }
+            let retainedCopy = try XCTUnwrap(PendingUploadQueue.listCreations(environment: environment.queue).first)
+            XCTAssertEqual(retainedCopy.intent.phase, .prepared)
+            XCTAssertEqual(try PendingUploadQueue.readCreationPayload(retainedCopy, environment: environment.queue), Data("mine".utf8))
+            try PendingUploadQueue.discardPreparedCreation(retainedCopy, environment: environment.queue)
             XCTAssertTrue(try PendingUploadQueue.listCreations(environment: environment.queue).isEmpty)
             XCTAssertEqual(server.file("taken.kdbx")?.data, Data("other".utf8))
         }
