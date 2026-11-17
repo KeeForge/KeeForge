@@ -238,6 +238,94 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(strays, [cacheURL.lastPathComponent], "Both syncs' pins and staged downloads must be cleaned up.")
     }
 
+    /// An AutoFill save lands while the first sync downloads and the second
+    /// waits for it. The first refuses to revert the save; the second must
+    /// not pin the save's bytes after its wait and replace them either.
+    func testQueuedSyncDownDoesNotReplaceASaveThatLandedWhileItWaited() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("opened-bytes".utf8), for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let savedBytes = Data("autofill-save".utf8)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        provider.downloadDelay = .milliseconds(200)
+        provider.downloadedData = Data("remote-bytes".utf8)
+        provider.duringDownload = { [provider] in
+            if provider.downloadCallCount == 1 {
+                try DatabaseListStore.cacheDatabaseCopy(savedBytes, for: reference)
+            }
+        }
+
+        async let first = CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+        async let second = CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+        let resolutions = try await [first, second]
+
+        XCTAssertEqual(try Data(contentsOf: cacheURL), savedBytes, "The save must survive both syncs.")
+        for resolution in resolutions {
+            XCTAssertEqual(resolution.data, savedBytes)
+            guard case .cachedWithError = resolution.status else {
+                XCTFail("A sync that kept the save must not report the cache as synced; got \(resolution.status)")
+                continue
+            }
+            XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteContentHash, "old-hash")
+        }
+    }
+
+    /// Each queued sync-down returns the bytes it downloaded, paired with the
+    /// metadata that describes them, even when the next one replaces the
+    /// cache right after it.
+    func testOverlappingSyncDownsEachReturnTheirOwnDownload() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("stale-cache".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "hash-1", size: 128)
+        )
+        provider.downloadDelay = .milliseconds(100)
+        provider.duringDownload = { [provider] in
+            let call = provider.downloadCallCount
+            provider.downloadedData = Data("remote-\(call)".utf8)
+            provider.downloadedMetadata = CloudFileMetadata(
+                modifiedDate: Date(timeIntervalSince1970: TimeInterval(200 + call)),
+                contentHash: "hash-\(call)",
+                size: 128
+            )
+        }
+
+        async let first = CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+        async let second = CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+        let resolutions = try await [first, second]
+
+        XCTAssertEqual(provider.downloadCallCount, 2)
+        for resolution in resolutions {
+            XCTAssertEqual(resolution.status, .downloaded)
+            let hash = try XCTUnwrap(resolution.reference.cloudSyncMetadata?.remoteContentHash)
+            XCTAssertEqual(resolution.data, Data(hash.replacingOccurrences(of: "hash", with: "remote").utf8))
+        }
+    }
+
     // MARK: - Coordinated cache replace (M12, direct)
 
     // `replaceCacheItem` is the conditional swap the whole M12 race defense
