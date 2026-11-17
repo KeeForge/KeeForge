@@ -389,7 +389,7 @@ struct DatabaseListView: View {
                     let outcome = await viewModel.removeDatabase(target)
                     switch outcome {
                     case .removed, .alreadyMissing: break
-                    case .revokedRecoveryRequired, .revokedRegistryNotPublished:
+                    case .recoveryRequired, .revokedRegistryNotPublished:
                         await Task.yield()
                         detailsReference = target
                     case .rejected, .notPublished, .revocationUnconfirmed, .visibleUnconfirmed:

@@ -505,7 +505,7 @@ enum DatabaseListStore {
 
     enum RemovalOutcome: Sendable, Equatable {
         case removed, alreadyMissing, rejected, notPublished, revocationUnconfirmed
-        case revokedRecoveryRequired, revokedRegistryNotPublished, visibleUnconfirmed
+        case recoveryRequired, revokedRegistryNotPublished, visibleUnconfirmed
     }
 
     private struct RemovalReceipt {
@@ -560,7 +560,7 @@ enum DatabaseListStore {
                     return .removed
                 case .visibleUnconfirmed: return .visibleUnconfirmed
                 case .missing: return rowMissing ? .alreadyMissing : .notPublished
-                case .rejected: return recoveryRequired ? .revokedRecoveryRequired : .rejected
+                case .rejected: return recoveryRequired ? .recoveryRequired : .rejected
                 case .notPublished:
                     if revocationObserved { return .revokedRegistryNotPublished }
                     return revocationAttempted ? .revocationUnconfirmed : .notPublished
