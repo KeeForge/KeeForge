@@ -1,5 +1,6 @@
 import CryptoKit
 import LocalAuthentication
+import os
 import Security
 import XCTest
 import KDBXKit
@@ -360,7 +361,7 @@ final class ExpressUnlockTests: XCTestCase {
             openTimeSHA512: context.openTimeSHA512, kdfPolicy: .mainApp
         )
 
-        guard case .saved(_, let expressKey) = result else {
+        guard case .saved(_, let expressKey, _) = result else {
             return XCTFail("Expected save to succeed.")
         }
         try assertOpensWithoutTheKDF(
@@ -380,7 +381,7 @@ final class ExpressUnlockTests: XCTestCase {
             environment: makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
         )
 
-        guard case .saved(_, let expressKey) = result else {
+        guard case .saved(_, let expressKey, _) = result else {
             return XCTFail("Expected save to succeed.")
         }
         try assertOpensWithoutTheKDF(
@@ -414,7 +415,7 @@ final class ExpressUnlockTests: XCTestCase {
         )
 
         for result in [localResult, cloudResult] {
-            guard case .saved(_, let expressKey) = result else {
+            guard case .saved(_, let expressKey, _) = result else {
                 return XCTFail("Expected save to succeed.")
             }
             XCTAssertNil(expressKey)
@@ -523,12 +524,15 @@ final class ExpressUnlockTests: XCTestCase {
     }
 
     private func makeCloudEnvironment(cacheURL: URL, uploaded: UploadedBytes) -> CloudDatabaseSaver.Environment {
-        let backupDirectory = cacheURL.deletingLastPathComponent().appendingPathComponent("Backups", isDirectory: true)
+        let anchor = cacheURL.deletingLastPathComponent()
+        let backupDirectory = anchor.appendingPathComponent("Backups", isDirectory: true)
         var environment = CloudDatabaseSaver.Environment.live
         environment.beginBackgroundTask = { _ in .invalid }
         environment.endBackgroundTask = { _ in }
         environment.cacheURL = { _ in cacheURL }
         environment.backupDirectoryURL = { _ in backupDirectory }
+        environment.createDirectory = { url in try createDurableDirectory(at: url, anchor: anchor) }
+        environment.writeBackup = { data, url in try writeAtomicallyAndDurably(data, to: url, directoryAnchor: anchor) }
         environment.pruneBackups = { _, _ in }
         environment.getMetadata = { _ in
             CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 100), contentHash: nil, size: 0, rev: "rev-1")
@@ -836,7 +840,14 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
             let vm = try makeViewModel(
                 data: try KDBXTestFixture.test.data(in: bundle),
                 persisted: PersistedKeys(),
-                localSave: { _, _, _, _, _, _, _ in .saved(newSHA512: Data("saved".utf8), expressKey: Self.savedVersionKey) },
+                localSave: { draft, reference, key, sha, reconciled, newKey, settings in
+                    if newKey != nil {
+                        return try await LocalDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                            openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                            newCompositeKey: newKey, encryptionSettings: settings)
+                    }
+                    return .saved(newSHA512: Data("saved".utf8), expressKey: Self.savedVersionKey)
+                },
                 storedKeyPresenceCheck: { _ in storesNewKey },
                 expressSaves: expressSaves
             )
@@ -922,15 +933,19 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         storedKeyPresenceCheck: @escaping DatabaseViewModel.StoredKeyPresenceCheck = { _ in false },
         expressSaves: ExpressKeySaves = ExpressKeySaves()
     ) throws -> DatabaseViewModel {
-        let url = try KDBXTestFixture.test.url(in: bundle)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("express-unlock.kdbx")
+        try data.write(to: url)
         var reference = try TestDatabaseSupport.makeReference(for: url)
         reference.hardwareKey = hardwareKey
+        DatabaseListStore.update(reference)
+        addTeardownBlock { try? FileManager.default.removeItem(at: folder) }
         return DatabaseViewModel(
             databaseReference: reference,
-            localDatabaseReadOperation: { _ in DatabaseViewModel.LocalDatabaseReadResult(url: url, data: data) },
             localSaveOperation: localSave,
             biometricCompositeKeyOperation: biometricKeys,
-            quickUnlockKeyPersistOperation: { keys, _, masterKeyEntered in
+            localReadKeyPersistOperation: { keys, _, masterKeyEntered in
                 persisted.record(keys, masterKeyEntered: masterKeyEntered)
                 return storesQuickUnlockKey
             },
@@ -993,22 +1008,17 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
     }
 }
 
-@MainActor
-private final class ExpressKeySaves {
-    private(set) var keys: [ExpressUnlockKey?] = []
-
-    func record(_ key: ExpressUnlockKey?) {
-        keys.append(key)
-    }
+private final class ExpressKeySaves: @unchecked Sendable {
+    private let storage = OSAllocatedUnfairLock(initialState: [ExpressUnlockKey?]())
+    var keys: [ExpressUnlockKey?] { storage.withLock { $0 } }
+    func record(_ key: ExpressUnlockKey?) { storage.withLock { $0.append(key) } }
 }
 
-@MainActor
-private final class PersistedKeys {
-    private(set) var last: QuickUnlockKeys?
-    private(set) var lastMasterKeyEntered: Bool?
-
+private final class PersistedKeys: @unchecked Sendable {
+    private let storage = OSAllocatedUnfairLock(initialState: (keys: Optional<QuickUnlockKeys>.none, entered: Optional<Bool>.none))
+    var last: QuickUnlockKeys? { storage.withLock { $0.keys } }
+    var lastMasterKeyEntered: Bool? { storage.withLock { $0.entered } }
     func record(_ keys: QuickUnlockKeys, masterKeyEntered: Bool) {
-        last = keys
-        lastMasterKeyEntered = masterKeyEntered
+        storage.withLock { $0 = (keys, masterKeyEntered) }
     }
 }

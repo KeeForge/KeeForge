@@ -57,11 +57,13 @@ final class AppSettingsViewModelTests: XCTestCase {
     }
 
     func testTimeoutIsPersistedBeforeResettingTheLiveTimerAndUnchangedValuesDoNothing() {
+        SettingsService.autoLockTimeout = .fiveMinutes
         var observedTimeouts: [SettingsService.AutoLockTimeout] = []
         let model = AppSettingsViewModel(resetInactivityTimer: {
             observedTimeouts.append(SettingsService.autoLockTimeout)
         })
 
+        XCTAssertEqual(model.autoLockTimeout, .fiveMinutes)
         model.autoLockTimeout = .oneMinute
         model.autoLockTimeout = .oneMinute
 
@@ -238,7 +240,7 @@ final class AppSettingsViewModelTests: XCTestCase {
             )
             let session = DatabaseViewModel(
                 databaseReference: reference,
-                quickUnlockKeyPersistOperation: { _, _, _ in false },
+                localReadKeyPersistOperation: { _, _, _ in false },
                 storedKeyPresenceCheck: { _ in false },
                 nowProvider: { now }
             )

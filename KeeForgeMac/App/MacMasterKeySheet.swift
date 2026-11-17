@@ -66,9 +66,10 @@ final class MacMasterKeySheet {
             Task { await self.save() }
         }
         shell.cancellationScope.register { [weak self] in self?.discard() }
-        observation.start(reading: { (model.isAuthenticating || model.isWorking, model.canSave) }, onChange: { [weak self] busy, canSave in
-            self?.shell.canConfirm = canSave
-            self?.shell.setBusy(busy, label: String(localized: "Changing Master Key"))
+        observation.start(reading: { (model.isAuthenticating || model.isWorking, model.canSave, model.hasCompleted) }, onChange: { [weak self] state in
+            self?.shell.canConfirm = state.1 || state.2
+            self?.shell.defaultButton.title = state.2 ? String(localized: "Done") : String(localized: "Save")
+            self?.shell.setBusy(state.0, label: String(localized: "Changing Master Key"))
         })
         layoutObservation.start(reading: { LayoutState(model: model) }, onChange: { [weak self] state in
             self?.fitToContent(state)
@@ -84,7 +85,7 @@ final class MacMasterKeySheet {
         let keyFileSummary: String
 
         @MainActor init(model: MasterKeyChangeViewModel) {
-            message = model.validationError ?? model.changeError
+            message = model.completedWarning ?? model.validationError ?? model.changeError
             showsStrength = !model.newPassword.isEmpty
             showsWeakWarning = model.passwordStrengthWarning != nil
             hasKeyFile = model.hasEffectiveKeyFile
@@ -106,6 +107,7 @@ final class MacMasterKeySheet {
     }
 
     func save() async {
+        if model.hasCompleted { shell.end(confirmed: true); return }
         guard !hasEnded, !model.isWorking, !model.isAuthenticating, model.validate(), let window = shell.window else { return }
         let confirmed = await confirm(Self.confirmation(removingPassword: model.newPassword.isEmpty), window)
         guard confirmed, !hasEnded else { return }
@@ -191,7 +193,7 @@ private struct MacMasterKeyForm: View {
 
     private var form: some View {
         Form {
-            if let error = model.validationError ?? model.changeError {
+            if let error = model.completedWarning ?? model.validationError ?? model.changeError {
                 LabeledContent("") {
                     Text(error).foregroundStyle(Theme.State.danger).fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("master-key.error")
@@ -247,7 +249,7 @@ private struct MacMasterKeyForm: View {
         }
         .formStyle(.columns)
         .padding(.vertical, 4)
-        .disabled(model.isAuthenticating || model.isWorking)
+        .disabled(model.isAuthenticating || model.isWorking || model.hasCompleted)
     }
 
     private func caption(_ text: String) -> some View {

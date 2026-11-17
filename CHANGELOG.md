@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+### Changes
+
+- Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
+- AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
+
 ### Fixes
 
+- Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
 - On iPhone and iPad, a database in KeeForge's own folder in the Files app (On My iPhone or On My iPad ▸ KeeForge) that you remove from the list stays removed. Before, it came back the next time KeeForge opened. The file itself stays in the folder. It is listed again if you copy a changed version there or import it again.
 
 ## v1.23.0 (2026-11-15)

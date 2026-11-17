@@ -63,6 +63,7 @@ final class SiteHostTests: XCTestCase {
             ("example.com", "https://example.com"),
             ("example.com/path?q=1", "https://example.com/path?q=1"),
             ("localhost:8080", "https://localhost:8080"),
+            ("example.com:8443/login?q=1#part", "https://example.com:8443/login?q=1#part"),
             ("localhost:8080/admin", "https://localhost:8080/admin"),
             ("http://user:secret@example.com:8443/", "http://user:secret@example.com:8443/"),
             ("https://example.com\\@evil.example", "https://example.com/@evil.example"),
@@ -74,7 +75,7 @@ final class SiteHostTests: XCTestCase {
         let refused = [
             "", "   ", "https:", "https://", "https:/", "http:example.com", "file:///etc/hosts", "file:/etc/hosts",
             "javascript:alert(1)", "JavaScript:alert(1)", "ssh://host.example", "smb://server/share",
-            "mailto:a@b.com", "myapp://open?id=1", "ftp://example.com", "not a url", "user:pass@example.com",
+            "example.com:8443suffix", "mailto:a@b.com", "myapp://open?id=1", "ftp://example.com", "not a url", "user:pass@example.com",
         ]
         for input in refused {
             XCTAssertNil(SiteHost.openableURL(input), input.debugDescription)

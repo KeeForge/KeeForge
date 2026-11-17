@@ -184,9 +184,9 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
 
     /// Thickness limits, not divider positions, so the per-database autosave keeps whatever the layout settles on.
     private func fitListToSidebar(isCollapsed: Bool) {
-        guard splitViewItems.count > 1 else { return }
+        guard splitViewItems.count > 1, splitView.arrangedSubviews.count > 1 else { return }
         let entries = splitViewItems[1]
-        let width = entries.viewController.view.frame.width
+        let width = splitView.arrangedSubviews[1].frame.width
         if isCollapsed {
             guard entries.minimumThickness != Self.collapsedListMinimumThickness else { return }
             listWidthBeforeCollapse = width > 0 && width < Self.collapsedListMinimumThickness ? width : nil
@@ -194,7 +194,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
             stopObservingListFrame()
             entries.maximumThickness = Self.listMaximumThickness
             entries.minimumThickness = Self.collapsedListMinimumThickness
-            observeHiddenListWidth(entries.viewController.view)
+            observeHiddenListWidth(splitView.arrangedSubviews[1])
         } else {
             guard entries.minimumThickness == Self.collapsedListMinimumThickness else { return }
             entries.minimumThickness = Self.listMinimumThickness
@@ -232,7 +232,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
         guard splitViewItems.count > 1 else { return }
         stopObservingListFrame()
         // The list narrowing and the sidebar widening may land in different passes; either may release the cap.
-        listFrameObservers = [splitViewItems[0].viewController.view, splitViewItems[1].viewController.view].map { view in
+        listFrameObservers = Array(splitView.arrangedSubviews.prefix(2)).map { view in
             view.postsFrameChangedNotifications = true
             return NotificationCenter.default.addObserver(
                 forName: NSView.frameDidChangeNotification, object: view, queue: .main
@@ -243,12 +243,12 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
     }
 
     private func releaseListCapIfNarrowed() {
-        guard restoresListWidth, splitViewItems.count > 1 else { return }
+        guard restoresListWidth, splitViewItems.count > 1, splitView.arrangedSubviews.count > 1 else { return }
         let entries = splitViewItems[1]
-        let list = entries.viewController.view
+        let list = splitView.arrangedSubviews[1]
         // Released only once the sidebar has its width again, or the list takes that room back.
         guard list.frame.width <= entries.maximumThickness + 1,
-              splitViewItems[0].viewController.view.frame.width >= splitViewItems[0].minimumThickness - 1 else { return }
+              splitView.arrangedSubviews[0].frame.width >= splitViewItems[0].minimumThickness - 1 else { return }
         restoresListWidth = false
         stopObservingListFrame()
         // Not inside the layout pass that narrowed it.
@@ -257,7 +257,7 @@ final class MacWorkspaceSplitViewController: NSSplitViewController {
             let width = entries.maximumThickness
             entries.maximumThickness = Self.listMaximumThickness
             // Lifting the cap lets AppKit hand the list back its hidden-sidebar width; keep the restored one.
-            splitView.setPosition(splitViewItems[0].viewController.view.frame.maxX + width, ofDividerAt: 1)
+            splitView.setPosition(splitView.arrangedSubviews[1].frame.minX + width, ofDividerAt: 1)
         }
     }
 

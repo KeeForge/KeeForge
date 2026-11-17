@@ -8,10 +8,13 @@ enum AutoFillSaveCoordinator {
         let savedRootGroup: KPGroup
         let newSHA512: Data
         let enqueuedPendingUpload: Bool
+        var warningScope: SaveEffectScope = .databaseFile
     }
 
     enum SaveResult: Sendable {
         case saved(SaveOutcome)
+        case committedWithoutConfirmedDurability(SaveOutcome)
+        case indeterminate(SaveEffectScope)
         case conflict
     }
 
@@ -54,7 +57,7 @@ enum AutoFillSaveCoordinator {
                     environment: .autoFillExtension
                 )
                 switch result {
-                case .saved(let newSHA512, _):
+                case .saved(let newSHA512, _, _):
                     return .saved(
                         SaveOutcome(
                             savedRootGroup: draft.rootGroup,
@@ -62,6 +65,12 @@ enum AutoFillSaveCoordinator {
                             enqueuedPendingUpload: false
                         )
                     )
+                case .committedWithoutConfirmedDurability(let newSHA512, _, _, let scope):
+                    return .committedWithoutConfirmedDurability(SaveOutcome(
+                        savedRootGroup: draft.rootGroup, newSHA512: newSHA512,
+                        enqueuedPendingUpload: false, warningScope: scope
+                    ))
+                case .indeterminate(let scope): return .indeterminate(scope)
                 case .conflict:
                     return .conflict
                 }
@@ -194,10 +203,8 @@ enum AutoFillSaveCoordinator {
                 openTimeSHA512
             )
         } catch {
-            // The saver replaces the cache atomically as its last fallible
-            // step, so a throw means the cache still holds the base bytes;
-            // the provisional marker is stale.
-            if let provisionalMarker {
+            // Only affirmative pre-replacement failure proves this marker never covered a new payload.
+            if error is LocalSaveBeforeReplacementFailure, let provisionalMarker {
                 await Task.detached(priority: .utility) {
                     environment.dropPendingUpload(provisionalMarker)
                 }.value
@@ -206,7 +213,7 @@ enum AutoFillSaveCoordinator {
         }
 
         switch saveResult {
-        case .saved(let outcome):
+        case .saved(let outcome), .committedWithoutConfirmedDurability(let outcome):
             if var storedMarker = provisionalMarker {
                 storedMarker.marker.openTimeSHA512 = outcome.newSHA512
                 storedMarker.marker.isPayloadFinalized = true
@@ -227,6 +234,14 @@ enum AutoFillSaveCoordinator {
             // the active AutoFill database nor publish identities, even if the
             // extension somehow saved into it (slice 03 of the selectable-
             // AutoFill epic makes disabled databases unreachable there).
+            let unconfirmed: Bool
+            if case .committedWithoutConfirmedDurability = saveResult { unconfirmed = true } else { unconfirmed = false }
+            if unconfirmed {
+                return .committedWithoutConfirmedDurability(SaveOutcome(
+                    savedRootGroup: outcome.savedRootGroup, newSHA512: outcome.newSHA512,
+                    enqueuedPendingUpload: reference.isCloudBacked, warningScope: outcome.warningScope
+                ))
+            }
             if reference.autoFillEnabled {
                 DatabaseListStore.activeAutoFillDatabaseID = reference.id
                 environment.populateCredentialStore(reference.id, credentialStoreEntries(from: outcome.savedRootGroup))
@@ -239,6 +254,8 @@ enum AutoFillSaveCoordinator {
                     enqueuedPendingUpload: reference.isCloudBacked
                 )
             )
+        case .indeterminate(let scope):
+            return .indeterminate(scope)
         case .conflict:
             // The saver's open-time SHA gate refused to touch the cache, so
             // the provisional marker never had a payload to cover.
