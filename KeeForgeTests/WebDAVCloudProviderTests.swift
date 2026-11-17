@@ -262,7 +262,8 @@ final class WebDAVCloudProviderTests: XCTestCase {
             let rejected = status != 503
             DatabaseListStore.clearAll()
             defer { DatabaseListStore.clearAll() }
-            let accountId = try seedCredential(username: "journal-\(status)")
+            let accountId = "journal-\(status)"
+            let credential = WebDAVCredential(serverURL: "https://host.example.com/dav/", username: accountId, password: "test")
             let puts = CloudJournalEffectCounter()
             let responder = TransportResponder { request in
                 if request.httpMethod == "PUT" {
@@ -271,7 +272,7 @@ final class WebDAVCloudProviderTests: XCTestCase {
                 }
                 return StubResponse(status: 200, headers: ["ETag": "\"base\""])
             }
-            let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
+            let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport), credentialLoader: { _ in credential })
             let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: accountId,
                 file: .init(id: "/journal.kdbx", name: "journal.kdbx", path: "/journal.kdbx", isFolder: false, modifiedDate: nil, size: nil))
             let context = try CloudJournalTestContext(reference: reference)
