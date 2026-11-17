@@ -12,6 +12,8 @@ The same manifest is used in both archives. Chrome 121+ ignores `background.scri
 
 `tools/mock-host.mjs` is a real stdio native-messaging host backed by `test/mock-app.js`. It does no network I/O and writes only framed protocol objects on stdout. It automatically allows pairing and serves disposable demo credentials. Options: `--decline`, `--busy`, `--pending`, `--locked`, `--empty`, `--mixed`, `--hold-credential`, `--unavailable` (a mock `launch` makes it available). App keys and registered clients last only for the host process; after it exits, pair again. To exercise persistent pairing, use a debug build of KeeForge with the browser set up in Settings ▸ Browsers. Do not use the mock with real vault data.
 
+`tools/e2e-client.mjs --host <path>` drives this extension's `Connection` against a real host binary over pipes, one JSON command per stdin line and one JSON result or event per stdout line; The host gets only a browser's environment (`PATH`, `HOME` from the user database, `USER`, `LOGNAME`, `SHELL`, `LANG`). `KeeForgeMacUITests/MacBrowserBridgeUITests` starts it through `tools/e2e-client-launcher.sh` with the host embedded in KeeForge.app.
+
 No native-host manifest is installed by these tools. To set one up manually, create an executable wrapper with an absolute path to your Node binary and an absolute path to `tools/mock-host.mjs`, then point the browser's native-host registration at that wrapper. The host JSON is:
 
 ```json

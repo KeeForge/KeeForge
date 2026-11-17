@@ -885,6 +885,7 @@
 		ACC5950B09A38EE0C178C5DF /* MacEncryptionSettingsSheetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E44828CEE87C97DB8FC471A /* MacEncryptionSettingsSheetTests.swift */; };
 		AD3D5CBF354F369403D5C882 /* MacDatabaseOpenPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FA7211CCAE6176763F7D625 /* MacDatabaseOpenPage.swift */; };
 		ADB0E2723B05A49BF1DF44B7 /* BrowserBridgeRequestHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DDDFADF72CA0BECBCFBDEB9 /* BrowserBridgeRequestHandler.swift */; };
+		ADC6ECE7688F2BFEB74F5996 /* MacBrowserBridgeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52682F02D2FB4629FC7ED608 /* MacBrowserBridgeUITests.swift */; };
 		AE1CEDC7D97DAB90D13FA107 /* AutoFillSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAA5D103A016B02FDB65F56 /* AutoFillSearchView.swift */; };
 		AE6E6CBFF433E43C3C0EE497 /* MacSSHAgentController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E2863080464DBBC980E6CC /* MacSSHAgentController.swift */; };
 		AE8749ED8D4468E3E83D8F27 /* MacSidebarViewControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F8DFC0A111F3147419D23D /* MacSidebarViewControllerTests.swift */; };
@@ -1598,6 +1599,7 @@
 		520854DD3BE1E4E34D5088D9 /* MacCopyFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCopyFeedback.swift; sourceTree = "<group>"; };
 		5252A2977E836EAAAE6ACE17 /* RecycleBinOrigin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecycleBinOrigin.swift; sourceTree = "<group>"; };
 		5262DAD579E97D03F4BBD00C /* FieldReferenceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldReferenceResolver.swift; sourceTree = "<group>"; };
+		52682F02D2FB4629FC7ED608 /* MacBrowserBridgeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacBrowserBridgeUITests.swift; sourceTree = "<group>"; };
 		52A44A4BDE31CF4D03409F0A /* PasswordGeneratorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordGeneratorModel.swift; sourceTree = "<group>"; };
 		52E6959E8F9A249BED612C30 /* AttachmentPreviewFileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentPreviewFileStoreTests.swift; sourceTree = "<group>"; };
 		5335012167FBEBF40FE67EC7 /* OneDriveCloudProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneDriveCloudProviderTests.swift; sourceTree = "<group>"; };
@@ -2427,6 +2429,7 @@
 			children = (
 				93744D2404E41B74E318C93D /* MacAppStoreScreenshots.swift */,
 				08207C2D0BAFA8C5AE3CB2C5 /* MacAutoFillPickerUITests.swift */,
+				52682F02D2FB4629FC7ED608 /* MacBrowserBridgeUITests.swift */,
 				455FD53F5742BDF61762E71D /* MacListKeyboardNavigationUITests.swift */,
 				0C10AD743E647EBE58A18AC3 /* MacQuickSearchUITests.swift */,
 				6CB88CC16B6EF72B737A8030 /* MacScreenshotAuditUITests.swift */,
@@ -4689,6 +4692,7 @@
 			files = (
 				D3B9D44CABA24740F80B3CDB /* MacAppStoreScreenshots.swift in Sources */,
 				6E24EADA8CFB48F5F806A4D5 /* MacAutoFillPickerUITests.swift in Sources */,
+				ADC6ECE7688F2BFEB74F5996 /* MacBrowserBridgeUITests.swift in Sources */,
 				194088D1E95D2D23636FD257 /* MacListKeyboardNavigationUITests.swift in Sources */,
 				D3A68B4240B0B4713B53CE77 /* MacQuickSearchUITests.swift in Sources */,
 				6B84A04EB2748B6AA14D6603 /* MacScreenshotAuditUITests.swift in Sources */,
