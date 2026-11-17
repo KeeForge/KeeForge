@@ -282,6 +282,44 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertFalse(PendingLocalSaveStore.hasSaves(for: reference.id))
     }
 
+    func testCloudBookmarkRenewalWaitsForPendingUploadAndThenSucceeds() async throws {
+        let file = CloudFile(id: "/vault.kdbx", name: "vault.kdbx", path: "/vault.kdbx", isFolder: false,
+            modifiedDate: nil, size: nil)
+        var reference = try DatabaseListStore.addCloud(provider: "webdav", accountId: "bookmark-test", file: file)
+        reference.keyFileBookmarkData = Data([1])
+        reference.keyFileFilename = "vault.key"
+        DatabaseListStore.testUpsert(reference)
+        let context = try CloudJournalTestContext(reference: reference)
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        let keyURL = try makeTemporaryFileURL(name: "vault.key", contents: Data([3]))
+        let refreshed = Data([2])
+        let outcome = await Task.detached {
+            DatabaseListStore.renewKeyFileBookmark(for: current,
+                resolve: { _ in (url: keyURL, isStale: true) }, makeBookmark: { _ in refreshed })
+        }.value
+        XCTAssertEqual(outcome, .notPublished)
+        let beforeDelivery = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(beforeDelivery.keyFileBookmarkData, Data([1]))
+        let transport = CloudJournalTransport()
+        guard case .saved? = try await CloudDatabaseSaver.deliver(context.stored, reference: beforeDelivery,
+            environment: context.environment(transport: transport)) else { return XCTFail("Pending upload must remain deliverable") }
+        XCTAssertEqual(transport.effects.uploads.map(\.bytes), [context.payload])
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        let afterDelivery = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        try PendingUploadQueue.withCommitLock(for: reference.id) {
+            let blocked = DatabaseListStore.renewKeyFileBookmark(for: afterDelivery,
+                resolve: { _ in (url: keyURL, isStale: true) }, makeBookmark: { _ in refreshed })
+            XCTAssertEqual(blocked, .rejected)
+            XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.keyFileBookmarkData, Data([1]))
+        }
+        let retry = await Task.detached {
+            DatabaseListStore.renewKeyFileBookmark(for: afterDelivery,
+                resolve: { _ in (url: keyURL, isStale: true) }, makeBookmark: { _ in refreshed })
+        }.value
+        XCTAssertEqual(retry, .saved)
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.keyFileBookmarkData, refreshed)
+    }
+
     func testCancelledSelectionCannotPublishAfterANewerSelectionInTheSameWindow() async throws {
         let setup = try await makePreferenceDatabase()
         defer { setup.database.lock() }

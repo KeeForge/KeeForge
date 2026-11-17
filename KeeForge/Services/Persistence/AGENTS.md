@@ -20,6 +20,7 @@
 - Keep the container to what the app and extension actually share. Plaintext metadata only the app needs belongs in the app sandbox; on macOS that already applies to cloud account records (`SharedVaultStore.cloudAccountDefaults`) and the favicon cache.
 - `AppGroupGuardrailTests` pins `SharedVaultStore`'s write surface (cache directories under the container, only `.kdbx` payloads cached unchanged, only a bookmark blob and filename in defaults). Extend it when adding a writer to the container.
 - `AppGroupContainer.url` absorbs a denied group into a temporary directory. Only `resolvedURL` reports the denial, and only `../AppSupport/MacTransitionNoticeService` should need it.
+- Automatic cloud key-file bookmark renewal defers while the upload journal is nonempty, checked under the nonblocking commit lock, so it cannot invalidate a pending marker's binding. The resolved URL remains usable when renewal is deferred.
 
 ### Database list
 
