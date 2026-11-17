@@ -257,8 +257,9 @@ final class WebDAVCloudProviderTests: XCTestCase {
     }
 
     @MainActor
-    func testJournalFencesCurrent412ButNeverRetriesAnUncertainWebDAVPut() async throws {
-        for status in [412, 503] {
+    func testJournalFencesRejectedWebDAVPutsButNeverRetriesAnUncertainPut() async throws {
+        for status in [401, 403, 412, 423, 507, 503] {
+            let rejected = status != 503
             DatabaseListStore.clearAll()
             defer { DatabaseListStore.clearAll() }
             let accountId = try seedCredential(username: "journal-\(status)")
@@ -282,17 +283,17 @@ final class WebDAVCloudProviderTests: XCTestCase {
                 _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
                 XCTFail("Expected HTTP failure")
             } catch {
-                if status == 412 {
+                if rejected {
                     XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .rejected)
                 } else { XCTAssertNil(error as? CloudUploadFailure) }
             }
             let owner = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
-            XCTAssertEqual(CloudJournalDecision.state(of: owner.marker), status == 412 ? .ready : .attempting)
-            XCTAssertEqual(owner.marker.attemptIsFenced == true, status == 412)
+            XCTAssertEqual(CloudJournalDecision.state(of: owner.marker), rejected ? .ready : .attempting)
+            XCTAssertEqual(owner.marker.attemptIsFenced == true, rejected)
             XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(owner), context.payload)
             XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
             XCTAssertEqual(puts.value, 1)
-            if status == 412 {
+            if rejected {
                 guard case .saved? = try await CloudDatabaseSaver.deliver(owner, reference: reference, environment: environment) else {
                     return XCTFail("A separate explicit attempt may follow proven rejection")
                 }

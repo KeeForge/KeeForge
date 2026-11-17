@@ -206,6 +206,9 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         }
 
         if let error = CloudProviderError.webDAVStatus(response.statusCode) {
+            if [401, 403, 423, 507].contains(response.statusCode) {
+                throw CloudUploadFailure(underlying: error, outcome: .rejected)
+            }
             throw error
         }
 
