@@ -13,11 +13,12 @@ final class MacConnectServerModel {
     init(serverType: CloudProviderKind = .webDAV,
          webDAV: WebDAVConnectViewModel = WebDAVConnectViewModel(connector: MacConnectServerModel.webDAVConnector),
          ftp: FTPConnectViewModel = FTPConnectViewModel(connector: MacConnectServerModel.ftpConnector),
-         prefill: Bool = true) {
+         prefill: Bool = true,
+         credentialData: @Sendable (String, String) -> Data? = { CloudTokenStore.tokenData(provider: $0, accountId: $1) }) {
         self.serverType = Self.serverTypes.contains(serverType) ? serverType : .webDAV
         self.webDAV = webDAV
         self.ftp = ftp
-        if prefill { prefillAccounts() }
+        if prefill { prefillAccounts(credentialData: credentialData) }
     }
 
     /// The registry's providers, so a UI-test run connects through its mock server as iOS does.
@@ -63,16 +64,16 @@ final class MacConnectServerModel {
         return accounts.first { $0.id == recent } ?? accounts.last
     }
 
-    private func prefillAccounts() {
+    private func prefillAccounts(credentialData: (String, String) -> Data?) {
         if let account = recentAccount(.webDAV),
-           let data = CloudTokenStore.tokenData(provider: account.provider, accountId: account.id),
+           let data = credentialData(account.provider, account.id),
            let credential = try? JSONDecoder().decode(WebDAVCredential.self, from: data) {
             webDAV.serverURL = credential.serverURL
             webDAV.username = credential.username
             webDAV.allowsUnencryptedHTTP = credential.serverURL.lowercased().hasPrefix("http://")
         }
         if let account = recentAccount(.ftp),
-           let data = CloudTokenStore.tokenData(provider: account.provider, accountId: account.id),
+           let data = credentialData(account.provider, account.id),
            let credential = try? JSONDecoder().decode(FTPCredential.self, from: data) {
             ftp.serverURL = credential.serverURL
             ftp.username = credential.username

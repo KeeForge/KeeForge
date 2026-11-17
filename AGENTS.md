@@ -38,6 +38,7 @@ Before changing a folder, read its `AGENTS.md` and each parent's up to this file
 
 - Keep temporary agent artifacts in the main checkout's gitignored `scratch/`, never a linked worktree's. Find the main checkout with the first entry in `git worktree list --porcelain`.
 - `scratch/` may be emptied at any time. Release artifacts and evidence a later step needs go in the main checkout's `build/releases/` (`ci_scripts/release_dir.sh`; layout in `.agents/skills/prepare-release/references/shared.md`).
+- Local Xcode tests/renders must use `-derivedDataPath <main>/scratch/test-derived-data`; SwiftPM tests use `--scratch-path <main>/scratch/test-package-build`. Arrange cleanup with `trap`/`finally` for success, failure and cancellation: stop test processes, uninstall their simulator apps, unregister their Mac app bundles with `lsregister -u`, then delete temporary builds, `.xcresult` bundles and fixtures after preserving required evidence. Never remove the installed app, personal vault data or release artifacts.
 - For iOS UI work, preview with `scripts/render-views.sh` before driving a simulator or device; `KeeForge/Views/AGENTS.md` says what it covers.
 - Update the folder's `AGENTS.md` when an invariant, ownership boundary, or test mapping changes. Do not add file maps, identifier lists, or history. Leave historical `docs/specs` alone unless explicitly asked.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change. `KeeForgeUITests` and `KeeForgeMacUITests` share one identifier surface, so update both.
@@ -67,6 +68,8 @@ Before changing a folder, read its `AGENTS.md` and each parent's up to this file
 - Prioritize concrete correctness, data-loss, and security bugs. Trace save/sync/merge and authentication flows through cancellation, background locking, concurrent edits, partial failures, and recovery; include existing on-disk data from shipped versions.
 - Check iPhone, iPad, Mac, and AutoFill parity where affected. Shared SwiftUI and passing unit tests do not establish native layout, keyboard/focus behavior, or usable recovery actions. Check localized copy against the actual behavior.
 - Use focused tests or production-code reproductions for suspected bugs. Regression tests should fail on the broken behavior and exercise relevant persistence/cache effects, not mock them away. Check KDBX interoperability when format or save behavior changes.
+- For persistent workflows, verify safety and recoverability separately: what each state protects, which supported action resolves it, and what remains usable if recovery fails. Retaining bytes or refusing a retry alone does not prove a usable recovery path.
+- Trace critical tests through the wiring used by production, including adapter retries. A patch-only re-review does not establish whole-PR acceptance after cross-cutting changes; the final reviewer must be free to challenge previously accepted code and the contract itself.
 - Report actionable findings by severity with a precise code location, trigger, user impact, and evidence. State the reviewed revision, validation performed, and remaining UI/device/hardware gaps; skipped tests and green CI do not prove untested behavior.
 - When asked to post findings, use inline comments on the relevant code. Post reviews, approve, or resolve discussions only within the user's authorization.
 

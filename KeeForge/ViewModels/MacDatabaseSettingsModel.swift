@@ -38,6 +38,7 @@ final class MacDatabaseSettingsModel {
 
     let reference: DatabaseReference
     let session: DatabaseViewModel?
+    let localRecovery: PendingLocalRecoveryViewModel
     /// Set by a database window: its status card's status, and that card's actions.
     @ObservationIgnored var windowStatus: (@MainActor () -> MacDatabaseStatus)?
     @ObservationIgnored var performStatusAction: (@MainActor (MacDatabaseStatus.Action) -> Void)?
@@ -54,6 +55,7 @@ final class MacDatabaseSettingsModel {
 
     init(reference: DatabaseReference, session: DatabaseViewModel? = nil, list: DatabaseListViewModel? = nil,
          loadFileInfo: @escaping @Sendable (DatabaseReference) async -> DatabaseFileInfo? = { await DatabaseFileInfoLoader.load(for: $0) }) {
+        self.localRecovery = PendingLocalRecoveryViewModel(databaseID: reference.id, reference: reference)
         self.reference = reference
         self.session = session
         self.list = list ?? DatabaseListViewModel()
@@ -66,6 +68,8 @@ final class MacDatabaseSettingsModel {
             }
         }
     }
+
+    var showsLocalDraftExport: Bool { session?.databaseReference.id == reference.id && session?.canExportLocalRecoveryDraft == true }
 
     var current: DatabaseReference { list.databases.first { $0.id == reference.id } ?? session?.databaseReference ?? reference }
     var tabs: [Tab] {

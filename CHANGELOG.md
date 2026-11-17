@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+### Changes
+
+- Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
+- AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
+
 ### Fixes
 
+- Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
 - A cloud database no longer reports "The file couldn't be saved because a file with that name already exists" when two syncs overlap, for example Sync Now while the app refreshes after you return to it.
 
 ## v1.23.0 (2026-11-15)

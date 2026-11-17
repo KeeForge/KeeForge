@@ -47,6 +47,8 @@ final class MasterKeyChangeViewModel {
     /// state. The view resets it on every Save tap.
     var isCancelled = false
     private(set) var isWorking = false
+    private(set) var completedWarning: String?
+    private(set) var hasCompleted = false
     private(set) var isAuthenticating = false
     private(set) var keyFileChange: KeyFileChange = .keepCurrent
     private(set) var pickedKeyFileData: Data?
@@ -233,7 +235,7 @@ final class MasterKeyChangeViewModel {
     }
 
     func performChange() async -> Bool {
-        guard isWorking == false, isCancelled == false else { return false }
+        guard hasCompleted == false, isWorking == false, isCancelled == false else { return false }
         guard validate() else { return false }
 
         isWorking = true
@@ -278,7 +280,28 @@ final class MasterKeyChangeViewModel {
                 effectiveKeyFile.filename
             )
             clearSecrets()
+            hasCompleted = true
             return true
+        } catch let warning as SaveDurabilityWarning {
+            hasCompleted = true
+            completedWarning = warning.localizedDescription
+            return false
+        } catch let warning as SaveAssociationWarning {
+            hasCompleted = true
+            completedWarning = warning.localizedDescription
+            return false
+        } catch let warning as SaveUnknownOutcomeWarning {
+            hasCompleted = true
+            completedWarning = warning.localizedDescription
+            return false
+        } catch let warning as SaveBookkeepingWarning {
+            hasCompleted = true
+            completedWarning = warning.localizedDescription
+            return false
+        } catch let failure as LocalSaveBeforeReplacementFailure where failure.underlying is SavePreReplacementRecoveryWarning {
+            hasCompleted = true
+            completedWarning = failure.localizedDescription
+            return false
         } catch {
             changeError = Self.message(for: error)
             return false

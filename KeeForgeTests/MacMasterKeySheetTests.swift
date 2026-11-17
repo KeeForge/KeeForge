@@ -10,6 +10,34 @@ final class MacMasterKeySheetTests: XCTestCase {
         var events: [String] = []
     }
 
+    func testCommittedWarningEndsWithAcknowledgementWithoutAnotherWrite() async {
+        var writes = 0
+        let model = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
+            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _ in
+                writes += 1
+                throw SaveDurabilityWarning()
+            })
+        model.newPassword = "new password"
+        model.confirmPassword = model.newPassword
+        let sheet = MacMasterKeySheet(name: "Personal", databaseFilename: "Personal.kdbx", model: model) {
+            await $0.performConfirmedChange {}
+        }
+        sheet.shell.presentWindow = { _, _, _ in }
+        sheet.shell.begin(on: NSWindow()) { _ in }
+        sheet.confirm = { _, _ in true }
+        await sheet.save()
+        await settle()
+        XCTAssertEqual(writes, 1)
+        XCTAssertTrue(model.hasCompleted)
+        XCTAssertNotNil(model.completedWarning)
+        XCTAssertTrue(sheet.shell.isPresented)
+        XCTAssertEqual(sheet.shell.defaultButton.title, String(localized: "Done"))
+        XCTAssertTrue(sheet.shell.defaultButton.isEnabled)
+        await sheet.save()
+        XCTAssertEqual(writes, 1)
+        XCTAssertFalse(sheet.shell.isPresented)
+    }
+
     func testSaveConfirmsThenAuthenticatesThenChanges() async {
         let log = EventLog()
         let sheet = makeSheet(log: log)
