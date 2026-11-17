@@ -1401,13 +1401,13 @@ enum PendingLocalSaveStore {
     /// List-lock -> flock; revocation never deletes unresolved encrypted sources.
     static func revokeForRemoval(_ databaseID: UUID, nonBlocking: Bool = false) throws -> Bool {
         try withLock(for: databaseID, nonBlocking: nonBlocking) {
-            try writeAtomicallyAndDurably(Data("removed".utf8), to: controlDirectory(databaseID).appendingPathComponent(".tombstone"))
             var state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
+            guard try state.retirementID == nil && state.operation == .idle && state.sources.isEmpty
+                && state.keyEvidence?.pending == nil && sourceURLs(databaseID).isEmpty else { return false }
+            try writeAtomicallyAndDurably(Data("removed".utf8), to: controlDirectory(databaseID).appendingPathComponent(".tombstone"))
             state.removed = true
             try persist(state, databaseID: databaseID)
-            return try state.retirementID == nil && state.operation == .idle && state.sources.isEmpty
-                && state.keyEvidence?.pending == nil
-                && sourceURLs(databaseID).isEmpty
+            return true
         }
     }
 
