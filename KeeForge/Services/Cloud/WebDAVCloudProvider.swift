@@ -207,14 +207,12 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         }
 
         if response.statusCode == 412 {
+            // URLSession may retry PUT after a lost response.
             let freshRev = try? await freshRev(fileURL: fileURL, credential: context.credential)
-            throw CloudUploadFailure(underlying: .conflict(remoteRev: freshRev), outcome: .rejected)
+            throw CloudUploadFailure(underlying: .conflict(remoteRev: freshRev), outcome: .uncertain)
         }
 
         if let error = CloudProviderError.webDAVStatus(response.statusCode) {
-            if [401, 403, 423, 507].contains(response.statusCode) {
-                throw CloudUploadFailure(underlying: error, outcome: .rejected)
-            }
             throw error
         }
 
