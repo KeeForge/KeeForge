@@ -275,10 +275,52 @@ final class CloudFileCreationCoordinatorTests: XCTestCase {
 
     func testRecoveryActionsMatchPersistedPhase() {
         let actions = CloudFileCreationCoordinator.RecoveryActions.forPhase
-        XCTAssertEqual(actions(.prepared), .init(export: true, retry: true, complete: false))
-        XCTAssertEqual(actions(.attempting), .init(export: true, retry: false, complete: false))
-        XCTAssertEqual(actions(.confirmed), .init(export: true, retry: false, complete: true))
-        XCTAssertEqual(actions(.completed), .init(export: false, retry: false, complete: false))
+        XCTAssertEqual(actions(.prepared), .init(export: true, retry: true, complete: false, discard: true))
+        XCTAssertEqual(actions(.attempting), .init(export: true, retry: false, complete: false, discard: false))
+        XCTAssertEqual(actions(.confirmed), .init(export: true, retry: false, complete: true, discard: false))
+        XCTAssertEqual(actions(.completed), .init(export: false, retry: false, complete: false, discard: false))
+    }
+
+    func testPreparedDiscardRemovesExactPayloadAndReleasesDestination() throws {
+        let (root, queue, reference) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let id = UUID()
+        let prepared = try PendingUploadQueue.prepareCreation(operationID: id, provider: "webdav", accountID: "account",
+            target: "/vault", payload: Data([1, 2, 3]), referenceTemplate: reference, isConflictCopy: false, environment: queue)
+        try PendingUploadQueue.discardPreparedCreation(prepared, environment: queue)
+        XCTAssertTrue(try PendingUploadQueue.listCreations(environment: queue).isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: PendingUploadQueue.creationPayloadURL(id, queue).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: PendingUploadQueue.creationStageURL(id, queue).path))
+        _ = try PendingUploadQueue.prepareCreation(operationID: UUID(), provider: "webdav", accountID: "account",
+            target: "/vault", payload: Data([4]), referenceTemplate: reference, isConflictCopy: false, environment: queue)
+    }
+
+    func testDiscardRefusesStalePreparedSnapshotAfterDispatch() throws {
+        let (root, queue, reference) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let id = UUID()
+        let prepared = try PendingUploadQueue.prepareCreation(operationID: id, provider: "webdav", accountID: "account",
+            target: "/vault", payload: Data([1, 2, 3]), referenceTemplate: reference, isConflictCopy: false, environment: queue)
+        let attempting = try PendingUploadQueue.transitionCreation(prepared, to: .attempting, environment: queue)
+        XCTAssertThrowsError(try PendingUploadQueue.discardPreparedCreation(prepared, environment: queue))
+        XCTAssertThrowsError(try PendingUploadQueue.discardPreparedCreation(attempting, environment: queue))
+        XCTAssertEqual(try PendingUploadQueue.listCreations(environment: queue).first?.intent.phase, .attempting)
+        XCTAssertEqual(try PendingUploadQueue.readCreationPayload(attempting, environment: queue), Data([1, 2, 3]))
+    }
+
+    func testDiscardSyncFailureRetainsPreparedRecordAndPayload() throws {
+        let (root, queue, reference) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let prepared = try PendingUploadQueue.prepareCreation(operationID: UUID(), provider: "webdav", accountID: "account",
+            target: "/vault", payload: Data([1, 2, 3]), referenceTemplate: reference, isConflictCopy: false, environment: queue)
+        var failing = queue
+        failing.synchronizeRetirementDirectory = { _ in throw POSIXError(.EIO) }
+        XCTAssertThrowsError(try PendingUploadQueue.discardPreparedCreation(prepared, environment: failing))
+        let retained = try XCTUnwrap(PendingUploadQueue.listCreations(environment: queue).first)
+        XCTAssertEqual(retained.intent.phase, .prepared)
+        XCTAssertEqual(try PendingUploadQueue.readCreationPayload(retained, environment: queue), Data([1, 2, 3]))
+        try PendingUploadQueue.discardPreparedCreation(retained, environment: queue)
+        XCTAssertTrue(try PendingUploadQueue.listCreations(environment: queue).isEmpty)
     }
 
     func testExplicitPreparedRetryUsesPersistedPayload() async throws {

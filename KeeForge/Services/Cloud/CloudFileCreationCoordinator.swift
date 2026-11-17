@@ -27,12 +27,13 @@ enum CloudFileCreationCoordinator {
         let export: Bool
         let retry: Bool
         let complete: Bool
+        let discard: Bool
         static func forPhase(_ phase: PendingUploadQueue.CreationIntent.Phase) -> RecoveryActions {
             switch phase {
-            case .prepared: .init(export: true, retry: true, complete: false)
-            case .attempting: .init(export: true, retry: false, complete: false)
-            case .confirmed: .init(export: true, retry: false, complete: true)
-            case .completed: .init(export: false, retry: false, complete: false)
+            case .prepared: .init(export: true, retry: true, complete: false, discard: true)
+            case .attempting: .init(export: true, retry: false, complete: false, discard: false)
+            case .confirmed: .init(export: true, retry: false, complete: true, discard: false)
+            case .completed: .init(export: false, retry: false, complete: false, discard: false)
             }
         }
     }

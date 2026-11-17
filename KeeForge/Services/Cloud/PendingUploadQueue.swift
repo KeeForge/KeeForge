@@ -1067,6 +1067,25 @@ extension PendingUploadQueue {
         }
     }
 
+    static func discardPreparedCreation(_ stored: StoredCreation, environment: Environment = .live) throws {
+        try withCreationLocks(stored.intent, environment: environment) {
+            let id = stored.intent.operationID
+            let markerURL = creationURL(id, environment)
+            guard stored.intent.phase == .prepared,
+                  try environment.readData(markerURL) == stored.serialized,
+                  try decodeCreation(stored.serialized, id: id) == stored.intent else { throw CreationError.changed }
+            do {
+                try environment.removeItem(markerURL)
+                try environment.synchronizeRetirementDirectory(markerURL.deletingLastPathComponent())
+            } catch {
+                try? environment.writeMarkerAtomically(stored.serialized, markerURL)
+                throw error
+            }
+            try? environment.removeItem(creationPayloadURL(id, environment))
+            try? environment.removeItem(creationStageURL(id, environment))
+        }
+    }
+
     // Only the invocation with affirmative pre-dispatch proof may unwind its exact attempt.
     static func restoreUndispatchedCreation(_ stored: StoredCreation, environment: Environment = .live) throws -> StoredCreation {
         try withCreationLocks(stored.intent, environment: environment) {

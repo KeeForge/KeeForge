@@ -13,6 +13,7 @@
 
 ### Fixes
 
+- Cloud creations that have not been sent can be discarded from Cloud Recovery.
 - Preserve encrypted cloud creation data when the outcome is uncertain instead of automatically creating another remote copy.
 - Refusing to remove a database with pending AutoFill changes no longer permanently blocks its recovery.
 - Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.

@@ -76727,6 +76727,64 @@
         }
       }
     },
+    "This encrypted copy will be deleted. Export it first if you want to keep it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese verschlüsselte Kopie wird gelöscht. Exportiere sie zuerst, wenn du sie behalten möchtest."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This encrypted copy will be deleted. Export it first if you want to keep it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se eliminará esta copia cifrada. Exportala primero si querés conservarla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette copie chiffrée sera supprimée. Exportez-la d’abord si vous souhaitez la conserver."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa copia cifrata verrà eliminata. Esportala prima se vuoi conservarla."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この暗号化されたコピーは削除されます。保持する場合は、先に書き出してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта зашифрованная копия будет удалена. Сначала экспортируйте её, если хотите сохранить."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此加密副本将被删除。如需保留，请先将其导出。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此加密副本將被刪除。如要保留，請先將其輸出。"
+          }
+        }
+      }
+    },
     "This entry already has a verification code. Saving will replace it." : {
       "localizations" : {
         "de" : {

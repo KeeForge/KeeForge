@@ -10,6 +10,7 @@ struct CloudRecoveryView: View {
     @State private var exporting = false
     @State private var document = KDBXExportDocument(data: Data())
     @State private var filename = "KeeForge.kdbx"
+    @State private var creationToDiscard: PendingUploadQueue.StoredCreation?
 
     init(creationLifetime: CloudCreationLifetime = CloudCreationLifetime()) {
         _creationLifetime = State(initialValue: creationLifetime)
@@ -50,6 +51,11 @@ struct CloudRecoveryView: View {
                             .macPlainRowButton()
                             .accessibilityIdentifier("cloud.recovery.creation.\(stored.intent.operationID.uuidString).finish")
                     }
+                    if actions.discard {
+                        Button("Discard Changes", role: .destructive) { creationToDiscard = stored }
+                            .macPlainRowButton()
+                            .accessibilityIdentifier("cloud.recovery.creation.\(stored.intent.operationID.uuidString).discard")
+                    }
                 }
             }
             ForEach(uploads, id: \.id) { stored in
@@ -71,6 +77,14 @@ struct CloudRecoveryView: View {
         .disabled(busy)
         .task { await reload() }
         .onDisappear { creationLifetime.cancel() }
+        .alert("Discard changes?", isPresented: Binding(
+            get: { creationToDiscard != nil }, set: { if !$0 { creationToDiscard = nil } }
+        ), presenting: creationToDiscard) { stored in
+            Button("Discard Changes", role: .destructive) { discardCreation(stored) }
+            Button("Cancel", role: .cancel) { creationToDiscard = nil }
+        } message: { _ in
+            Text("This encrypted copy will be deleted. Export it first if you want to keep it.")
+        }
         .fileExporter(isPresented: $exporting, document: document,
             contentType: DocumentPickerService.databaseContentType, defaultFilename: filename) { result in
                 if case .failure(let error) = result { failure = error.localizedDescription }
@@ -124,6 +138,25 @@ struct CloudRecoveryView: View {
                     if retry { return try await CloudFileCreationCoordinator.retryPrepared(operationID: operationID, lifetime: lifetime) }
                     try lifetime.claim()
                     return try CloudFileCreationCoordinator.resumeKnownRegistration(operationID: operationID)
+                }.value
+            } catch { failure = error.localizedDescription }
+            busy = false
+            let actionFailure = failure
+            await reload()
+            if let actionFailure { failure = actionFailure }
+        }
+    }
+
+    private func discardCreation(_ stored: PendingUploadQueue.StoredCreation) {
+        creationToDiscard = nil
+        busy = true
+        failure = nil
+        let lifetime = creationLifetime
+        Task {
+            do {
+                try await Task.detached {
+                    try lifetime.claim()
+                    try PendingUploadQueue.discardPreparedCreation(stored)
                 }.value
             } catch { failure = error.localizedDescription }
             busy = false
