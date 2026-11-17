@@ -8960,7 +8960,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(stored.keyFileFilename, "vault.key")
     }
 
-    func testRemovalDuringInstalledMasterKeyChangeRetainsRecoveryAndRejectsPublication() async throws {
+    func testRejectedRemovalDuringInstalledMasterKeyChangeAllowsCompletion() async throws {
         let url = try fixtureURL()
         let reference = try DatabaseListStore.add(url: url)
         let vm = try makeViewModel(reference: reference,
@@ -8974,19 +8974,15 @@ final class DatabaseViewModelTests: XCTestCase {
             })
         defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
-        do {
-            try await vm.changeMasterKey(newPassword: "rotated", newKeyFileData: nil,
-                newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
-            XCTFail("Removal must prevent publication through the retired reference")
-        } catch {
-            XCTAssertEqual((error as? SaveAssociationWarning)?.reason, .authorityChanged)
-        }
+        try await vm.changeMasterKey(newPassword: "rotated", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
         XCTAssertTrue(DatabaseListStore.databases.contains { $0.id == reference.id })
         let recovery = try PendingLocalSaveStore.recovery(for: reference.id)
-        XCTAssertTrue(recovery.isRevoked)
-        XCTAssertNotNil(recovery.admission)
+        XCTAssertFalse(recovery.isRevoked)
+        XCTAssertNil(recovery.admission)
         let bytes = try Data(contentsOf: url)
         let newKey = KDBXCrypto.compositeKey(password: "rotated")
+        XCTAssertEqual(vm.compositeKey, newKey)
         _ = try KDBXParser.parse(data: bytes, compositeKey: newKey, sessionKey: SymmetricKey(size: .bits256))
         XCTAssertThrowsError(try KDBXParser.parse(data: bytes,
             compositeKey: KDBXCrypto.compositeKey(password: fixturePassword), sessionKey: SymmetricKey(size: .bits256)))

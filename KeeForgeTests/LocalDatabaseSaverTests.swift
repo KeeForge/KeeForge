@@ -596,7 +596,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try PendingLocalSaveStore.recovery(for: resident.id).admission, setup.snapshot.admission)
     }
 
-    func testInitialCacheReadCannotPublishAfterRemovalOrEpochSettlement() async throws {
+    func testInitialCacheReadKeepsInstalledCiphertextAcrossRefusedRemovalOrEpochSettlement() async throws {
         for event in ["remove", "epoch"] {
             let setup = try await makePendingKeyChangeWithDistinctKeyFiles()
             defer { try? FileManager.default.removeItem(at: setup.directory) }
@@ -615,9 +615,13 @@ final class LocalDatabaseSaverTests: XCTestCase {
                 return bytes
             })
             XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
-            XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber, before)
-            if event == "remove" { XCTAssertTrue(PendingLocalSaveStore.isRevoked(setup.reference.id)) }
-            else { XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.reference.id).keyEvidence) }
+            if event == "remove" {
+                XCTAssertFalse(PendingLocalSaveStore.isRevoked(setup.reference.id))
+                XCTAssertNotNil(try PendingLocalSaveStore.recovery(for: setup.reference.id).admission)
+            } else {
+                XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber, before)
+                XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.reference.id).keyEvidence)
+            }
         }
     }
 
