@@ -40,7 +40,7 @@
 - `rebindBookmarkData` and `rederiveDocumentsIdentity` mutate only their own fields on the stored copy. Never resolve a non-resident bookmark on those paths; it may be a file provider that blocks.
 - A missing Documents file never removes its reference. `isDocumentsFileMissing(for:)` is a side-effect-free probe; removal is the user's action.
 - `DocumentsVaultScanner` claims only top-level regular files with the 8-byte KDBX magic, so key files and notes dropped beside a database are left alone. It runs off the main thread on iOS scene activation.
-- Removing a Documents-resident reference never deletes its file. `remove(id:)` records a SHA-256 of the file's name, size, and modification date in app-local defaults (not the App Group), and the scanner registers only through `addDiscoveredDocumentsFile(url:)`, which skips a file that still matches. A changed file or an explicit `add(url:)` lists it again; `clearAll()` forgets the records.
+- Removing a Documents-resident reference never deletes its file. `remove(id:)` records a SHA-256 of the file's name, size, and modification date in app-local defaults (not the App Group), and the scanner registers only through `addDiscoveredDocumentsFile(url:)`, which skips a file that still matches. A changed file or an explicit `add(url:)` lists it again, and the explicit add forgets the file's record; `clearAll()` forgets them all.
 
 ### Saves, backups, creation
 

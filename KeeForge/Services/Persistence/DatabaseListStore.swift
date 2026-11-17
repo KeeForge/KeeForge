@@ -205,7 +205,11 @@ enum DatabaseListStore {
 
     @discardableResult
     static func add(url: URL) throws -> DatabaseReference {
-        let reference = try withStateLock { try appendLocalReference(for: url) }
+        let reference = try withStateLock { () throws -> DatabaseReference in
+            let reference = try appendLocalReference(for: url)
+            forgetRemovedDocumentsFile(at: url)
+            return reference
+        }
         cacheInitialCopyIfPossible(from: url, for: reference.id)
         return reference
     }
@@ -1221,6 +1225,17 @@ enum DatabaseListStore {
         }
         var fingerprints = removedDocumentsFileFingerprints
         fingerprints.insert(fingerprint)
+        appLocalDefaults.set(fingerprints.sorted(), forKey: removedDocumentsFilesKey)
+    }
+
+    /// An explicit add undoes the removal, so a later removal that records
+    /// nothing (file missing) cannot leave the old record hiding the file.
+    private static func forgetRemovedDocumentsFile(at url: URL) {
+        guard isTopLevelDocumentsFile(url), let fingerprint = documentsFileFingerprint(for: url) else {
+            return
+        }
+        var fingerprints = removedDocumentsFileFingerprints
+        guard fingerprints.remove(fingerprint) != nil else { return }
         appLocalDefaults.set(fingerprints.sorted(), forKey: removedDocumentsFilesKey)
     }
 

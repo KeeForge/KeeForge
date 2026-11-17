@@ -293,6 +293,26 @@ final class DocumentsVaultScannerTests: XCTestCase {
         XCTAssertTrue(readded.isDocumentsResident)
     }
 
+    func testExplicitAddForgetsEarlierRemovalOfTheSameFile() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx")
+        let modificationDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+        let contents = try Data(contentsOf: url)
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        DatabaseListStore.remove(id: try XCTUnwrap(DatabaseListStore.databases.first).id)
+        let readded = try DatabaseListStore.add(url: url)
+
+        // Removed again while its file is missing, which records nothing;
+        // the identical file then comes back.
+        try FileManager.default.removeItem(at: url)
+        DatabaseListStore.remove(id: readded.id)
+        try contents.write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+
+        XCTAssertTrue(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertEqual(DatabaseListStore.databases.map(\.filename), ["vault.kdbx"])
+    }
+
     func testRemovalDoesNotAffectOtherDocumentsFiles() throws {
         try writeDatabaseFile(named: "vault.kdbx")
         DocumentsVaultScanner.scan(directory: documentsDirectory)
