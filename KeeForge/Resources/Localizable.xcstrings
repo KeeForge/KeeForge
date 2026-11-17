@@ -86020,7 +86020,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lorsqu'une app ne propose pas votre code de vérification, touchez le champ, choisissez « Remplissage automatique », puis « Mots de passe », et sélectionnez l'entrée dans KeeForge pour insérer son code."
+            "value" : "Lorsqu'une app ne propose pas votre code de vérification, touchez le champ, choisissez « Remplir », puis « Mots de passe », et sélectionnez l'entrée dans KeeForge pour insérer son code."
           }
         },
         "it" : {

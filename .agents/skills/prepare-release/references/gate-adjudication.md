@@ -179,7 +179,22 @@ gates again, rebuild all three artifacts (iOS, MAS, and direct Mac) from the new
 the immutable `rc/{version}-b{repoBuild}` tag. Repeat every cloud verdict, both KDBX gates,
 local Mac smoke, artifact mapping, and any required soak.
 
+## Owner exceptions for a hosted test gate
+
+Only the owner can keep a candidate whose hosted test gate (`githubMac`, `githubIPhone`, or
+`githubIPad`) is red and cannot be adjudicated above: a build failure on the tag's own workflow, or
+an XCTest failure that also fails locally. State what each failure is and its user impact, and
+obtain the owner's explicit acceptance for that gate before recording anything. Then set the gate's
+`status` to `ownerException` with its real `verdict`, `failureKind`, run `url`, a `reason`, the
+classified `failedTests`, and any supporting evidence, and add a root `ownerAcceptedExceptions`
+entry naming the `gate` with the `decision`, `acceptedAt`, and `authorizedBy`. The validator accepts
+the gate only with both records. Never record an excepted gate as passed. The Xcode Cloud archives,
+both KDBX gates, the Mac smoke, and both artifact checks have no exception.
+
 ## Non-test failures always block
+
+Without such an owner exception:
+
 
 A build, signing, configuration, archive, upload, infrastructure, cancellation, or tests-not-run
 failure cannot be overridden by a local pass. Rerun the affected workflow on the same RC SHA when
