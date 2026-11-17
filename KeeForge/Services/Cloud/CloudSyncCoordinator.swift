@@ -48,6 +48,8 @@ enum CloudSyncCoordinator {
     /// `CloudProvider.metadataProbeTransfersContent`.
     static let openProbeDeadline: TimeInterval = 10
 
+    private static let cacheDownloadLock = CacheDownloadLock()
+
     /// The metadata probe did not answer within the open deadline. Treated as
     /// an unreachable server, so it wears the offline message.
     struct ProbeTimeout: LocalizedError, CloudSyncIssueConvertible {
@@ -129,17 +131,33 @@ enum CloudSyncCoordinator {
             // (see `CloudProvider.download`). nil means the provider cannot
             // say, so the pre-download reading stands.
             var syncedMetadata = remoteMetadata
+            var downloadedData: Data?
             if needsDownload {
-                let downloadedMetadata = try await downloadLatestCopy(
-                    provider: provider,
-                    metadata: metadata,
-                    reference: updatedReference,
-                    destinationURL: cacheURL,
-                    progress: progress
+                // Overlapping sync-downs would pin one inode and fail each other's publish.
+                let cacheKey = cacheURL.standardizedFileURL.path
+                let acceptedCacheIDs = await cacheDownloadLock.acquire(
+                    cacheKey,
+                    cacheIDBeforeWait: fileID(at: cacheURL)
                 )
-                if let downloadedMetadata {
+                let copy: DownloadedCopy
+                do {
+                    copy = try await downloadLatestCopy(
+                        provider: provider,
+                        metadata: metadata,
+                        reference: updatedReference,
+                        destinationURL: cacheURL,
+                        acceptedCacheIDs: acceptedCacheIDs,
+                        progress: progress
+                    )
+                } catch {
+                    await cacheDownloadLock.release(cacheKey, publishedCacheID: nil)
+                    throw error
+                }
+                await cacheDownloadLock.release(cacheKey, publishedCacheID: copy.cacheID)
+                if let downloadedMetadata = copy.metadata {
                     syncedMetadata = downloadedMetadata
                 }
+                downloadedData = copy.data
             }
 
             updatedReference.updateCloudSyncMetadata { cloudMetadata in
@@ -150,7 +168,7 @@ enum CloudSyncCoordinator {
                 cloudMetadata.lastSyncIssue = nil
             }
 
-            let data = try CoordinatedFileReader.readData(from: cacheURL)
+            let data = try downloadedData ?? CoordinatedFileReader.readData(from: cacheURL)
             return CloudSyncResolution(
                 reference: updatedReference,
                 localURL: cacheURL,
@@ -220,13 +238,24 @@ enum CloudSyncCoordinator {
         return CloudSyncResolution(reference: updatedReference, localURL: cacheURL, data: data, status: status)
     }
 
+    /// What a sync-down published: the bytes it installed, the metadata
+    /// describing them, and the cache file's identity.
+    private struct DownloadedCopy {
+        let metadata: CloudFileMetadata?
+        let data: Data
+        let cacheID: UInt64?
+    }
+
+    /// `acceptedCacheIDs` is nil unless this sync waited for another one; it
+    /// then lists the only cache files it may pin (see `CacheDownloadLock`).
     private static func downloadLatestCopy(
         provider: CloudProvider,
         metadata: CloudSyncMetadata,
         reference: DatabaseReference,
         destinationURL: URL,
+        acceptedCacheIDs: Set<UInt64>?,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws -> CloudFileMetadata? {
+    ) async throws -> DownloadedCopy {
         let fileManager = FileManager.default
         let directory = destinationURL.deletingLastPathComponent()
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
@@ -257,6 +286,12 @@ enum CloudSyncCoordinator {
                 try? fileManager.removeItem(at: pinnedURL)
             }
         }
+        // Anything else written while this sync waited is a save it must not revert.
+        if let acceptedCacheIDs, let pinnedURL {
+            guard let pinnedID = fileID(at: pinnedURL), acceptedCacheIDs.contains(pinnedID) else {
+                throw CocoaError(.fileWriteFileExists)
+            }
+        }
 
         let downloadedMetadata = try await provider.download(
             accountId: metadata.accountId,
@@ -268,6 +303,13 @@ enum CloudSyncCoordinator {
         // Stamped while the bytes are still staged, so the cache path is never
         // briefly unprotected once they land.
         try applyCacheFileProtection(at: tempURL)
+        // Read before the publish: once the next queued sync runs, the cache
+        // may already hold its download instead.
+        let downloadedCopy = DownloadedCopy(
+            metadata: downloadedMetadata,
+            data: try Data(contentsOf: tempURL),
+            cacheID: fileID(at: tempURL)
+        )
 
         guard let pinnedURL else {
             // Nothing was cached when the download started; a cache that
@@ -275,7 +317,7 @@ enum CloudSyncCoordinator {
             // publish refuse it.
             try replaceCacheItem(at: destinationURL, withItemAt: tempURL, pinnedFileID: nil)
             try applyCacheFileProtection(at: destinationURL)
-            return downloadedMetadata
+            return downloadedCopy
         }
 
         // The shared cache is the only home of an AutoFill save until its
@@ -301,7 +343,7 @@ enum CloudSyncCoordinator {
             pinnedFileID: fileID(at: pinnedURL)
         )
         try applyCacheFileProtection(at: destinationURL)
-        return downloadedMetadata
+        return downloadedCopy
     }
 
     /// iOS Data Protection for the shared cache. Applied to the staged copy
@@ -582,5 +624,44 @@ enum CloudSyncCoordinator {
         var uploadedReference = reference
         uploadedReference.updateCloudSyncMetadata(applyRemoteMetadata)
         return uploadedReference
+    }
+}
+
+/// One sync-down per cache file at a time within this process. Other writers
+/// (app saves, the AutoFill extension) stay outside it on purpose: the
+/// coordinator's pin is what keeps a download from reverting their bytes.
+///
+/// A sync that had to wait may pin only the cache it saw before waiting or
+/// the one the sync before it published; any other file was written by a
+/// save during the wait.
+private actor CacheDownloadLock {
+    private var heldKeys: Set<String> = []
+    private var waiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+    private var publishedCacheIDs: [String: UInt64] = [:]
+
+    /// Returns nil when the key was free, else the cache identities the
+    /// caller may pin.
+    func acquire(_ key: String, cacheIDBeforeWait: UInt64?) async -> Set<UInt64>? {
+        guard heldKeys.contains(key) else {
+            heldKeys.insert(key)
+            return nil
+        }
+        // `release` hands the key straight to this waiter.
+        await withCheckedContinuation { waiters[key, default: []].append($0) }
+        return Set([cacheIDBeforeWait, publishedCacheIDs[key]].compactMap { $0 })
+    }
+
+    func release(_ key: String, publishedCacheID: UInt64?) {
+        if let publishedCacheID {
+            publishedCacheIDs[key] = publishedCacheID
+        }
+        guard var queue = waiters[key], queue.isEmpty == false else {
+            heldKeys.remove(key)
+            publishedCacheIDs[key] = nil
+            return
+        }
+        let next = queue.removeFirst()
+        waiters[key] = queue.isEmpty ? nil : queue
+        next.resume()
     }
 }
