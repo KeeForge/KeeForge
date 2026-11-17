@@ -6056,6 +6056,69 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.saveConflict)
     }
 
+    func testSaveAsConflictCopyRetriesNumberedNameAfterProvenConflict() async throws {
+        let bytes = Data("encrypted conflict copy".utf8)
+        let fixedDate = Date(timeIntervalSince1970: 1_775_603_700)
+        let recorder = ConflictCopyRecorder()
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.testUpsert(reference)
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference), data: fixtureData, status: .current)
+        }, cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
+        }, conflictCopyEncryptionOperation: { _, _, _ in bytes }, cloudConflictCopyOperation: { _, fileID, payload in
+            if await recorder.recordAndIsFirst(filename: fileID, bytes: payload) { throw CloudProviderError.conflict(remoteRev: nil) }
+        }, conflictCopyDateProvider: { fixedDate })
+        defer { vm.lock() }
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Cloud Conflict Copy Entry")
+        try await vm.save()
+        try await vm.saveAsConflictCopy()
+        let calls = await recorder.allCalls()
+        XCTAssertEqual(calls.count, 2)
+        let first = "/Vaults/\(expectedConflictFilename(originalFilename: "vault.kdbx", date: fixedDate))"
+        XCTAssertEqual(calls[0].filename, first)
+        XCTAssertEqual(calls[1].filename, (first as NSString).deletingPathExtension + " 2.kdbx")
+        XCTAssertTrue(calls.allSatisfy { $0.bytes == bytes })
+        XCTAssertNil(vm.draft)
+        XCTAssertNil(vm.saveConflict)
+    }
+
+    func testConflictCopyDoesNotRetryAfterAuthorityChanges() async throws {
+        let recorder = ConflictCopyRecorder()
+        let gate = AsyncGate()
+        let started = expectation(description: "first creation started")
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.testUpsert(reference)
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference), data: fixtureData, status: .current)
+        }, cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            .conflict(remoteSHA512: Data([1]), remoteData: Data([2]))
+        }, conflictCopyEncryptionOperation: { _, _, _ in Data([3]) }, cloudConflictCopyOperation: { _, path, bytes in
+            await recorder.record(filename: path, bytes: bytes)
+            await gate.pause(started: started)
+            throw CloudProviderError.conflict(remoteRev: nil)
+        })
+        defer { vm.lock(); Task { await gate.resume() } }
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Conflict")
+        try await vm.save()
+        let work = Task { try await vm.saveAsConflictCopy() }
+        await fulfillment(of: [started], timeout: 5)
+        await gate.waitUntilPaused()
+        var changed = vm.databaseReference
+        changed.keyFileBookmarkData = Data([9])
+        DatabaseListStore.testUpsert(changed)
+        await gate.resume()
+        do { try await work.value; XCTFail("Expected authority rejection") } catch {}
+        let calls = await recorder.allCalls()
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertNotNil(vm.draft)
+        XCTAssertNotNil(vm.saveConflict)
+    }
+
     func testConflictCopyRejectsChangedTargetOrFactorsDuringEncryption() async throws {
         for changeTarget in [true, false] {
             let reference = makeCloudReference(remoteRev: "rev-A")
@@ -10867,6 +10930,13 @@ private actor ConflictCopyRecorder {
     func firstCall() -> (filename: String, bytes: Data)? {
         calls.first
     }
+
+    func recordAndIsFirst(filename: String, bytes: Data) -> Bool {
+        calls.append((filename, bytes))
+        return calls.count == 1
+    }
+
+    func allCalls() -> [(filename: String, bytes: Data)] { calls }
 }
 
 private final class MutableNowProvider: @unchecked Sendable {

@@ -3792,16 +3792,21 @@ final class DatabaseViewModel {
         case .local:
             try await localConflictCopyOperation(copyReference, filename, bytes)
         case .cloud(let metadata):
-            let stillCurrent = try await Task.detached {
-                try DatabaseListStore.readDatabasesStrict().contains { Self.matchesConflictCopyAuthority(copyReference, $0) }
-            }.value
-            guard stillCurrent, !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision,
-                  databaseReference == copyReference, case .unlocked = state else { throw SaveError.saveContextUnavailable }
-            let fileID = Self.siblingCloudConflictFileID(
-                currentFileID: metadata.fileId,
-                filename: filename
-            )
-            try await cloudConflictCopyOperation(copyReference, fileID, bytes)
+            for attempt in 1...Self.conflictCopyNameAttemptLimit {
+                let stillCurrent = try await Task.detached {
+                    try DatabaseListStore.readDatabasesStrict().contains { Self.matchesConflictCopyAuthority(copyReference, $0) }
+                }.value
+                guard stillCurrent, !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision,
+                      databaseReference == copyReference, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+                let candidate = attempt == 1 ? filename : Self.uniquifiedConflictCopyName(filename, attempt: attempt)
+                let fileID = Self.siblingCloudConflictFileID(currentFileID: metadata.fileId, filename: candidate)
+                do {
+                    try await cloudConflictCopyOperation(copyReference, fileID, bytes)
+                    break
+                } catch let error as CloudProviderError {
+                    guard case .conflict = error, attempt < Self.conflictCopyNameAttemptLimit else { throw error }
+                }
+            }
         }
 
         guard !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision,

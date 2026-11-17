@@ -74,8 +74,15 @@ enum CloudFileCreationCoordinator {
         let response: CloudCreatedFile
         do { response = try await environment.createFile(provider, accountID, target, bytes) }
         catch let proof as NotDispatched {
-            do { _ = try PendingUploadQueue.restoreUndispatchedCreation(attempting, environment: environment.queue) }
+            do { _ = try PendingUploadQueue.restoreCreationAfterNoCommit(attempting, environment: environment.queue) }
             catch { throw UncertainCreation(underlying: error) }
+            throw proof.underlying
+        }
+        catch let proof as CloudUploadFailure where proof.outcome == .rejected {
+            let restored: PendingUploadQueue.StoredCreation
+            do { restored = try PendingUploadQueue.restoreCreationAfterNoCommit(attempting, environment: environment.queue) }
+            catch { throw UncertainCreation(underlying: error) }
+            if isConflictCopy { try? PendingUploadQueue.discardPreparedCreation(restored, environment: environment.queue) }
             throw proof.underlying
         }
         catch { throw UncertainCreation(underlying: error) }

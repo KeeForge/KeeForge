@@ -20,15 +20,21 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     private let client: FTPClient
     private let now: @Sendable () -> Date
     private let makeScratchToken: @Sendable () -> String
+    private let credentialLoader: @Sendable (String) -> FTPCredential?
 
     init(
         client: FTPClient = FTPClient(),
         now: @escaping @Sendable () -> Date = { Date() },
-        makeScratchToken: @escaping @Sendable () -> String = { String(UUID().uuidString.prefix(8)) }
+        makeScratchToken: @escaping @Sendable () -> String = { String(UUID().uuidString.prefix(8)) },
+        credentialLoader: @escaping @Sendable (String) -> FTPCredential? = { accountId in
+            guard let data = CloudTokenStore.tokenData(provider: CloudProviderKind.ftp.rawValue, accountId: accountId) else { return nil }
+            return try? JSONDecoder().decode(FTPCredential.self, from: data)
+        }
     ) {
         self.client = client
         self.now = now
         self.makeScratchToken = makeScratchToken
+        self.credentialLoader = credentialLoader
     }
 
     // MARK: - Authentication
@@ -257,12 +263,12 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
 
         let metadata = try await perform(context: .write, location: location, credential: credential) { session in
             guard try await session.stat(path) == nil else {
-                throw CloudProviderError.conflict(remoteRev: nil)
+                throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected)
             }
             do {
                 try await session.store(temporaryPath, data: data)
                 guard try await session.stat(path) == nil else {
-                    throw CloudProviderError.conflict(remoteRev: nil)
+                    throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected)
                 }
                 try await session.rename(temporaryPath, to: path)
             } catch {
@@ -484,10 +490,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     }
 
     private func credential(for accountId: String) -> FTPCredential? {
-        guard let data = CloudTokenStore.tokenData(provider: id, accountId: accountId) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(FTPCredential.self, from: data)
+        credentialLoader(accountId)
     }
 
     // MARK: - Error mapping

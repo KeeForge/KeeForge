@@ -1086,8 +1086,8 @@ extension PendingUploadQueue {
         }
     }
 
-    // Only the invocation with affirmative pre-dispatch proof may unwind its exact attempt.
-    static func restoreUndispatchedCreation(_ stored: StoredCreation, environment: Environment = .live) throws -> StoredCreation {
+    // Only the invocation with affirmative no-commit proof may unwind its exact attempt.
+    static func restoreCreationAfterNoCommit(_ stored: StoredCreation, environment: Environment = .live) throws -> StoredCreation {
         try withCreationLocks(stored.intent, environment: environment) {
             guard stored.intent.phase == .attempting,
                   try environment.readData(creationURL(stored.intent.operationID, environment)) == stored.serialized,
