@@ -551,7 +551,8 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         guard (200..<300).contains(response.statusCode) else {
             let error = mapHTTPError(statusCode: response.statusCode, data: responseData)
             if response.statusCode == 412, let underlying = error as? CloudProviderError {
-                throw CloudUploadFailure(underlying: underlying, outcome: .rejected)
+                // URLSession may retry PUT after a lost response.
+                throw CloudUploadFailure(underlying: underlying, outcome: .uncertain)
             }
             throw error
         }

@@ -257,17 +257,18 @@ final class WebDAVCloudProviderTests: XCTestCase {
     }
 
     @MainActor
-    func testJournalFencesRejectedWebDAVPutsButNeverRetriesAnUncertainPut() async throws {
+    func testJournalRetainsWebDAVResponsesThatMayFollowAnUnobservedRetry() async throws {
         for status in [401, 403, 412, 423, 507, 503] {
-            let rejected = status != 503
             DatabaseListStore.clearAll()
             defer { DatabaseListStore.clearAll() }
             let accountId = "journal-\(status)"
             let credential = WebDAVCredential(serverURL: "https://host.example.com/dav/", username: accountId, password: "test")
             let puts = CloudJournalEffectCounter()
+            let hiddenCommits = WebDAVCommitRecorder()
             let responder = TransportResponder { request in
                 if request.httpMethod == "PUT" {
                     puts.record()
+                    if status == 412 { hiddenCommits.record(request.httpBody ?? Data()) }
                     return StubResponse(status: puts.value == 1 ? status : 201, headers: ["ETag": "\"next\""])
                 }
                 return StubResponse(status: 200, headers: ["ETag": "\"base\""])
@@ -284,32 +285,24 @@ final class WebDAVCloudProviderTests: XCTestCase {
                 _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
                 XCTFail("Expected HTTP failure")
             } catch {
-                if rejected {
-                    XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .rejected)
-                } else { XCTAssertNil(error as? CloudUploadFailure) }
+                if status == 412 { XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .uncertain) }
+                else { XCTAssertNil(error as? CloudUploadFailure) }
             }
             let owner = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
-            XCTAssertEqual(CloudJournalDecision.state(of: owner.marker), rejected ? .ready : .attempting)
-            XCTAssertEqual(owner.marker.attemptIsFenced == true, rejected)
+            XCTAssertEqual(CloudJournalDecision.state(of: owner.marker), .attempting)
+            XCTAssertFalse(owner.marker.attemptIsFenced == true)
             XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(owner), context.payload)
             XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
             XCTAssertEqual(puts.value, 1)
-            if rejected {
-                guard case .saved? = try await CloudDatabaseSaver.deliver(owner, reference: reference, environment: environment) else {
-                    return XCTFail("A separate explicit attempt may follow proven rejection")
+            if status == 412 { XCTAssertEqual(hiddenCommits.bytes, context.payload) }
+            for _ in 0..<2 {
+                guard case .retained? = try await CloudDatabaseSaver.deliver(owner, reference: reference, environment: environment) else {
+                    return XCTFail("Unknown PUT remains owned")
                 }
-                XCTAssertEqual(puts.value, 2)
-                XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
-            } else {
-                for _ in 0..<2 {
-                    guard case .retained? = try await CloudDatabaseSaver.deliver(owner, reference: reference, environment: environment) else {
-                        return XCTFail("Unknown PUT remains owned")
-                    }
-                }
-                XCTAssertEqual(puts.value, 1)
-                XCTAssertFalse(CloudJournalDecision.permitsMutation([owner.marker], changingKey: true))
-                XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
             }
+            XCTAssertEqual(puts.value, 1)
+            XCTAssertFalse(CloudJournalDecision.permitsMutation([owner.marker], changingKey: true))
+            XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
         }
     }
 
@@ -334,7 +327,7 @@ final class WebDAVCloudProviderTests: XCTestCase {
             )
             XCTFail("Expected conflict")
         } catch let failure as CloudUploadFailure {
-            XCTAssertEqual(failure.outcome, .rejected)
+            XCTAssertEqual(failure.outcome, .uncertain)
             let error = failure.underlying
             guard case .conflict(let remoteRev) = error else {
                 return XCTFail("Expected .conflict, got \(error)")
@@ -668,6 +661,13 @@ private struct StubResponse {
 
 /// Wraps an async responder closure into a `WebDAVClient.Transport`, building the
 /// `HTTPURLResponse` from the returned `StubResponse`.
+private final class WebDAVCommitRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = Data()
+    var bytes: Data { lock.withLock { value } }
+    func record(_ data: Data) { lock.withLock { value = data } }
+}
+
 private struct TransportResponder {
     let respond: @Sendable (URLRequest) async -> StubResponse
 

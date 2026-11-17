@@ -53,10 +53,10 @@ final class OneDriveCloudProviderTests: XCTestCase {
     }
 
     @MainActor
-    func testInitialSimplePut412FencesOnlyItsAttemptAndAllowsExplicitDelivery() async throws {
+    func testSimplePut412AfterUnobservedCommitRemainsUncertain() async throws {
         DatabaseListStore.clearAll()
         defer { DatabaseListStore.clearAll() }
-        let probe = OneDriveHTTPProbe(firstFailure: 412)
+        let probe = OneDriveHTTPProbe(firstFailure: 412, commitBeforeFailure: true)
         defer { probe.close() }
         let provider = probe.provider()
         let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: "probe",
@@ -69,18 +69,17 @@ final class OneDriveCloudProviderTests: XCTestCase {
         do {
             _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
             XCTFail("Expected current-request rejection")
-        } catch let failure as CloudUploadFailure { XCTAssertEqual(failure.outcome, .rejected) }
-        let ready = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
-        XCTAssertEqual(CloudJournalDecision.state(of: ready.marker), .ready)
-        XCTAssertTrue(ready.marker.attemptIsFenced == true)
+        } catch let failure as CloudUploadFailure { XCTAssertEqual(failure.outcome, .uncertain) }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .attempting)
+        XCTAssertFalse(retained.marker.attemptIsFenced == true)
         XCTAssertEqual(probe.puts.count, 1)
-        XCTAssertTrue(probe.acceptedBytes.isEmpty)
-        guard case .saved? = try await CloudDatabaseSaver.deliver(ready, reference: reference, environment: environment) else {
-            return XCTFail("Affirmative rejection permits a separate explicit attempt")
-        }
-        XCTAssertEqual(probe.puts.count, 2)
         XCTAssertEqual(probe.acceptedBytes, context.payload)
-        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        guard case .retained? = try await CloudDatabaseSaver.deliver(retained, reference: reference, environment: environment) else {
+            return XCTFail("An unobserved commit cannot be retried")
+        }
+        XCTAssertEqual(probe.puts.count, 1)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
     }
 
     @MainActor
@@ -821,6 +820,7 @@ private final class OneDriveHTTPProbe: @unchecked Sendable {
     private let lock = NSLock()
     private let firstFailure: Int?
     private let dropsResponse: Bool
+    private let commitBeforeFailure: Bool
     private var failed = false
     private var requests: [URLRequest] = []
     private var accepted = Data()
@@ -832,9 +832,10 @@ private final class OneDriveHTTPProbe: @unchecked Sendable {
     var sessionStatusReads: Int { lock.withLock { statusReads } }
     var conflictBehavior: String? { lock.withLock { behavior } }
 
-    init(firstFailure: Int?, dropsResponse: Bool = false) {
+    init(firstFailure: Int?, dropsResponse: Bool = false, commitBeforeFailure: Bool = false) {
         self.firstFailure = firstFailure
         self.dropsResponse = dropsResponse
+        self.commitBeforeFailure = commitBeforeFailure
         OneDriveProbeURLProtocol.install(self)
     }
 
@@ -881,7 +882,7 @@ private final class OneDriveHTTPProbe: @unchecked Sendable {
                 if !final { accepted.append(body); return (202, Data()) }
                 if !failed, let firstFailure {
                     failed = true
-                    if firstFailure != 412 { accepted.append(body) }
+                    if firstFailure != 412 || commitBeforeFailure { accepted.append(body) }
                     if dropsResponse { throw URLError(.networkConnectionLost) }
                     return (firstFailure, Data("{\"error\":{\"code\":\"\(firstFailure == 412 ? "preconditionFailed" : "serviceNotAvailable")\"}}".utf8))
                 }
