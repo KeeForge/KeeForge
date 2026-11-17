@@ -118,6 +118,7 @@ struct CreatedDatabase: Sendable {
     let sessionKey: SymmetricKey
     let compositeKey: SymmetricKey
     let openTimeSHA512: Data
+    var encryptedSnapshot: Data? = nil
 }
 
 enum DatabaseCreationDefaults {
@@ -314,7 +315,8 @@ enum DatabaseCreationService {
             formatVersion: prepared.formatVersion,
             sessionKey: prepared.sessionKey,
             compositeKey: prepared.compositeKey,
-            openTimeSHA512: prepared.openTimeSHA512
+            openTimeSHA512: prepared.openTimeSHA512,
+            encryptedSnapshot: prepared.encryptedBytes
         )
     }
 
@@ -447,7 +449,8 @@ enum DatabaseCreationService {
             formatVersion: prepared.formatVersion,
             sessionKey: prepared.sessionKey,
             compositeKey: prepared.compositeKey,
-            openTimeSHA512: prepared.openTimeSHA512
+            openTimeSHA512: prepared.openTimeSHA512,
+            encryptedSnapshot: reference.isCloudBacked ? nil : prepared.encryptedBytes
         )
     }
 

@@ -229,7 +229,11 @@ final class MacDatabasesLauncherViewModel {
         case .open: open(current)
         case .rename: renameTarget = current
         case .setKeyFile, .changeKeyFile: keyFileTarget = current
-        case .clearKeyFile: try? list?.setKeyFile(url: nil, for: current)
+        case .clearKeyFile:
+            Task {
+                do { try await list?.setKeyFile(url: nil, for: current) }
+                catch { selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error) }
+            }
         case .quickLaunch: list?.toggleQuickLaunch(for: current)
         case .pushPendingChanges:
             let list = list

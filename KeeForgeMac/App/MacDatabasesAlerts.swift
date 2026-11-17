@@ -160,7 +160,7 @@ final class MacDatabasesAlerts {
         Task { [weak self] in
             guard let self, let url = await panels.chooseKeyFile(), token == generation else { return }
             do {
-                try list.setKeyFile(url: url, for: reference)
+                try await list.setKeyFile(url: url, for: reference)
             } catch {
                 launcher.selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error)
             }

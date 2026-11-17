@@ -542,7 +542,7 @@ final class DatabaseCommandsTests: XCTestCase {
                     openTimeSHA512: Data("command-tree".utf8), binaryPool: BinaryPool(rawFields: [])
                 )
             },
-            quickUnlockKeyPersistOperation: { _, _, _ in false },
+            localReadKeyPersistOperation: { _, _, _ in false },
             storedKeyPresenceCheck: { _ in false },
             secretAccess: secretAccess
         )

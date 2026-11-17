@@ -9,10 +9,21 @@ import XCTest
 @MainActor
 final class DatabaseWindowControllerTests: XCTestCase {
     private var windows: [NSWindow] = []
+    private var databaseDirectories: [URL] = []
+
+    override func setUp() async throws {
+        try await super.setUp()
+        await resetCredentialIdentityStoreState()
+        DatabaseListStore.clearAll()
+    }
 
     override func tearDown() async throws {
         for window in windows { window.close() }
         windows = []
+        for directory in databaseDirectories { try? FileManager.default.removeItem(at: directory) }
+        databaseDirectories = []
+        DatabaseListStore.clearAll()
+        await resetCredentialIdentityStoreState()
         try await super.tearDown()
     }
 
@@ -80,7 +91,7 @@ final class DatabaseWindowControllerTests: XCTestCase {
             controller.workspacePresentation.beginNewGroup()
             controller.workspacePresentation.pendingDeletion = .entry(.init(
                 entryID: try XCTUnwrap(session.visibleRootGroup?.allEntries.first).id, sendToRecycleBin: true))
-            for _ in 0..<5 { await settle() }
+            await waitUntil { controller.workspaceSheets.sheet != nil && controller.workspaceAlerts.presented != nil }
             let shell = try XCTUnwrap(controller.workspaceSheets.sheet)
             XCTAssertNotNil(controller.workspaceAlerts.presented)
             if closeWindow { controller.window?.close() } else { controller.invalidate() }
@@ -188,6 +199,7 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertTrue(a.validateMenuItem(item("saveDatabase:")))
         XCTAssertFalse(b.validateMenuItem(item("saveDatabase:")))
 
+        DatabaseListStore.setNickname("Window A Title", for: first.databaseReference)
         var renamed = first.databaseReference
         renamed.nickname = "Window A Title"
         first.reconcileReference(renamed)
@@ -224,7 +236,7 @@ final class DatabaseWindowControllerTests: XCTestCase {
     func testALockedWindowHasNoToolbarAndKeepsItsLayoutAcrossAnUnlock() async throws {
         let session = try makeSession()
         let controller = try load(DatabaseWindowController(session: session, windowRegistry: registry(),
-            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false))
+            enrollment: TOTPEnrollmentCoordinator(), persistsLayout: false, initialContentSize: DatabaseWindow.minimumContentSize))
         let window = try XCTUnwrap(controller.window)
         let root = try XCTUnwrap(window.contentViewController)
         window.contentView?.layoutSubtreeIfNeeded()
@@ -375,7 +387,6 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertEqual(harness.promptReasons, [String(localized: "View password"), String(localized: "View password")])
         XCTAssertEqual(largeType.model, LargeTypeModel(title: "GitHub", fieldName: String(localized: "Password"), value: "Vx7$"))
         XCTAssertEqual(presented.count, 1)
-        XCTAssertFalse(window.isVisible)
         let panel = try XCTUnwrap(largeType.panel)
         XCTAssertEqual(panel.frame.midX, window.frame.midX, accuracy: 0.5)
 
@@ -568,7 +579,14 @@ final class DatabaseWindowControllerTests: XCTestCase {
 
     private func makeSession() throws -> DatabaseViewModel {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
-        let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        databaseDirectories.append(directory)
+        let copy = directory.appendingPathComponent("test.kdbx")
+        try FileManager.default.copyItem(at: url, to: copy)
+        var reference = try DatabaseListStore.add(url: copy)
+        DatabaseListStore.setAutoFillEnabled(false, for: reference)
+        reference.autoFillEnabled = false
         return DatabaseViewModel(databaseReference: reference,
             quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })
     }

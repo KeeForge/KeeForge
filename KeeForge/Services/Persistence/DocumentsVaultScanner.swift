@@ -123,19 +123,13 @@ enum DocumentsVaultScanner {
         let previous = fingerprintLock.withLock { reconciledFingerprints[reference.id] }
         guard fingerprint != previous else { return }
 
-        guard let onDiskData = try? CoordinatedFileReader.readData(from: url),
+        guard let lease = try? PendingLocalSaveStore.captureCacheReadLease(for: reference),
+              let onDiskData = try? CoordinatedFileReader.readData(from: url),
               DocumentPickerService.hasKDBXHeader(onDiskData) else {
             return
         }
 
-        if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: reference.id),
-           let cachedData = try? Data(contentsOf: cachedURL),
-           cachedData == onDiskData {
-            fingerprintLock.withLock { reconciledFingerprints[reference.id] = fingerprint }
-            return
-        }
-
-        guard (try? DatabaseListStore.cacheDatabaseCopy(onDiskData, for: reference.id)) != nil else { return }
+        guard (try? LocalDatabaseSaver.cacheLocalSnapshot(onDiskData, for: reference, lease: lease)) != nil else { return }
         fingerprintLock.withLock { reconciledFingerprints[reference.id] = fingerprint }
     }
 

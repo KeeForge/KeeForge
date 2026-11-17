@@ -34,14 +34,16 @@ final class MacEncryptionSettingsSheet {
             Task { await self.save() }
         }
         shell.cancellationScope.register { [weak self] in self?.discard() }
-        observation.start(reading: { (model.isWorking, model.canSave) }, onChange: { [weak self] state in
-            self?.shell.canConfirm = state.1
+        observation.start(reading: { (model.isWorking, model.canSave, model.hasCompleted) }, onChange: { [weak self] state in
+            self?.shell.canConfirm = state.1 || state.2
+            self?.shell.defaultButton.title = state.2 ? String(localized: "Done") : String(localized: "Save")
             self?.shell.setBusy(state.0, label: String(localized: "Re-encrypting Database"))
         })
     }
 
     func save() async {
         guard !hasEnded else { return }
+        if model.hasCompleted { shell.end(confirmed: true); return }
         if await model.performChange(), !hasEnded { shell.end(confirmed: true) }
     }
 
@@ -72,7 +74,7 @@ private struct MacEncryptionSettingsForm: View {
                 .accessibilityElement(children: .combine)
 
                 Form {
-                    if let error = model.changeError {
+                    if let error = model.completedWarning ?? model.changeError {
                         LabeledContent("") {
                             Text(error).foregroundStyle(Theme.State.danger).fixedSize(horizontal: false, vertical: true)
                                 .accessibilityIdentifier("encryption-settings.error")
@@ -138,7 +140,7 @@ private struct MacEncryptionSettingsForm: View {
             }
             .padding(.vertical, 4)
         }
-        .disabled(model.isWorking)
+        .disabled(model.isWorking || model.hasCompleted)
     }
 
     private static func description(_ model: EncryptionSettingsViewModel) -> String {
