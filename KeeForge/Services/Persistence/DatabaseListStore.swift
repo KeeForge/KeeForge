@@ -2026,7 +2026,10 @@ enum DatabaseListStore {
             let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: refreshed,
                 filename: reference.keyFileFilename ?? resolved.url.lastPathComponent)
             if let token { return publishKeyFilePreference(token, desired: desired) }
-            return publishRegistryKeyFilePreference(for: reference, desired: desired)
+            return try PendingUploadQueue.withCommitLock(for: reference.id, nonBlocking: true) {
+                guard try PendingUploadQueue.readJournal(for: reference.id).isEmpty else { return .notPublished }
+                return publishRegistryKeyFilePreference(for: reference, desired: desired)
+            }
         } catch { return .rejected }
     }
 
