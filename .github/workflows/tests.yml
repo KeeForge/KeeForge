@@ -125,10 +125,9 @@ jobs:
 
   macos-unit-tests:
     if: github.event_name != 'push' || github.event.deleted == false
-    # macos-15 tops out at Xcode 26.3, whose actool crashes compiling the
-    # KeeForge.icon Icon Composer bundle for macOS. macos-26 ships Xcode 26.6,
-    # the version Xcode Cloud builds the Mac archive with.
-    runs-on: macos-26
+    # macos-26 tops out at Xcode 26.6, whose Swift 6.3 compiler crashes on the
+    # Mac app. xcode-27 is the only GitHub image with Xcode 27.
+    runs-on: xcode-27
     timeout-minutes: 120
     env:
       SCHEME: KeeForgeMac
@@ -145,19 +144,10 @@ jobs:
           echo "Tested commit: $(git rev-parse HEAD)"
           echo "Tested tree: $(git rev-parse 'HEAD^{tree}')"
 
-      - name: Select Xcode
-        run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
-          echo "Using Xcode: $XCODE_PATH"
-          sudo xcode-select -s "$XCODE_PATH"
-          xcodebuild -version
-
-          # Fail loudly rather than crashing inside actool minutes later.
-          version=$(xcodebuild -version | awk 'NR==1{print $2}')
-          if [ "$(printf '%s\n26.4\n' "$version" | sort -V | head -1)" != "26.4" ]; then
-            echo "::error::Xcode $version is too old for the macOS asset-catalog build (26.3 crashes in actool on KeeForge.icon). Expected 26.4+ on this runner."
-            exit 1
-          fi
+      - name: Show Xcode
+        # The image default is its newest release Xcode; the newest installed
+        # one is a beta.
+        run: xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen

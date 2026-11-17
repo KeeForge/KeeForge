@@ -73,7 +73,7 @@
   - An entry URL that starts with another scheme and `://`, such as `androidapp://`, `ftp://`, or `ssh://`, no longer matches a website or appears in the system's suggestions. Before, an Android app stored as `androidapp://com.mybank.app` matched the website `mybank.app`.
   - A URL is read the way browsers read it: a backslash counts as a slash, so `https://example.com\@other.example` matches `example.com`, not `other.example`.
 
-## v1.22.0 (2026-11-10)
+## v1.22.0 (2026-11-16)
 
 ### New Features
 
