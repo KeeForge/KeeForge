@@ -16,9 +16,15 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
     let iconName = CloudProviderKind.webDAV.iconName
 
     private let client: WebDAVClient
+    private let credentialLoader: @Sendable (String) -> WebDAVCredential?
 
-    init(client: WebDAVClient = WebDAVClient(transport: WebDAVClient.liveTransport())) {
+    init(client: WebDAVClient = WebDAVClient(transport: WebDAVClient.liveTransport()),
+         credentialLoader: @escaping @Sendable (String) -> WebDAVCredential? = { accountId in
+             guard let data = CloudTokenStore.tokenData(provider: CloudProviderKind.webDAV.rawValue, accountId: accountId) else { return nil }
+             return try? JSONDecoder().decode(WebDAVCredential.self, from: data)
+         }) {
         self.client = client
+        self.credentialLoader = credentialLoader
     }
 
     // MARK: - Authentication
@@ -206,6 +212,9 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         }
 
         if let error = CloudProviderError.webDAVStatus(response.statusCode) {
+            if [401, 403, 423, 507].contains(response.statusCode) {
+                throw CloudUploadFailure(underlying: error, outcome: .rejected)
+            }
             throw error
         }
 
@@ -322,10 +331,7 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
     }
 
     private func credential(for accountId: String) -> WebDAVCredential? {
-        guard let data = CloudTokenStore.tokenData(provider: id, accountId: accountId) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(WebDAVCredential.self, from: data)
+        credentialLoader(accountId)
     }
 
     private func normalizedBaseURL(
