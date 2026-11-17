@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+### Changes
+
+- Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
+- AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
+
 ### Fixes
 
+- Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
 - On iPhone, and on iPad in a narrow window, a database that locks by itself, after the Auto-Lock timeout or when you leave the app, now stays on its unlock page instead of going back to the database list, so Auto-Unlock with Face ID or Touch ID opens it again right away (#312). Locking with the Lock button still returns to the list.
 
 ## v1.23.0 (2026-11-15)

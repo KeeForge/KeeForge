@@ -6,6 +6,22 @@ import XCTest
 
 @MainActor
 final class MacEncryptionSettingsSheetTests: XCTestCase {
+    func testCommittedWarningOffersDoneAndCannotRepeatEncryption() async {
+        var writes = 0
+        let sheet = makeSheet { _, _, _ in writes += 1; throw SaveDurabilityWarning() }
+        sheet.model.cipher = .chacha20
+        await sheet.save()
+        await settle()
+        XCTAssertEqual(writes, 1)
+        XCTAssertNotNil(sheet.model.completedWarning)
+        XCTAssertTrue(sheet.shell.isPresented)
+        XCTAssertEqual(sheet.shell.defaultButton.title, String(localized: "Done"))
+        XCTAssertTrue(sheet.shell.defaultButton.isEnabled)
+        await sheet.save()
+        XCTAssertEqual(writes, 1)
+        XCTAssertFalse(sheet.shell.isPresented)
+    }
+
     func testSaveIsDisabledUntilAChangeAndEndsTheSheetAfterTheWrite() async {
         var writes = 0
         let sheet = makeSheet { _, _, _ in writes += 1 }

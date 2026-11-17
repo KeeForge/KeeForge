@@ -1055,6 +1055,7 @@ final class MacWindowCoordinatorTests: XCTestCase {
     }
 
     func testANewDatabaseWindowCascadesFromTheFrontmostOne() throws {
+        makeRestoringCoordinator(restoresWindows: false, databaseWindowContentSize: DatabaseWindow.minimumContentSize)
         start()
         coordinator.open(references[0])
         let first = try XCTUnwrap(coordinator.databaseWindows[references[0].id]?.window)

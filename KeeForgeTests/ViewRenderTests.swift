@@ -21,6 +21,20 @@ final class ViewRenderTests: XCTestCase {
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
     }
 
+    func testLocalSaveRecovery() async throws {
+        let ref = reference("Local Recovery")
+        let bytes = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        _ = try PendingLocalSaveStore.prepareSource(bytes, for: ref.id, baseCacheSHA512: FileDigest.sha512(bytes))
+        defer { PendingLocalSaveStore.clearAll() }
+        let recovery = PendingLocalRecoveryViewModel(databaseID: ref.id, reference: ref)
+        await recovery.refresh()
+        try renderScreens([("Encrypted snapshot", AnyView(NavigationStack {
+            Form {
+                LocalSaveRecoveryContents(recovery: recovery, reference: ref, export: { _ in }, requestDiscard: { _, _ in }, refresh: {})
+            }.navigationTitle("Local Save Recovery")
+        }))], named: "local-save-recovery")
+    }
+
     // MARK: Database list rows
 
     func testDatabaseListRows() throws {

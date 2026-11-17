@@ -29,7 +29,7 @@ final class MacDatabaseExporter {
             let name: String
             switch request {
             case .currentCopy(let reference): name = reference.filename
-            case .backup: name = payload.suggestedFilename
+            case .backup, .localRecovery, .keyPublicationIntent, .keyPublication, .pendingLocal: name = payload.suggestedFilename
             }
             guard !Task.isCancelled, let url = await panels.saveDatabaseCopy(suggestedName: name), !Task.isCancelled else { return }
             try await write(payload.data, url)
@@ -41,6 +41,18 @@ final class MacDatabaseExporter {
 
     static func load(_ request: DatabaseExportRequest) async throws -> DatabaseExportService.ExportPayload {
         switch request {
+        case .localRecovery(_, let data, let filename):
+            DatabaseExportService.ExportPayload(data: data, suggestedFilename: filename)
+        case .keyPublicationIntent(_, let admission, let reference):
+            DatabaseExportService.ExportPayload(data: try await LocalDatabaseSaver.exportKeyEpochCopy(admission, for: reference),
+                suggestedFilename: "\(reference.displayName)-\(String(localized: "Database Snapshot")).kdbx")
+        case .keyPublication(_, let evidence, let reference):
+            DatabaseExportService.ExportPayload(data: try await LocalDatabaseSaver.exportKeyEpochCopy(evidence, for: reference),
+                suggestedFilename: "\(reference.displayName)-\(String(localized: "Database Snapshot")).kdbx")
+        case .pendingLocal(let receipt, let reference):
+            DatabaseExportService.ExportPayload(data: try await Task.detached {
+                try PendingLocalSaveStore.export(receipt, for: reference.id)
+            }.value, suggestedFilename: "\(reference.displayName)-\(String(localized: "AutoFill Snapshot")).kdbx")
         case .currentCopy(let reference): try await DatabaseExportService.exportCurrentCopy(for: reference)
         case .backup(let backup, let reference): try await DatabaseExportService.exportBackup(backup, for: reference)
         }

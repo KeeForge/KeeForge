@@ -13,7 +13,7 @@ enum KeyFileOverwriteGuard {
     static func check(
         _ destination: URL,
         keyFileData: [Data] = [],
-        listedKeyFileURLs: () -> [URL] = { DatabaseListStore.databases.compactMap(DatabaseListStore.resolveKeyFileURL) }
+        listedKeyFileURLs: () -> [URL] = { DatabaseListStore.databases.compactMap { DatabaseListStore.resolveKeyFileURL(for: $0) } }
     ) throws {
         guard FileManager.default.fileExists(atPath: destination.path) else { return }
         if listedKeyFileURLs().contains(where: { isSameFile($0, destination) }) {

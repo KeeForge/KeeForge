@@ -9,6 +9,38 @@ final class MacDatabaseExporterTests: XCTestCase {
         try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
     }
 
+    func testRecoveryExportsPreserveEncryptedBytesAndRejectAReplacedSource() async throws {
+        let source = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        let reference = try reference(at: source)
+        let bytes = try Data(contentsOf: source)
+        let prepared = try PendingLocalSaveStore.prepareSource(bytes, for: reference.id,
+            baseCacheSHA512: FileDigest.sha512(bytes))
+        defer { PendingLocalSaveStore.clearAll() }
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kdbx")
+        defer { try? FileManager.default.removeItem(at: destination) }
+        var names: [String] = []
+        let panels = MacFilePanels(presentSave: { panel, _ in
+            names.append(panel.nameFieldStringValue)
+            return destination
+        })
+        var errors: [String] = []
+        let exporter = MacDatabaseExporter(panels: panels, showError: { errors.append($0) })
+        await exporter.export(.localRecovery(UUID(), bytes, "Unsaved.kdbx"))
+        XCTAssertEqual(try Data(contentsOf: destination), bytes)
+        XCTAssertEqual(names, ["Unsaved.kdbx"])
+        await exporter.export(.pendingLocal(prepared.receipt, reference))
+        XCTAssertEqual(try Data(contentsOf: destination), bytes)
+        XCTAssertEqual(names.count, 2)
+        XCTAssertEqual(try Data(contentsOf: prepared.save.fileURL), bytes)
+        try FileManager.default.removeItem(at: prepared.save.fileURL)
+        try bytes.write(to: prepared.save.fileURL)
+        await exporter.export(.pendingLocal(prepared.receipt, reference))
+        XCTAssertEqual(names.count, 2, "A stale receipt cannot reach the Save panel")
+        XCTAssertEqual(errors.count, 1)
+        XCTAssertEqual(try Data(contentsOf: destination), bytes)
+        XCTAssertEqual(try Data(contentsOf: prepared.save.fileURL), bytes)
+    }
+
     func testCurrentCopyAndBackupWriteOnlyTheChosenFileByteForByte() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -32,3 +32,7 @@
 
 - [../AGENTS.md](../AGENTS.md): layering, the compatibility matrix, platform rules
 - [../../TestFixtures/README.md](../../TestFixtures/README.md): bundled databases, passwords, key files
+
+- The password-only rekey compatibility artifact runs through the production local saver, records only the installed ciphertext, rejects its old key and checks the full semantic/binary-pool snapshot under the new key. Artifact collection must not encrypt the scenario again.
+
+- Failure breadcrumbs belong to the current test operation and snapshot phase, typed cause and NSError/underlying domain-code before session cleanup. They never retain or print passwords, bookmark data, ciphertext, decrypted content or error userInfo paths, and they do not authorize IO or replace effect assertions.
