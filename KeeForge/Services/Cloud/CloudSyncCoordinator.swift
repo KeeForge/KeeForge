@@ -178,12 +178,14 @@ enum CloudSyncCoordinator {
             if needsDownload {
                 // Overlapping sync-downs would pin one inode and fail each other's publish.
                 let cacheKey = cacheURL.standardizedFileURL.path
-                let acceptedCacheIDs = await cacheDownloadLock.acquire(
+                let acceptedCacheIDs = try await cacheDownloadLock.acquire(
                     cacheKey,
                     cacheIDBeforeWait: fileID(at: cacheURL)
                 )
                 let copy: DownloadedCopy
                 do {
+                    // The key can be handed over just as the task is cancelled.
+                    try Task.checkCancellation()
                     copy = try await downloadLatestCopy(
                         provider: provider,
                         metadata: metadata,
@@ -610,19 +612,32 @@ enum CloudSyncCoordinator {
 /// the one the sync before it published; any other file was written by a
 /// save during the wait.
 private actor CacheDownloadLock {
+    private struct Waiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Void, Error>
+    }
+
     private var heldKeys: Set<String> = []
-    private var waiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+    private var waiters: [String: [Waiter]] = [:]
     private var publishedCacheIDs: [String: UInt64] = [:]
 
     /// Returns nil when the key was free, else the cache identities the
-    /// caller may pin.
-    func acquire(_ key: String, cacheIDBeforeWait: UInt64?) async -> Set<UInt64>? {
+    /// caller may pin. A waiter whose task is cancelled leaves the queue at
+    /// once and throws `CancellationError`.
+    func acquire(_ key: String, cacheIDBeforeWait: UInt64?) async throws -> Set<UInt64>? {
         guard heldKeys.contains(key) else {
             heldKeys.insert(key)
             return nil
         }
+        let id = UUID()
         // `release` hands the key straight to this waiter.
-        await withCheckedContinuation { waiters[key, default: []].append($0) }
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                enqueue(Waiter(id: id, continuation: continuation), for: key)
+            }
+        } onCancel: {
+            Task { await self.cancelWaiter(id, for: key) }
+        }
         return Set([cacheIDBeforeWait, publishedCacheIDs[key]].compactMap { $0 })
     }
 
@@ -637,6 +652,22 @@ private actor CacheDownloadLock {
         }
         let next = queue.removeFirst()
         waiters[key] = queue.isEmpty ? nil : queue
-        next.resume()
+        next.continuation.resume()
+    }
+
+    private func enqueue(_ waiter: Waiter, for key: String) {
+        // Cancelled before it was queued: the cancellation handler found nothing to remove.
+        guard Task.isCancelled == false else {
+            waiter.continuation.resume(throwing: CancellationError())
+            return
+        }
+        waiters[key, default: []].append(waiter)
+    }
+
+    private func cancelWaiter(_ id: UUID, for key: String) {
+        guard var queue = waiters[key], let index = queue.firstIndex(where: { $0.id == id }) else { return }
+        let waiter = queue.remove(at: index)
+        waiters[key] = queue.isEmpty ? nil : queue
+        waiter.continuation.resume(throwing: CancellationError())
     }
 }
