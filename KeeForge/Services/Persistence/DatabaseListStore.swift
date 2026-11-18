@@ -402,8 +402,8 @@ enum DatabaseListStore {
 
     /// False only when `skippingRemovedDocumentsFile` found the file's removal
     /// record. The record is read and cleared under the registry lock, so a
-    /// concurrent removal cannot slip in between, and cleared only once the
-    /// row is published, so a failed add keeps the file removed.
+    /// concurrent removal cannot slip in between. An explicit add that cannot
+    /// clear it fails, and one whose row is not published restores it.
     @discardableResult
     private static func registerLocalReference(_ reference: DatabaseReference, target: URL?,
                                                skippingRemovedDocumentsFile: Bool = false) throws -> Bool {
@@ -414,12 +414,12 @@ enum DatabaseListStore {
         let duplicate = target.flatMap { existingLocalReference(matching: $0, in: observed) }
         let forgetsRemoval = !skippingRemovedDocumentsFile && target.map(isTopLevelDocumentsFile) == true
         let result = mutateRegistry(authorize: { mutate in
+            let forgotten = forgetsRemoval ? try target.flatMap(forgetRemovedDocumentsFile(at:)) : nil
+            var published = false
+            defer { if !published, let forgotten { restoreRemovedDocumentsFingerprint(forgotten) } }
             let result = try mutate()
-            switch result {
-            case .durable(true), .visibleUnconfirmed(true, _):
-                if forgetsRemoval, let target { forgetRemovedDocumentsFile(at: target) }
-            default: break
-            }
+            if case .durable(true) = result { published = true }
+            if case .visibleUnconfirmed(true, _) = result { published = true }
             return result
         }) { rows -> RegistryDecision<Bool> in
             guard rows.count == observed.count, zip(rows, observed).allSatisfy({ current, previous in
@@ -2571,11 +2571,17 @@ enum DatabaseListStore {
         return Set(fingerprints)
     }
 
-    private static func writeRemovedDocumentsFileFingerprints(_ fingerprints: Set<String>) -> DurableWriteOutcome {
-        guard let data = try? JSONEncoder().encode(fingerprints.sorted()) else {
-            return .notPublished(CocoaError(.fileWriteUnknown))
+    /// Applies `change` to the record and writes it durably; false when
+    /// `change` reports nothing to write. Throws when the result may not
+    /// survive a crash.
+    private static func changeRemovedDocumentsFileFingerprints(_ change: (inout Set<String>) -> Bool) throws -> Bool {
+        var fingerprints = removedDocumentsFileFingerprints
+        guard change(&fingerprints) else { return false }
+        let data = try JSONEncoder().encode(fingerprints.sorted())
+        switch writeWithDurabilityOutcome(data, to: removedDocumentsFilesURL, directoryAnchor: removedDocumentsFilesAnchor) {
+        case .durable: return true
+        case .notPublished(let error), .publishedWithoutConfirmedDurability(let error): throw error
         }
-        return writeWithDurabilityOutcome(data, to: removedDocumentsFilesURL, directoryAnchor: removedDocumentsFilesAnchor)
     }
 
     /// Returns the fingerprint only when this call added it, so a failed
@@ -2586,30 +2592,31 @@ enum DatabaseListStore {
               let fingerprint = documentsFileFingerprint(for: url) else {
             return nil
         }
-        var fingerprints = removedDocumentsFileFingerprints
-        guard fingerprints.insert(fingerprint).inserted else { return nil }
-        switch writeRemovedDocumentsFileFingerprints(fingerprints) {
-        case .durable: return fingerprint
-        case .publishedWithoutConfirmedDurability(let error):
+        do {
+            return try changeRemovedDocumentsFileFingerprints { $0.insert(fingerprint).inserted } ? fingerprint : nil
+        } catch {
             forgetRemovedDocumentsFingerprint(fingerprint)
             throw error
-        case .notPublished(let error): throw error
         }
     }
 
     /// An explicit add undoes the removal, so a later removal that records
     /// nothing (file missing) cannot leave the old record hiding the file.
-    private static func forgetRemovedDocumentsFile(at url: URL) {
-        guard isTopLevelDocumentsFile(url), let fingerprint = documentsFileFingerprint(for: url) else {
-            return
-        }
-        forgetRemovedDocumentsFingerprint(fingerprint)
+    /// Returns the fingerprint it cleared; throws when clearing may not last.
+    private static func forgetRemovedDocumentsFile(at url: URL) throws -> String? {
+        guard let fingerprint = documentsFileFingerprint(for: url) else { return nil }
+        return try changeRemovedDocumentsFileFingerprints { $0.remove(fingerprint) != nil } ? fingerprint : nil
     }
 
+    /// Best effort: a record left behind still lets an explicit add, which
+    /// clears it or fails, bring the file back.
     private static func forgetRemovedDocumentsFingerprint(_ fingerprint: String) {
-        var fingerprints = removedDocumentsFileFingerprints
-        guard fingerprints.remove(fingerprint) != nil else { return }
-        _ = writeRemovedDocumentsFileFingerprints(fingerprints)
+        _ = try? changeRemovedDocumentsFileFingerprints { $0.remove(fingerprint) != nil }
+    }
+
+    /// Best effort: the file was one the user just asked to add.
+    private static func restoreRemovedDocumentsFingerprint(_ fingerprint: String) {
+        _ = try? changeRemovedDocumentsFileFingerprints { $0.insert(fingerprint).inserted }
     }
 
     /// A hash, so no filename is stored. Size and modification date make a

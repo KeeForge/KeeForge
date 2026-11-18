@@ -305,6 +305,21 @@ final class DocumentsVaultScannerTests: XCTestCase {
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
     }
 
+    func testExplicitAddFailsWhenItCannotClearTheRemoval() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        DatabaseListStore.remove(id: try XCTUnwrap(DatabaseListStore.databases.first).id)
+        let restore = try makeReadOnly(
+            AppGroupContainer.url.appendingPathComponent("Library/Application Support", isDirectory: true)
+        )
+
+        XCTAssertThrowsError(try DatabaseListStore.add(url: url))
+        restore()
+
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        XCTAssertFalse(DocumentsVaultScanner.scan(directory: documentsDirectory))
+    }
+
     func testScanRegistersRemovedFileAgainOnceItChanges() throws {
         let url = try writeDatabaseFile(named: "vault.kdbx", payload: "original")
         DocumentsVaultScanner.scan(directory: documentsDirectory)
