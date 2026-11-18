@@ -7,6 +7,7 @@
 Name the owner before changing a workflow. Views render, collect input, and forward lifecycle events; they never repeat the policy owned below. Add a coordinator only for a distinct responsibility, composing `DatabaseViewModel` operations rather than bypassing them.
 
 - `DatabaseViewModel`: one database session. Authoritative for unlock/lock, save/conflict/merge, rekey, re-encryption, the authentication grace period (`secretAccess`), and the derived search/tag/AutoFill-exclusion indexes.
+- Cloud conflict-copy creation tries a numbered name after a proven no-commit conflict, rechecking session and reference authority before every attempt; uncertain outcomes never trigger another attempt.
 - `DatabaseOpeningSteps`: the steps an opening screen lists (sync, decrypt, open) and their states, for every platform's opening view. `UnlockKeyFileSelection`: an unlock form's key-file read, off the main actor, dropping a result a newer pick or cancel replaced.
 - `DatabaseSessionStore`, owned by `KeeForgeApp` on iOS and `AppDelegate` on Mac, retains sessions until retirement completes their transition lock; a deferred retirement must be retried, and active selection is always explicit. Forced retirement discards unsaved work and clears secrets when the app drops a session unconditionally.
 - App activation, background/system lock, iOS inactivity resets, and live Settings effects fan out through `DatabaseSessionStore` to every stored session, regardless of active selection. Database-list removal force-retires every missing session. Targeted inactivity resets affect only the session with the supplied database ID. Mac activity uses that targeted API; Mac activation evaluates existing deadlines without renewing them.
@@ -182,5 +183,8 @@ Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, f
 
 - List reconciliation may refresh local session preferences, but an unlocked session or in-flight save retains its authenticated target and master-key epoch. An unrelated list callback cannot authorize old session keys under a newer persisted epoch.
 
+- `MacDatabasesLauncherViewModel.requestCloudRecovery` is reference-independent and retains the creation/connect busy guard; only the launcher presenter owns the native recovery sheet.
 - Native launcher removal is asynchronous through the same list owner as iOS; confirmation forwards the captured reference and callers may await completion. A list failure cannot be reported as a removed database.
 - Native server prefill projects only the server address, username and transport opt-in from its credential-data reader; it never fills a stored password. Model tests supply encoded credential fixtures, while Keychain round trips stay at the credential-store boundary.
+
+- Numbered cloud conflict-copy retries share one fresh batch ID so a confirmed copy can retire only its own rejected prepared attempts.

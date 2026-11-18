@@ -60,6 +60,7 @@ final class DatabaseCreationViewModel {
     private let environment: DatabaseCreationService.Environment
     private let preparationOperation: PreparationOperation
     private var isCancelled = false
+    private var creationLifetime: CloudCreationLifetime?
 
     init(
         environment: DatabaseCreationService.Environment = .live,
@@ -243,8 +244,12 @@ final class DatabaseCreationViewModel {
 
         isCreating = true
         creationError = nil
+        let lifetime = CloudCreationLifetime()
+        let operationID = UUID()
+        creationLifetime = lifetime
         defer {
             isCreating = false
+            creationLifetime = nil
         }
 
         do {
@@ -261,7 +266,9 @@ final class DatabaseCreationViewModel {
                     keyFileBookmarkData: keyFileBookmarkData,
                     keyFileFilename: keyFileFilename,
                     cipher: cipher,
-                    kdfPreset: kdfPreset
+                    kdfPreset: kdfPreset,
+                    operationID: operationID,
+                    lifetime: lifetime
                 ),
                 environment: environment
             )
@@ -287,6 +294,7 @@ final class DatabaseCreationViewModel {
     }
 
     func cancelPendingCreation() {
+        creationLifetime?.cancel()
         isCancelled = true
         clearSecrets()
         clearPreparedDatabase()

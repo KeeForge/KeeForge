@@ -80,7 +80,7 @@ struct DatabaseDetailsView: View {
                 areasSection
                 localRecoverySection
                 if currentReference.isCloudBacked {
-                    Section { NavigationLink("Cloud Recovery") { CloudRecoveryView() } }
+                    Section { NavigationLink("Cloud Recovery") { CloudRecoveryView() }.accessibilityIdentifier("database-details.cloud-recovery") }
                 }
                 importSection
                 appSettingsSection

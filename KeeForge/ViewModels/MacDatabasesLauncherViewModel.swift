@@ -112,12 +112,14 @@ final class MacDatabasesLauncherViewModel {
     /// The window’s requested form; one at a time.
     enum Sheet: Identifiable, Equatable {
         case newDatabase
+        case cloudRecovery
         case connect(CloudProviderKind)
         case details(UUID)
 
         var id: String {
             switch self {
             case .newDatabase: "new-database"
+            case .cloudRecovery: "cloud-recovery"
             case .connect(let provider): "connect-\(provider.rawValue)"
             case .details(let databaseID): "details-\(databaseID.uuidString)"
             }
@@ -332,6 +334,11 @@ final class MacDatabasesLauncherViewModel {
     /// The caption under Connect to Server…: the server types it offers.
     var connectCaption: String {
         connectProviders.map(\.displayName).joined(separator: ", ")
+    }
+
+    func requestCloudRecovery() {
+        guard !isSheetBusy() else { return }
+        sheet = .cloudRecovery
     }
 
     func requestConnect(_ provider: CloudProviderKind? = nil) {

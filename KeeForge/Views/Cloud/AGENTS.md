@@ -20,4 +20,10 @@
 
 - `../AGENTS.md`, `../../Services/Cloud/AGENTS.md`
 
-- Cloud Recovery is accessible from Cloud account settings even while databases are locked. Export verifies retained ciphertext without restoring secrets or granting deletion consent. Before listing, it preserves byte-verified finalized legacy payloads under the journal commit lock so the existing export action can read them. Unknown remote attempts have no Retry/Forget action. Export errors retain every record and payload.
+- Cloud Recovery is accessible from Cloud account settings even while databases are locked. Export verifies retained ciphertext without restoring secrets or granting deletion consent. Before listing, it preserves byte-verified finalized legacy payloads under the journal commit lock so the existing export action can read them. Creation entries expose retry and confirmed discard only for prepared records, local completion only for confirmed receipts, and exact encrypted export for all unfinished phases. Discard compares the displayed snapshot under the creation locks before removing it. Unknown attempts have no Retry/Forget action, completed records stay hidden, and unreadable records are reported while independently readable records remain exportable or eligible for confirmed local completion. New creation still requires a strict listing.
+
+- The native Mac File → Cloud Recovery command exposes the Databases window’s recovery sheet independently of database registration; Database Settings also exposes it for an existing cloud reference. The launcher sheet owner handles its presentation and teardown.
+
+- A recovery view owns one creation lifetime for its whole presentation. Native sheet teardown cancels it synchronously, before any delayed view disappearance; a dismissed recovery cannot dispatch another creation or finish local registration.
+
+- Opening Cloud Recovery retries cleanup of redundant ciphertext for durably completed creations; cleanup failure does not prevent listing remaining recovery records.

@@ -481,7 +481,8 @@ final class DatabaseViewModel {
     typealias CloudConflictCopyOperation = @Sendable (
         _ reference: DatabaseReference,
         _ fileID: String,
-        _ bytes: Data
+        _ bytes: Data,
+        _ batchID: UUID
     ) async throws -> Void
     typealias ReloadOperation = @Sendable (
         _ reference: DatabaseReference,
@@ -875,11 +876,12 @@ final class DatabaseViewModel {
                 bytes: bytes
             )
         },
-        cloudConflictCopyOperation: @escaping CloudConflictCopyOperation = { reference, fileID, bytes in
+        cloudConflictCopyOperation: @escaping CloudConflictCopyOperation = { reference, fileID, bytes, batchID in
             try await DatabaseViewModel.writeConflictCopyToCloud(
                 reference: reference,
                 fileID: fileID,
-                bytes: bytes
+                bytes: bytes,
+                batchID: batchID
             )
         },
         reloadOperation: @escaping ReloadOperation = { reference, compositeKey in
@@ -3786,25 +3788,53 @@ final class DatabaseViewModel {
             throw SaveError.saveContextUnavailable
         }
 
+        let copyCycle = lockCycleID
+        let copyRevision = contentRevision
+        let copyReference = databaseReference
         let bytes = try await conflictCopyEncryptionOperation(
             draft,
             compositeKey,
             saveConflict.remoteData
         )
-        let filename = conflictCopyFilename(for: databaseReference.filename)
+        guard !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision,
+              databaseReference == copyReference, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+        let filename = conflictCopyFilename(for: copyReference.filename)
 
-        switch databaseReference.source {
+        switch copyReference.source {
         case .local:
-            try await localConflictCopyOperation(databaseReference, filename, bytes)
+            try await localConflictCopyOperation(copyReference, filename, bytes)
         case .cloud(let metadata):
-            let fileID = Self.siblingCloudConflictFileID(
-                currentFileID: metadata.fileId,
-                filename: filename
-            )
-            try await cloudConflictCopyOperation(databaseReference, fileID, bytes)
+            let batchID = UUID()
+            for attempt in 1...Self.conflictCopyNameAttemptLimit {
+                let stillCurrent = try await Task.detached {
+                    try DatabaseListStore.readDatabasesStrict().contains { Self.matchesConflictCopyAuthority(copyReference, $0) }
+                }.value
+                guard stillCurrent, !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision,
+                      databaseReference == copyReference, case .unlocked = state else { throw SaveError.saveContextUnavailable }
+                let candidate = attempt == 1 ? filename : Self.uniquifiedConflictCopyName(filename, attempt: attempt)
+                let fileID = Self.siblingCloudConflictFileID(currentFileID: metadata.fileId, filename: candidate)
+                do {
+                    try await cloudConflictCopyOperation(copyReference, fileID, bytes, batchID)
+                    break
+                } catch let error as CloudProviderError {
+                    guard case .conflict = error, attempt < Self.conflictCopyNameAttemptLimit else { throw error }
+                }
+            }
         }
 
+        guard !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision,
+              databaseReference == copyReference, case .unlocked = state else { throw SaveError.saveContextUnavailable }
         discardDraft()
+    }
+
+    nonisolated static func matchesConflictCopyAuthority(_ captured: DatabaseReference, _ current: DatabaseReference) -> Bool {
+        guard let original = captured.cloudSyncMetadata, let latest = current.cloudSyncMetadata else { return false }
+        return captured.id == current.id && original.provider == latest.provider && original.accountId == latest.accountId
+            && original.fileId == latest.fileId && original.localHeadOperationID == latest.localHeadOperationID
+            && original.keyEpoch == latest.keyEpoch && captured.lastMasterKeyChangeAt == current.lastMasterKeyChangeAt
+            && PendingLocalSaveStore.PreferenceObservation(captured).matches(current)
+            && captured.hardwareKey == current.hardwareKey && captured.legacyKeychainFilename == current.legacyKeychainFilename
+            && captured.isReadOnly == current.isReadOnly && captured.filename == current.filename
     }
 
     /// Reconciles the file that caused the conflict into the current draft and
@@ -6089,46 +6119,29 @@ final class DatabaseViewModel {
         }.value
     }
 
-    /// Writes the conflict copy create-only: it exists to preserve bytes, so
-    /// it must never overwrite. Do not go back to `upload(expectedRev: nil)` —
-    /// that is `WriteMode.overwrite` on Dropbox and `conflictBehavior=replace`
-    /// on OneDrive, and it destroyed an earlier copy of the same name.
-    /// `createFile` is required to be no-overwrite (`Cloud/AGENTS.md`) and
-    /// reports a collision as `.conflict`, which the retry answers by
-    /// numbering the name. `providerResolver` is injectable only so tests can
-    /// exercise this routing without a live provider.
+    /// A cloud conflict copy retains its own creation record without registering a database.
     static func writeConflictCopyToCloud(
         reference: DatabaseReference,
         fileID: String,
         bytes: Data,
-        providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:)
+        batchID: UUID? = nil,
+        providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:),
+        creationEnvironment: CloudFileCreationCoordinator.Environment = .live
     ) async throws {
-        guard let metadata = reference.cloudSyncMetadata else {
-            throw SaveError.saveContextUnavailable
+        guard let metadata = reference.cloudSyncMetadata else { throw SaveError.saveContextUnavailable }
+        guard let provider = providerResolver(metadata.provider) else { throw CloudProviderError.notAuthenticated }
+        let template = DatabaseReference(id: UUID(), nickname: reference.nickname,
+            filename: (fileID as NSString).lastPathComponent, bookmarkData: nil,
+            keyFileBookmarkData: reference.keyFileBookmarkData, keyFileFilename: reference.keyFileFilename,
+            isQuickLaunch: false, lastOpenedAt: nil, addedAt: .now, colorTag: reference.colorTag,
+            legacyKeychainFilename: nil, isReadOnly: reference.isReadOnly, hardwareKey: reference.hardwareKey)
+        var environment = creationEnvironment
+        environment.createFile = { _, accountID, path, bytes in
+            try await provider.createFile(accountId: accountID, path: path, data: bytes, progress: { _ in })
         }
-
-        guard let provider = providerResolver(metadata.provider) else {
-            throw CloudProviderError.notAuthenticated
-        }
-
-        for attempt in 1...conflictCopyNameAttemptLimit {
-            let path = attempt == 1 ? fileID : uniquifiedConflictCopyName(fileID, attempt: attempt)
-            do {
-                _ = try await provider.createFile(
-                    accountId: metadata.accountId,
-                    path: path,
-                    data: bytes,
-                    progress: { _ in }
-                )
-                return
-            } catch let error as CloudProviderError {
-                guard case .conflict = error, attempt < conflictCopyNameAttemptLimit else {
-                    throw error
-                }
-            }
-        }
-
-        throw CloudProviderError.conflict(remoteRev: nil)
+        _ = try await CloudFileCreationCoordinator.create(operationID: UUID(), provider: metadata.provider,
+            accountID: metadata.accountId, target: fileID, bytes: bytes, referenceTemplate: template,
+            isConflictCopy: true, conflictBatchID: batchID, environment: environment)
     }
 
     /// How many numbered names a conflict copy may try before giving up.

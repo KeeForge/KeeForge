@@ -112,6 +112,52 @@ final class ViewRenderTests: XCTestCase {
         ], named: "new-database")
     }
 
+    func testCloudRecoveryCreationStates() throws {
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        let account = "render-" + UUID().uuidString
+        let ids = [UUID(), UUID(), UUID()]
+        defer {
+            for id in ids {
+                let root = AppGroupContainer.url.appendingPathComponent("cloud-creation-journal")
+                for suffix in [".creation", ".kdbx", ".stage"] {
+                    try? FileManager.default.removeItem(at: root.appendingPathComponent(id.uuidString + suffix))
+                }
+            }
+        }
+        func prepare(_ index: Int) throws -> PendingUploadQueue.StoredCreation {
+            let template = DatabaseReference(id: UUID(), nickname: nil, filename: ["Prepared.kdbx", "Attempting.kdbx", "Confirmed.kdbx"][index],
+                bookmarkData: nil, keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
+                addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+            return try PendingUploadQueue.prepareCreation(operationID: ids[index], provider: "webdav", accountID: account,
+                target: "/" + template.filename, payload: Data([1, 2, 3]), referenceTemplate: template, isConflictCopy: false)
+        }
+        _ = try prepare(0)
+        let second = try prepare(1)
+        _ = try PendingUploadQueue.transitionCreation(second, to: .attempting)
+        let third = try prepare(2)
+        let attempting = try PendingUploadQueue.transitionCreation(third, to: .attempting)
+        var receipt = third.intent.referenceTemplate
+        receipt.source = .cloud(CloudSyncMetadata(provider: "webdav", accountId: account, fileId: "created", displayPath: "/Confirmed.kdbx",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil))
+        receipt.updateCloudSyncMetadata { $0.localHeadOperationID = ids[2] }
+        _ = try PendingUploadQueue.transitionCreation(attempting, to: .confirmed, receipt: receipt)
+        let view = NavigationStack { CloudRecoveryView() }
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(x: 0, y: 0, width: 768, height: 1024)
+            window.windowLevel = .alert + 1
+            window.rootViewController = UIHostingController(rootView: view.environment(\.locale, Locale(identifier: language)))
+            window.isHidden = false
+            RunLoop.main.run(until: Date().addingTimeInterval(2))
+            let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in window.drawHierarchy(in: window.bounds, afterScreenUpdates: true) }
+            window.isHidden = true
+            try XCTUnwrap(image.pngData()).write(to: outputDirectory.appendingPathComponent("cloud-recovery-ipad.png"))
+        } else {
+            try renderScreens([("Creation states", AnyView(view))], named: "cloud-recovery-iphone")
+        }
+    }
+
     func testPasswordGeneratorSheet() throws {
         let saved = SettingsService.passwordGeneratorOptions
         defer { SettingsService.passwordGeneratorOptions = saved }

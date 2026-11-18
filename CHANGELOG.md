@@ -13,6 +13,9 @@
 
 ### Fixes
 
+- FTP creation name conflicts keep the encrypted draft recoverable; conflict copies can try a numbered name.
+- Cloud creations that have not been sent can be discarded from Cloud Recovery.
+- Preserve encrypted cloud creation data when the outcome is uncertain instead of automatically creating another remote copy.
 - Refusing to remove a database with pending AutoFill changes no longer permanently blocks its recovery.
 - Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
 - A cloud database no longer reports "The file couldn't be saved because a file with that name already exists" when two syncs overlap, for example Sync Now while the app refreshes after you return to it.

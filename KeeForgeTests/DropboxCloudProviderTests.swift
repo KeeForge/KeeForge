@@ -13,6 +13,17 @@ final class DropboxCloudProviderTests: XCTestCase {
         super.tearDown()
     }
 
+    func testCreationClientFailureIsProvenBeforeContentDispatch() async throws {
+        let provider = DropboxCloudProvider(clientForAccount: { _ in throw CloudProviderError.notAuthenticated })
+        do {
+            _ = try await provider.createFile(accountId: "missing", path: "/vault.kdbx", data: Data([1]), progress: { _ in })
+            XCTFail("Expected pre-dispatch failure")
+        } catch let failure as CloudUploadFailure {
+            XCTAssertEqual(failure.outcome, .notDispatched)
+            XCTAssertEqual(failure.underlying, .notAuthenticated)
+        }
+    }
+
     func testAuthenticateRequestsWriteScope() {
         let scopeRequest = DropboxCloudProvider.makeScopeRequest()
 

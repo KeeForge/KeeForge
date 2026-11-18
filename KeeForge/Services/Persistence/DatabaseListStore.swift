@@ -1,3 +1,5 @@
+import Darwin
+
 import CryptoKit
 import Foundation
 
@@ -1159,6 +1161,75 @@ enum DatabaseListStore {
         case .visibleUnconfirmed(_, let error): throw RegistryWriteError.visibleUnconfirmed(error)
         case .missing, .rejected: throw RegistryWriteError.unavailable
         }
+    }
+
+    enum CloudCreationRegistrationOutcome {
+        case durable, rejected, notPublished(Error), visibleUnconfirmed(Error)
+    }
+
+    static func registerCloudCreation(_ snapshot: PendingUploadQueue.StoredCreation, bytes: Data,
+        queue: PendingUploadQueue.Environment = .live, registryIO: DurableFileWriteIO = .init()) -> CloudCreationRegistrationOutcome {
+        guard snapshot.intent.phase == .confirmed, let reference = snapshot.intent.receipt,
+              FileDigest.sha512(bytes) == snapshot.intent.payloadSHA512,
+              reference.cloudSyncMetadata?.localHeadOperationID == snapshot.intent.operationID else { return .rejected }
+        do {
+            try requireRegistryInitialization()
+            guard let anchor = AppGroupContainer.resolvedURL else { return .notPublished(CocoaError(.fileWriteNoPermission)) }
+            let lease = try PendingLocalSaveStore.captureCacheReadLease(for: reference)
+            let cache = cacheLocation(for: reference)
+            let stage = PendingUploadQueue.creationStageURL(snapshot.intent.operationID, queue)
+            try createDurableDirectory(at: cache.deletingLastPathComponent(), anchor: anchor)
+            return try PendingUploadQueue.withConfirmedCreation(snapshot, environment: queue) {
+                var coordinationError: NSError?
+                var outcome: CloudCreationRegistrationOutcome = .rejected
+                var cacheOwned = false
+                NSFileCoordinator().coordinate(writingItemAt: cache, options: [], writingItemAt: databaseListURL, options: [], error: &coordinationError) { target, registry in
+                    guard stateLock.try() else { outcome = .rejected; return }
+                    defer { stateLock.unlock() }
+                    do {
+                        guard var rows = try readRegistry(at: registry) else { return }
+                        let existing = rows.first(where: { $0.id == reference.id })
+                        if var existing {
+                            existing.nickname = reference.nickname
+                            existing.colorTag = reference.colorTag
+                            existing.lastOpenedAt = reference.lastOpenedAt
+                            guard existing == reference else { return }
+                        }
+                        guard !rows.contains(where: { $0.id != reference.id && cacheLocation(for: $0).standardizedFileURL == cache.standardizedFileURL }) else { return }
+                        if existing == nil { try validateCreatedCloud(reference, in: rows) }
+                        outcome = try PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: snapshot.intent.payloadSHA512, lease: lease, nonBlocking: true) {
+                            guard try Data(contentsOf: stage) == bytes else { return .rejected }
+                            let linkResult = Darwin.link(stage.path, target.path)
+                            if linkResult != 0 && errno != EEXIST { return .notPublished(POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)) }
+                            if linkResult == 0 { cacheOwned = true }
+                            let stagedAttributes = try FileManager.default.attributesOfItem(atPath: stage.path)
+                            let targetAttributes = try FileManager.default.attributesOfItem(atPath: target.path)
+                            guard let stageDevice = stagedAttributes[.systemNumber] as? NSNumber,
+                                  let stageInode = stagedAttributes[.systemFileNumber] as? NSNumber,
+                                  stageDevice == targetAttributes[.systemNumber] as? NSNumber,
+                                  stageInode == targetAttributes[.systemFileNumber] as? NSNumber,
+                                  try Data(contentsOf: target) == bytes else { return .rejected }
+                            cacheOwned = true
+                            let handle = try FileHandle(forUpdating: target)
+                            defer { try? handle.close() }
+                            try registryIO.synchronizeFile(handle.fileDescriptor)
+                            try registryIO.synchronizeParent(target.deletingLastPathComponent())
+                            if existing == nil { rows.append(reference) }
+                            let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                            switch writeWithDurabilityOutcome(try encoder.encode(normalized(rows)), to: registry, directoryAnchor: anchor, io: registryIO) {
+                            case .durable: return .durable
+                            case .notPublished(let error): return .visibleUnconfirmed(error)
+                            case .publishedWithoutConfirmedDurability(let error): return .visibleUnconfirmed(error)
+                            }
+                        }
+                    } catch { outcome = cacheOwned ? .visibleUnconfirmed(error) : .notPublished(error) }
+                }
+                if let error = coordinationError {
+                    switch outcome { case .durable, .visibleUnconfirmed: return .visibleUnconfirmed(error); default: return .notPublished(error) }
+                }
+                return outcome
+            }
+        } catch { return .notPublished(error) }
     }
 
     enum CloudMetadataUpdateResult { case published(DatabaseReference), mismatch(DatabaseReference), removed, writeFailed, visibleUnconfirmed(DatabaseReference) }

@@ -1056,6 +1056,59 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertFalse(server.commandLog.contains { $0.hasPrefix("STOR") })
     }
 
+    func testCreateConflictBeforeInstallRetainsRecoverablePayload() async throws {
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        for appearsDuringUpload in [false, true] {
+            let root = AppGroupContainer.url.appendingPathComponent("ftp-creation-" + UUID().uuidString)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let server = FakeFTPServer()
+            if appearsDuringUpload {
+                server.beforeNext("STOR") { server.setFile("taken.kdbx", data: Data("other".utf8)) }
+            } else { server.setFile("taken.kdbx", data: Data("other".utf8)) }
+            let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
+            let provider = FTPCloudProvider(client: server.makeClient(), credentialLoader: { _ in credential })
+            var environment = CloudFileCreationCoordinator.Environment.live
+            environment.queue.appGroupContainerURL = { root }
+            environment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+            environment.queue.postDarwinNotification = {}
+            environment.createFile = { _, account, path, data in
+                try await provider.createFile(accountId: account, path: path, data: data, progress: { _ in })
+            }
+            let reference = DatabaseReference(id: UUID(), nickname: nil, filename: "taken.kdbx", bookmarkData: nil,
+                keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
+                addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+            do {
+                _ = try await CloudFileCreationCoordinator.create(operationID: UUID(), provider: "ftp", accountID: "alex",
+                    target: "/taken.kdbx", bytes: Data("mine".utf8), referenceTemplate: reference, environment: environment)
+                XCTFail("Expected conflict")
+            } catch let error as CloudProviderError {
+                guard case .conflict = error else { return XCTFail("Expected conflict") }
+            }
+            XCTAssertEqual(server.file("taken.kdbx")?.data, Data("other".utf8))
+            XCTAssertFalse(server.commandLog.contains { $0.hasPrefix("RNTO") })
+            let stored = try XCTUnwrap(PendingUploadQueue.listCreations(environment: environment.queue).first)
+            XCTAssertEqual(stored.intent.phase, .prepared)
+            XCTAssertEqual(try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue), Data("mine".utf8))
+            try PendingUploadQueue.discardPreparedCreation(stored, environment: environment.queue)
+            XCTAssertTrue(try PendingUploadQueue.listCreations(environment: environment.queue).isEmpty)
+            do {
+                _ = try await CloudFileCreationCoordinator.create(operationID: UUID(), provider: "ftp", accountID: "alex",
+                    target: "/taken.kdbx", bytes: Data("mine".utf8), referenceTemplate: reference,
+                    isConflictCopy: true, environment: environment)
+                XCTFail("Expected conflict")
+            } catch let error as CloudProviderError {
+                guard case .conflict = error else { return XCTFail("Expected conflict") }
+            }
+            let retainedCopy = try XCTUnwrap(PendingUploadQueue.listCreations(environment: environment.queue).first)
+            XCTAssertEqual(retainedCopy.intent.phase, .prepared)
+            XCTAssertEqual(try PendingUploadQueue.readCreationPayload(retainedCopy, environment: environment.queue), Data("mine".utf8))
+            try PendingUploadQueue.discardPreparedCreation(retainedCopy, environment: environment.queue)
+            XCTAssertTrue(try PendingUploadQueue.listCreations(environment: environment.queue).isEmpty)
+            XCTAssertEqual(server.file("taken.kdbx")?.data, Data("other".utf8))
+        }
+    }
+
     func testCreateFileRefusesANameThatAppearsDuringTheUpload() async throws {
         let server = FakeFTPServer()
         let (provider, accountId) = try makeProvider(server: server)

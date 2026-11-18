@@ -250,7 +250,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         data: Data,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile {
-        let client = try client(for: accountId)
+        let client: DropboxClient
+        do { client = try self.client(for: accountId) }
+        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
+        catch { throw CloudCreationNotDispatched(underlying: error) }
 
         return try await withRetry {
             try await self.performCreateFile(client: client, path: path, data: data, progress: progress)

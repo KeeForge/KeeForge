@@ -6015,6 +6015,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let fixedDate = Date(timeIntervalSince1970: 1_775_603_700)
         let recorder = ConflictCopyRecorder()
         let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.testUpsert(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
         let vm = try makeViewModel(
             reference: reference,
@@ -6032,7 +6033,7 @@ final class DatabaseViewModelTests: XCTestCase {
             conflictCopyEncryptionOperation: { _, _, _ in
                 conflictBytes
             },
-            cloudConflictCopyOperation: { _, fileID, bytes in
+            cloudConflictCopyOperation: { _, fileID, bytes, _ in
                 await recorder.record(filename: fileID, bytes: bytes)
             },
             conflictCopyDateProvider: { fixedDate }
@@ -6055,20 +6056,139 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.saveConflict)
     }
 
+    func testSaveAsConflictCopyRetriesNumberedNameAfterProvenConflict() async throws {
+        let bytes = Data("encrypted conflict copy".utf8)
+        let fixedDate = Date(timeIntervalSince1970: 1_775_603_700)
+        let recorder = ConflictCopyRecorder()
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.testUpsert(reference)
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference), data: fixtureData, status: .current)
+        }, cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
+        }, conflictCopyEncryptionOperation: { _, _, _ in bytes }, cloudConflictCopyOperation: { _, fileID, payload, batchID in
+            if await recorder.recordAndIsFirst(filename: fileID, bytes: payload, batchID: batchID) { throw CloudProviderError.conflict(remoteRev: nil) }
+        }, conflictCopyDateProvider: { fixedDate })
+        defer { vm.lock() }
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Cloud Conflict Copy Entry")
+        try await vm.save()
+        try await vm.saveAsConflictCopy()
+        let calls = await recorder.allCalls()
+        XCTAssertEqual(calls.count, 2)
+        let first = "/Vaults/\(expectedConflictFilename(originalFilename: "vault.kdbx", date: fixedDate))"
+        XCTAssertEqual(calls[0].filename, first)
+        XCTAssertEqual(calls[1].filename, (first as NSString).deletingPathExtension + " 2.kdbx")
+        XCTAssertTrue(calls.allSatisfy { $0.bytes == bytes })
+        XCTAssertNotNil(calls[0].batchID)
+        XCTAssertEqual(calls[0].batchID, calls[1].batchID)
+        XCTAssertNil(vm.draft)
+        XCTAssertNil(vm.saveConflict)
+    }
+
+    func testConflictCopyDoesNotRetryAfterAuthorityChanges() async throws {
+        let recorder = ConflictCopyRecorder()
+        let gate = AsyncGate()
+        let started = expectation(description: "first creation started")
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.testUpsert(reference)
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference), data: fixtureData, status: .current)
+        }, cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+            .conflict(remoteSHA512: Data([1]), remoteData: Data([2]))
+        }, conflictCopyEncryptionOperation: { _, _, _ in Data([3]) }, cloudConflictCopyOperation: { _, path, bytes, _ in
+            await recorder.record(filename: path, bytes: bytes)
+            await gate.pause(started: started)
+            throw CloudProviderError.conflict(remoteRev: nil)
+        })
+        defer { vm.lock(); Task { await gate.resume() } }
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Conflict")
+        try await vm.save()
+        let work = Task { try await vm.saveAsConflictCopy() }
+        await fulfillment(of: [started], timeout: 5)
+        await gate.waitUntilPaused()
+        var changed = vm.databaseReference
+        changed.keyFileBookmarkData = Data([9])
+        DatabaseListStore.testUpsert(changed)
+        await gate.resume()
+        do { try await work.value; XCTFail("Expected authority rejection") } catch {}
+        let calls = await recorder.allCalls()
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertNotNil(vm.draft)
+        XCTAssertNotNil(vm.saveConflict)
+    }
+
+    func testConflictCopyRejectsChangedTargetOrFactorsDuringEncryption() async throws {
+        for changeTarget in [true, false] {
+            let reference = makeCloudReference(remoteRev: "rev-A")
+            DatabaseListStore.testUpsert(reference)
+            let fixtureData = try Data(contentsOf: fixtureURL())
+            let gate = AsyncGate()
+            let started = expectation(description: "encryption started")
+            let recorder = ConflictCopyRecorder()
+            let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference), data: fixtureData, status: .current)
+            }, cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+                .conflict(remoteSHA512: Data([1]), remoteData: Data([2]))
+            }, conflictCopyEncryptionOperation: { _, _, _ in
+                await gate.pause(started: started)
+                return Data([3])
+            }, cloudConflictCopyOperation: { _, path, bytes, _ in
+                await recorder.record(filename: path, bytes: bytes)
+            })
+            defer { vm.lock(); Task { await gate.resume() } }
+            await vm.unlock(password: fixturePassword)
+            vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Conflict")
+            try await vm.save()
+            let work = Task { try await vm.saveAsConflictCopy() }
+            await fulfillment(of: [started], timeout: 1)
+            await gate.waitUntilPaused()
+            var changed = vm.databaseReference
+            if changeTarget {
+                changed.source = .cloud(CloudSyncMetadata(provider: "dropbox", accountId: "other", fileId: "/other", displayPath: "/other", remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil))
+            } else { changed.keyFileBookmarkData = Data([9]) }
+            DatabaseListStore.testUpsert(changed)
+            await gate.resume()
+            do { try await work.value; XCTFail("Expected authority rejection") } catch {}
+            let call = await recorder.firstCall()
+            XCTAssertNil(call)
+        }
+    }
+
     // MARK: - Conflict copies are create-only (M8)
 
     func testConflictCopyToCloudUsesCreateOnlyUploadNeverOverwrite() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
         let provider = ConflictCopyCloudProvider()
+        let originalRows = DatabaseListStore.databases
+        let originalMarkers = PendingUploadQueue.listMarkers(for: reference.id)
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        let root = AppGroupContainer.url.appendingPathComponent("conflict-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var creationEnvironment = CloudFileCreationCoordinator.Environment.live
+        creationEnvironment.queue.appGroupContainerURL = { root }
+        creationEnvironment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+        creationEnvironment.queue.postDarwinNotification = {}
 
         try await DatabaseViewModel.writeConflictCopyToCloud(
             reference: reference,
             fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
             bytes: Data("conflict-copy".utf8),
-            providerResolver: { _ in provider }
+            providerResolver: { _ in provider }, creationEnvironment: creationEnvironment
         )
 
         XCTAssertEqual(provider.createdPaths, ["/Vaults/vault (conflict 2026-04-07 161500).kdbx"])
+        let record = try XCTUnwrap(PendingUploadQueue.listCreations(environment: creationEnvironment.queue).first)
+        XCTAssertEqual(record.intent.phase, .completed)
+        XCTAssertTrue(record.intent.isConflictCopy)
+        XCTAssertNotEqual(record.intent.referenceTemplate.id, reference.id)
+        XCTAssertFalse(DatabaseListStore.databases.contains(where: { $0.id == record.intent.referenceTemplate.id }))
+        XCTAssertEqual(DatabaseListStore.databases, originalRows)
+        XCTAssertEqual(PendingUploadQueue.listMarkers(for: reference.id).map(\.id), originalMarkers.map(\.id))
         XCTAssertEqual(
             provider.uploadCallCount,
             0,
@@ -6076,9 +6196,17 @@ final class DatabaseViewModelTests: XCTestCase {
         )
     }
 
-    func testConflictCopyToCloudNumbersTheNameWhenItAlreadyExists() async throws {
+    func testConflictCopyToCloudDoesNotRetryAnAmbiguousConflict() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
         let provider = ConflictCopyCloudProvider()
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        let root = AppGroupContainer.url.appendingPathComponent("conflict-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var creationEnvironment = CloudFileCreationCoordinator.Environment.live
+        creationEnvironment.queue.appGroupContainerURL = { root }
+        creationEnvironment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+        creationEnvironment.queue.postDarwinNotification = {}
         // Two resolutions inside the same second: the first copy already
         // occupies the name, so create-only rejects it.
         provider.pathsRejectedAsExisting = [
@@ -6086,27 +6214,32 @@ final class DatabaseViewModelTests: XCTestCase {
             "/Vaults/vault (conflict 2026-04-07 161500) 2.kdbx",
         ]
 
-        try await DatabaseViewModel.writeConflictCopyToCloud(
-            reference: reference,
-            fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
-            bytes: Data("conflict-copy".utf8),
-            providerResolver: { _ in provider }
-        )
-
-        XCTAssertEqual(
-            provider.createdPaths,
-            [
-                "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
-                "/Vaults/vault (conflict 2026-04-07 161500) 2.kdbx",
-                "/Vaults/vault (conflict 2026-04-07 161500) 3.kdbx",
-            ]
-        )
+        do {
+            try await DatabaseViewModel.writeConflictCopyToCloud(reference: reference,
+                fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx", bytes: Data("conflict-copy".utf8),
+                providerResolver: { _ in provider }, creationEnvironment: creationEnvironment)
+            XCTFail("Expected conflict")
+        } catch let error as CloudFileCreationCoordinator.UncertainCreation {
+            guard case .conflict = error.underlying as? CloudProviderError else { return XCTFail("Expected conflict") }
+        }
+        XCTAssertEqual(provider.createdPaths, ["/Vaults/vault (conflict 2026-04-07 161500).kdbx"])
+        let intents = try PendingUploadQueue.listCreations(environment: creationEnvironment.queue)
+        XCTAssertEqual(intents.first?.intent.phase, .attempting)
+        XCTAssertEqual(try CloudFileCreationCoordinator.export(operationID: XCTUnwrap(intents.first?.intent.operationID), environment: creationEnvironment), Data("conflict-copy".utf8))
         XCTAssertEqual(provider.uploadCallCount, 0)
     }
 
     func testConflictCopyToCloudSurfacesNonConflictFailuresImmediately() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
         let provider = ConflictCopyCloudProvider()
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        let root = AppGroupContainer.url.appendingPathComponent("conflict-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var creationEnvironment = CloudFileCreationCoordinator.Environment.live
+        creationEnvironment.queue.appGroupContainerURL = { root }
+        creationEnvironment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+        creationEnvironment.queue.postDarwinNotification = {}
         provider.createFailure = .insufficientSpace
 
         do {
@@ -6114,11 +6247,11 @@ final class DatabaseViewModelTests: XCTestCase {
                 reference: reference,
                 fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
                 bytes: Data("conflict-copy".utf8),
-                providerResolver: { _ in provider }
+                providerResolver: { _ in provider }, creationEnvironment: creationEnvironment
             )
             XCTFail("Expected the provider error to surface.")
-        } catch let error as CloudProviderError {
-            XCTAssertEqual(error, .insufficientSpace)
+        } catch let error as CloudFileCreationCoordinator.UncertainCreation {
+            XCTAssertEqual(error.underlying as? CloudProviderError, .insufficientSpace)
         }
 
         XCTAssertEqual(provider.createdPaths.count, 1, "A real failure must not be retried under new names.")
@@ -10209,7 +10342,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 )
             }.value
         },
-        cloudConflictCopyOperation: @escaping DatabaseViewModel.CloudConflictCopyOperation = { reference, fileID, bytes in
+        cloudConflictCopyOperation: @escaping DatabaseViewModel.CloudConflictCopyOperation = { reference, fileID, bytes, _ in
             guard let metadata = reference.cloudSyncMetadata,
                   let provider = CloudProviderRegistry.provider(for: metadata.provider) else {
                 throw CloudProviderError.notAuthenticated
@@ -10790,15 +10923,22 @@ private final class LockPendingProbe {
 }
 
 private actor ConflictCopyRecorder {
-    private var calls: [(filename: String, bytes: Data)] = []
+    private var calls: [(filename: String, bytes: Data, batchID: UUID?)] = []
 
     func record(filename: String, bytes: Data) {
-        calls.append((filename, bytes))
+        calls.append((filename, bytes, nil))
     }
 
-    func firstCall() -> (filename: String, bytes: Data)? {
+    func firstCall() -> (filename: String, bytes: Data, batchID: UUID?)? {
         calls.first
     }
+
+    func recordAndIsFirst(filename: String, bytes: Data, batchID: UUID? = nil) -> Bool {
+        calls.append((filename, bytes, batchID))
+        return calls.count == 1
+    }
+
+    func allCalls() -> [(filename: String, bytes: Data, batchID: UUID?)] { calls }
 }
 
 private final class MutableNowProvider: @unchecked Sendable {

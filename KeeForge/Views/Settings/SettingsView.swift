@@ -552,6 +552,7 @@ private struct CloudAccountsSettingsView: View {
         Form {
             Section {
                 NavigationLink("Cloud Recovery") { CloudRecoveryView() }
+                    .accessibilityIdentifier("databases.cloud-recovery")
             }
             Section {
                 if settings.cloudAccounts.isEmpty {

@@ -265,7 +265,10 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         data: Data,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile {
-        let token = try await accessToken(accountId: accountId)
+        let token: String
+        do { token = try await accessToken(accountId: accountId) }
+        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
+        catch { throw CloudCreationNotDispatched(underlying: error) }
         // Create-only semantics are required here (see `Cloud/AGENTS.md`), and
         // only the upload-session body carries
         // `@microsoft.graph.conflictBehavior: fail`. Never route this through

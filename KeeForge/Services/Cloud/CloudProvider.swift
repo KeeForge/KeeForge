@@ -7,6 +7,10 @@ struct CloudDatabaseSelection: Hashable, Sendable {
     let file: CloudFile
 }
 
+struct CloudCreationNotDispatched: Error {
+    let underlying: any Error
+}
+
 /// Evidence applies only to this invocation; earlier unresolved attempts keep their fence.
 struct CloudUploadFailure: Error, LocalizedError, CloudSyncIssueConvertible {
     enum Outcome: Sendable, Equatable { case notDispatched, rejected, uncertain }
