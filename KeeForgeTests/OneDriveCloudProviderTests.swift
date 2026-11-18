@@ -153,7 +153,6 @@ final class OneDriveCloudProviderTests: XCTestCase {
         XCTAssertEqual(probe.puts.count, 2)
         XCTAssertEqual(probe.sessionStatusReads, 1)
         XCTAssertEqual(probe.conflictBehavior, "fail")
-        XCTAssertEqual(probe.itemMetadataReads, 0)
     }
 
     func testReplacementChunkSuccessCrossesBoundaryWithoutRetries() async throws {
@@ -264,7 +263,12 @@ final class OneDriveCloudProviderTests: XCTestCase {
         XCTAssertEqual(url.absoluteString, "\(graphBase)/me/drive/root/children")
     }
 
-    // MARK: - Metadata URL construction
+    // MARK: - Post-upload metadata re-read
+
+    // Upload responses come in a different shape than the `$select`ed metadata
+    // GET and can omit cTag/eTag/hashes, so `upload`/`createFile` re-read the
+    // committed item and only fall back to the upload response when the
+    // re-read fails (the upload has already committed by then).
 
     func testItemIdURLCarriesTheSharedMetadataSelectList() throws {
         let url = try OneDriveCloudProvider.graphURL(
@@ -285,6 +289,44 @@ final class OneDriveCloudProviderTests: XCTestCase {
         )
 
         XCTAssertEqual(url.absoluteString, "\(graphBase)/me/drive/items/F5E2A6C4D1B3!114")
+    }
+
+    func testResolveUploadMetadataReturnsTheAuthoritativeReRead() async {
+        let fallback = CloudFileMetadata(
+            modifiedDate: Date(timeIntervalSince1970: 100),
+            contentHash: nil,
+            size: 64,
+            rev: nil
+        )
+        let authoritative = CloudFileMetadata(
+            modifiedDate: Date(timeIntervalSince1970: 200),
+            contentHash: "quickXor:full-hash",
+            size: 64,
+            rev: "cTag-full"
+        )
+
+        let resolved = await OneDriveCloudProvider.resolveUploadMetadata(fallback: fallback) {
+            authoritative
+        }
+
+        XCTAssertEqual(resolved, authoritative)
+    }
+
+    func testResolveUploadMetadataFallsBackWhenTheReReadFails() async {
+        // The upload already committed, so a failed re-read must not fail the
+        // save; the upload response's metadata is returned instead.
+        let fallback = CloudFileMetadata(
+            modifiedDate: Date(timeIntervalSince1970: 100),
+            contentHash: nil,
+            size: 64,
+            rev: "cTag-upload"
+        )
+
+        let resolved = await OneDriveCloudProvider.resolveUploadMetadata(fallback: fallback) {
+            throw CloudProviderError.serviceUnavailable
+        }
+
+        XCTAssertEqual(resolved, fallback)
     }
 
     // MARK: - Content-hash tagging
@@ -809,7 +851,6 @@ private final class OneDriveHTTPProbe: @unchecked Sendable {
     var puts: [URLRequest] { lock.withLock { requests.filter { $0.httpMethod == "PUT" } } }
     var acceptedBytes: Data { lock.withLock { accepted } }
     var sessionStatusReads: Int { lock.withLock { statusReads } }
-    var itemMetadataReads: Int { lock.withLock { requests.filter { $0.httpMethod == "GET" && $0.url?.host != host }.count } }
     var conflictBehavior: String? { lock.withLock { behavior } }
 
     init(firstFailure: Int?, dropsResponse: Bool = false, commitBeforeFailure: Bool = false) {
