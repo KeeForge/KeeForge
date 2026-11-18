@@ -283,6 +283,45 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         }
     }
 
+    /// A queued sync whose task is cancelled, such as an unlock prefetch after
+    /// a cancelled biometric prompt, leaves the queue at once and never
+    /// downloads; otherwise it would transfer the whole file later while every
+    /// newer sync waited behind it.
+    func testCancelledQueuedSyncDownLeavesTheQueueWithoutDownloading() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("stale-cache".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        provider.downloadDelay = .milliseconds(600)
+        provider.downloadedData = Data("fresh-cloud-copy".utf8)
+
+        let first = Task {
+            try await CloudSyncCoordinator.syncIfNeededForOpen(reference: reference, providerResolver: { _ in provider })
+        }
+        try await Task.sleep(for: .milliseconds(150))
+        let queued = Task {
+            try await CloudSyncCoordinator.syncIfNeededForOpen(reference: reference, providerResolver: { _ in provider })
+        }
+        try await Task.sleep(for: .milliseconds(150))
+
+        let clock = ContinuousClock()
+        let cancelledAt = clock.now
+        queued.cancel()
+        let queuedResolution = try? await queued.value
+        XCTAssertLessThan(clock.now - cancelledAt, .milliseconds(250), "A cancelled waiter must not wait out the running sync.")
+        XCTAssertNotEqual(queuedResolution?.status, .downloaded)
+
+        let firstResolution = try await first.value
+        XCTAssertEqual(firstResolution.status, .downloaded)
+        XCTAssertEqual(provider.downloadCallCount, 1, "The cancelled sync must not start a transfer.")
+    }
+
     /// Each queued sync-down returns the bytes it downloaded, paired with the
     /// metadata that describes them, even when the next one replaces the
     /// cache right after it.
