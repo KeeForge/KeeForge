@@ -83,8 +83,10 @@ enum CloudFileCreationCoordinator {
         try lifetime.claim()
         let attempting = try PendingUploadQueue.transitionCreation(stored, to: .attempting, environment: environment.queue)
         environment.afterAttemptPersisted()
-        do { try lifetime.claim() }
-        catch {
+        do {
+            try Task.checkCancellation()
+            try lifetime.claim()
+        } catch {
             do { _ = try PendingUploadQueue.restoreCreationAfterNoCommit(attempting, environment: environment.queue) }
             catch { throw UncertainCreation(underlying: error) }
             throw error
@@ -92,6 +94,11 @@ enum CloudFileCreationCoordinator {
         let response: CloudCreatedFile
         do { response = try await environment.createFile(provider, accountID, target, bytes) }
         catch let proof as NotDispatched {
+            do { _ = try PendingUploadQueue.restoreCreationAfterNoCommit(attempting, environment: environment.queue) }
+            catch { throw UncertainCreation(underlying: error) }
+            throw proof.underlying
+        }
+        catch let proof as CloudCreationNotDispatched {
             do { _ = try PendingUploadQueue.restoreCreationAfterNoCommit(attempting, environment: environment.queue) }
             catch { throw UncertainCreation(underlying: error) }
             throw proof.underlying

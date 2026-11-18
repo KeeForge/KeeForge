@@ -17,6 +17,16 @@ final class OneDriveCloudProviderTests: XCTestCase {
         }
     }
 
+    func testCreationUnexpectedTokenErrorIsStillPreDispatch() async throws {
+        let provider = OneDriveCloudProvider(tokenProvider: { _ in throw CocoaError(.fileReadUnknown) })
+        do {
+            _ = try await provider.createFile(accountId: "missing", path: "/vault.kdbx", data: Data([1]), progress: { _ in })
+            XCTFail("Expected pre-dispatch failure")
+        } catch let failure as CloudCreationNotDispatched {
+            XCTAssertEqual((failure.underlying as NSError).code, CocoaError.fileReadUnknown.rawValue)
+        }
+    }
+
     @MainActor
     func testReplacementLostAcknowledgementsKeepOneAttemptAcrossSimpleAndChunkBoundaries() async throws {
         // Independent changed paths: conditional PUT, nil-rev PUT, final chunk 503 and lost chunk response.

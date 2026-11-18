@@ -444,6 +444,46 @@ final class CloudFileCreationCoordinatorTests: XCTestCase {
         }
     }
 
+    func testUnexpectedPreDispatchProviderErrorRestoresPrepared() async throws {
+        let (root, queue, reference) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var env = CloudFileCreationCoordinator.Environment()
+        env.queue = queue
+        env.createFile = { _, _, _, _ in throw CloudCreationNotDispatched(underlying: CocoaError(.fileReadUnknown)) }
+        let id = UUID()
+        do {
+            _ = try await CloudFileCreationCoordinator.create(operationID: id, provider: "webdav", accountID: "account",
+                target: "/vault", bytes: Data([1, 2, 3]), referenceTemplate: reference, environment: env)
+            XCTFail("Expected underlying pre-dispatch error")
+        } catch { XCTAssertEqual((error as NSError).code, CocoaError.fileReadUnknown.rawValue) }
+        let record = try PendingUploadQueue.readCreation(id, environment: queue)
+        XCTAssertEqual(record.intent.phase, .prepared)
+        XCTAssertEqual(try PendingUploadQueue.readCreationPayload(record, environment: queue), Data([1, 2, 3]))
+    }
+
+    func testTaskCancellationBeforeDispatchRestoresPrepared() async throws {
+        let (root, queue, reference) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let transport = Transport()
+        var env = CloudFileCreationCoordinator.Environment()
+        env.queue = queue
+        env.afterAttemptPersisted = { withUnsafeCurrentTask { $0?.cancel() } }
+        env.createFile = { _, _, _, _ in try await transport.create() }
+        let captured = env
+        let id = UUID()
+        let task = Task {
+            try await CloudFileCreationCoordinator.create(operationID: id, provider: "webdav", accountID: "account",
+                target: "/vault", bytes: Data([1, 2, 3]), referenceTemplate: reference, environment: captured)
+        }
+        do { _ = try await task.value; XCTFail("Expected cancellation") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        let count = await transport.count()
+        XCTAssertEqual(count, 0)
+        let record = try PendingUploadQueue.readCreation(id, environment: queue)
+        XCTAssertEqual(record.intent.phase, .prepared)
+        XCTAssertEqual(try PendingUploadQueue.readCreationPayload(record, environment: queue), Data([1, 2, 3]))
+    }
+
     func testMissingProviderCredentialsRestorePreparedWithoutDispatch() async throws {
         let providers: [any CloudProvider] = [
             WebDAVCloudProvider(credentialLoader: { _ in nil }),

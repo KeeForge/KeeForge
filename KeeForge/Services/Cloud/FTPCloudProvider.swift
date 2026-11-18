@@ -260,6 +260,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         let credential: FTPCredential
         do { (location, credential) = try resolveContext(accountId: accountId) }
         catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
+        catch { throw CloudCreationNotDispatched(underlying: error) }
         let normalizedId = Self.serverRelativePath(from: fileId)
         let path = Self.remotePath(base: location.basePath, fileId: normalizedId)
         let temporaryPath = scratchPath(beside: path, kind: .upload)

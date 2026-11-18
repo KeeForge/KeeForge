@@ -249,6 +249,7 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         let context: AccountContext
         do { context = try resolveContext(accountId: accountId) }
         catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
+        catch { throw CloudCreationNotDispatched(underlying: error) }
         let fileURL = Self.url(forFileId: path, base: context.baseURL)
 
         let response = try await send {
