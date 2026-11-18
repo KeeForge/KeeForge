@@ -320,6 +320,263 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.keyFileBookmarkData, refreshed)
     }
 
+    func testCloudKeyFileSelectionKeepsPendingUploadDeliverable() async throws {
+        let file = CloudFile(id: "/vault.kdbx", name: "vault.kdbx", path: "/vault.kdbx", isFolder: false,
+            modifiedDate: nil, size: nil)
+        var reference = try DatabaseListStore.addCloud(provider: "webdav", accountId: "selection-test", file: file)
+        reference.keyFileBookmarkData = Data([1])
+        reference.keyFileFilename = "old.key"
+        DatabaseListStore.testUpsert(reference)
+        let context = try CloudJournalTestContext(reference: reference)
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        let keyURL = try makeTemporaryFileURL(name: "new.key", contents: Data([3]))
+        let vm = DatabaseListViewModel(keyFileBookmarkOperation: { _ in Data([2]) })
+        try await vm.setKeyFile(url: keyURL, for: current)
+        let updated = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(updated.keyFileBookmarkData, Data([2]))
+        XCTAssertEqual(updated.keyFileFilename, "new.key")
+        let stored = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertTrue(PendingUploadQueue.hasBoundAuthority(stored, reference: updated))
+        XCTAssertFalse(PendingUploadQueue.hasBoundAuthority(stored, reference: current))
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(stored), context.payload)
+        let transport = CloudJournalTransport()
+        guard case .saved? = try await CloudDatabaseSaver.deliver(stored, reference: updated,
+            environment: context.environment(transport: transport)) else { return XCTFail("Pending upload must remain deliverable") }
+        XCTAssertEqual(transport.effects.uploads.map(\.bytes), [context.payload])
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+    }
+
+    func testCloudKeyFileSelectionFailureLeavesOriginalUploadDeliverable() async throws {
+        for failure in ["journal", "registry"] {
+            let file = CloudFile(id: "/\(failure).kdbx", name: "vault.kdbx", path: "/\(failure).kdbx", isFolder: false,
+                modifiedDate: nil, size: nil)
+            var reference = try DatabaseListStore.addCloud(provider: "webdav", accountId: failure, file: file)
+            reference.keyFileBookmarkData = Data([1])
+            reference.keyFileFilename = "old.key"
+            DatabaseListStore.testUpsert(reference)
+            let context = try CloudJournalTestContext(reference: reference)
+            let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            var queue = PendingUploadQueue.Environment.live
+            if failure == "journal" { queue.writeMarkerAtomically = { _, _ in throw POSIXError(.EIO) } }
+            var io = DurableFileWriteIO()
+            if failure == "registry" { io.write = { _, _, _ in 0 } }
+            let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: Data([2]), filename: "new.key")
+            let outcome = DatabaseListStore.publishCloudKeyFilePreference(for: current, desired: desired, io: io, queue: queue)
+            XCTAssertEqual(outcome, .notPublished, failure)
+            let unchanged = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            XCTAssertEqual(unchanged.keyFileBookmarkData, Data([1]))
+            let stored = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            XCTAssertTrue(PendingUploadQueue.hasBoundAuthority(stored, reference: unchanged))
+            XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(stored), context.payload)
+            if failure == "registry" {
+                XCTAssertEqual(CloudJournalDecision.state(of: stored.marker), .recoveryRequired)
+                var failedSync = DurableFileWriteIO()
+                failedSync.synchronizeParent = { _ in throw POSIXError(.EIO) }
+                XCTAssertThrowsError(try PendingUploadQueue.withCommitLock(for: reference.id) {
+                    try DatabaseListStore.recoverCloudKeyFilePreference(for: reference.id, io: failedSync)
+                })
+                let stillRetained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+                XCTAssertEqual(CloudJournalDecision.state(of: stillRetained.marker), .recoveryRequired)
+                XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(stillRetained), context.payload)
+            }
+            let transport = CloudJournalTransport()
+            guard case .saved? = try await CloudDatabaseSaver.deliver(stored, reference: unchanged,
+                environment: context.environment(transport: transport)) else { return XCTFail("Failed publication must not strand the upload") }
+            XCTAssertEqual(transport.effects.uploads.map(\.bytes), [context.payload])
+        }
+    }
+
+    func testCloudKeyFileSelectionDoesNotChangeUncertainUpload() throws {
+        let file = CloudFile(id: "/uncertain.kdbx", name: "vault.kdbx", path: "/uncertain.kdbx", isFolder: false,
+            modifiedDate: nil, size: nil)
+        var reference = try DatabaseListStore.addCloud(provider: "webdav", accountId: "uncertain-selection", file: file)
+        reference.keyFileBookmarkData = Data([1])
+        reference.keyFileFilename = "old.key"
+        DatabaseListStore.testUpsert(reference)
+        let context = try CloudJournalTestContext(reference: reference)
+        var attempting = context.stored
+        attempting.marker.uploadAttemptID = UUID()
+        attempting.marker.attemptIsFenced = false
+        attempting = try PendingUploadQueue.update(attempting)
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        let outcome = DatabaseListStore.publishCloudKeyFilePreference(for: current,
+            desired: .init(bookmarkData: Data([2]), filename: "new.key"))
+        XCTAssertEqual(outcome, .cloudRecoveryRequired)
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.keyFileBookmarkData, Data([1]))
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(retained.marker.generation, attempting.marker.generation)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
+    }
+
+    func testCloudPreferenceFinalizationFailureKeepsNewPreferenceAndUpload() async throws {
+        let file = CloudFile(id: "/finalization.kdbx", name: "vault.kdbx", path: "/finalization.kdbx", isFolder: false,
+            modifiedDate: nil, size: nil)
+        var reference = try DatabaseListStore.addCloud(provider: "webdav", accountId: "finalization", file: file)
+        reference.keyFileBookmarkData = Data([1])
+        reference.keyFileFilename = "old.key"
+        DatabaseListStore.testUpsert(reference)
+        let context = try CloudJournalTestContext(reference: reference)
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        let writes = CloudJournalEffectCounter()
+        var queue = PendingUploadQueue.Environment.live
+        let writer = queue.writeMarkerAtomically
+        queue.writeMarkerAtomically = { bytes, url in
+            writes.record()
+            if writes.value == 2 { throw POSIXError(.EIO) }
+            try writer(bytes, url)
+        }
+        let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: Data([2]), filename: "new.key")
+        XCTAssertEqual(DatabaseListStore.publishCloudKeyFilePreference(for: current, desired: desired, queue: queue), .publishedWithoutConfirmedDurability)
+        let updated = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(updated.keyFileBookmarkData, Data([2]))
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertTrue(PendingUploadQueue.hasBoundAuthority(retained, reference: updated))
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
+        XCTAssertEqual(DatabaseListStore.publishCloudKeyFilePreference(for: updated, desired: desired), .publishedWithoutConfirmedDurability)
+        let transport = CloudJournalTransport()
+        guard case .saved? = try await CloudDatabaseSaver.deliver(retained, reference: updated,
+            environment: context.environment(transport: transport)) else { return XCTFail("Published preference must not strand the upload") }
+        XCTAssertEqual(transport.effects.uploads.map(\.bytes), [context.payload])
+    }
+
+    func testCloudPreferenceUnconfirmedPublicationIsReconfirmedBeforeDelivery() async throws {
+        let file = CloudFile(id: "/unconfirmed.kdbx", name: "vault.kdbx", path: "/unconfirmed.kdbx", isFolder: false,
+            modifiedDate: nil, size: nil)
+        var reference = try DatabaseListStore.addCloud(provider: "webdav", accountId: "unconfirmed", file: file)
+        reference.keyFileBookmarkData = Data([1])
+        reference.keyFileFilename = "old.key"
+        DatabaseListStore.testUpsert(reference)
+        let context = try CloudJournalTestContext(reference: reference)
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: Data([2]), filename: "new.key")
+        XCTAssertEqual(DatabaseListStore.publishCloudKeyFilePreference(for: current, desired: desired, io: io), .publishedWithoutConfirmedDurability)
+        let visible = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(visible.keyFileBookmarkData, Data([2]))
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .recoveryRequired)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
+        let transport = CloudJournalTransport()
+        guard case .saved? = try await CloudDatabaseSaver.deliver(retained, reference: visible,
+            environment: context.environment(transport: transport)) else { return XCTFail("Confirmed registry must permit delivery") }
+        XCTAssertEqual(transport.effects.uploads.map(\.bytes), [context.payload])
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+    }
+
+    func testReadOnlyCloudKeyFileSelectionKeepsPendingUploadBound() throws {
+        let file = CloudFile(id: "/readonly.kdbx", name: "vault.kdbx", path: "/readonly.kdbx", isFolder: false,
+            modifiedDate: nil, size: nil)
+        var reference = try DatabaseListStore.addCloud(provider: "webdav", accountId: "readonly", file: file)
+        reference.keyFileBookmarkData = Data([1])
+        reference.keyFileFilename = "old.key"
+        DatabaseListStore.testUpsert(reference)
+        let context = try CloudJournalTestContext(reference: reference)
+        var current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        current.isReadOnly = true
+        DatabaseListStore.testUpsert(current)
+        let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: Data([2]), filename: "new.key")
+        XCTAssertEqual(DatabaseListStore.publishCloudKeyFilePreference(for: current, desired: desired), .saved)
+        let updated = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertTrue(updated.isReadOnly)
+        let stored = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertTrue(PendingUploadQueue.hasBoundAuthority(stored, reference: updated))
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(stored), context.payload)
+    }
+
+    func testCloudPreferenceRecoveryRefusesUnsettledLocalCommit() throws {
+        let file = CloudFile(id: "/local.kdbx", name: "vault.kdbx", path: "/local.kdbx", isFolder: false,
+            modifiedDate: nil, size: nil)
+        var reference = try DatabaseListStore.addCloud(provider: "webdav", accountId: "local-recovery", file: file)
+        reference.keyFileBookmarkData = Data([1])
+        reference.keyFileFilename = "old.key"
+        DatabaseListStore.testUpsert(reference)
+        let context = try CloudJournalTestContext(reference: reference)
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        var io = DurableFileWriteIO()
+        io.write = { _, _, _ in 0 }
+        XCTAssertEqual(DatabaseListStore.publishCloudKeyFilePreference(for: current,
+            desired: .init(bookmarkData: Data([2]), filename: "new.key"), io: io), .notPublished)
+        var retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        retained.marker.requiresLocalRecovery = true
+        retained = try PendingUploadQueue.update(retained)
+        XCTAssertThrowsError(try PendingUploadQueue.withCommitLock(for: reference.id) {
+            try DatabaseListStore.recoverCloudKeyFilePreference(for: reference.id)
+        })
+        let after = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(after.marker.generation, retained.marker.generation)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(after), context.payload)
+    }
+
+    func testPartialCloudPreferenceRebindingPreservesEveryPendingPayload() throws {
+        for interruption in ["secondMarker", "cancel"] {
+            let file = CloudFile(id: "/\(interruption).kdbx", name: "vault.kdbx", path: "/\(interruption).kdbx", isFolder: false,
+                modifiedDate: nil, size: nil)
+            var reference = try DatabaseListStore.addCloud(provider: "webdav", accountId: interruption, file: file)
+            reference.keyFileBookmarkData = Data([1])
+            reference.keyFileFilename = "old.key"
+            DatabaseListStore.testUpsert(reference)
+            let first = try CloudJournalTestContext(reference: reference, payload: Data("first ciphertext".utf8))
+            let afterFirst = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            let second = try CloudJournalTestContext(reference: afterFirst, base: first.payload, payload: Data("second ciphertext".utf8))
+            let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            let writes = CloudJournalEffectCounter()
+            var queue = PendingUploadQueue.Environment.live
+            let writer = queue.writeMarkerAtomically
+            queue.writeMarkerAtomically = { bytes, url in
+                writes.record()
+                if interruption == "secondMarker" && writes.value == 2 { throw POSIXError(.EIO) }
+                try writer(bytes, url)
+            }
+            let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: Data([2]), filename: "new.key")
+            let outcome = DatabaseListStore.publishCloudKeyFilePreference(for: current, desired: desired, queue: queue,
+                canPublish: { interruption != "cancel" || writes.value == 0 })
+            XCTAssertEqual(outcome, interruption == "cancel" ? .rejected : .notPublished)
+            let unchanged = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            XCTAssertEqual(unchanged.keyFileBookmarkData, Data([1]))
+            let retained = try PendingUploadQueue.readJournal(for: reference.id)
+            XCTAssertEqual(retained.count, 2)
+            XCTAssertTrue(retained.allSatisfy { PendingUploadQueue.hasBoundAuthority($0, reference: unchanged) })
+            XCTAssertEqual(Set(try retained.map { try PendingUploadQueue.readImmutablePayload($0) }), Set([first.payload, second.payload]))
+            XCTAssertEqual(DatabaseListStore.publishCloudKeyFilePreference(for: unchanged, desired: desired), .cloudRecoveryRequired)
+            XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.keyFileBookmarkData, Data([1]))
+            XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).allSatisfy { PendingUploadQueue.hasBoundAuthority($0, reference: unchanged) })
+        }
+    }
+
+    func testCloudPreferenceSelectionCannotRaceAStartedUpload() throws {
+        let file = CloudFile(id: "/race.kdbx", name: "vault.kdbx", path: "/race.kdbx", isFolder: false,
+            modifiedDate: nil, size: nil)
+        var reference = try DatabaseListStore.addCloud(provider: "webdav", accountId: "race", file: file)
+        reference.keyFileBookmarkData = Data([1])
+        reference.keyFileFilename = "old.key"
+        DatabaseListStore.testUpsert(reference)
+        let context = try CloudJournalTestContext(reference: reference)
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        let original = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        let reads = CloudJournalEffectCounter()
+        var queue = PendingUploadQueue.Environment.live
+        let read = queue.readData
+        queue.readData = { url in
+            let bytes = try read(url)
+            if url == original.fileURL && reads.value == 0 {
+                reads.record()
+                var attempting = original
+                attempting.marker.uploadAttemptID = UUID()
+                attempting.marker.attemptIsFenced = false
+                _ = try PendingUploadQueue.update(attempting)
+            }
+            return bytes
+        }
+        let outcome = DatabaseListStore.publishCloudKeyFilePreference(for: current,
+            desired: .init(bookmarkData: Data([2]), filename: "new.key"), queue: queue)
+        XCTAssertEqual(outcome, .notPublished)
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.keyFileBookmarkData, Data([1]))
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .attempting)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
+    }
+
     func testCancelledSelectionCannotPublishAfterANewerSelectionInTheSameWindow() async throws {
         let setup = try await makePreferenceDatabase()
         defer { setup.database.lock() }

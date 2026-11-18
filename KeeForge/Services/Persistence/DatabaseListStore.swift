@@ -711,7 +711,7 @@ enum DatabaseListStore {
     }
 
     enum KeyFilePreferenceOutcome: Sendable, Equatable {
-        case saved, notPublished, recoveryRequired, publishedWithoutConfirmedDurability, rejected
+        case saved, notPublished, recoveryRequired, cloudRecoveryRequired, publishedWithoutConfirmedDurability, rejected
     }
     struct KeyFilePreferenceError: Error, LocalizedError {
         let outcome: KeyFilePreferenceOutcome
@@ -721,6 +721,7 @@ enum DatabaseListStore {
             case .notPublished: String(localized: "The key-file preference was not changed. The database master key is unchanged. Review Database Details before trying again.")
             case .rejected: String(localized: "This key-file preference is out of date or blocked by local recovery. Review Database Details before choosing again.")
             case .recoveryRequired: String(localized: "Confirm the intended key-file preference in Database Details. The database master key is unchanged.")
+            case .cloudRecoveryRequired: String(localized: "This cloud operation needs recovery. Keep both the original and new keys if you changed them. Export the encrypted copy from Settings → Cloud → Cloud Recovery before trying another operation. An uncertain request will not be sent again automatically.")
             case .publishedWithoutConfirmedDurability: String(localized: "The key-file preference was published, but its record is not fully confirmed. Review Database Details before another selection. The database master key is unchanged.")
             }
         }
@@ -841,6 +842,92 @@ enum DatabaseListStore {
             case nil: return .rejected
             }
         }
+    }
+
+    static func publishCloudKeyFilePreference(
+        for expected: DatabaseReference, desired: PendingLocalSaveStore.KeyFilePreference,
+        io: DurableFileWriteIO = .init(), queue: PendingUploadQueue.Environment = .live,
+        canPublish: @Sendable () -> Bool = { true }
+    ) -> KeyFilePreferenceOutcome {
+        guard expected.isCloudBacked else { return .rejected }
+        do {
+            return try PendingUploadQueue.withCommitLock(for: expected.id, environment: queue, nonBlocking: true) {
+                guard canPublish(), let current = try readDatabasesStrict().first(where: { $0.id == expected.id }),
+                      PendingLocalSaveStore.PreferenceObservation(expected).matches(current) else { return .rejected }
+                let records = try PendingUploadQueue.readJournal(for: current.id, environment: queue)
+                if PendingLocalSaveStore.KeyFilePreference(current) == desired {
+                    if records.contains(where: { $0.marker.binding?.alternatePreferenceFingerprint != nil }) {
+                        return .publishedWithoutConfirmedDurability
+                    }
+                    return publishRegistryKeyFilePreference(for: current, desired: desired, io: io, canPublish: canPublish)
+                }
+                guard !records.contains(where: { $0.marker.binding?.alternatePreferenceFingerprint != nil }) else {
+                    return .cloudRecoveryRequired
+                }
+                var target = current
+                target.keyFileBookmarkData = desired.bookmarkData
+                target.keyFileFilename = desired.filename
+                guard records.allSatisfy({ $0.marker.keyChange == nil && CloudJournalDecision.state(of: $0.marker) == .ready
+                    && PendingUploadQueue.hasBoundAuthority($0, reference: current) }) else { return .cloudRecoveryRequired }
+                var rebound: [PendingUploadQueue.StoredMarker] = []
+                for var stored in records {
+                    guard canPublish(), let binding = stored.marker.binding else { return .rejected }
+                    _ = try PendingUploadQueue.readImmutablePayload(stored, environment: queue)
+                    stored.marker.binding = try binding.authorizingPreferenceChange(from: current, to: target, operationID: stored.id)
+                    rebound.append(try PendingUploadQueue.update(stored, environment: queue))
+                }
+                guard canPublish() else { return .rejected }
+                let outcome = publishRegistryKeyFilePreference(for: current, desired: desired, io: io, canPublish: canPublish)
+                guard outcome == .saved else { return outcome }
+                do {
+                    for var stored in rebound {
+                        guard let binding = stored.marker.binding else { throw SaveError.saveContextUnavailable }
+                        stored.marker.binding = try binding.finalizingPreferenceChange(reference: target, operationID: stored.id)
+                        _ = try PendingUploadQueue.update(stored, environment: queue)
+                    }
+                } catch { return .publishedWithoutConfirmedDurability }
+                return .saved
+            }
+        } catch { return .notPublished }
+    }
+
+    // Caller holds the cloud commit lock while confirming the registry and retiring the transition.
+    static func recoverCloudKeyFilePreference(for databaseID: UUID, queue: PendingUploadQueue.Environment = .live,
+                                              io: DurableFileWriteIO = .init()) throws {
+        let records = try PendingUploadQueue.readJournal(for: databaseID, environment: queue)
+        let pending = records.filter { $0.marker.binding?.alternatePreferenceFingerprint != nil }
+        guard !pending.isEmpty else { return }
+        guard pending.allSatisfy({ $0.marker.keyChange == nil && $0.marker.confirmedAt == nil
+            && $0.marker.isPayloadFinalized == true && $0.marker.requiresLocalRecovery != true
+            && ($0.marker.uploadAttemptID == nil || $0.marker.attemptIsFenced == true) }) else {
+            throw SaveError.saveContextUnavailable
+        }
+        var coordinationError: NSError?
+        var result: Result<Void, Error>?
+        NSFileCoordinator().coordinate(readingItemAt: databaseListURL, options: [], error: &coordinationError) { registry in
+            result = Result {
+                guard stateLock.try() else { throw SaveError.saveContextUnavailable }
+                defer { stateLock.unlock() }
+                let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                guard let current = references.first(where: { $0.id == databaseID }), current.isCloudBacked,
+                      pending.allSatisfy({ PendingUploadQueue.hasBoundAuthority($0, reference: current) }) else {
+                    throw SaveError.saveContextUnavailable
+                }
+                let handle = try FileHandle(forUpdating: registry)
+                defer { try? handle.close() }
+                try io.synchronizeFile(handle.fileDescriptor)
+                try io.synchronizeParent(registry.deletingLastPathComponent())
+                for var stored in pending {
+                    guard let binding = stored.marker.binding else { throw SaveError.saveContextUnavailable }
+                    _ = try PendingUploadQueue.readImmutablePayload(stored, environment: queue)
+                    stored.marker.binding = try binding.finalizingPreferenceChange(reference: current, operationID: stored.id)
+                    _ = try PendingUploadQueue.update(stored, environment: queue)
+                }
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result else { throw SaveError.saveContextUnavailable }
+        try result.get()
     }
 
     static func prepareKeyFilePreference(for reference: DatabaseReference) throws -> PendingLocalSaveStore.PreferenceToken {

@@ -120,6 +120,30 @@ final class PendingUploadQueueTests: XCTestCase {
         foreign = original
         foreign.keyFileBookmarkData = Data([2, 1])
         XCTAssertFalse(reloaded.matchesAuthority(reference: foreign, operationID: operationID))
+        let transition = try reloaded.authorizingPreferenceChange(from: original, to: foreign, operationID: operationID)
+        let restored = try JSONDecoder().decode(PendingUploadQueue.JournalBinding.self, from: JSONEncoder().encode(transition))
+        XCTAssertTrue(restored.matchesAuthority(reference: original, operationID: operationID))
+        XCTAssertTrue(restored.matchesAuthority(reference: foreign, operationID: operationID))
+        let finalized = try restored.finalizingPreferenceChange(reference: foreign, operationID: operationID)
+        XCTAssertFalse(finalized.matchesAuthority(reference: original, operationID: operationID))
+        XCTAssertTrue(finalized.matchesAuthority(reference: foreign, operationID: operationID))
+        let rolledBack = try restored.finalizingPreferenceChange(reference: original, operationID: operationID)
+        XCTAssertTrue(rolledBack.matchesAuthority(reference: original, operationID: operationID))
+        XCTAssertFalse(rolledBack.matchesAuthority(reference: foreign, operationID: operationID))
+        var unrelated = foreign
+        unrelated.keyFileBookmarkData = Data([9])
+        XCTAssertFalse(restored.matchesAuthority(reference: unrelated, operationID: operationID))
+        unrelated = foreign
+        unrelated.source = .cloud(foreignMetadata)
+        XCTAssertFalse(restored.matchesAuthority(reference: unrelated, operationID: operationID))
+        XCTAssertThrowsError(try reloaded.authorizingPreferenceChange(from: original, to: unrelated, operationID: operationID))
+        var readOnly = original
+        readOnly.isReadOnly = true
+        var readOnlyDesired = readOnly
+        readOnlyDesired.keyFileBookmarkData = Data([4])
+        let readOnlyTransition = try reloaded.authorizingPreferenceChange(from: readOnly, to: readOnlyDesired, operationID: operationID)
+        XCTAssertTrue(readOnlyTransition.matchesOrdinaryAuthority(reference: readOnly, operationID: operationID))
+        XCTAssertTrue(readOnlyTransition.matchesOrdinaryAuthority(reference: readOnlyDesired, operationID: operationID))
         XCTAssertFalse(reloaded.matchesAuthority(reference: original, operationID: UUID()))
     }
 

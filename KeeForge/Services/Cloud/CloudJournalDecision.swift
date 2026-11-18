@@ -18,6 +18,7 @@ enum CloudJournalDecision {
         guard marker.intendedPayloadPath != nil, marker.intendedPayloadSHA512 != nil,
               marker.localCommitBaseline != nil else { return .invalid }
         if marker.requiresLocalRecovery == true { return .recoveryRequired }
+        if marker.binding?.alternatePreferenceFingerprint != nil { return .recoveryRequired }
         if marker.confirmedAt != nil { return .confirmed }
         if marker.uploadAttemptID != nil && marker.attemptIsFenced != true { return .attempting }
         if marker.isPayloadFinalized == false && marker.keyChange == nil { return .prepared }
