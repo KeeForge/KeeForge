@@ -57,6 +57,7 @@ enum CloudFileCreationCoordinator {
             }
             return try await provider.createFile(accountId: accountID, path: path, data: bytes, progress: { _ in })
         }
+        var afterAttemptPersisted: @Sendable () -> Void = {}
         var register: @Sendable (PendingUploadQueue.StoredCreation, Data, PendingUploadQueue.Environment) -> DatabaseListStore.CloudCreationRegistrationOutcome = {
             DatabaseListStore.registerCloudCreation($0, bytes: $1, queue: $2)
         }
@@ -81,7 +82,13 @@ enum CloudFileCreationCoordinator {
         try Task.checkCancellation()
         try lifetime.claim()
         let attempting = try PendingUploadQueue.transitionCreation(stored, to: .attempting, environment: environment.queue)
-        try lifetime.claim()
+        environment.afterAttemptPersisted()
+        do { try lifetime.claim() }
+        catch {
+            do { _ = try PendingUploadQueue.restoreCreationAfterNoCommit(attempting, environment: environment.queue) }
+            catch { throw UncertainCreation(underlying: error) }
+            throw error
+        }
         let response: CloudCreatedFile
         do { response = try await environment.createFile(provider, accountID, target, bytes) }
         catch let proof as NotDispatched {
@@ -89,7 +96,7 @@ enum CloudFileCreationCoordinator {
             catch { throw UncertainCreation(underlying: error) }
             throw proof.underlying
         }
-        catch let proof as CloudUploadFailure where proof.outcome == .rejected {
+        catch let proof as CloudUploadFailure where proof.provesNoCommit {
             do { _ = try PendingUploadQueue.restoreCreationAfterNoCommit(attempting, environment: environment.queue) }
             catch { throw UncertainCreation(underlying: error) }
             throw proof.underlying
@@ -122,13 +129,13 @@ enum CloudFileCreationCoordinator {
     }
 
     static func resumeKnownRegistration(operationID: UUID, environment: Environment = .live) throws -> DatabaseReference {
-        guard let stored = try PendingUploadQueue.listCreations(environment: environment.queue).first(where: { $0.intent.operationID == operationID }),
-              stored.intent.phase == .confirmed else { throw RecoveryError.unavailable }
+        let stored = try PendingUploadQueue.readCreation(operationID, environment: environment.queue)
+        guard stored.intent.phase == .confirmed else { throw RecoveryError.unavailable }
         return try complete(stored, environment: environment)
     }
 
     static func export(operationID: UUID, environment: Environment = .live) throws -> Data {
-        guard let stored = try PendingUploadQueue.listCreations(environment: environment.queue).first(where: { $0.intent.operationID == operationID }) else { throw RecoveryError.unavailable }
+        let stored = try PendingUploadQueue.readCreation(operationID, environment: environment.queue)
         return try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue)
     }
 

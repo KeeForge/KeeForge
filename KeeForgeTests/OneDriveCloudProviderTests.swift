@@ -6,6 +6,17 @@ import XCTest
 final class OneDriveCloudProviderTests: XCTestCase {
     private let graphBase = "https://graph.microsoft.com/v1.0"
 
+    func testCreationTokenFailureIsProvenBeforeContentDispatch() async throws {
+        let provider = OneDriveCloudProvider(tokenProvider: { _ in throw CloudProviderError.notAuthenticated })
+        do {
+            _ = try await provider.createFile(accountId: "missing", path: "/vault.kdbx", data: Data([1]), progress: { _ in })
+            XCTFail("Expected pre-dispatch failure")
+        } catch let failure as CloudUploadFailure {
+            XCTAssertEqual(failure.outcome, .notDispatched)
+            XCTAssertEqual(failure.underlying, .notAuthenticated)
+        }
+    }
+
     @MainActor
     func testReplacementLostAcknowledgementsKeepOneAttemptAcrossSimpleAndChunkBoundaries() async throws {
         // Independent changed paths: conditional PUT, nil-rev PUT, final chunk 503 and lost chunk response.

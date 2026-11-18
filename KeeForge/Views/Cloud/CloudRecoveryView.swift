@@ -94,10 +94,14 @@ struct CloudRecoveryView: View {
     private func reload() async {
         failure = nil
         do {
-            creations = try await Task.detached {
+            let listing = try await Task.detached {
                 try? PendingUploadQueue.cleanCompletedCreationPayloads()
-                return try PendingUploadQueue.listCreations().filter { $0.intent.phase != .completed }
+                return try PendingUploadQueue.listCreationsForRecovery()
             }.value
+            creations = listing.records.filter { $0.intent.phase != .completed }
+            if listing.hasUnreadableRecords {
+                failure = String(localized: "The cloud recovery record is unavailable or has changed. Keep your encrypted copies and reopen Cloud Recovery.")
+            }
         } catch {
             creations = []
             failure = error.localizedDescription

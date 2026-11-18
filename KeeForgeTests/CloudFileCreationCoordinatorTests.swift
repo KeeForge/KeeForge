@@ -189,6 +189,26 @@ final class CloudFileCreationCoordinatorTests: XCTestCase {
         XCTAssertEqual(try PendingUploadQueue.readCreationPayload(stored, environment: queue), Data([1]))
     }
 
+    func testUnreadableCreationDoesNotHideOtherRecoveryOrPermitNewCreation() throws {
+        let (root, queue, reference) = try fixture()
+        defer { _ = DatabaseListStore.remove(id: reference.id); try? FileManager.default.removeItem(at: root) }
+        let confirmed = try confirmedCreation(queue: queue, reference: reference)
+        let corruptURL = root.appendingPathComponent("cloud-creation-journal/" + UUID().uuidString + ".creation")
+        let corrupt = Data("not a journal".utf8)
+        try corrupt.write(to: corruptURL)
+        let listing = try PendingUploadQueue.listCreationsForRecovery(environment: queue)
+        XCTAssertTrue(listing.hasUnreadableRecords)
+        XCTAssertEqual(listing.records.map(\.intent.operationID), [confirmed.intent.operationID])
+        var env = CloudFileCreationCoordinator.Environment()
+        env.queue = queue
+        XCTAssertEqual(try CloudFileCreationCoordinator.export(operationID: confirmed.intent.operationID, environment: env), Data([1, 2, 3]))
+        _ = try CloudFileCreationCoordinator.resumeKnownRegistration(operationID: confirmed.intent.operationID, environment: env)
+        XCTAssertEqual(try PendingUploadQueue.readCreation(confirmed.intent.operationID, environment: queue).intent.phase, .completed)
+        XCTAssertEqual(try Data(contentsOf: corruptURL), corrupt)
+        XCTAssertThrowsError(try PendingUploadQueue.prepareCreation(operationID: UUID(), provider: "webdav", accountID: "another",
+            target: "/another", payload: Data([4]), referenceTemplate: reference, isConflictCopy: false, environment: queue))
+    }
+
     @MainActor
     func testDrainerDoesNotDispatchCreationRecords() async throws {
         let (root, queue, reference) = try fixture()
@@ -384,6 +404,69 @@ final class CloudFileCreationCoordinatorTests: XCTestCase {
         let after = await transport.count()
         XCTAssertEqual(after, 1)
         XCTAssertEqual(try PendingUploadQueue.listCreations(environment: queue).first?.intent.phase, .completed)
+    }
+
+    func testCancellationBeforeDispatchRestoresPreparedOrRetainsUncertainOnWriteFailure() async throws {
+        for failRestore in [false, true] {
+            let (root, base, reference) = try fixture()
+            defer { try? FileManager.default.removeItem(at: root) }
+            var queue = base
+            if failRestore {
+                let write = base.writeMarkerAtomically
+                queue.writeMarkerAtomically = { data, url in
+                    if url.pathExtension == "creation",
+                       let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       object["phase"] as? String == "prepared",
+                       FileManager.default.fileExists(atPath: url.path) { throw CocoaError(.fileWriteUnknown) }
+                    try write(data, url)
+                }
+            }
+            let lifetime = CloudCreationLifetime()
+            let transport = Transport()
+            var env = CloudFileCreationCoordinator.Environment()
+            env.queue = queue
+            env.afterAttemptPersisted = { lifetime.cancel() }
+            env.createFile = { _, _, _, _ in try await transport.create() }
+            let id = UUID()
+            do {
+                _ = try await CloudFileCreationCoordinator.create(operationID: id, provider: "webdav", accountID: "account",
+                    target: "/vault", bytes: Data([1, 2, 3]), referenceTemplate: reference, lifetime: lifetime, environment: env)
+                XCTFail("Expected cancellation")
+            } catch {
+                if failRestore { XCTAssertTrue(error is CloudFileCreationCoordinator.UncertainCreation) }
+                else { XCTAssertTrue(error is CancellationError) }
+            }
+            let count = await transport.count()
+            XCTAssertEqual(count, 0)
+            let record = try PendingUploadQueue.readCreation(id, environment: queue)
+            XCTAssertEqual(record.intent.phase, failRestore ? .attempting : .prepared)
+            XCTAssertEqual(try PendingUploadQueue.readCreationPayload(record, environment: queue), Data([1, 2, 3]))
+        }
+    }
+
+    func testMissingProviderCredentialsRestorePreparedWithoutDispatch() async throws {
+        let providers: [any CloudProvider] = [
+            WebDAVCloudProvider(credentialLoader: { _ in nil }),
+            FTPCloudProvider(credentialLoader: { _ in nil })
+        ]
+        for provider in providers {
+            let (root, queue, reference) = try fixture()
+            defer { try? FileManager.default.removeItem(at: root) }
+            var env = CloudFileCreationCoordinator.Environment()
+            env.queue = queue
+            env.createFile = { _, account, path, bytes in
+                try await provider.createFile(accountId: account, path: path, data: bytes, progress: { _ in })
+            }
+            let id = UUID()
+            do {
+                _ = try await CloudFileCreationCoordinator.create(operationID: id, provider: provider.id,
+                    accountID: "missing", target: "/vault", bytes: Data([1, 2, 3]), referenceTemplate: reference, environment: env)
+                XCTFail("Expected a pre-dispatch authentication error")
+            } catch let error as CloudProviderError { XCTAssertEqual(error, .notAuthenticated) }
+            let record = try PendingUploadQueue.readCreation(id, environment: queue)
+            XCTAssertEqual(record.intent.phase, .prepared)
+            XCTAssertEqual(try PendingUploadQueue.readCreationPayload(record, environment: queue), Data([1, 2, 3]))
+        }
     }
 
     func testProviderNotAuthenticatedAfterDispatchRemainsUncertain() async throws {

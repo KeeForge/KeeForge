@@ -1053,6 +1053,32 @@ extension PendingUploadQueue {
         }
     }
 
+    struct CreationRecoveryListing: Sendable {
+        let records: [StoredCreation]
+        let hasUnreadableRecords: Bool
+    }
+
+    static func readCreation(_ id: UUID, environment: Environment = .live) throws -> StoredCreation {
+        let data = try environment.readData(creationURL(id, environment))
+        return StoredCreation(intent: try decodeCreation(data, id: id), serialized: data)
+    }
+
+    static func listCreationsForRecovery(environment: Environment = .live) throws -> CreationRecoveryListing {
+        let directory = creationDirectory(environment)
+        try environment.createDirectory(directory)
+        var records: [StoredCreation] = []
+        var unreadable = false
+        for url in try environment.listDirectory(directory) where url.pathExtension == "creation" {
+            guard let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else {
+                unreadable = true
+                continue
+            }
+            do { records.append(try readCreation(id, environment: environment)) }
+            catch { unreadable = true }
+        }
+        return CreationRecoveryListing(records: records, hasUnreadableRecords: unreadable)
+    }
+
     private static func withCreationLock<T>(_ name: String, environment: Environment, _ body: () throws -> T) throws -> T {
         let directory = environment.appGroupContainerURL().appendingPathComponent("cloud-creation-locks", isDirectory: true)
         try environment.createDirectory(directory)
