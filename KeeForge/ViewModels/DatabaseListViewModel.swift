@@ -220,7 +220,7 @@ final class DatabaseListViewModel {
                 if let token {
                     return DatabaseListStore.publishKeyFilePreference(token, desired: desired, io: io, canPublish: { !request.isCancelled })
                 }
-                return DatabaseListStore.publishRegistryKeyFilePreference(for: observed, desired: desired,
+                return DatabaseListStore.publishCloudKeyFilePreference(for: observed, desired: desired,
                     io: io.registry, canPublish: { !request.isCancelled })
             }.value
         } onCancel: { request.cancel() }

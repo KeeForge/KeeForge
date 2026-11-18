@@ -50,15 +50,17 @@ enum PendingUploadQueue {
         let fileID: String?
         let preferenceFingerprint: Data?
         let intendedPreferenceFingerprint: Data?
+        let alternatePreferenceFingerprint: Data?
         let baseline: LocalCommitBaseline?
 
-        private enum CodingKeys: String, CodingKey { case version, databaseID, operationID, provider, accountID, fileID, preferenceFingerprint, intendedPreferenceFingerprint, baseline }
+        private enum CodingKeys: String, CodingKey { case version, databaseID, operationID, provider, accountID, fileID, preferenceFingerprint, intendedPreferenceFingerprint, alternatePreferenceFingerprint, baseline }
 
         private init(version: Int, databaseID: UUID, operationID: UUID, provider: String, accountID: String, fileID: String,
-                     preferenceFingerprint: Data, intendedPreferenceFingerprint: Data?, baseline: LocalCommitBaseline) {
+                     preferenceFingerprint: Data, intendedPreferenceFingerprint: Data?, alternatePreferenceFingerprint: Data? = nil, baseline: LocalCommitBaseline) {
             self.version = version; self.databaseID = databaseID; self.operationID = operationID
             self.provider = provider; self.accountID = accountID; self.fileID = fileID
             self.preferenceFingerprint = preferenceFingerprint; self.intendedPreferenceFingerprint = intendedPreferenceFingerprint; self.baseline = baseline
+            self.alternatePreferenceFingerprint = alternatePreferenceFingerprint
         }
 
         init(from decoder: any Decoder) throws {
@@ -72,10 +74,11 @@ enum PendingUploadQueue {
                 fileID = try? container.decode(String.self, forKey: .fileID)
                 preferenceFingerprint = try? container.decode(Data.self, forKey: .preferenceFingerprint)
                 intendedPreferenceFingerprint = try? container.decode(Data.self, forKey: .intendedPreferenceFingerprint)
+                alternatePreferenceFingerprint = try? container.decode(Data.self, forKey: .alternatePreferenceFingerprint)
                 baseline = try? container.decode(LocalCommitBaseline.self, forKey: .baseline)
             } else {
                 databaseID = nil; operationID = nil; provider = nil; accountID = nil; fileID = nil
-                preferenceFingerprint = nil; intendedPreferenceFingerprint = nil; baseline = nil
+                preferenceFingerprint = nil; intendedPreferenceFingerprint = nil; alternatePreferenceFingerprint = nil; baseline = nil
             }
         }
 
@@ -146,9 +149,43 @@ enum PendingUploadQueue {
             guard version == 1, let candidate = try? Self.capture(reference: reference, operationID: operationID) else { return false }
             return databaseID == candidate.databaseID && self.operationID == candidate.operationID
                 && provider == candidate.provider && accountID == candidate.accountID && fileID == candidate.fileID
-                && preferenceFingerprint == candidate.preferenceFingerprint
+                && (preferenceFingerprint == candidate.preferenceFingerprint || alternatePreferenceFingerprint == candidate.preferenceFingerprint)
                 && baseline?.keyEpoch == candidate.baseline?.keyEpoch
                 && baseline?.lastMasterKeyChangeAt == candidate.baseline?.lastMasterKeyChangeAt
+        }
+
+        func authorizingPreferenceChange(from current: DatabaseReference, to desired: DatabaseReference,
+                                         operationID: UUID) throws -> JournalBinding {
+            var unchanged = desired
+            unchanged.keyFileBookmarkData = current.keyFileBookmarkData
+            unchanged.keyFileFilename = current.keyFileFilename
+            var boundCurrent = current
+            var boundDesired = desired
+            if !matchesAuthority(reference: current, operationID: operationID), current.isReadOnly {
+                boundCurrent.isReadOnly = false
+                boundDesired.isReadOnly = false
+            }
+            guard unchanged == current, matchesAuthority(reference: boundCurrent, operationID: operationID),
+                  let baseline, let databaseID, let provider, let accountID, let fileID,
+                  let currentFingerprint = try Self.capture(reference: boundCurrent, operationID: operationID).preferenceFingerprint,
+                  let desiredFingerprint = try Self.capture(reference: boundDesired, operationID: operationID).preferenceFingerprint else {
+                throw SaveError.saveContextUnavailable
+            }
+            return JournalBinding(version: version, databaseID: databaseID, operationID: operationID,
+                provider: provider, accountID: accountID, fileID: fileID, preferenceFingerprint: currentFingerprint,
+                intendedPreferenceFingerprint: intendedPreferenceFingerprint, alternatePreferenceFingerprint: desiredFingerprint, baseline: baseline)
+        }
+
+        func finalizingPreferenceChange(reference: DatabaseReference, operationID: UUID) throws -> JournalBinding {
+            var bound = reference
+            if !matchesAuthority(reference: bound, operationID: operationID), bound.isReadOnly { bound.isReadOnly = false }
+            guard matchesAuthority(reference: bound, operationID: operationID), let baseline, let databaseID,
+                  let provider, let accountID, let fileID,
+                  let fingerprint = try Self.capture(reference: bound, operationID: operationID).preferenceFingerprint,
+                  alternatePreferenceFingerprint != nil else { throw SaveError.saveContextUnavailable }
+            return JournalBinding(version: version, databaseID: databaseID, operationID: operationID,
+                provider: provider, accountID: accountID, fileID: fileID, preferenceFingerprint: fingerprint,
+                intendedPreferenceFingerprint: intendedPreferenceFingerprint, baseline: baseline)
         }
     }
 

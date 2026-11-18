@@ -680,6 +680,7 @@ enum CloudDatabaseSaver {
     ) async throws -> PendingUploadPushResult? {
         var reference = reference
         guard var stored = try PendingUploadQueue.withCommitLock(for: reference.id, environment: environment.queue, {
+            try DatabaseListStore.recoverCloudKeyFilePreference(for: reference.id, queue: environment.queue)
             try PendingUploadQueue.recoverLocalCommits(for: reference.id, environment: environment.queue)
             guard let currentReference = try DatabaseListStore.readDatabasesStrict().first(where: { $0.id == reference.id }) else {
                 throw SaveError.saveContextUnavailable

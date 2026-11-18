@@ -59,6 +59,7 @@
 ### Journal binding
 
 - New cloud markers capture their operation and original database, provider/account/file identity, factor-preference fingerprint and head/epoch/date before any upload. Confirmed rekey reconciliation coordinates cache and registry together, then immediately tries the list, commit and local-owner locks; it rechecks the exact marker and original or already-installed binding before key or cache effects. A failed or unconfirmed publication retains its journal and known ciphertext. Legacy and unknown bindings do not grant automatic delivery authority; authenticated legacy merge and export remain separately verified recovery paths.
+- Explicit key-file selection may rebind only ready ordinary markers under the commit lock. Persist authority for both the current and selected preference before publishing the registry, then retire the old authority after confirmed publication. A partial transition blocks delivery until the current registry is durably reconfirmed and its matching authority retained. Uncertain, rekey and legacy records require recovery instead.
 
 ### Persisted shapes
 
