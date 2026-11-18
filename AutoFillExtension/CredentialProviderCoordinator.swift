@@ -356,9 +356,9 @@ final class CredentialProviderCoordinator {
         )
     }
 
-    /// Cloud persistence keeps its existing UI-actor boundary.
-    var persistQuickUnlockKeys: @MainActor (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, masterKeyEntered in
-        QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: masterKeyEntered)
+    /// Keychain-only effects execute in the bounded publication worker.
+    var persistQuickUnlockKeys: @Sendable (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, masterKeyEntered in
+        return QuickUnlockKeychain.persistKeychainItems(keys, for: reference, masterKeyEntered: masterKeyEntered) == .stored
     }
 
     var persistLocalQuickUnlockKeys: @Sendable (QuickUnlockKeys, DatabaseReference, Bool) -> Bool = { keys, reference, entered in
@@ -396,8 +396,16 @@ final class CredentialProviderCoordinator {
     }
     #endif
 
+    private var registryReadError: Error?
+    private var registryInitializationUnconfirmed = false
+
     init(presenter: (any CredentialProviderPresenting)? = nil) {
         self.presenter = presenter
+        switch DatabaseListStore.initializeRegistry() {
+        case .initialized, .alreadyPresent: break
+        case .notPublished(let error): registryReadError = error
+        case .visibleUnconfirmed(let error): registryInitializationUnconfirmed = true; registryReadError = error
+        }
     }
 
     // MARK: - Request entry points (forwarded by the shell)
@@ -943,7 +951,8 @@ final class CredentialProviderCoordinator {
         // identifier with no fallback — show the explanatory empty state
         // instead of an unlock prompt that could never succeed.
         guard let databaseReference = resolveInteractiveRequestDatabase() else {
-            presentNoEnabledDatabasesState()
+            if let registryReadError { showErrorAndRetry(registryReadError) }
+            else { presentNoEnabledDatabasesState() }
             return
         }
 
@@ -1021,25 +1030,30 @@ final class CredentialProviderCoordinator {
     /// - No identifier (manual search, OTC list, passkey parameters) → the
     ///   default database.
     private func resolveRequestDatabase(forRecordIdentifier recordIdentifier: String?) -> RequestDatabaseResolution {
+        guard !registryInitializationUnconfirmed else { return .unavailable }
+        let references: [DatabaseReference]
+        do { references = try DatabaseListStore.readDatabasesStrict(); registryReadError = nil }
+        catch { registryReadError = error; return .unavailable }
+        let fallback = DatabaseListStore.defaultAutoFillDatabase(in: references)
         guard let recordIdentifier else {
-            guard let fallback = DatabaseListStore.defaultAutoFillDatabase else { return .unavailable }
+            guard let fallback else { return .unavailable }
             return .database(fallback)
         }
 
         switch CredentialRecordIdentifier.parse(recordIdentifier) {
         case .current(let identifier):
-            if let reference = DatabaseListStore.databases.first(where: { $0.id == identifier.databaseID }),
+            if let reference = references.first(where: { $0.id == identifier.databaseID }),
                reference.autoFillEnabled {
                 return .database(reference)
             }
             CredentialIdentityStoreManager.removeIdentities(forDatabase: identifier.databaseID)
-            return .stale(fallback: DatabaseListStore.defaultAutoFillDatabase)
+            return .stale(fallback: fallback)
         case .legacy:
-            guard let fallback = DatabaseListStore.defaultAutoFillDatabase else { return .unavailable }
+            guard let fallback else { return .unavailable }
             return .database(fallback)
         case .unrecognized:
             CredentialIdentityStoreManager.clearStore()
-            return .stale(fallback: DatabaseListStore.defaultAutoFillDatabase)
+            return .stale(fallback: fallback)
         }
     }
 
@@ -1089,6 +1103,7 @@ final class CredentialProviderCoordinator {
     private func removeStaleIdentityIfEntryMissing(recordIdentifier: String?) {
         guard let recordIdentifier else { return }
         guard findEntry(byRecordIdentifier: recordIdentifier) == nil else { return }
+        guard (try? DatabaseListStore.readDatabasesStrict()) != nil else { return }
 
         switch CredentialRecordIdentifier.parse(recordIdentifier) {
         case .current:
@@ -1443,39 +1458,45 @@ final class CredentialProviderCoordinator {
         _ keys: QuickUnlockKeys, for databaseReference: DatabaseReference, masterKeyEntered: Bool
     ) async {
         let generation = requestGeneration
+        let read = localReadKeyPublication
+        guard databaseReference.isCloudBacked || (read?.lease.reference.matches(databaseReference) == true),
+              isRequestActive(generation) else { return }
+        let sha = openTimeSHA512
+        localReadPublicationPermit?.close()
+        let permit = DatabaseListStore.KeyCommitPublicationPermit(actionID: UUID(), lockCycleID: generation)
+        localReadPublicationPermit = permit
+        let effect = databaseReference.isCloudBacked ? persistQuickUnlockKeys : persistLocalQuickUnlockKeys
+        let io = localReadPublicationIO
         let persisted: Bool
-        if databaseReference.isCloudBacked {
-            persisted = persistQuickUnlockKeys(keys, databaseReference, masterKeyEntered)
-        } else {
-            guard let read = localReadKeyPublication, read.lease.reference.matches(databaseReference),
-                  isRequestActive(generation) else { return }
-            localReadPublicationPermit?.close()
-            let permit = DatabaseListStore.KeyCommitPublicationPermit(actionID: UUID(), lockCycleID: generation)
-            localReadPublicationPermit = permit
-            let effect = persistLocalQuickUnlockKeys
-            let io = localReadPublicationIO
-            do {
-                persisted = try await CoordinatedFileReader.performBlocking(timeout: localReadPublicationTimeout,
-                    onInterruption: { permit.close() }) {
-                    defer { io.didFinish(); permit.finishWorker() }
-                    let stored = try DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: read,
+        do {
+            persisted = try await CoordinatedFileReader.performBlocking(timeout: localReadPublicationTimeout,
+                onInterruption: { permit.close() }) {
+                defer { io.didFinish(); permit.finishWorker() }
+                let stored: Bool
+                if databaseReference.isCloudBacked {
+                    guard let sha else { throw SaveError.saveContextUnavailable }
+                    stored = try DatabaseListStore.withCloudKeyPublication(for: databaseReference, sha512: sha, permit: permit, io: io) {
+                        effect(keys, databaseReference, masterKeyEntered)
+                    }
+                } else {
+                    guard let read else { throw SaveError.saveContextUnavailable }
+                    stored = try DatabaseListStore.withLocalReadKeyPublication(for: databaseReference, read: read,
                         permit: permit, io: io) { effect(keys, databaseReference, masterKeyEntered) }
-                    if stored { _ = DatabaseListStore.clearLegacyKeychainFilename(for: read.lease.bookmarkRenewal?.after ?? databaseReference) }
-                    return stored
                 }
-                if localReadPublicationPermit === permit { localReadPublicationPermit = nil }
-            } catch {
-                permit.close()
-                if permit.workerCompletion == .finishedWithoutClaim, !Task.isCancelled,
-                   (error as? PendingLocalSaveStore.OwnershipError) != .removed,
-                   isRequestActive(generation), localReadPublicationPermit === permit {
-                    localReadPublicationPermit = nil
-                }
-                return
+                if stored { _ = DatabaseListStore.clearLegacyKeychainFilename(for: read?.lease.bookmarkRenewal?.after ?? databaseReference) }
+                return stored
             }
+            if localReadPublicationPermit === permit { localReadPublicationPermit = nil }
+        } catch {
+            permit.close()
+            if permit.workerCompletion == .finishedWithoutClaim, !Task.isCancelled,
+               (error as? PendingLocalSaveStore.OwnershipError) != .removed,
+               isRequestActive(generation), localReadPublicationPermit === permit {
+                localReadPublicationPermit = nil
+            }
+            return
         }
         guard isRequestActive(generation), persisted, databaseReference.legacyKeychainFilename != nil else { return }
-        if databaseReference.isCloudBacked { DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference) }
         activeDatabaseReference = DatabaseListStore.databases.first { $0.id == databaseReference.id }
         localReadKeyPublication = nil
     }

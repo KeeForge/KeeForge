@@ -8,6 +8,7 @@ final class MacDatabaseSettingsSheet {
     let tabs: MacSheetTabBar
     private(set) var masterKeySheet: MacMasterKeySheet?
     private(set) var encryptionSheet: MacEncryptionSettingsSheet?
+    private(set) var recoverySheet: MacFormSheetController?
     var presentChild: @MainActor (MacFormSheetController, NSWindow, @escaping @MainActor (Bool) -> Void) -> Void = {
         $0.begin(on: $1, completion: $2)
     }
@@ -19,7 +20,8 @@ final class MacDatabaseSettingsSheet {
         let owner = MacDatabaseSettingsWindow()
         let host = NSHostingController(rootView: MacDatabaseSettingsContent(model: model, window: { owner.window },
             changeMasterKey: { owner.sheet?.showMasterKey() }, changeEncryption: { owner.sheet?.showEncryptionSettings() },
-            discardRecovery: { snapshot, abandon in owner.sheet?.confirmDiscard(snapshot, abandonKeyRecord: abandon) })
+            discardRecovery: { snapshot, abandon in owner.sheet?.confirmDiscard(snapshot, abandonKeyRecord: abandon) },
+            showCloudRecovery: { owner.sheet?.showCloudRecovery() })
             .environment(\.macSheetCancellationScope, scope).modifier(MacHostingAppearance()))
         host.sizingOptions = []
         shell = MacFormSheetController(title: String(localized: "\(model.current.displayName) — Database Settings"),
@@ -34,6 +36,7 @@ final class MacDatabaseSettingsSheet {
         scope.register { [weak self] in
             self?.masterKeySheet?.shell.end()
             self?.encryptionSheet?.shell.end()
+            self?.recoverySheet?.end()
         }
     }
 
@@ -90,8 +93,21 @@ final class MacDatabaseSettingsSheet {
         }
     }
 
+    func showCloudRecovery() {
+        guard let parent = childParent() else { return }
+        let host = NSHostingController(rootView: CloudRecoveryView().modifier(MacHostingAppearance()))
+        let child = MacFormSheetController(title: String(localized: "Cloud Recovery"), content: host,
+            size: NSSize(width: 610, height: MacSheetMetrics.maxHeight), defaultTitle: String(localized: "Done"))
+        child.cancelButton.isHidden = true
+        child.window?.setAccessibilityIdentifier("cloud-recovery.sheet")
+        recoverySheet = child
+        presentChild(child, parent) { [weak self, weak child] _ in
+            if self?.recoverySheet === child { self?.recoverySheet = nil }
+        }
+    }
+
     private func childParent() -> NSWindow? {
-        guard shell.isPresented, masterKeySheet == nil, encryptionSheet == nil,
+        guard shell.isPresented, masterKeySheet == nil, encryptionSheet == nil, recoverySheet == nil,
               let window = shell.window, window.attachedSheet == nil else { return nil }
         return window
     }
@@ -109,6 +125,7 @@ private struct MacDatabaseSettingsContent: View {
     let changeMasterKey: @MainActor () -> Void
     let changeEncryption: @MainActor () -> Void
     let discardRecovery: (PendingLocalSaveStore.RecoverySnapshot, Bool) -> Void
+    let showCloudRecovery: () -> Void
     @State private var icons = false
     @State private var exportRequest: DatabaseExportRequest?
     @State private var exportTask: Task<Void, Never>?
@@ -116,6 +133,10 @@ private struct MacDatabaseSettingsContent: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if model.current.isCloudBacked {
+                    Button("Cloud Recovery", action: showCloudRecovery)
+                        .accessibilityIdentifier("database-details.cloud-recovery")
+                }
                 if !model.current.isCloudBacked && (model.showsLocalDraftExport || recoveryContents.hasContent) {
                     Form {
                         if model.showsLocalDraftExport, let session = model.session {
@@ -297,7 +318,7 @@ private struct MacDatabaseSyncTab: View {
                 MacSettingsSeparator()
                 MacSettingsRow("When opening:") {
                     MacSettingsHelpRow(help: MacSettingsHelpButton(label: "Sync When Opening Help",
-                        text: "Saving still checks the server's copy first and stops if it changed. AutoFill uses the cached copy only.",
+                        text: "Cloud uploads check the server's copy first and stop if it changed. AutoFill uses the cached copy only.",
                         identifier: "database-details.sync-policy.help")) {
                         Toggle("Sync When Opening", isOn: Binding(get: { model.current.cloudSyncPolicy == .onOpen }, set: { model.setSyncOnOpen($0) }))
                             .accessibilityIdentifier("database-details.sync-on-open-toggle")
@@ -345,7 +366,7 @@ private struct MacDatabaseAutoFillTab: View {
     var body: some View {
         MacSettingsForm {
             MacSettingsRow("AutoFill:") {
-                Toggle("Include in AutoFill", isOn: Binding(get: { model.current.autoFillEnabled }, set: { model.setAutoFillEnabled($0) }))
+                Toggle("Include in AutoFill", isOn: Binding(get: { model.current.autoFillEnabled }, set: { enabled in Task { await model.setAutoFillEnabled(enabled) } }))
                     .accessibilityIdentifier("database-details.autofill-toggle")
                 settingsCaption("When off, AutoFill offers nothing from this database; turned back on, it suggests again after the next unlock.", indented: true)
             }

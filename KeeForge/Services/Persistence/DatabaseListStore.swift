@@ -57,23 +57,146 @@ enum DatabaseListStore {
 
     #if DEBUG
     private nonisolated(unsafe) static var didBootstrapUITesting = false
+    private static let uiTestBootstrapLock = NSLock()
     private nonisolated(unsafe) static var remainingUITestLocalSaveConflicts: Int?
     private nonisolated(unsafe) static var consumedUITestLocalSaveConflicts = 0
     #endif
 
-    /// Serializes every load/mutate/save of `database-list.json`. Detached
-    /// cloud-upload tasks call `update(_:)` while main-actor writers mutate the
-    /// same file; without this each mutator's read-modify-write could interleave
-    /// and clobber a concurrent change. The lock is recursive because compound
-    /// mutators (e.g. `setReadOnly`, `markDatabaseOpened`) run their whole
-    /// read-modify-write under it and then re-enter through `loadDatabases()` /
-    /// `saveDatabases()` on the same thread.
+    // Legacy writers still use this process-local lock; coordinated accessors must try it.
     private static let stateLock = NSRecursiveLock()
 
     private static func withStateLock<T>(_ body: () throws -> T) rethrows -> T {
         stateLock.lock()
         defer { stateLock.unlock() }
         return try body()
+    }
+
+    private enum RegistryDecision<T> {
+        case write(T), noop(T), rejected, missing
+    }
+
+    private enum RegistryResult<T> {
+        case durable(T), noop(T), rejected, missing, notPublished(Error), visibleUnconfirmed(T, Error)
+    }
+
+    private static func readRegistry(at url: URL) throws -> [DatabaseReference]? {
+        do {
+            return normalized(try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: url)))
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return nil
+        }
+    }
+
+    static func readDatabasesStrict() throws -> [DatabaseReference] {
+        guard let rows = try readRegistry(at: databaseListURL) else { throw CocoaError(.fileReadNoSuchFile) }
+        return rows
+    }
+
+    private static func mutateRegistry<T>(onMissing: (() -> [DatabaseReference])? = nil, io: DurableFileWriteIO = .init(),
+                                          confirmUnchanged: Bool = false,
+                                          readingTarget: URL? = nil, validateTarget: ((URL) throws -> Bool)? = nil,
+                                          authorize: (((() throws -> RegistryResult<T>) throws -> RegistryResult<T>))? = nil,
+                                          _ body: (inout [DatabaseReference]) throws -> RegistryDecision<T>) -> RegistryResult<T> {
+        return withoutActuallyEscaping(body) { body in
+            guard let anchor = AppGroupContainer.resolvedURL else { return .notPublished(CocoaError(.fileWriteNoPermission)) }
+            var coordinationError: NSError?
+            var result: RegistryResult<T>?
+            func access(_ url: URL, _ target: URL?) {
+                guard stateLock.try() else { result = .notPublished(PendingLocalSaveStore.OwnershipError.recoveryRequired); return }
+                defer { stateLock.unlock() }
+                do {
+                    let mutate = { () throws -> RegistryResult<T> in
+                        if let validateTarget {
+                            guard let target, try validateTarget(target) else { return .rejected }
+                        }
+                        var rows: [DatabaseReference]
+                        if let existing = try readRegistry(at: url) { rows = existing }
+                        else if let onMissing { rows = onMissing() }
+                        else { return .missing }
+                        switch try body(&rows) {
+                        case .noop(let value):
+                            if confirmUnchanged {
+                                let handle = try FileHandle(forUpdating: url)
+                                defer { try? handle.close() }
+                                try io.synchronizeFile(handle.fileDescriptor)
+                                try io.synchronizeParent(url.deletingLastPathComponent())
+                            }
+                            return .noop(value)
+                        case .rejected: return .rejected
+                        case .missing: return .missing
+                        case .write(let value):
+                            let encoder = JSONEncoder()
+                            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                            let bytes = try encoder.encode(normalized(rows))
+                            switch writeWithDurabilityOutcome(bytes, to: url, directoryAnchor: anchor, io: io) {
+                            case .durable: return .durable(value)
+                            case .notPublished(let error): return .notPublished(error)
+                            case .publishedWithoutConfirmedDurability(let error): return .visibleUnconfirmed(value, error)
+                            }
+                        }
+                    }
+                    result = try authorize?(mutate) ?? mutate()
+                } catch { result = .notPublished(error) }
+            }
+            let coordinator = NSFileCoordinator()
+            if let readingTarget {
+                coordinator.coordinate(readingItemAt: readingTarget, options: [], writingItemAt: databaseListURL, options: [], error: &coordinationError) { target, url in access(url, target) }
+            } else {
+                coordinator.coordinate(writingItemAt: databaseListURL, options: [], error: &coordinationError) { url in access(url, nil) }
+            }
+            if let error = coordinationError {
+                if case .durable(let value) = result { return .visibleUnconfirmed(value, error) }
+                if case .noop = result { return .notPublished(error) }
+                if let result { return result }
+                return .notPublished(error)
+            }
+            return result ?? .notPublished(CocoaError(.fileWriteUnknown))
+        }
+    }
+
+    private static func succeeded<T>(_ result: RegistryResult<T>) -> Bool {
+        switch result { case .durable, .noop: return true; default: return false }
+    }
+
+    enum RegistryWriteError: Error {
+        case unavailable
+        case visibleUnconfirmed(Error)
+        case appOnlyCacheUnconfirmed(id: UUID, sha512: Data, underlying: Error)
+        case appOnlyCacheInstalled(id: UUID, sha512: Data, underlying: Error)
+        case appOnlyRegistryUnconfirmed(id: UUID, sha512: Data, underlying: Error)
+    }
+
+    private enum AppOnlyResult {
+        case durable, rejected, notPublished(Error), cacheUnconfirmed(Error), cacheInstalled(Error), registryUnconfirmed(Error)
+    }
+
+    private static func requireRegistryInitialization() throws {
+        switch initializeRegistry() {
+        case .initialized, .alreadyPresent: return
+        case .notPublished(let error): throw error
+        case .visibleUnconfirmed(let error): throw RegistryWriteError.visibleUnconfirmed(error)
+        }
+    }
+
+    @discardableResult
+    static func setNickname(_ nickname: String?, for id: UUID) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == id }) else { return .missing }
+            guard rows[index].nickname != nickname else { return .noop(()) }
+            rows[index].nickname = nickname
+            return .write(())
+        })
+    }
+
+    @discardableResult
+    static func setQuickLaunch(_ enabled: Bool, for id: UUID, observed: Bool) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == id }) else { return .missing }
+            guard rows[index].isQuickLaunch == observed else { return .rejected }
+            if !enabled && !observed { return .noop(()) }
+            for i in rows.indices { rows[i].isQuickLaunch = enabled && i == index }
+            return .write(())
+        })
     }
 
     #if DEBUG
@@ -113,8 +236,7 @@ enum DatabaseListStore {
     #endif
 
     static var databases: [DatabaseReference] {
-        get { loadDatabases() }
-        set { saveDatabases(newValue) }
+        loadDatabases()
     }
 
     static var quickLaunchDatabase: DatabaseReference? {
@@ -161,8 +283,10 @@ enum DatabaseListStore {
     /// AutoFill-enabled database, else nil. Never returns a database with
     /// AutoFill disabled.
     static var defaultAutoFillDatabase: DatabaseReference? {
-        let currentDatabases = loadDatabases()
+        defaultAutoFillDatabase(in: loadDatabases())
+    }
 
+    static func defaultAutoFillDatabase(in currentDatabases: [DatabaseReference]) -> DatabaseReference? {
         if let activeReference = activeAutoFillDatabase(in: currentDatabases) {
             return activeReference
         }
@@ -205,19 +329,8 @@ enum DatabaseListStore {
 
     @discardableResult
     static func add(url: URL) throws -> DatabaseReference {
-        let reference = try withStateLock { () throws -> DatabaseReference in
-            var currentDatabases = loadDatabases()
-            if let duplicate = existingLocalReference(matching: url, in: currentDatabases) {
-                throw AddDatabaseError.duplicateFile(
-                    existingReferenceID: duplicate.id,
-                    filename: duplicate.displayName
-                )
-            }
-            let reference = try makeReference(from: url)
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
-            return reference
-        }
+        let reference = try makeReference(from: url)
+        try registerLocalReference(reference, target: url)
         cacheInitialCopyIfPossible(from: url, for: reference.id)
         return reference
     }
@@ -226,18 +339,11 @@ enum DatabaseListStore {
     static func addCloud(
         provider: String,
         accountId: String,
-        file: CloudFile
-    ) -> DatabaseReference {
-        withStateLock {
-            if let existing = loadDatabases().first(where: {
-                guard let metadata = $0.cloudSyncMetadata else { return false }
-                return metadata.provider == provider && metadata.accountId == accountId && metadata.fileId == file.id
-            }) {
-                return existing
-            }
-
-            var currentDatabases = loadDatabases()
-            let reference = DatabaseReference(
+        file: CloudFile,
+        io: DurableFileWriteIO = .init()
+    ) throws -> DatabaseReference {
+        try requireRegistryInitialization()
+        let reference = DatabaseReference(
                 id: UUID(),
                 nickname: nil,
                 filename: file.name,
@@ -262,37 +368,108 @@ enum DatabaseListStore {
                     )
                 )
             )
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
-            return reference
+        let result = mutateRegistry(io: io) { rows -> RegistryDecision<DatabaseReference> in
+            if let existing = rows.first(where: {
+                guard let metadata = $0.cloudSyncMetadata else { return false }
+                return metadata.provider == provider && metadata.accountId == accountId && metadata.fileId == file.id
+            }) { return .noop(existing) }
+            guard !rows.contains(where: { $0.id == reference.id }) else { return .rejected }
+            rows.append(reference)
+            return .write(reference)
+        }
+        switch result {
+        case .durable(let value), .noop(let value): return value
+        case .notPublished(let error): throw error
+        case .visibleUnconfirmed(_, let error): throw RegistryWriteError.visibleUnconfirmed(error)
+        case .missing, .rejected: throw RegistryWriteError.unavailable
         }
     }
 
     static func addCreatedLocal(_ reference: DatabaseReference) throws {
-        try withStateLock {
-            var currentDatabases = loadDatabases()
-            try validateCreatedLocal(reference, in: currentDatabases)
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
+        let target = reference.bookmarkData.flatMap { SecurityScopedBookmarkManager.resolveURL(from: $0)?.url }
+        try registerLocalReference(reference, target: target)
+    }
+
+    private static func registerLocalReference(_ reference: DatabaseReference, target: URL?) throws {
+        let accessed = target?.startAccessingSecurityScopedResource() ?? false
+        defer { if accessed { target?.stopAccessingSecurityScopedResource() } }
+        try requireRegistryInitialization()
+        guard let observed = try readRegistry(at: databaseListURL) else { throw RegistryWriteError.unavailable }
+        let duplicate = target.flatMap { existingLocalReference(matching: $0, in: observed) }
+        let result = mutateRegistry { rows -> RegistryDecision<Void> in
+            guard rows.count == observed.count, zip(rows, observed).allSatisfy({ current, previous in
+                current.id == previous.id && current.bookmarkData == previous.bookmarkData && current.isCloudBacked == previous.isCloudBacked
+            }) else { return .rejected }
+            guard !rows.contains(where: { $0.id == reference.id }) else { return .rejected }
+            if let duplicate {
+                throw AddDatabaseError.duplicateFile(existingReferenceID: duplicate.id, filename: duplicate.displayName)
+            }
+            if reference.bookmarkData == nil { try validateAppOnlyCreatedLocal(reference, in: rows) }
+            rows.append(reference)
+            return .write(())
+        }
+        switch result {
+        case .durable, .noop: return
+        case .notPublished(let error): throw error
+        case .visibleUnconfirmed(_, let error): throw RegistryWriteError.visibleUnconfirmed(error)
+        case .missing, .rejected: throw RegistryWriteError.unavailable
         }
     }
 
-    static func addCreatedCloud(_ reference: DatabaseReference) throws {
-        try withStateLock {
-            var currentDatabases = loadDatabases()
-            try validateCreatedCloud(reference, in: currentDatabases)
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
+    static func addAppOnlyCreatedLocal(_ reference: DatabaseReference, encryptedBytes: Data,
+                                       cacheIO: DurableFileWriteIO = .init(), registryIO: DurableFileWriteIO = .init()) throws {
+        guard !reference.isCloudBacked, reference.bookmarkData == nil else { throw RegistryWriteError.unavailable }
+        try requireRegistryInitialization()
+        guard let anchor = AppGroupContainer.resolvedURL else { throw CocoaError(.fileWriteNoPermission) }
+        let lease = try PendingLocalSaveStore.captureCacheReadLease(for: reference)
+        let cache = cacheLocation(for: reference)
+        try createDurableDirectory(at: cache.deletingLastPathComponent(), anchor: anchor)
+        let sha = FileDigest.sha512(encryptedBytes)
+        var coordinationError: NSError?
+        var result: AppOnlyResult?
+        NSFileCoordinator().coordinate(writingItemAt: cache, options: [], writingItemAt: databaseListURL, options: [], error: &coordinationError) { target, registry in
+            guard stateLock.try() else { result = .notPublished(PendingLocalSaveStore.OwnershipError.recoveryRequired); return }
+            defer { stateLock.unlock() }
+            do {
+                guard var rows = try readRegistry(at: registry) else { result = .rejected; return }
+                guard !rows.contains(where: { $0.id == reference.id }) else { result = .registryUnconfirmed(CocoaError(.fileWriteUnknown)); return }
+                try validateAppOnlyCreatedLocal(reference, in: rows)
+                rows.append(reference)
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let registryBytes = try encoder.encode(normalized(rows))
+                result = try PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: sha, lease: lease, nonBlocking: true) {
+                    if FileManager.default.fileExists(atPath: target.path) { return .cacheUnconfirmed(CocoaError(.fileWriteFileExists)) }
+                    switch writeWithDurabilityOutcome(encryptedBytes, to: target, directoryAnchor: anchor, publication: .exclusive, io: cacheIO) {
+                    case .notPublished(let error):
+                        if let posix = error as? POSIXError, posix.code == .EEXIST { return .cacheUnconfirmed(error) }
+                        return .notPublished(error)
+                    case .publishedWithoutConfirmedDurability(let error): return .cacheUnconfirmed(error)
+                    case .durable:
+                        switch writeWithDurabilityOutcome(registryBytes, to: registry, directoryAnchor: anchor, io: registryIO) {
+                        case .durable: return .durable
+                        case .notPublished(let error): return .cacheInstalled(error)
+                        case .publishedWithoutConfirmedDurability(let error): return .registryUnconfirmed(error)
+                        }
+                    }
+                }
+            } catch { result = .notPublished(error) }
         }
-    }
-
-    static func addAppOnlyCreatedLocal(_ reference: DatabaseReference, encryptedBytes: Data) throws {
-        try withStateLock {
-            var currentDatabases = loadDatabases()
-            try validateAppOnlyCreatedLocal(reference, in: currentDatabases)
-            try cacheDatabaseCopy(encryptedBytes, for: reference)
-            currentDatabases.append(reference)
-            saveDatabases(currentDatabases)
+        if let error = coordinationError {
+            switch result {
+            case .durable, .registryUnconfirmed: throw RegistryWriteError.appOnlyRegistryUnconfirmed(id: reference.id, sha512: sha, underlying: error)
+            case .cacheInstalled: throw RegistryWriteError.appOnlyCacheInstalled(id: reference.id, sha512: sha, underlying: error)
+            case .cacheUnconfirmed: throw RegistryWriteError.appOnlyCacheUnconfirmed(id: reference.id, sha512: sha, underlying: error)
+            default: throw error
+            }
+        }
+        switch result {
+        case .durable: return
+        case .notPublished(let error): throw error
+        case .cacheUnconfirmed(let error): throw RegistryWriteError.appOnlyCacheUnconfirmed(id: reference.id, sha512: sha, underlying: error)
+        case .cacheInstalled(let error): throw RegistryWriteError.appOnlyCacheInstalled(id: reference.id, sha512: sha, underlying: error)
+        case .registryUnconfirmed(let error): throw RegistryWriteError.appOnlyRegistryUnconfirmed(id: reference.id, sha512: sha, underlying: error)
+        default: throw RegistryWriteError.unavailable
         }
     }
 
@@ -326,67 +503,96 @@ enum DatabaseListStore {
         )
     }
 
+    enum RemovalOutcome: Sendable, Equatable {
+        case removed, alreadyMissing, rejected, notPublished, revocationUnconfirmed
+        case recoveryRequired, revokedRegistryNotPublished, visibleUnconfirmed
+    }
+
+    private struct RemovalReceipt {
+        let reference: DatabaseReference
+        let wasActive: Bool
+        let sharedLegacy: Bool
+    }
+
+    @discardableResult
+    static func remove(observed: DatabaseReference, io: DurableFileWriteIO = .init()) -> RemovalOutcome {
+        var revocationAttempted = false
+        var revocationObserved = false
+        var recoveryRequired = false
+        var rowMissing = false
+        do {
+            return try PendingUploadQueue.withCommitLock(for: observed.id, nonBlocking: true) {
+                let result = mutateRegistry(io: io) { rows -> RegistryDecision<RemovalReceipt> in
+                    guard let index = rows.firstIndex(where: { $0.id == observed.id }) else { rowMissing = true; return .missing }
+                    let current = rows[index]
+                    guard PendingLocalSaveStore.PreferenceObservation(observed).matches(current),
+                          current.hardwareKey == observed.hardwareKey,
+                          current.autoFillEnabled == observed.autoFillEnabled,
+                          current.legacyKeychainFilename == observed.legacyKeychainFilename,
+                          current.cloudSyncMetadata?.localHeadOperationID == observed.cloudSyncMetadata?.localHeadOperationID,
+                          current.cloudSyncMetadata?.keyEpoch == observed.cloudSyncMetadata?.keyEpoch,
+                          current.cloudSyncMetadata?.remoteRev == observed.cloudSyncMetadata?.remoteRev,
+                          current.cloudSyncMetadata?.remoteContentHash == observed.cloudSyncMetadata?.remoteContentHash else { return .rejected }
+                    if current.isCloudBacked {
+                        guard try PendingUploadQueue.readJournal(for: current.id).isEmpty else { return .rejected }
+                    }
+                    revocationAttempted = true
+                    let ready = try PendingLocalSaveStore.revokeForRemoval(current.id, nonBlocking: true)
+                    revocationObserved = true
+                    guard ready else { recoveryRequired = true; return .rejected }
+                    let sharedLegacy = current.legacyKeychainFilename.map { name in
+                        rows.contains { $0.id != current.id && $0.legacyKeychainFilename == name }
+                    } ?? false
+                    let receipt = RemovalReceipt(reference: current, wasActive: activeAutoFillDatabase(in: rows)?.id == current.id, sharedLegacy: sharedLegacy)
+                    rows.remove(at: index)
+                    return .write(receipt)
+                }
+                switch result {
+                case .durable(let receipt):
+                    let removed = receipt.reference
+                    KeychainService.deleteCompositeKey(for: removed.id)
+                    if let legacy = removed.legacyKeychainFilename, !receipt.sharedLegacy { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
+                    QuickUnlockKeychain.removeMasterKeyEntry(for: removed.id)
+                    try? FileManager.default.removeItem(at: cacheLocation(for: removed))
+                    try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removed))
+                    if activeAutoFillDatabaseID == removed.id { activeAutoFillDatabaseID = nil }
+                    CredentialIdentityStoreManager.removeIdentities(forDatabase: removed.id, includingLegacyIdentifiers: receipt.wasActive)
+                    return .removed
+                case .visibleUnconfirmed: return .visibleUnconfirmed
+                case .missing: return rowMissing ? .alreadyMissing : .notPublished
+                case .rejected: return recoveryRequired ? .recoveryRequired : .rejected
+                case .notPublished:
+                    if revocationObserved { return .revokedRegistryNotPublished }
+                    return revocationAttempted ? .revocationUnconfirmed : .notPublished
+                case .noop: return .rejected
+                }
+            }
+        } catch { return .notPublished }
+    }
+
+    #if DEBUG
     @discardableResult
     static func remove(id: UUID) -> Bool {
-        withStateLock {
-            _ = loadDatabases()
-            do {
-                guard try PendingLocalSaveStore.revokeForRemoval(id) else { return false }
-            } catch { return false }
-            // Removal must distinguish an absent reference from an unreadable registry.
-            let currentDatabases: [DatabaseReference]
-            do {
-                currentDatabases = normalized(try JSONDecoder().decode(
-                    [DatabaseReference].self, from: Data(contentsOf: databaseListURL)
-                ))
-            } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
-                return true
-            } catch { return false }
-            guard let removedReference = currentDatabases.first(where: { $0.id == id }) else { return true }
-            let wasActiveAutoFillDatabase = activeAutoFillDatabase?.id == id
-            let remainingDatabases = currentDatabases.filter { $0.id != id }
-            guard saveDatabases(remainingDatabases) else { return false }
-
-            KeychainService.deleteCompositeKey(for: removedReference.id)
-            if let legacyFilename = removedReference.legacyKeychainFilename {
-                KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-            }
-            QuickUnlockKeychain.removeMasterKeyEntry(for: removedReference.id)
-
-            try? FileManager.default.removeItem(at: cacheLocation(for: removedReference))
-            try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removedReference))
-            try? PendingUploadQueue.removeAllMarkers(for: removedReference.id)
-
-            if activeAutoFillDatabaseID == id {
-                activeAutoFillDatabaseID = nil
-            }
-
-            // Every removal drops the database's published identities —
-            // targeted, works while locked, leaves other databases'
-            // suggestions in place. (Pre-slice-04 only removing the *active*
-            // database cleared anything, and it wiped the whole store.)
-            CredentialIdentityStoreManager.removeIdentities(
-                forDatabase: id,
-                includingLegacyIdentifiers: wasActiveAutoFillDatabase
-            )
-            return true
-        }
+        guard AppGroupContainer.isRedirectedForTesting else { return false }
+        guard let rows = try? readDatabasesStrict() else { return false }
+        guard let reference = rows.first(where: { $0.id == id }) else { return true }
+        let outcome = remove(observed: reference)
+        return outcome == .removed || outcome == .alreadyMissing
     }
+    #endif
 
-    static func update(_ reference: DatabaseReference) {
-        withStateLock {
-            guard PendingLocalSaveStore.isRevoked(reference.id) == false else { return }
-            var currentDatabases = loadDatabases()
-
-            if let index = currentDatabases.firstIndex(where: { $0.id == reference.id }) {
-                currentDatabases[index] = reference
-            } else {
-                currentDatabases.append(reference)
-            }
-
-            saveDatabases(currentDatabases)
+    #if DEBUG
+    static func testUpsert(_ reference: DatabaseReference) {
+        guard AppGroupContainer.isRedirectedForTesting, !PendingLocalSaveStore.isRevoked(reference.id) else { return }
+        let result = mutateRegistry(onMissing: { [] }) { rows -> RegistryDecision<[DatabaseReference]> in
+            if let index = rows.firstIndex(where: { $0.id == reference.id }) { rows[index] = reference }
+            else { rows.append(reference) }
+            return .write(rows)
         }
+        if case .durable(let rows) = result, let active = activeAutoFillDatabaseID,
+           !rows.contains(where: { $0.id == active && $0.autoFillEnabled }) { activeAutoFillDatabaseID = nil }
     }
+    #endif
 
     struct DurableKeyFileAssociationReceipt: Sendable {
         let databaseID: UUID
@@ -448,7 +654,7 @@ enum DatabaseListStore {
                     let bytes = try encoder.encode(references)
                     outcome = try PendingLocalSaveStore.withAssociationPublicationAuthorization(
                         for: id, operationID: operationID, association: association,
-                        expectedWitness: expectedWitness, expectedAssociationVersion: expectedAssociationVersion, observeTarget: {
+                        expectedWitness: expectedWitness, expectedAssociationVersion: expectedAssociationVersion, nonBlocking: true, observeTarget: {
                             let identity = try PendingLocalSaveStore.targetIdentity(at: protectedTarget)
                             guard identity == expectedTarget else { throw PendingLocalSaveStore.OwnershipError.targetChanged }
                             return (identity, FileDigest.sha512(try Data(contentsOf: protectedTarget)))
@@ -503,7 +709,7 @@ enum DatabaseListStore {
     }
 
     enum KeyFilePreferenceOutcome: Sendable, Equatable {
-        case saved, notPublished, recoveryRequired, publishedWithoutConfirmedDurability, rejected
+        case saved, notPublished, recoveryRequired, cloudRecoveryRequired, publishedWithoutConfirmedDurability, rejected
     }
     struct KeyFilePreferenceError: Error, LocalizedError {
         let outcome: KeyFilePreferenceOutcome
@@ -513,6 +719,7 @@ enum DatabaseListStore {
             case .notPublished: String(localized: "The key-file preference was not changed. The database master key is unchanged. Review Database Details before trying again.")
             case .rejected: String(localized: "This key-file preference is out of date or blocked by local recovery. Review Database Details before choosing again.")
             case .recoveryRequired: String(localized: "Confirm the intended key-file preference in Database Details. The database master key is unchanged.")
+            case .cloudRecoveryRequired: String(localized: "This cloud operation needs recovery. Keep both the original and new keys if you changed them. Export the encrypted copy from Settings → Cloud → Cloud Recovery before trying another operation. An uncertain request will not be sent again automatically.")
             case .publishedWithoutConfirmedDurability: String(localized: "The key-file preference was published, but its record is not fully confirmed. Review Database Details before another selection. The database master key is unchanged.")
             }
         }
@@ -592,27 +799,40 @@ enum DatabaseListStore {
         canPublish: @Sendable () -> Bool = { true }
     ) -> KeyFilePreferenceOutcome {
         guard expected.isCloudBacked || localToken != nil, let anchor = AppGroupContainer.resolvedURL else { return .rejected }
-        return withStateLock {
+        do {
             var error: NSError?
             var outcome: DurableWriteOutcome?
+            var unchanged = false
             NSFileCoordinator().coordinate(writingItemAt: databaseListURL, options: .forReplacing, error: &error) { registry in
+                guard stateLock.try() else { return }
+                defer { stateLock.unlock() }
                 do {
                     guard canPublish() else { return }
                     var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
                     guard let index = references.firstIndex(where: { $0.id == expected.id }),
                           PendingLocalSaveStore.PreferenceObservation(expected).matches(references[index]) else { return }
+                    if references[index].keyFileBookmarkData == desired.bookmarkData && references[index].keyFileFilename == desired.filename {
+                        if let localToken {
+                            try PendingLocalSaveStore.withIdlePreferenceAuthorization(localToken, nonBlocking: true) {
+                                guard canPublish() else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+                            }
+                        }
+                        unchanged = true
+                        return
+                    }
                     references[index].keyFileBookmarkData = desired.bookmarkData
                     references[index].keyFileFilename = desired.filename
                     let encoder = JSONEncoder()
                     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
                     let bytes = try encoder.encode(references)
                     if let localToken {
-                        outcome = try PendingLocalSaveStore.withIdlePreferenceAuthorization(localToken) {
+                        outcome = try PendingLocalSaveStore.withIdlePreferenceAuthorization(localToken, nonBlocking: true) {
                             writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io)
                         }
                     } else { outcome = writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io) }
                 } catch { outcome = .notPublished(error) }
             }
+            if unchanged { return error == nil ? .saved : .notPublished }
             switch outcome {
             case .durable?: return error == nil ? .saved : .publishedWithoutConfirmedDurability
             case .publishedWithoutConfirmedDurability?: return .publishedWithoutConfirmedDurability
@@ -622,19 +842,107 @@ enum DatabaseListStore {
         }
     }
 
+    static func publishCloudKeyFilePreference(
+        for expected: DatabaseReference, desired: PendingLocalSaveStore.KeyFilePreference,
+        io: DurableFileWriteIO = .init(), queue: PendingUploadQueue.Environment = .live,
+        canPublish: @Sendable () -> Bool = { true }
+    ) -> KeyFilePreferenceOutcome {
+        guard expected.isCloudBacked else { return .rejected }
+        do {
+            return try PendingUploadQueue.withCommitLock(for: expected.id, environment: queue, nonBlocking: true) {
+                guard canPublish(), let current = try readDatabasesStrict().first(where: { $0.id == expected.id }),
+                      PendingLocalSaveStore.PreferenceObservation(expected).matches(current) else { return .rejected }
+                let records = try PendingUploadQueue.readJournal(for: current.id, environment: queue)
+                if PendingLocalSaveStore.KeyFilePreference(current) == desired {
+                    if records.contains(where: { $0.marker.binding?.alternatePreferenceFingerprint != nil }) {
+                        return .publishedWithoutConfirmedDurability
+                    }
+                    return publishRegistryKeyFilePreference(for: current, desired: desired, io: io, canPublish: canPublish)
+                }
+                guard !records.contains(where: { $0.marker.binding?.alternatePreferenceFingerprint != nil }) else {
+                    return .cloudRecoveryRequired
+                }
+                var target = current
+                target.keyFileBookmarkData = desired.bookmarkData
+                target.keyFileFilename = desired.filename
+                guard records.allSatisfy({ $0.marker.keyChange == nil && CloudJournalDecision.state(of: $0.marker) == .ready
+                    && PendingUploadQueue.hasBoundAuthority($0, reference: current) }) else { return .cloudRecoveryRequired }
+                var rebound: [PendingUploadQueue.StoredMarker] = []
+                for var stored in records {
+                    guard canPublish(), let binding = stored.marker.binding else { return .rejected }
+                    _ = try PendingUploadQueue.readImmutablePayload(stored, environment: queue)
+                    stored.marker.binding = try binding.authorizingPreferenceChange(from: current, to: target, operationID: stored.id)
+                    rebound.append(try PendingUploadQueue.update(stored, environment: queue))
+                }
+                guard canPublish() else { return .rejected }
+                let outcome = publishRegistryKeyFilePreference(for: current, desired: desired, io: io, canPublish: canPublish)
+                guard outcome == .saved else { return outcome }
+                do {
+                    for var stored in rebound {
+                        guard let binding = stored.marker.binding else { throw SaveError.saveContextUnavailable }
+                        stored.marker.binding = try binding.finalizingPreferenceChange(reference: target, operationID: stored.id)
+                        _ = try PendingUploadQueue.update(stored, environment: queue)
+                    }
+                } catch { return .publishedWithoutConfirmedDurability }
+                return .saved
+            }
+        } catch { return .notPublished }
+    }
+
+    // Caller holds the cloud commit lock while confirming the registry and retiring the transition.
+    static func recoverCloudKeyFilePreference(for databaseID: UUID, queue: PendingUploadQueue.Environment = .live,
+                                              io: DurableFileWriteIO = .init()) throws {
+        let records = try PendingUploadQueue.readJournal(for: databaseID, environment: queue)
+        let pending = records.filter { $0.marker.binding?.alternatePreferenceFingerprint != nil }
+        guard !pending.isEmpty else { return }
+        guard pending.allSatisfy({ $0.marker.keyChange == nil && $0.marker.confirmedAt == nil
+            && $0.marker.isPayloadFinalized == true && $0.marker.requiresLocalRecovery != true
+            && ($0.marker.uploadAttemptID == nil || $0.marker.attemptIsFenced == true) }) else {
+            throw SaveError.saveContextUnavailable
+        }
+        var coordinationError: NSError?
+        var result: Result<Void, Error>?
+        NSFileCoordinator().coordinate(readingItemAt: databaseListURL, options: [], error: &coordinationError) { registry in
+            result = Result {
+                guard stateLock.try() else { throw SaveError.saveContextUnavailable }
+                defer { stateLock.unlock() }
+                let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                guard let current = references.first(where: { $0.id == databaseID }), current.isCloudBacked,
+                      pending.allSatisfy({ PendingUploadQueue.hasBoundAuthority($0, reference: current) }) else {
+                    throw SaveError.saveContextUnavailable
+                }
+                let handle = try FileHandle(forUpdating: registry)
+                defer { try? handle.close() }
+                try io.synchronizeFile(handle.fileDescriptor)
+                try io.synchronizeParent(registry.deletingLastPathComponent())
+                for var stored in pending {
+                    guard let binding = stored.marker.binding else { throw SaveError.saveContextUnavailable }
+                    _ = try PendingUploadQueue.readImmutablePayload(stored, environment: queue)
+                    stored.marker.binding = try binding.finalizingPreferenceChange(reference: current, operationID: stored.id)
+                    _ = try PendingUploadQueue.update(stored, environment: queue)
+                }
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result else { throw SaveError.saveContextUnavailable }
+        try result.get()
+    }
+
     static func prepareKeyFilePreference(for reference: DatabaseReference) throws -> PendingLocalSaveStore.PreferenceToken {
         guard !reference.isCloudBacked else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
-        return try withStateLock {
+        do {
             var error: NSError?
             var result: Result<PendingLocalSaveStore.PreferenceToken, Error>?
             NSFileCoordinator().coordinate(readingItemAt: databaseListURL, options: [], error: &error) { url in
                 result = Result {
+                    guard stateLock.try() else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
+                    defer { stateLock.unlock() }
                     let observed = PendingLocalSaveStore.PreferenceObservation(reference)
                     let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: url))
                     guard let current = references.first(where: { $0.id == reference.id }), observed.matches(current) else {
                         throw PendingLocalSaveStore.OwnershipError.sourceChanged
                     }
-                    return try PendingLocalSaveStore.capturePreference(observed)
+                    return try PendingLocalSaveStore.capturePreference(observed, nonBlocking: true)
                 }
             }
             if let error { throw error }
@@ -660,7 +968,7 @@ enum DatabaseListStore {
             guard let reference = databases.first(where: { token.observation.matches($0) }) else { return .rejected }
             return publishRegistryKeyFilePreference(for: reference, desired: desired, io: io.registry, localToken: token, canPublish: canPublish)
         }
-        return withStateLock {
+        do {
             guard let anchor = AppGroupContainer.resolvedURL else { return .rejected }
             let target: URL?
             if token.witness != nil {
@@ -675,6 +983,8 @@ enum DatabaseListStore {
             var attempt: PendingLocalSaveStore.PreferencePublication?
             var rejected = false
             func publish(target: URL?, registry: URL) {
+                guard stateLock.try() else { rejected = true; return }
+                defer { stateLock.unlock() }
                 do {
                     guard canPublish() else { rejected = true; return }
                     var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
@@ -690,7 +1000,7 @@ enum DatabaseListStore {
                     attempt = try PendingLocalSaveStore.withPreferencePublication(token, desired: desired, observeTarget: {
                         guard let target else { return nil }
                         return (try PendingLocalSaveStore.targetIdentity(at: target), FileDigest.sha512(try Data(contentsOf: target)))
-                    }, io: io.owner) { writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io.registry) }
+                    }, io: io.owner, nonBlocking: true) { writeWithDurabilityOutcome(bytes, to: registry, directoryAnchor: anchor, io: io.registry) }
                 } catch { rejected = true }
             }
             let coordinator = NSFileCoordinator()
@@ -715,6 +1025,8 @@ enum DatabaseListStore {
                     var completionError: NSError?
                     var completion = PendingLocalSaveStore.ResolutionOutcome.retainedForRecovery
                     coordinator.coordinate(readingItemAt: databaseListURL, options: [], error: &completionError) { registry in
+                        guard stateLock.try() else { return }
+                        defer { stateLock.unlock() }
                         do {
                             let data = try Data(contentsOf: registry)
                             let references = try JSONDecoder().decode([DatabaseReference].self, from: data)
@@ -725,7 +1037,7 @@ enum DatabaseListStore {
                             try handle.synchronize()
                             try createDurableDirectory(at: registry.deletingLastPathComponent(), anchor: anchor)
                             let proof = DurablePreferenceReceipt(intent: intent, registrySHA512: FileDigest.sha512(data))
-                            completion = PendingLocalSaveStore.finishPreference(token, proof: proof, io: io.owner)
+                            completion = PendingLocalSaveStore.finishPreference(token, proof: proof, io: io.owner, nonBlocking: true)
                         } catch {}
                     }
                     return completion == .resolved && completionError == nil ? .saved : .publishedWithoutConfirmedDurability
@@ -736,15 +1048,28 @@ enum DatabaseListStore {
 
     @discardableResult
     static func setKeyFileAssociation(
-        for id: UUID, bookmarkData: Data?, filename: String?, masterKeyChangedAt: Date
-    ) -> Bool {
-        withStateLock {
-            var references = loadDatabases()
-            guard let index = references.firstIndex(where: { $0.id == id }) else { return false }
-            references[index].keyFileBookmarkData = bookmarkData
-            references[index].keyFileFilename = filename
-            references[index].lastMasterKeyChangeAt = masterKeyChangedAt
-            return saveDatabases(references)
+        for expected: DatabaseReference, bookmarkData: Data?, filename: String?, masterKeyChangedAt: Date,
+        io: DurableFileWriteIO = .init()
+    ) -> KeyFilePreferenceOutcome {
+        guard let token = try? PendingLocalSaveStore.capturePreference(.init(expected)) else { return .recoveryRequired }
+        let result = mutateRegistry(io: io, authorize: { operation in
+            try PendingLocalSaveStore.withIdlePreferenceAuthorization(token, nonBlocking: true, operation)
+        }) { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == expected.id }) else { return .missing }
+            guard token.observation.matches(rows[index]), rows[index].hardwareKey == expected.hardwareKey,
+                  rows[index].legacyKeychainFilename == expected.legacyKeychainFilename else { return .rejected }
+            if rows[index].keyFileBookmarkData == bookmarkData, rows[index].keyFileFilename == filename,
+               rows[index].lastMasterKeyChangeAt == masterKeyChangedAt { return .noop(()) }
+            rows[index].keyFileBookmarkData = bookmarkData
+            rows[index].keyFileFilename = filename
+            rows[index].lastMasterKeyChangeAt = masterKeyChangedAt
+            return .write(())
+        }
+        switch result {
+        case .durable, .noop: return .saved
+        case .notPublished: return .notPublished
+        case .visibleUnconfirmed: return .publishedWithoutConfirmedDurability
+        case .missing, .rejected: return .rejected
         }
     }
 
@@ -759,89 +1084,330 @@ enum DatabaseListStore {
     /// is unlisted, not cloud-backed, or the list failed to persist — a
     /// revision that never reached disk must not be acted on.
     @discardableResult
-    static func updateCloudSyncMetadata(
+    static func updateCloudSyncMetadata(for id: UUID, ifUnchangedFrom observed: CloudSyncMetadata,
+        observedReference: DatabaseReference,
+        mutate: (inout CloudSyncMetadata) -> Void) -> DatabaseReference? {
+        switch compareAndUpdateCloudSyncMetadata(for: id, ifUnchangedFrom: observed, observedReference: observedReference, mutate: mutate) {
+        case .published(let reference), .mismatch(let reference): reference
+        case .removed, .writeFailed, .visibleUnconfirmed: nil
+        }
+    }
+
+    static func addCreatedCloud(_ reference: DatabaseReference) throws {
+        try requireRegistryInitialization()
+        let result = mutateRegistry { rows -> RegistryDecision<Void> in
+            guard !rows.contains(where: { $0.id == reference.id }) else { return .rejected }
+            try validateCreatedCloud(reference, in: rows)
+            rows.append(reference)
+            return .write(())
+        }
+        switch result {
+        case .durable, .noop: return
+        case .notPublished(let error): throw error
+        case .visibleUnconfirmed(_, let error): throw RegistryWriteError.visibleUnconfirmed(error)
+        case .missing, .rejected: throw RegistryWriteError.unavailable
+        }
+    }
+
+    enum CloudMetadataUpdateResult { case published(DatabaseReference), mismatch(DatabaseReference), removed, writeFailed, visibleUnconfirmed(DatabaseReference) }
+    static func compareAndUpdateCloudSyncMetadata(
         for id: UUID,
         ifUnchangedFrom observed: CloudSyncMetadata,
+        observedReference: DatabaseReference,
+        confirmUnchanged: Bool = false,
+        io: DurableFileWriteIO = .init(),
         mutate: (inout CloudSyncMetadata) -> Void
-    ) -> DatabaseReference? {
-        withStateLock {
-            var currentDatabases = loadDatabases()
-            guard let index = currentDatabases.firstIndex(where: { $0.id == id }),
-                  let storedMetadata = currentDatabases[index].cloudSyncMetadata else {
-                return nil
+    ) -> CloudMetadataUpdateResult {
+        var mismatched: DatabaseReference?
+        let result = mutateRegistry(io: io, confirmUnchanged: confirmUnchanged) { rows -> RegistryDecision<DatabaseReference> in
+            guard let index = rows.firstIndex(where: { $0.id == id }), let stored = rows[index].cloudSyncMetadata else { return .missing }
+            guard stored.provider == observed.provider, stored.accountId == observed.accountId, stored.fileId == observed.fileId,
+                  stored.remoteRev == observed.remoteRev, stored.remoteContentHash == observed.remoteContentHash,
+                  stored.localHeadOperationID == observed.localHeadOperationID, stored.keyEpoch == observed.keyEpoch,
+                  observedReference.id == id, PendingLocalSaveStore.PreferenceObservation(observedReference).matches(rows[index]),
+                  observedReference.hardwareKey == rows[index].hardwareKey,
+                  observedReference.legacyKeychainFilename == rows[index].legacyKeychainFilename else {
+                mismatched = rows[index]
+                return .rejected
             }
+            rows[index].updateCloudSyncMetadata(mutate)
+            guard let updated = rows[index].cloudSyncMetadata else { return .rejected }
+            if updated == stored { return .noop(rows[index]) }
+            return .write(rows[index])
+        }
+        switch result {
+        case .durable(let reference), .noop(let reference): return .published(reference)
+        case .visibleUnconfirmed(let reference, _): return .visibleUnconfirmed(reference)
+        case .missing: return .removed
+        case .rejected: return mismatched.map(CloudMetadataUpdateResult.mismatch) ?? .writeFailed
+        case .notPublished: return .writeFailed
+        }
+    }
 
-            guard cloudRevisionIdentity(storedMetadata) == cloudRevisionIdentity(observed) else {
-                return currentDatabases[index]
+    /// Caller holds the database commit lock; only local publication fields may change.
+    static func publishCloudLocalCommit(
+        for id: UUID, operationID: UUID, binding: PendingUploadQueue.JournalBinding, io: DurableFileWriteIO = .init()
+    ) -> CloudMetadataUpdateResult {
+        var mismatch: DatabaseReference?
+        let result = mutateRegistry(io: io, confirmUnchanged: true) { rows -> RegistryDecision<DatabaseReference> in
+            guard let index = rows.firstIndex(where: { $0.id == id }), rows[index].isCloudBacked else { return .missing }
+            let current = rows[index]
+            guard binding.databaseID == id, binding.operationID == operationID,
+                  let baseline = binding.baseline else {
+                mismatch = current; return .rejected
             }
-
-            currentDatabases[index].updateCloudSyncMetadata(mutate)
-            guard saveDatabases(currentDatabases) else { return nil }
-            return currentDatabases[index]
+            if current.cloudSyncMetadata?.localHeadOperationID == operationID {
+                guard binding.matchesOrdinaryAuthority(reference: current, operationID: operationID) else { mismatch = current; return .rejected }
+                return .noop(current)
+            }
+            guard binding.matchesAuthority(reference: current, operationID: operationID) else { mismatch = current; return .rejected }
+            guard current.cloudSyncMetadata?.localHeadOperationID == baseline.headOperationID else { mismatch = current; return .rejected }
+            rows[index].updateCloudSyncMetadata {
+                $0.localHeadOperationID = operationID
+                $0.lastSyncedAt = nil
+            }
+            return .write(rows[index])
+        }
+        switch result {
+        case .durable(let reference), .noop(let reference): return .published(reference)
+        case .visibleUnconfirmed(let reference, _): return .visibleUnconfirmed(reference)
+        case .missing: return .removed
+        case .rejected: return mismatch.map(CloudMetadataUpdateResult.mismatch) ?? .writeFailed
+        case .notPublished: return .writeFailed
         }
     }
 
-    /// Identity for the compare-and-skip above. Revision alone is not enough:
-    /// references predating rev tracking carry only a content hash, which is
-    /// then the entire signal that the remote moved.
-    private static func cloudRevisionIdentity(_ metadata: CloudSyncMetadata) -> String {
-        "\(metadata.remoteRev ?? "")\u{1F}\(metadata.remoteContentHash ?? "")"
+    enum CloudRekeyPublication {
+        case durable(DatabaseReference)
+        case rejected(Error)
+        case cacheUnconfirmed(Error)
+        case registryNotPublished(Error)
+        case registryUnconfirmed(Error)
+        case retirementUnconfirmed(DatabaseReference)
     }
 
-    static func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            updatedReference.isReadOnly = isReadOnly
-            update(updatedReference)
+    /// The marker snapshot is captured before coordination and reread under the commit lock.
+    static func publishConfirmedCloudRekey(
+        _ snapshot: PendingUploadQueue.StoredMarker, cache: URL, bytes: Data,
+        queue: PendingUploadQueue.Environment = .live, registryIO: DurableFileWriteIO = .init(),
+        replacementIO: LocalDatabaseSaver.ReplacementIO = .init(),
+        backup: (DatabaseReference, Data) throws -> Void,
+        deleteOldKeys: (DatabaseReference) -> Void
+    ) -> CloudRekeyPublication {
+        guard let anchor = AppGroupContainer.resolvedURL,
+              let binding = snapshot.marker.binding, binding.isRecognized, binding.intendedPreferenceFingerprint != nil,
+              let rekey = snapshot.marker.keyChange, let committedAt = snapshot.marker.confirmedAt,
+              let intendedSHA = snapshot.marker.intendedPayloadSHA512,
+              FileDigest.sha512(bytes) == intendedSHA else { return .rejected(SaveError.saveContextUnavailable) }
+        let lease: PendingLocalSaveStore.CacheReadLease
+        let rekeyRecovery: PendingLocalSaveStore.CloudRekeyRecoveryEpoch?
+        do {
+            guard let observed = try readDatabasesStrict().first(where: { $0.id == snapshot.marker.databaseId }) else {
+                return .rejected(SaveError.saveContextUnavailable)
+            }
+            let initial = binding.matchesOriginal(reference: observed, operationID: snapshot.id)
+            let installed = binding.matchesInstalled(reference: observed, operationID: snapshot.id, keyChange: rekey, committedAt: committedAt)
+            guard initial || installed else { return .rejected(SaveError.saveContextUnavailable) }
+            rekeyRecovery = installed ? PendingLocalSaveStore.CloudRekeyRecoveryEpoch(binding: binding, reference: observed,
+                operationID: snapshot.id, change: rekey, committedAt: committedAt) : nil
+            lease = try PendingLocalSaveStore.captureCacheReadLease(for: observed, rekeyRecovery: rekeyRecovery)
+        } catch { return .rejected(error) }
+        var coordinationError: NSError?
+        var result: CloudRekeyPublication?
+        var effectStarted = false
+        NSFileCoordinator().coordinate(writingItemAt: cache, options: [], writingItemAt: databaseListURL, options: [], error: &coordinationError) { target, registry in
+            guard stateLock.try() else { result = .rejected(SaveError.saveContextUnavailable); return }
+            defer { stateLock.unlock() }
+            do {
+                result = try PendingUploadQueue.withCommitLock(for: snapshot.marker.databaseId, environment: queue, nonBlocking: true) {
+                    guard let exact = try PendingUploadQueue.readJournal(for: snapshot.marker.databaseId, environment: queue).first(where: { $0.id == snapshot.id }),
+                          exact.marker == snapshot.marker, binding.databaseID == snapshot.marker.databaseId,
+                          binding.operationID == snapshot.id, binding.baseline == snapshot.marker.localCommitBaseline,
+                          try PendingUploadQueue.readImmutablePayload(exact, environment: queue) == bytes,
+                          var rows = try readRegistry(at: registry),
+                          let index = rows.firstIndex(where: { $0.id == snapshot.marker.databaseId }) else {
+                        return .rejected(SaveError.saveContextUnavailable)
+                    }
+                    let current = rows[index]
+                    guard cache.standardizedFileURL == cacheLocation(for: current).standardizedFileURL,
+                          !rows.contains(where: { $0.id != current.id && cacheLocation(for: $0).standardizedFileURL == cache.standardizedFileURL }) else {
+                        return .rejected(SaveError.saveContextUnavailable)
+                    }
+                    let initial = binding.matchesOriginal(reference: current, operationID: snapshot.id)
+                    let installed = binding.matchesInstalled(reference: current, operationID: snapshot.id,
+                                                              keyChange: rekey, committedAt: committedAt)
+                    guard (initial || installed), lease.reference.matches(current) else { return .rejected(SaveError.saveContextUnavailable) }
+                    if installed { effectStarted = true }
+                    return try PendingLocalSaveStore.withCloudRekeyPublicationAuthorization(for: current.id, sha512: intendedSHA,
+                        lease: lease, rekeyRecovery: rekeyRecovery, binding: binding, operationID: snapshot.id,
+                        change: rekey, committedAt: committedAt) { handoff in
+                        let oldBytes: Data?
+                        do { oldBytes = try Data(contentsOf: target) }
+                        catch let error as CocoaError where error.code == .fileReadNoSuchFile { oldBytes = nil }
+                        let oldSHA = oldBytes.map(FileDigest.sha512)
+                        if installed, oldSHA != intendedSHA { return .rejected(SaveError.saveContextUnavailable) }
+                        guard oldSHA == nil || oldSHA == snapshot.marker.predecessorSHA512 || oldSHA == intendedSHA else {
+                            return .rejected(SaveError.saveContextUnavailable)
+                        }
+                        if let oldBytes, oldSHA != intendedSHA { try backup(current, oldBytes) }
+                        if !installed && oldSHA != intendedSHA {
+                            switch LocalDatabaseSaver.replaceAlreadyCoordinated(bytes, at: target, expectedSHA512: oldSHA, io: replacementIO,
+                                beforeReplacement: { effectStarted = true; deleteOldKeys(current) }) {
+                            case .durable: break
+                            case .notPublished(let error): return .rejected(error)
+                            case .publishedWithoutConfirmedDurability(let error): return .cacheUnconfirmed(error)
+                            }
+                        } else if !installed {
+                            effectStarted = true
+                            deleteOldKeys(current)
+                        }
+                        if oldSHA == intendedSHA {
+                            let handle = try FileHandle(forUpdating: target)
+                            defer { try? handle.close() }
+                            try registryIO.synchronizeFile(handle.fileDescriptor)
+                            try registryIO.synchronizeParent(target.deletingLastPathComponent())
+                        }
+                        guard try PendingUploadQueue.readJournal(for: current.id, environment: queue).contains(where: {
+                            $0.id == snapshot.id && $0.marker == snapshot.marker
+                        }), try Data(contentsOf: target) == bytes else {
+                            return .cacheUnconfirmed(SaveError.saveContextUnavailable)
+                        }
+                        let remaining = try PendingUploadQueue.readJournal(for: current.id, environment: queue).filter { $0.id != snapshot.id }
+                        var ancestors = Set(snapshot.marker.absorbedOperationIDs ?? [])
+                        if let predecessor = snapshot.marker.predecessorOperationID { ancestors.insert(predecessor) }
+                        ancestors.remove(snapshot.id)
+                        guard ancestors.isDisjoint(with: Set(remaining.map(\.id))) else {
+                            return .retirementUnconfirmed(current)
+                        }
+                        rows[index].updateCloudSyncMetadata {
+                            $0.localHeadOperationID = snapshot.id
+                            $0.keyEpoch = rekey.epoch
+                            if let rev = snapshot.marker.confirmedRemoteRev { $0.remoteRev = rev }
+                            if let hash = snapshot.marker.confirmedRemoteHash { $0.remoteContentHash = hash }
+                            $0.remoteModifiedAt = committedAt
+                            $0.lastSyncedAt = remaining.isEmpty ? committedAt : nil
+                            $0.lastSyncIssue = nil
+                        }
+                        rows[index].keyFileBookmarkData = rekey.keyFileBookmarkData
+                        rows[index].keyFileFilename = rekey.keyFileFilename
+                        rows[index].lastMasterKeyChangeAt = committedAt
+                        let encoder = JSONEncoder()
+                        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                        let registryBytes = try encoder.encode(normalized(rows))
+                        switch writeWithDurabilityOutcome(registryBytes, to: registry, directoryAnchor: anchor, io: registryIO) {
+                        case .durable:
+                            let published = rows[index]
+                            guard let durableRow = try readRegistry(at: registry)?.first(where: { $0.id == current.id }),
+                                  durableRow == published,
+                                  binding.matchesInstalled(reference: durableRow, operationID: snapshot.id, keyChange: rekey, committedAt: committedAt),
+                                  try Data(contentsOf: target) == bytes,
+                                  try PendingUploadQueue.readJournal(for: current.id, environment: queue).contains(where: {
+                                      $0.id == snapshot.id && $0.marker == snapshot.marker
+                                  }) else { return .retirementUnconfirmed(published) }
+                            do {
+                                try handoff(durableRow)
+                                guard try PendingUploadQueue.dropIfUnchanged(snapshot, environment: queue) else {
+                                    return .retirementUnconfirmed(published)
+                                }
+                            } catch { return .retirementUnconfirmed(published) }
+                            return .durable(published)
+                        case .notPublished(let error): return .registryNotPublished(error)
+                        case .publishedWithoutConfirmedDurability(let error): return .registryUnconfirmed(error)
+                        }
+                    }
+                }
+            } catch {
+                result = effectStarted ? .cacheUnconfirmed(error) : .rejected(error)
+            }
         }
+        if let coordinationError {
+            switch result {
+            case .durable, .registryUnconfirmed: return .registryUnconfirmed(coordinationError)
+            case .registryNotPublished: return .registryNotPublished(coordinationError)
+            case .cacheUnconfirmed: return .cacheUnconfirmed(coordinationError)
+            case .retirementUnconfirmed(let reference): return .retirementUnconfirmed(reference)
+            default: return effectStarted ? .cacheUnconfirmed(coordinationError) : .rejected(coordinationError)
+            }
+        }
+        return result ?? .rejected(CocoaError(.fileWriteUnknown))
     }
 
-    static func setNickname(_ nickname: String?, for reference: DatabaseReference) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            updatedReference.nickname = nickname
-            update(updatedReference)
-        }
+    @discardableResult
+    static func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == reference.id }) else { return .missing }
+            guard PendingLocalSaveStore.PreferenceObservation(reference).matches(rows[index]),
+                  rows[index].hardwareKey == reference.hardwareKey else { return .rejected }
+            guard rows[index].isReadOnly != isReadOnly else { return .noop(()) }
+            rows[index].isReadOnly = isReadOnly
+            return .write(())
+        })
     }
 
-    static func setCloudSyncPolicy(_ policy: CloudSyncPolicy, for reference: DatabaseReference) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            updatedReference.cloudSyncPolicy = policy
-            update(updatedReference)
-        }
+    @discardableResult
+    static func setCloudSyncPolicy(_ policy: CloudSyncPolicy, for reference: DatabaseReference) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == reference.id }) else { return .missing }
+            guard rows[index].cloudSyncPolicy != policy else { return .noop(()) }
+            rows[index].cloudSyncPolicy = policy
+            return .write(())
+        })
     }
 
-    static func setAutoFillDestinationGroupID(_ groupID: UUID, for reference: DatabaseReference) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            updatedReference.autoFillDestinationGroupID = groupID
-            update(updatedReference)
-        }
+    @discardableResult
+    static func setAutoFillDestinationGroupID(_ groupID: UUID, for reference: DatabaseReference) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == reference.id }) else { return .missing }
+            guard rows[index].autoFillDestinationGroupID != groupID else { return .noop(()) }
+            rows[index].autoFillDestinationGroupID = groupID
+            return .write(())
+        })
     }
 
     /// Adding or removing the hardware key changes what the stored Quick
     /// Launch key means (composite key vs. pre-key), so that key is dropped
     /// and the next successful unlock stores the right one.
-    static func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?, for reference: DatabaseReference) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            guard updatedReference.hardwareKey != hardwareKey else { return }
+    enum HardwarePreferenceOutcome: Equatable, Sendable {
+        case saved, unchanged, rejected, notPublished, visibleUnconfirmed, keyEffectUnconfirmed
+    }
 
-            if (updatedReference.hardwareKey == nil) != (hardwareKey == nil) {
-                KeychainService.deleteCompositeKey(for: updatedReference.id)
-                if let legacyFilename = updatedReference.legacyKeychainFilename {
-                    KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-                    updatedReference.legacyKeychainFilename = nil
-                }
+    @discardableResult
+    static func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?, for reference: DatabaseReference,
+                               io: DurableFileWriteIO = .init(),
+                               deleteKeys: (UUID, String?) -> Void = { id, legacy in
+                                   KeychainService.deleteCompositeKey(for: id)
+                                   if let legacy { KeychainService.deleteLegacyCompositeKey(forFilename: legacy) }
+                               }) -> HardwarePreferenceOutcome {
+        guard let token = try? PendingLocalSaveStore.capturePreference(.init(reference)) else { return .rejected }
+        var keyEffect = false
+        let result = mutateRegistry(io: io, authorize: { operation in
+            try PendingLocalSaveStore.withIdlePreferenceAuthorization(token, nonBlocking: true, operation)
+        }) { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == reference.id }) else { return .missing }
+            guard token.observation.matches(rows[index]), rows[index].hardwareKey == reference.hardwareKey,
+                  rows[index].legacyKeychainFilename == reference.legacyKeychainFilename else { return .rejected }
+            guard rows[index].hardwareKey != hardwareKey else { return .noop(()) }
+            if (rows[index].hardwareKey == nil) != (hardwareKey == nil) {
+                let legacy = rows[index].legacyKeychainFilename
+                let sharedLegacy = legacy.map { name in rows.contains { $0.id != reference.id && $0.legacyKeychainFilename == name } } ?? false
+                deleteKeys(reference.id, sharedLegacy ? nil : legacy)
+                keyEffect = true
+                rows[index].legacyKeychainFilename = nil
             }
-            updatedReference.hardwareKey = hardwareKey
-            update(updatedReference)
+            rows[index].hardwareKey = hardwareKey
+            return .write(())
+        }
+        switch result {
+        case .durable: return .saved
+        case .noop: return .unchanged
+        case .missing, .rejected: return .rejected
+        case .notPublished: return keyEffect ? .keyEffectUnconfirmed : .notPublished
+        case .visibleUnconfirmed: return .visibleUnconfirmed
         }
     }
 
     /// Owns the consequences of toggling a database's AutoFill participation
-    /// (mirroring how `remove(id:)` owns removal consequences): disabling
+    /// (mirroring how `remove(observed:)` owns removal consequences): disabling
     /// removes exactly that database's published identities — targeted, needs
     /// no unlock, other databases' suggestions stay untouched — and, when the
     /// disabled database was the active AutoFill database, hands the active
@@ -860,32 +1426,60 @@ enum DatabaseListStore {
     /// the registry alone). The immediate-refresh-when-already-unlocked path
     /// lives at the view-model layer (`DatabaseListViewModel.setAutoFillEnabled`),
     /// which can see the open session; this store cannot.
-    static func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            guard updatedReference.autoFillEnabled != isEnabled else { return }
+    enum AutoFillPreferenceOutcome: Sendable, Equatable { case saved, unchanged, rejected, notPublished, visibleUnconfirmed }
+    private struct AutoFillChange {
+        let reference: DatabaseReference
+        let wasActive: Bool
+        let previousPointer: UUID?
+        let nextPointer: UUID?
+    }
 
-            let wasActive = activeAutoFillDatabase?.id == reference.id
-            updatedReference.autoFillEnabled = isEnabled
-            update(updatedReference)
-
-            guard isEnabled == false else { return }
-
-            if wasActive {
-                activeAutoFillDatabaseID = nextActiveAutoFillDatabaseID(excluding: reference.id)
+    @discardableResult
+    static func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference,
+                                   io: DurableFileWriteIO = .init()) -> AutoFillPreferenceOutcome {
+        let result = mutateRegistry(io: io) { rows -> RegistryDecision<AutoFillChange> in
+            guard let index = rows.firstIndex(where: { $0.id == reference.id }) else { return .missing }
+            guard PendingLocalSaveStore.PreferenceObservation(reference).matches(rows[index]),
+                  rows[index].hardwareKey == reference.hardwareKey,
+                  rows[index].autoFillEnabled == reference.autoFillEnabled else { return .rejected }
+            let wasActive = activeAutoFillDatabase(in: rows)?.id == reference.id
+            let pointer = activeAutoFillDatabaseID
+            let captured = rows[index]
+            let next = rows.filter { $0.id != reference.id && $0.autoFillEnabled && $0.lastOpenedAt != nil }
+                .max { ($0.lastOpenedAt ?? .distantPast) < ($1.lastOpenedAt ?? .distantPast) }?.id
+            let change = AutoFillChange(reference: captured, wasActive: wasActive, previousPointer: pointer, nextPointer: next)
+            guard captured.autoFillEnabled != isEnabled else { return .noop(change) }
+            rows[index].autoFillEnabled = isEnabled
+            return .write(change)
+        }
+        switch result {
+        case .durable(let change):
+            if !isEnabled {
+                if change.wasActive && activeAutoFillDatabaseID == change.previousPointer {
+                    if let next = change.nextPointer {
+                        if (try? readDatabasesStrict().contains { $0.id == next && $0.autoFillEnabled }) == true {
+                            activeAutoFillDatabaseID = next
+                        }
+                    } else { activeAutoFillDatabaseID = nil }
+                }
+                CredentialIdentityStoreManager.removeIdentities(forDatabase: change.reference.id, includingLegacyIdentifiers: change.wasActive)
             }
-            CredentialIdentityStoreManager.removeIdentities(
-                forDatabase: reference.id,
-                includingLegacyIdentifiers: wasActive
-            )
+            return .saved
+        case .noop: return .unchanged
+        case .missing, .rejected: return .rejected
+        case .notPublished: return .notPublished
+        case .visibleUnconfirmed: return .visibleUnconfirmed
         }
     }
 
     /// `destination` indexes the list as it was *before* the move, so it has to
     /// be pulled back by however many moved rows sat above it.
-    static func move(from source: IndexSet, to destination: Int) {
-        withStateLock {
-            var currentDatabases = loadDatabases()
+    @discardableResult
+    static func move(from source: IndexSet, to destination: Int, observedIDs: [UUID]? = nil) -> Bool {
+        let observed = observedIDs ?? loadDatabases().map(\.id)
+        guard source.allSatisfy({ observed.indices.contains($0) }), (0...observed.count).contains(destination) else { return false }
+        return succeeded(mutateRegistry { currentDatabases -> RegistryDecision<Void> in
+            guard currentDatabases.map(\.id) == observed else { return .rejected }
             let movingItems = source.map { currentDatabases[$0] }
             let liftedAbove = source.count { $0 < destination }
 
@@ -895,48 +1489,38 @@ enum DatabaseListStore {
 
             let insertionIndex = min(max(destination - liftedAbove, 0), currentDatabases.count)
             currentDatabases.insert(contentsOf: movingItems, at: insertionIndex)
-            saveDatabases(currentDatabases)
-        }
+            return .write(())
+        })
     }
 
-    static func markDatabaseOpened(id: UUID, at date: Date = .now) {
-        withStateLock {
-            guard var reference = loadDatabases().first(where: { $0.id == id }) else { return }
-            reference.lastOpenedAt = date
-            reference.hasUnverifiedRelink = false
-            update(reference)
-            // Opening a database with AutoFill disabled must not make it the
-            // active AutoFill database; the previous pointer stays in place.
-            // (The `activeAutoFillDatabaseID` setter also refuses disabled
-            // ids; this guard just makes the write path explicit.)
-            if reference.autoFillEnabled {
-                activeAutoFillDatabaseID = id
+    static func markDatabaseOpened(id: UUID, observed: DatabaseReference? = nil, at date: Date = .now) {
+        let result = mutateRegistry { rows -> RegistryDecision<Bool> in
+            guard let index = rows.firstIndex(where: { $0.id == id }) else { return .missing }
+            rows[index].lastOpenedAt = date
+            if let observed, observed.id == id, observed.bookmarkData == rows[index].bookmarkData,
+               PendingLocalSaveStore.PreferenceObservation(observed).matches(rows[index]) {
+                rows[index].hasUnverifiedRelink = false
             }
+            return .write(rows[index].autoFillEnabled)
         }
-    }
-
-    static func clearLegacyKeychainFilename(for id: UUID) {
-        withStateLock {
-            guard var reference = loadDatabases().first(where: { $0.id == id }) else { return }
-            guard reference.legacyKeychainFilename != nil else { return }
-            reference.legacyKeychainFilename = nil
-            update(reference)
-        }
+        if case .durable(true) = result { activeAutoFillDatabaseID = id }
     }
 
     @discardableResult
-    static func clearLegacyKeychainFilename(for expected: DatabaseReference) -> Bool {
-        withStateLock {
-            do {
-                guard let legacy = expected.legacyKeychainFilename, !PendingLocalSaveStore.isRevoked(expected.id) else { return false }
-                var references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
-                guard let index = references.firstIndex(where: { $0.id == expected.id }),
-                      references[index].legacyKeychainFilename == legacy,
-                      PendingLocalSaveStore.PreferenceObservation(expected).matches(references[index]) else { return false }
-                references[index].legacyKeychainFilename = nil
-                return saveDatabases(references)
-            } catch { return false }
+    static func clearLegacyKeychainFilename(for expected: DatabaseReference, io: DurableFileWriteIO = .init()) -> Bool {
+        guard let legacy = expected.legacyKeychainFilename else { return false }
+        let result = mutateRegistry(io: io, authorize: { operation in
+            try PendingLocalSaveStore.withLegacyFilenameCleanupAuthorization(for: expected.id, operation)
+        }) { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == expected.id }) else { return .missing }
+            guard rows[index].legacyKeychainFilename == legacy,
+                  rows[index].hardwareKey == expected.hardwareKey,
+                  PendingLocalSaveStore.PreferenceObservation(expected).matches(rows[index]) else { return .rejected }
+            rows[index].legacyKeychainFilename = nil
+            return .write(())
         }
+        if case .durable = result { return true }
+        return false
     }
 
     final class KeyCommitPublicationPermit: @unchecked Sendable {
@@ -1027,7 +1611,7 @@ enum DatabaseListStore {
                           current.legacyKeychainFilename == observed.legacyKeychainFilename else {
                         throw PendingLocalSaveStore.OwnershipError.sourceChanged
                     }
-                    return try PendingLocalSaveStore.withKeyCommitPublicationAuthorization(receipt, reference: current,
+                    return try PendingLocalSaveStore.withKeyCommitPublicationAuthorization(receipt, reference: current, nonBlocking: true,
                         observeTarget: { (identity, bytes) }) {
                             try io.beforeEffect()
                             guard permit.claim() else { throw PendingLocalSaveStore.OwnershipError.recoveryRequired }
@@ -1039,6 +1623,70 @@ enum DatabaseListStore {
         // An outer coordinator error cannot undo Keychain effects observed inside the protected accessor.
         if let result { return try result.get() }
         throw coordinatorError ?? CocoaError(.fileReadUnknown)
+    }
+
+    /// Called only inside target coordination; never waits for the registry lock.
+    static func withCloudMergeReference<T>(_ expected: DatabaseReference, _ body: (DatabaseReference) throws -> T) throws -> T {
+        guard stateLock.try() else { throw SaveError.saveContextUnavailable }
+        defer { stateLock.unlock() }
+        let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: databaseListURL))
+        guard let current = references.first(where: { $0.id == expected.id }),
+              current.cloudSyncMetadata?.provider == expected.cloudSyncMetadata?.provider,
+              current.cloudSyncMetadata?.accountId == expected.cloudSyncMetadata?.accountId,
+              current.cloudSyncMetadata?.fileId == expected.cloudSyncMetadata?.fileId,
+              current.cloudSyncMetadata?.keyEpoch == expected.cloudSyncMetadata?.keyEpoch,
+              current.cloudSyncMetadata?.localHeadOperationID == expected.cloudSyncMetadata?.localHeadOperationID,
+              current.lastMasterKeyChangeAt == expected.lastMasterKeyChangeAt,
+              current.bookmarkData == expected.bookmarkData, current.hardwareKey == expected.hardwareKey,
+              current.keyFileBookmarkData == expected.keyFileBookmarkData,
+              current.keyFileFilename == expected.keyFileFilename,
+              current.legacyKeychainFilename == expected.legacyKeychainFilename,
+              current.isReadOnly == expected.isReadOnly else { throw SaveError.saveContextUnavailable }
+        return try body(current)
+    }
+
+    /// Cache coordination precedes an immediate list/commit-lock attempt; contention rejects publication.
+    static func withCloudKeyPublication<T>(
+        for expected: DatabaseReference, sha512: Data, permit: KeyCommitPublicationPermit,
+        io: KeyCommitPublicationIO = .init(), _ publish: () throws -> T
+    ) throws -> T {
+        defer { permit.close() }
+        guard permit.state == .pending else { throw SaveError.saveContextUnavailable }
+        let cache = cacheLocation(for: expected)
+        var result: Result<T, Error>?
+        var coordinationError: Error?
+        do {
+            try io.coordinate(cache, databaseListURL) { protectedCache, registry in
+                result = Result {
+                    guard permit.state == .pending else { throw SaveError.saveContextUnavailable }
+                    let bytes = try io.read(protectedCache)
+                    guard FileDigest.sha512(bytes) == sha512, stateLock.try() else { throw SaveError.saveContextUnavailable }
+                    defer { stateLock.unlock() }
+                    let references = try JSONDecoder().decode([DatabaseReference].self, from: Data(contentsOf: registry))
+                    guard let current = references.first(where: { $0.id == expected.id }),
+                          current.cloudSyncMetadata?.keyEpoch == expected.cloudSyncMetadata?.keyEpoch,
+                          current.cloudSyncMetadata?.localHeadOperationID == expected.cloudSyncMetadata?.localHeadOperationID,
+                          current.lastMasterKeyChangeAt == expected.lastMasterKeyChangeAt,
+                          current.keyFileBookmarkData == expected.keyFileBookmarkData,
+                          current.keyFileFilename == expected.keyFileFilename,
+                          current.legacyKeychainFilename == expected.legacyKeychainFilename,
+                          current.hardwareKey == expected.hardwareKey,
+                          current.cloudSyncMetadata?.fileId == expected.cloudSyncMetadata?.fileId,
+                          current.cloudSyncMetadata?.accountId == expected.cloudSyncMetadata?.accountId,
+                          current.cloudSyncMetadata?.provider == expected.cloudSyncMetadata?.provider else { throw SaveError.saveContextUnavailable }
+                    return try PendingUploadQueue.withCommitLock(for: current.id, nonBlocking: true) {
+                        guard try PendingUploadQueue.readJournal(for: current.id).isEmpty else { throw SaveError.saveContextUnavailable }
+                        return try PendingLocalSaveStore.withCachePublicationAuthorization(for: current.id, sha512: sha512, nonBlocking: true) {
+                            try io.beforeEffect()
+                            guard permit.claim() else { throw SaveError.saveContextUnavailable }
+                            return try publish()
+                        }
+                    }
+                }
+            }
+        } catch { coordinationError = error }
+        if let result { return try result.get() }
+        throw coordinationError ?? CocoaError(.fileReadUnknown)
     }
 
     static func withLocalReadKeyPublication<T>(
@@ -1170,8 +1818,29 @@ enum DatabaseListStore {
             return
         }
         let url = cacheLocation(for: reference)
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try CoordinatedFileReader.writeData(data, to: url, options: .atomicProtected)
+        guard let anchor = AppGroupContainer.resolvedURL else { throw CocoaError(.fileWriteNoPermission) }
+        try createDurableDirectory(at: url.deletingLastPathComponent(), anchor: anchor)
+        var result: Result<Void, Error>?
+        var coordinationError: NSError?
+        NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { protectedURL in
+            result = Result {
+                guard stateLock.try() else { throw SaveError.saveContextUnavailable }
+                defer { stateLock.unlock() }
+                if let current = loadDatabases().first(where: { $0.id == reference.id }) {
+                    guard current.cloudSyncMetadata?.keyEpoch == reference.cloudSyncMetadata?.keyEpoch,
+                          current.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt else { throw SaveError.saveContextUnavailable }
+                }
+                try PendingUploadQueue.withCommitLock(for: reference.id, nonBlocking: true) {
+                    guard try PendingUploadQueue.readJournal(for: reference.id).isEmpty else { throw SaveError.saveContextUnavailable }
+                    try PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: FileDigest.sha512(data), nonBlocking: true) {
+                        guard let anchor = AppGroupContainer.resolvedURL else { throw CocoaError(.fileWriteNoPermission) }
+                        try writeAtomicallyAndDurably(data, to: protectedURL, directoryAnchor: anchor)
+                    }
+                }
+            }
+        }
+        if let result { return try result.get() }
+        throw coordinationError ?? CocoaError(.fileWriteUnknown)
     }
 
     static func cachedDatabaseURL(for databaseID: UUID) -> URL? {
@@ -1246,12 +1915,13 @@ enum DatabaseListStore {
         renewBookmark: Bool = true,
         beforeBookmarkRenewal: () throws -> Void = {},
         bookmarkRenewalIO: DurableFileWriteIO = .init(),
-        onBookmarkRenewal: (DatabaseBookmarkRenewal) -> Void = { _ in }
+        onBookmarkRenewal: (DatabaseBookmarkRenewal) -> Void = { _ in },
+        onDocumentsRebind: (DatabaseReference) -> Void = { _ in }
     ) -> LocalDatabaseFileLocation? {
         let lease = renewBookmark ? (try? PendingLocalSaveStore.captureCacheReadLease(for: reference)) : nil
         guard let bookmarkData = reference.bookmarkData,
               let resolved = resolveBookmark(bookmarkData) else {
-            return renewBookmark ? reboundDocumentsResidentLocation(for: reference) : nil
+            return renewBookmark ? reboundDocumentsResidentLocation(for: reference, onRebind: onDocumentsRebind) : nil
         }
 
         let url = resolved.url
@@ -1263,7 +1933,7 @@ enum DatabaseListStore {
         }
 
         if SecurityScopedBookmarkManager.isInTrashDirectory(url) {
-            if renewBookmark, let rebound = reboundDocumentsResidentLocation(for: reference) {
+            if renewBookmark, let rebound = reboundDocumentsResidentLocation(for: reference, onRebind: onDocumentsRebind) {
                 return rebound
             }
             return .inTrash(url)
@@ -1301,7 +1971,7 @@ enum DatabaseListStore {
                 guard let index = references.firstIndex(where: { $0.id == expected.id }),
                       PendingLocalSaveStore.PreferenceObservation(expected).matches(references[index]),
                       expected.hardwareKey == references[index].hardwareKey else { throw PendingLocalSaveStore.OwnershipError.sourceChanged }
-                return try PendingLocalSaveStore.withMergeBookmarkPublication(commit, target: identity, sha512: sha) { epoch in
+                return try PendingLocalSaveStore.withMergeBookmarkPublication(commit, target: identity, sha512: sha, nonBlocking: true) { epoch in
                     let before = references[index]
                     references[index].bookmarkData = bookmark
                     switch writeWithDurabilityOutcome(try JSONEncoder().encode(references), to: registry, directoryAnchor: anchor, io: io) {
@@ -1334,7 +2004,7 @@ enum DatabaseListStore {
                     guard let index = references.firstIndex(where: { $0.id == expected.id }),
                           !references[index].isCloudBacked, references[index] == expected else { return }
                     let identity = try PendingLocalSaveStore.targetIdentity(at: target)
-                    try PendingLocalSaveStore.withReferenceEpochAuthorization(lease) {
+                    try PendingLocalSaveStore.withReferenceEpochAuthorization(lease, nonBlocking: true) {
                         references[index].bookmarkData = bookmark
                         let encoder = JSONEncoder()
                         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -1368,7 +2038,7 @@ enum DatabaseListStore {
     /// cloud-backed, or has no bookmark (a KeeForge-only database lives in
     /// that cache, so reseeding it would overwrite the database itself).
     @discardableResult
-    static func relinkLocalDatabase(id: UUID, to url: URL) throws -> DatabaseReference? {
+    static func relinkLocalDatabase(observed: DatabaseReference, to url: URL, io: DurableFileWriteIO = .init()) throws -> DatabaseReference? {
         let accessed = url.startAccessingSecurityScopedResource()
         defer {
             if accessed {
@@ -1380,32 +2050,40 @@ enum DatabaseListStore {
             throw LocalDatabaseFileError.databaseInTrash
         }
         let bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
-
-        let relinked = try withStateLock { () throws -> DatabaseReference? in
-            var currentDatabases = loadDatabases()
-            guard let index = currentDatabases.firstIndex(where: { $0.id == id }),
-                  currentDatabases[index].cloudSyncMetadata == nil,
-                  currentDatabases[index].bookmarkData != nil else {
-                return nil
-            }
-            if let duplicate = existingLocalReference(matching: url, in: currentDatabases.filter { $0.id != id }) {
+        let target = try PendingLocalSaveStore.targetIdentity(at: url)
+        guard let snapshot = try readRegistry(at: databaseListURL) else { return nil }
+        let duplicate = existingLocalReference(matching: url, in: snapshot.filter { $0.id != observed.id })
+        let result = mutateRegistry(io: io, readingTarget: url, validateTarget: { try PendingLocalSaveStore.targetIdentity(at: $0) == target }, authorize: { operation in
+            try PendingLocalSaveStore.withRelinkAuthorization(for: observed.id, operation)
+        }) { rows -> RegistryDecision<DatabaseReference> in
+            guard let index = rows.firstIndex(where: { $0.id == observed.id }) else { return .missing }
+            guard rows.count == snapshot.count, zip(rows, snapshot).allSatisfy({ current, previous in
+                current.id == previous.id && current.bookmarkData == previous.bookmarkData && current.isCloudBacked == previous.isCloudBacked
+            }), PendingLocalSaveStore.PreferenceObservation(observed).matches(rows[index]),
+                rows[index].hardwareKey == observed.hardwareKey,
+                rows[index].legacyKeychainFilename == observed.legacyKeychainFilename,
+                rows[index].cloudSyncMetadata == nil, rows[index].bookmarkData != nil else { return .rejected }
+            if let duplicate {
                 throw AddDatabaseError.duplicateFile(
                     existingReferenceID: duplicate.id,
                     filename: duplicate.displayName
                 )
             }
-            currentDatabases[index].bookmarkData = bookmarkData
-            currentDatabases[index].filename = filename(for: url)
-            currentDatabases[index].isDocumentsResident = isTopLevelDocumentsFile(url)
-            currentDatabases[index].hasUnverifiedRelink = true
-            guard saveDatabases(currentDatabases) else { return nil }
-            return currentDatabases[index]
+            rows[index].bookmarkData = bookmarkData
+            rows[index].filename = filename(for: url)
+            rows[index].isDocumentsResident = isTopLevelDocumentsFile(url)
+            rows[index].hasUnverifiedRelink = true
+            return .write(rows[index])
         }
-
-        if relinked != nil {
-            cacheInitialCopyIfPossible(from: url, for: id)
+        switch result {
+        case .durable(let relinked):
+            cacheInitialCopyIfPossible(from: url, for: relinked.id)
+            return relinked
+        case .noop(let reference): return reference
+        case .notPublished(let error): throw error
+        case .visibleUnconfirmed(_, let error): throw RegistryWriteError.visibleUnconfirmed(error)
+        case .missing, .rejected: return nil
         }
-        return relinked
     }
 
     static func resolveKeyFileURL(
@@ -1435,7 +2113,10 @@ enum DatabaseListStore {
             let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: refreshed,
                 filename: reference.keyFileFilename ?? resolved.url.lastPathComponent)
             if let token { return publishKeyFilePreference(token, desired: desired) }
-            return publishRegistryKeyFilePreference(for: reference, desired: desired)
+            return try PendingUploadQueue.withCommitLock(for: reference.id, nonBlocking: true) {
+                guard try PendingUploadQueue.readJournal(for: reference.id).isEmpty else { return .notPublished }
+                return publishRegistryKeyFilePreference(for: reference, desired: desired)
+            }
         } catch { return .rejected }
     }
 
@@ -1447,38 +2128,54 @@ enum DatabaseListStore {
         }
     }
 
-    static func migrateFromSharedVaultStore() {
-        withStateLock {
-            #if DEBUG
-            bootstrapForUITestingIfNeeded()
-            #endif
+    enum RegistryInitializationResult {
+        case initialized, alreadyPresent, notPublished(Error), visibleUnconfirmed(Error)
+    }
 
-            guard !FileManager.default.fileExists(atPath: databaseListURL.path) else {
-                sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
-                return
+    @discardableResult
+    static func initializeRegistry() -> RegistryInitializationResult {
+        #if DEBUG
+        uiTestBootstrapLock.lock()
+        bootstrapForUITestingIfNeeded()
+        uiTestBootstrapLock.unlock()
+        #endif
+        let migrated = migratedLegacyReference()
+        var missing = false
+        let result = mutateRegistry(onMissing: {
+            missing = true
+            return migrated.map { [$0] } ?? []
+        }) { rows -> RegistryDecision<Bool> in
+            if missing { return .write(true) }
+            return .noop(false)
+        }
+        switch result {
+        case .durable:
+            sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
+            if let migrated {
+                if activeAutoFillDatabaseID == nil { activeAutoFillDatabaseID = migrated.id }
+                copyLegacyCachedDatabaseIfNeeded(to: migrated.id)
             }
-
-            guard let migratedReference = migratedLegacyReference() else {
-                sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
-                return
-            }
-
-            saveDatabases([migratedReference])
-            if activeAutoFillDatabaseID == nil {
-                activeAutoFillDatabaseID = migratedReference.id
-            }
-            copyLegacyCachedDatabaseIfNeeded(to: migratedReference.id)
+            return .initialized
+        case .noop: return .alreadyPresent
+        case .visibleUnconfirmed(_, let error): return .visibleUnconfirmed(error)
+        case .notPublished(let error): return .notPublished(error)
+        case .missing, .rejected: return .notPublished(CocoaError(.fileWriteUnknown))
         }
     }
 
     static func clearAll() {
+        guard AppGroupContainer.isRedirectedForTesting else { return }
+        let currentDatabases = loadDatabases()
+        currentDatabases.forEach { _ = remove(observed: $0) }
         withStateLock {
-            let currentDatabases = loadDatabases()
-            currentDatabases.forEach { remove(id: $0.id) }
             try? FileManager.default.removeItem(at: databaseListURL)
             try? FileManager.default.removeItem(at: backupsRootURL)
             try? PendingUploadQueue.clearAll()
             PendingLocalSaveStore.clearAll()
+            if AppGroupContainer.isRedirectedForTesting {
+                // Test teardown also owns caches whose unresolved journal refused ordinary reference removal.
+                try? FileManager.default.removeItem(at: SharedVaultStore.cloudCacheDirectory)
+            }
             activeAutoFillDatabaseID = nil
             sharedDefaults.removeObject(forKey: migrationVersionKey)
             #if DEBUG
@@ -1541,13 +2238,7 @@ enum DatabaseListStore {
     // MARK: - Private
 
     private static func loadDatabases() -> [DatabaseReference] {
-        withStateLock {
-            #if DEBUG
-            bootstrapForUITestingIfNeeded()
-            #endif
-            migrateFromSharedVaultStoreIfNeeded()
-            return decodeStoredDatabases()
-        }
+        decodeStoredDatabases()
     }
 
     /// Decodes `database-list.json` without triggering UI-test bootstrap or
@@ -1555,60 +2246,7 @@ enum DatabaseListStore {
     /// this because it can run mid-migration, where re-entering
     /// `loadDatabases()` could recurse back into the migration path.
     private static func decodeStoredDatabases() -> [DatabaseReference] {
-        withStateLock {
-            guard let data = try? Data(contentsOf: databaseListURL) else {
-                return []
-            }
-
-            guard let decoded = try? JSONDecoder().decode([DatabaseReference].self, from: data) else {
-                return []
-            }
-
-            return normalized(decoded)
-        }
-    }
-
-    /// Returns whether the list actually reached disk. Most callers are
-    /// best-effort and ignore it; one recording a cloud revision must not
-    /// report success for a revision that never persisted.
-    @discardableResult
-    private static func saveDatabases(_ references: [DatabaseReference]) -> Bool {
-        withStateLock {
-            let normalizedReferences = normalized(references)
-            let encoded: Data
-
-            do {
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                encoded = try encoder.encode(normalizedReferences)
-            } catch {
-                return false
-            }
-
-            do {
-                let parentDirectory = databaseListURL.deletingLastPathComponent()
-                try FileManager.default.createDirectory(
-                    at: parentDirectory,
-                    withIntermediateDirectories: true,
-                    attributes: nil
-                )
-                try CoordinatedFileReader.writeData(
-                    encoded,
-                    to: databaseListURL,
-                    options: .atomicProtected
-                )
-                sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
-            } catch {
-                return false
-            }
-
-            if let activeAutoFillDatabaseID,
-               normalizedReferences.contains(where: { $0.id == activeAutoFillDatabaseID && $0.autoFillEnabled }) == false {
-                self.activeAutoFillDatabaseID = nil
-            }
-
-            return true
-        }
+        (try? readRegistry(at: databaseListURL)) ?? []
     }
 
     private static func normalized(_ references: [DatabaseReference]) -> [DatabaseReference] {
@@ -1630,11 +2268,6 @@ enum DatabaseListStore {
 
             return normalizedReference
         }
-    }
-
-    private static func migrateFromSharedVaultStoreIfNeeded() {
-        guard FileManager.default.fileExists(atPath: databaseListURL.path) == false else { return }
-        migrateFromSharedVaultStore()
     }
 
     private static var applicationSupportURL: URL {
@@ -1682,7 +2315,10 @@ enum DatabaseListStore {
             SharedVaultStore.cloudAccountDefaults.set(encodedAccounts, forKey: cloudAccountsStorageKey)
         }
 
-        saveDatabases(references)
+        _ = mutateRegistry(onMissing: { [] }) { rows -> RegistryDecision<Void> in
+            rows = references
+            return .write(())
+        }
         activeAutoFillDatabaseID = nil
     }
 
@@ -1883,16 +2519,23 @@ enum DatabaseListStore {
     /// cheap; a non-resident (potentially file-provider) bookmark must never
     /// be resolved on this path.
     @discardableResult
-    static func rebindBookmarkData(_ bookmarkData: Data, for id: UUID, toFileAt url: URL) -> Bool {
-        withStateLock {
-            var currentDatabases = loadDatabases()
-            guard let index = currentDatabases.firstIndex(where: { $0.id == id }) else { return false }
-            if let claimant = existingLocalReference(matching: url, in: currentDatabases.filter(\.isDocumentsResident)),
-               claimant.id != id {
-                return false
-            }
-            currentDatabases[index].bookmarkData = bookmarkData
-            return saveDatabases(currentDatabases)
+    static func rebindBookmarkData(_ bookmarkData: Data, for observed: DatabaseReference, toFileAt url: URL) -> Bool {
+        rebindDocumentsReference(bookmarkData, for: observed, toFileAt: url) != nil
+    }
+
+    private static func rebindDocumentsReference(_ bookmarkData: Data, for observed: DatabaseReference, toFileAt url: URL) -> DatabaseReference? {
+        let result = mutateRegistry { rows -> RegistryDecision<DatabaseReference> in
+            guard let index = rows.firstIndex(where: { $0.id == observed.id }) else { return .missing }
+            guard rows[index] == observed else { return .rejected }
+            if let claimant = existingLocalReference(matching: url, in: rows.filter(\.isDocumentsResident)),
+               claimant.id != observed.id { return .rejected }
+            guard rows[index].bookmarkData != bookmarkData else { return .noop(rows[index]) }
+            rows[index].bookmarkData = bookmarkData
+            return .write(rows[index])
+        }
+        switch result {
+        case .durable(let reference), .noop(let reference): return reference
+        default: return nil
         }
     }
 
@@ -1901,14 +2544,18 @@ enum DatabaseListStore {
     /// copy; concurrent edits to other fields survive. A reference that left
     /// top-level Documents drops the flag and stops participating in
     /// path-keyed rebinding.
-    static func rederiveDocumentsIdentity(for id: UUID, filename: String, isDocumentsResident: Bool) {
-        withStateLock {
-            var currentDatabases = loadDatabases()
-            guard let index = currentDatabases.firstIndex(where: { $0.id == id }) else { return }
-            currentDatabases[index].filename = filename
-            currentDatabases[index].isDocumentsResident = isDocumentsResident
-            saveDatabases(currentDatabases)
-        }
+    @discardableResult
+    static func rederiveDocumentsIdentity(for observed: DatabaseReference, filename: String, isDocumentsResident: Bool) -> Bool {
+        succeeded(mutateRegistry { rows -> RegistryDecision<Void> in
+            guard let index = rows.firstIndex(where: { $0.id == observed.id }) else { return .missing }
+            guard PendingLocalSaveStore.PreferenceObservation(observed).matches(rows[index]),
+                  rows[index].filename == observed.filename,
+                  rows[index].isDocumentsResident == observed.isDocumentsResident else { return .rejected }
+            guard rows[index].filename != filename || rows[index].isDocumentsResident != isDocumentsResident else { return .noop(()) }
+            rows[index].filename = filename
+            rows[index].isDocumentsResident = isDocumentsResident
+            return .write(())
+        })
     }
 
     /// Whether a Documents-resident reference's file is gone: its own
@@ -1948,7 +2595,7 @@ enum DatabaseListStore {
     /// rebind write was refused (id removed, or the path already belongs to
     /// another reference).
     private static func reboundDocumentsResidentLocation(
-        for reference: DatabaseReference
+        for reference: DatabaseReference, onRebind: (DatabaseReference) -> Void
     ) -> LocalDatabaseFileLocation? {
         guard reference.isDocumentsResident else { return nil }
 
@@ -1958,10 +2605,11 @@ enum DatabaseListStore {
               isDirectory.boolValue == false,
               DocumentPickerService.hasKDBXMagic(at: candidate),
               let bookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: candidate),
-              rebindBookmarkData(bookmarkData, for: reference.id, toFileAt: candidate) else {
+              let rebound = rebindDocumentsReference(bookmarkData, for: reference, toFileAt: candidate) else {
             return nil
         }
 
+        onRebind(rebound)
         cacheInitialCopyIfPossible(from: candidate, for: reference.id)
         return .available(candidate)
     }

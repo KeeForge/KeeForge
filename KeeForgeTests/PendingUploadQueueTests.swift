@@ -18,6 +18,83 @@ final class PendingUploadQueueTests: XCTestCase {
         try super.tearDownWithError()
     }
 
+    func test_publishedLegacyFinalizationPhasesNeverAuthorizeDelivery() throws {
+        let id = UUID()
+        let bytes = Data("legacy encrypted payload".utf8)
+        for phase in [Optional<Bool>.none, false, true] {
+            var json: [String: Any] = ["databaseId": id.uuidString, "encryptedBytesCacheURL": "databases/vault.kdbx",
+                "openTimeSHA512": FileDigest.sha512(bytes).base64EncodedString(), "generation": 0,
+                "createdAt": 100.0, "expectedRev": "rev-A", "baseRev": "rev-A", "isConflicted": true]
+            if let phase { json["isPayloadFinalized"] = phase }
+            let marker = try JSONDecoder().decode(PendingUploadQueue.Marker.self, from: JSONSerialization.data(withJSONObject: json))
+            XCTAssertEqual(marker.isPayloadFinalized, phase)
+            XCTAssertNil(marker.binding)
+            XCTAssertNil(marker.localCommitBaseline)
+            let decision = CloudJournalDecision.delivery(.init(marker: marker, siblings: [], siblingIDs: [],
+                epoch: nil, lastMasterKeyChangeAt: nil, payloadMatches: true))
+            XCTAssertEqual(decision, phase == true ? .conflict : .retain)
+        }
+    }
+
+    func test_unboundNewJournalCannotBeAutomaticallyRetired() throws {
+        let environment = makeEnvironment()
+        var marker = makeMarker()
+        marker.journalVersion = 1
+        marker.binding = nil
+        let stored = try PendingUploadQueue.enqueue(marker, environment: environment)
+        XCTAssertFalse(try PendingUploadQueue.dropIfUnchanged(stored, environment: environment))
+        XCTAssertEqual(PendingUploadQueue.listMarkers(for: marker.databaseId, environment: environment).first?.id, stored.id)
+    }
+
+    func test_bindingRejectsCollidingAccountsAndChangedFactors() throws {
+        let metadata = CloudSyncMetadata(provider: "webdav", accountId: "a/b", fileId: "vault", displayPath: "vault",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)
+        let original = DatabaseReference(id: UUID(), nickname: nil, filename: "vault.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: Data([1, 2]), keyFileFilename: "key", isQuickLaunch: false, lastOpenedAt: nil,
+            addedAt: .now, colorTag: nil, legacyKeychainFilename: nil, source: .cloud(metadata))
+        let operationID = UUID()
+        let binding = try PendingUploadQueue.JournalBinding.capture(reference: original, operationID: operationID)
+        let reloaded = try JSONDecoder().decode(PendingUploadQueue.JournalBinding.self, from: JSONEncoder().encode(binding))
+        XCTAssertTrue(reloaded.matchesOriginal(reference: original, operationID: operationID))
+        var advanced = original
+        advanced.updateCloudSyncMetadata { $0.localHeadOperationID = UUID() }
+        XCTAssertFalse(reloaded.matchesOriginal(reference: advanced, operationID: operationID))
+        var foreign = original
+        var foreignMetadata = metadata
+        foreignMetadata = CloudSyncMetadata(provider: "webdav", accountId: "a?b", fileId: "vault", displayPath: "vault",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)
+        foreign.source = .cloud(foreignMetadata)
+        XCTAssertFalse(reloaded.matchesAuthority(reference: foreign, operationID: operationID))
+        foreign = original
+        foreign.keyFileBookmarkData = Data([2, 1])
+        XCTAssertFalse(reloaded.matchesAuthority(reference: foreign, operationID: operationID))
+        let transition = try reloaded.authorizingPreferenceChange(from: original, to: foreign, operationID: operationID)
+        let restored = try JSONDecoder().decode(PendingUploadQueue.JournalBinding.self, from: JSONEncoder().encode(transition))
+        XCTAssertTrue(restored.matchesAuthority(reference: original, operationID: operationID))
+        XCTAssertTrue(restored.matchesAuthority(reference: foreign, operationID: operationID))
+        let finalized = try restored.finalizingPreferenceChange(reference: foreign, operationID: operationID)
+        XCTAssertFalse(finalized.matchesAuthority(reference: original, operationID: operationID))
+        XCTAssertTrue(finalized.matchesAuthority(reference: foreign, operationID: operationID))
+        let rolledBack = try restored.finalizingPreferenceChange(reference: original, operationID: operationID)
+        XCTAssertTrue(rolledBack.matchesAuthority(reference: original, operationID: operationID))
+        XCTAssertFalse(rolledBack.matchesAuthority(reference: foreign, operationID: operationID))
+        var unrelated = foreign
+        unrelated.keyFileBookmarkData = Data([9])
+        XCTAssertFalse(restored.matchesAuthority(reference: unrelated, operationID: operationID))
+        unrelated = foreign
+        unrelated.source = .cloud(foreignMetadata)
+        XCTAssertFalse(restored.matchesAuthority(reference: unrelated, operationID: operationID))
+        XCTAssertThrowsError(try reloaded.authorizingPreferenceChange(from: original, to: unrelated, operationID: operationID))
+        var readOnly = original
+        readOnly.isReadOnly = true
+        var readOnlyDesired = readOnly
+        readOnlyDesired.keyFileBookmarkData = Data([4])
+        let readOnlyTransition = try reloaded.authorizingPreferenceChange(from: readOnly, to: readOnlyDesired, operationID: operationID)
+        XCTAssertTrue(readOnlyTransition.matchesOrdinaryAuthority(reference: readOnly, operationID: operationID))
+        XCTAssertTrue(readOnlyTransition.matchesOrdinaryAuthority(reference: readOnlyDesired, operationID: operationID))
+        XCTAssertFalse(reloaded.matchesAuthority(reference: original, operationID: UUID()))
+    }
+
     func test_enqueue_failedMarkerWriteDoesNotNotify() throws {
         let notificationCounter = Counter()
         let environment = makeEnvironment(
@@ -281,13 +358,13 @@ final class PendingUploadQueueTests: XCTestCase {
         let databaseId = UUID()
         let supersededSHA = Data("base-sha".utf8)
 
-        let superseded = try PendingUploadQueue.enqueue(
+        var superseded = try PendingUploadQueue.enqueue(
             makeMarker(databaseId: databaseId, createdAt: Date(timeIntervalSince1970: 10), openTimeSHA512: supersededSHA),
             environment: environment
         )
         // A conflicted marker with the same recorded payload is equally
         // superseded — the SHA equality is the proof the conflict was spurious.
-        let conflicted = try PendingUploadQueue.enqueue(
+        var conflicted = try PendingUploadQueue.enqueue(
             makeMarker(
                 databaseId: databaseId,
                 createdAt: Date(timeIntervalSince1970: 20),
@@ -296,6 +373,15 @@ final class PendingUploadQueueTests: XCTestCase {
             ),
             environment: environment
         )
+        let metadata = CloudSyncMetadata(provider: "webdav", accountId: "account", fileId: "vault", displayPath: "vault",
+            remoteContentHash: nil, remoteModifiedAt: nil, lastSyncedAt: nil, lastSyncIssue: nil)
+        let reference = DatabaseReference(id: databaseId, nickname: nil, filename: "vault.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil, addedAt: .now,
+            colorTag: nil, legacyKeychainFilename: nil, source: .cloud(metadata))
+        superseded.marker.binding = try PendingUploadQueue.JournalBinding.capture(reference: reference, operationID: superseded.id)
+        conflicted.marker.binding = try PendingUploadQueue.JournalBinding.capture(reference: reference, operationID: conflicted.id)
+        superseded = try PendingUploadQueue.update(superseded, environment: environment)
+        conflicted = try PendingUploadQueue.update(conflicted, environment: environment)
         let differentPayload = try PendingUploadQueue.enqueue(
             makeMarker(databaseId: databaseId, createdAt: Date(timeIntervalSince1970: 30), openTimeSHA512: Data("other-sha".utf8)),
             environment: environment

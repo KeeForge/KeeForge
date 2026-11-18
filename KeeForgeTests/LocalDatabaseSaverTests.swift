@@ -472,12 +472,12 @@ final class LocalDatabaseSaverTests: XCTestCase {
         let url = try makeScratchDatabaseCopy()
         var reference = try makeRegisteredReference(for: url)
         reference.legacyKeychainFilename = "original-legacy.kdbx"
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         var newer = reference
         newer.legacyKeychainFilename = "new-legacy.kdbx"
         newer.nickname = "Keep current nickname"
         newer.lastMasterKeyChangeAt = Date(timeIntervalSince1970: 1_900_000_000)
-        DatabaseListStore.update(newer)
+        DatabaseListStore.testUpsert(newer)
         XCTAssertFalse(DatabaseListStore.clearLegacyKeychainFilename(for: reference))
         XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }, newer)
         XCTAssertTrue(DatabaseListStore.clearLegacyKeychainFilename(for: newer))
@@ -572,7 +572,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         DatabaseListStore.documentsDirectoryOverride = setup.directory
         var resident = setup.reference
         resident.isDocumentsResident = true
-        DatabaseListStore.update(resident)
+        DatabaseListStore.testUpsert(resident)
         try setup.oldData.write(to: setup.url, options: .atomic)
         let cache = DatabaseListStore.cacheLocation(for: resident)
         let before = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber)
@@ -583,12 +583,12 @@ final class LocalDatabaseSaverTests: XCTestCase {
         DatabaseListStore.cacheInitialCopyIfPossible(from: setup.url, for: resident.id)
         XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
         resident.bookmarkData = Data("invalid Documents bookmark".utf8)
-        DatabaseListStore.update(resident)
-        _ = DatabaseListStore.locateDatabaseFile(for: resident)
+        DatabaseListStore.testUpsert(resident)
+        _ = DatabaseListStore.locateDatabaseFile(for: resident, onDocumentsRebind: { resident = $0 })
         XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
         let other = setup.directory.appendingPathComponent("relinked.kdbx")
         try setup.oldData.write(to: other)
-        XCTAssertNotNil(try DatabaseListStore.relinkLocalDatabase(id: resident.id, to: other))
+        XCTAssertNotNil(try DatabaseListStore.relinkLocalDatabase(observed: resident, to: other))
         XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
         XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber, before)
         let copy = try await LocalDatabaseSaver.exportKeyEpochCopy(XCTUnwrap(setup.snapshot.admission), for: resident)
@@ -596,7 +596,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try PendingLocalSaveStore.recovery(for: resident.id).admission, setup.snapshot.admission)
     }
 
-    func testInitialCacheReadCannotPublishAfterRemovalOrEpochSettlement() async throws {
+    func testInitialCacheReadKeepsInstalledCiphertextAcrossRefusedRemovalOrEpochSettlement() async throws {
         for event in ["remove", "epoch"] {
             let setup = try await makePendingKeyChangeWithDistinctKeyFiles()
             defer { try? FileManager.default.removeItem(at: setup.directory) }
@@ -615,9 +615,13 @@ final class LocalDatabaseSaverTests: XCTestCase {
                 return bytes
             })
             XCTAssertEqual(try Data(contentsOf: cache), setup.newData)
-            XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber, before)
-            if event == "remove" { XCTAssertTrue(PendingLocalSaveStore.isRevoked(setup.reference.id)) }
-            else { XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.reference.id).keyEvidence) }
+            if event == "remove" {
+                XCTAssertFalse(PendingLocalSaveStore.isRevoked(setup.reference.id))
+                XCTAssertNotNil(try PendingLocalSaveStore.recovery(for: setup.reference.id).admission)
+            } else {
+                XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: cache.path)[.systemFileNumber] as? NSNumber, before)
+                XCTAssertNil(try PendingLocalSaveStore.recovery(for: setup.reference.id).keyEvidence)
+            }
         }
     }
 
@@ -666,7 +670,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
     private func makeRegisteredReference(for url: URL) throws -> DatabaseReference {
         let reference = try TestDatabaseSupport.makeReference(for: url)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 
@@ -689,7 +693,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
         var reference = try DatabaseListStore.add(url: url)
         reference.keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: oldKeyURL, readOnly: true)
         reference.keyFileFilename = oldKeyURL.lastPathComponent
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let desired = PendingLocalSaveStore.KeyFileAssociation(
             bookmarkData: try SecurityScopedBookmarkManager.makeBookmarkData(for: newKeyURL, readOnly: true),
             filename: newKeyURL.lastPathComponent, changedAt: Date(timeIntervalSince1970: 1_800_000_000))
@@ -1078,54 +1082,64 @@ final class LocalDatabaseSaverTests: XCTestCase {
     }
 
     func testSaveCloudReferenceResolvedToCacheWritesCacheExactlyOnce() async throws {
-        // A cloud-backed reference has no bookmark, so (as in an AutoFill
-        // extension save) the resolved save location IS the shared cache
-        // file. The atomic replace is the cache write; a second refresh
-        // through cacheDatabaseCopy would write the same bytes again.
         let reference = makeCloudReference()
-        let fixtureURL = try TestDatabaseSupport.fixtureURL(
-            bundle: Bundle(for: LocalDatabaseSaverTests.self)
-        )
-        try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: fixtureURL), for: reference)
-        let cacheURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
-        let context = try makeDirtySaveContext(
-            databaseURL: cacheURL,
-            entryTitle: "Cloud Cache Entry"
-        )
-
-        let cacheWrites = WriteCounter()
-        let cachePath = cacheURL.standardizedFileURL.resolvingSymlinksInPath().path
-        var environment = LocalDatabaseSaver.Environment.live
-        let liveReplace = environment.replaceFileAtomically
-        environment.replaceFileAtomically = { data, url, expectedSHA512, authorization in
-            if url.standardizedFileURL.resolvingSymlinksInPath().path == cachePath {
-                cacheWrites.increment()
-            }
-            return try liveReplace(data, url, expectedSHA512, authorization)
+        DatabaseListStore.testUpsert(reference)
+        let fixtureURL = try TestDatabaseSupport.fixtureURL(bundle: Bundle(for: Self.self))
+        let original = try Data(contentsOf: fixtureURL)
+        try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(databaseURL: cacheURL, entryTitle: "Cloud Cache Entry")
+        let writes = WriteCounter()
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        let replace = environment.replaceFile
+        environment.replaceFile = { data, url, sha, ref in
+            if url.standardizedFileURL == cacheURL.standardizedFileURL { writes.increment() }
+            return try replace(data, url, sha, ref)
         }
-        environment.cacheDatabaseCopy = { data, reference in
-            cacheWrites.increment()
-            try TestDatabaseSupport.cacheLocalSnapshotDiagnosingFailure(data, for: reference)
-        }
+        let result = try await CloudDatabaseSaver.save(draft: context.draft, reference: reference,
+            compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-1", kdfPolicy: .mainApp, environment: environment)
+        guard case .saved(let sha, _, _) = result else { return XCTFail("Expected local cloud commit") }
+        let bytes = try Data(contentsOf: cacheURL)
+        XCTAssertNotEqual(bytes, original)
+        XCTAssertEqual(FileDigest.sha512(bytes), sha)
+        XCTAssertEqual(writes.count, 1)
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker), bytes)
+        XCTAssertEqual(marker.marker.openTimeSHA512, sha)
+        let parsed = try KDBXParser.parse(data: bytes, password: fixturePassword, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertTrue(parsed.allEntries.contains { $0.title == "Cloud Cache Entry" })
+    }
 
-        let result = try await LocalDatabaseSaver.save(
-            draft: context.draft,
-            reference: reference,
-            compositeKey: context.compositeKey,
-            openTimeSHA512: context.openTimeSHA512,
-            environment: environment
-        )
-
-        guard case .saved(let newSHA512, _, _) = result else {
-            XCTFail("Expected save to succeed.")
-            return
+    func testUnregisteredCloudReferenceCannotReplaceCacheOrCreateJournal() async throws {
+        let reference = makeCloudReference()
+        let fixtureURL = try TestDatabaseSupport.fixtureURL(bundle: Bundle(for: Self.self))
+        let original = try Data(contentsOf: fixtureURL)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        try FileManager.default.createDirectory(at: cacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try original.write(to: cacheURL)
+        let context = try makeDirtySaveContext(databaseURL: cacheURL, entryTitle: "Unregistered")
+        let writes = WriteCounter()
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        let replace = environment.replaceFile
+        environment.replaceFile = { data, url, sha, ref in
+            writes.increment()
+            return try replace(data, url, sha, ref)
         }
-        XCTAssertEqual(
-            cacheWrites.count,
-            1,
-            "Saving a cloud reference must write the shared cache exactly once"
-        )
-        XCTAssertEqual(FileDigest.sha512(try Data(contentsOf: cacheURL)), newSHA512)
+        do {
+            _ = try await CloudDatabaseSaver.save(draft: context.draft, reference: reference,
+                compositeKey: context.compositeKey, openTimeSHA512: context.openTimeSHA512,
+                expectedRev: "rev-1", kdfPolicy: .mainApp, environment: environment)
+            XCTFail("Unregistered reference must not commit")
+        } catch { XCTAssertEqual(error as? SaveError, .saveContextUnavailable) }
+        XCTAssertEqual(writes.count, 0)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), original)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
     }
 
     func testSaveFinishingAfterAnotherCapturedBaselineConflictsInsteadOfOverwritingIt() async throws {
@@ -1455,9 +1469,9 @@ final class LocalDatabaseSaverTests: XCTestCase {
                 try handle.write(contentsOf: Data(repeating: 0xA1, count: readBytes.count))
                 try handle.close()
                 XCTAssertEqual(try PendingLocalSaveStore.targetIdentity(at: setup.url), target)
-            case "factors": current.keyFileFilename = "different.keyx"; current.keyFileBookmarkData = Data([0x74]); DatabaseListStore.update(current)
-            case "master-key-date": current.lastMasterKeyChangeAt = .now; DatabaseListStore.update(current)
-            case "hardware": current.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two); DatabaseListStore.update(current)
+            case "factors": current.keyFileFilename = "different.keyx"; current.keyFileBookmarkData = Data([0x74]); DatabaseListStore.testUpsert(current)
+            case "master-key-date": current.lastMasterKeyChangeAt = .now; DatabaseListStore.testUpsert(current)
+            case "hardware": current.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two); DatabaseListStore.testUpsert(current)
             case "source":
                 let prepared = try PendingLocalSaveStore.prepareSource(readBytes, for: current.id,
                     masterKeyChangedAt: current.lastMasterKeyChangeAt, baseCacheSHA512: FileDigest.sha512(readBytes))

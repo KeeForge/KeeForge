@@ -560,13 +560,19 @@ enum PendingLocalSaveStore {
         for databaseID: UUID, token: Token?, expectedMasterKeyChangeAt: Date?, enforcesEpoch: Bool,
         isMasterKeyChange: Bool, association: KeyFileAssociation?, prepared: PreparedSource?,
         intendedSHA512: Data, observeTarget: () throws -> (TargetIdentity, Data),
-        targetIsSharedCopy: Bool,
+        targetIsSharedCopy: Bool, cacheLease: CacheReadLease? = nil,
         io: StorageIO = .init(), _ replace: (CommitReceipt?) throws -> T
     ) throws -> AuthorizedWrite<T> {
         try withLock(for: databaseID) {
             try requireNotRemoved(databaseID)
             var state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
             guard state.retirementID == nil else { throw OwnershipError.recoveryRequired }
+            if let lease = cacheLease {
+                guard lease.databaseID == databaseID, lease.epochID == state.epoch.id,
+                      state.operation == .idle, state.sources.isEmpty, try sourceURLs(databaseID).isEmpty,
+                      state.keyEvidence?.pending == nil else { throw OwnershipError.sourceChanged }
+                if case .known(let date, _) = state.epoch, date != lease.masterKeyChangedAt { throw OwnershipError.sourceChanged }
+            }
             let previousEpoch = state.epoch
             if enforcesEpoch { try checkEpoch(&state, expected: expectedMasterKeyChangeAt) }
             let (target, baseline) = try observeTarget()
@@ -723,11 +729,24 @@ enum PendingLocalSaveStore {
         var bookmarkRenewal: DatabaseListStore.DatabaseBookmarkRenewal? = nil
     }
 
-    static func captureCacheReadLease(for reference: DatabaseReference) throws -> CacheReadLease {
+    struct CloudRekeyRecoveryEpoch: Sendable {
+        fileprivate let observed: PreferenceObservation
+        fileprivate let previousDate: Date?
+
+        init?(binding: PendingUploadQueue.JournalBinding, reference: DatabaseReference, operationID: UUID,
+              change: PendingUploadQueue.KeyChange, committedAt: Date) {
+            guard binding.matchesInstalled(reference: reference, operationID: operationID, keyChange: change, committedAt: committedAt) else { return nil }
+            observed = PreferenceObservation(reference)
+            previousDate = binding.baseline?.lastMasterKeyChangeAt
+        }
+    }
+
+    static func captureCacheReadLease(for reference: DatabaseReference, rekeyRecovery: CloudRekeyRecoveryEpoch? = nil) throws -> CacheReadLease {
         try withLock(for: reference.id) {
             try requireNotRemoved(reference.id)
             let state = try loadState(reference.id) ?? OwnerState(version: 1, removed: false)
-            if case .known(let date, _) = state.epoch, date != reference.lastMasterKeyChangeAt { throw OwnershipError.sourceChanged }
+            if case .known(let date, _) = state.epoch, date != reference.lastMasterKeyChangeAt,
+               !(rekeyRecovery?.observed.matches(reference) == true && date == rekeyRecovery?.previousDate) { throw OwnershipError.sourceChanged }
             return CacheReadLease(databaseID: reference.id, epochID: state.epoch.id, masterKeyChangedAt: reference.lastMasterKeyChangeAt, reference: PreferenceObservation(reference))
         }
     }
@@ -741,10 +760,10 @@ enum PendingLocalSaveStore {
     }
 
     static func withKeyCommitPublicationAuthorization<T>(
-        _ receipt: CommitReceipt, reference: DatabaseReference,
+        _ receipt: CommitReceipt, reference: DatabaseReference, nonBlocking: Bool = false,
         observeTarget: () throws -> (TargetIdentity, Data), _ publish: () throws -> T
     ) throws -> T {
-        try withLock(for: receipt.databaseID) {
+        try withLock(for: receipt.databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(receipt.databaseID)
             let state = try loadState(receipt.databaseID) ?? OwnerState(version: 1, removed: false)
             guard state.version == receipt.ownerVersion, state.retirementID == nil,
@@ -792,9 +811,9 @@ enum PendingLocalSaveStore {
     }
 
     static func withMergeBookmarkPublication<T>(
-        _ commit: CommitReceipt, target: TargetIdentity, sha512: Data, _ publish: (UUID?) throws -> T
+        _ commit: CommitReceipt, target: TargetIdentity, sha512: Data, nonBlocking: Bool = false, _ publish: (UUID?) throws -> T
     ) throws -> T {
-        try withLock(for: commit.databaseID) {
+        try withLock(for: commit.databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(commit.databaseID)
             let state = try loadState(commit.databaseID) ?? OwnerState(version: 1, removed: false)
             guard commit.targetDurabilityConfirmed, state.version == commit.ownerVersion,
@@ -834,8 +853,8 @@ enum PendingLocalSaveStore {
         }
     }
 
-    static func withReferenceEpochAuthorization<T>(_ lease: CacheReadLease, _ publish: () throws -> T) throws -> T {
-        try withLock(for: lease.databaseID) {
+    static func withReferenceEpochAuthorization<T>(_ lease: CacheReadLease, nonBlocking: Bool = false, _ publish: () throws -> T) throws -> T {
+        try withLock(for: lease.databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(lease.databaseID)
             let state = try loadState(lease.databaseID) ?? OwnerState(version: 1, removed: false)
             guard state.epoch.id == lease.epochID, state.operation == .idle, state.retirementID == nil,
@@ -847,11 +866,38 @@ enum PendingLocalSaveStore {
     }
 
     static func withCachePublicationAuthorization<T>(
-        for databaseID: UUID, sha512: Data, lease: CacheReadLease? = nil, _ publish: () throws -> T
+        for databaseID: UUID, sha512: Data, lease: CacheReadLease? = nil, nonBlocking: Bool = false,
+        rekeyRecovery: CloudRekeyRecoveryEpoch? = nil, _ publish: () throws -> T
     ) throws -> T {
-        try withLock(for: databaseID) {
+        try withCachePublicationOwner(for: databaseID, sha512: sha512, lease: lease, nonBlocking: nonBlocking,
+                                      rekeyRecovery: rekeyRecovery, cloudProof: nil) { _ in try publish() }
+    }
+
+    static func withCloudRekeyPublicationAuthorization<T>(
+        for databaseID: UUID, sha512: Data, lease: CacheReadLease, rekeyRecovery: CloudRekeyRecoveryEpoch?,
+        binding: PendingUploadQueue.JournalBinding, operationID: UUID, change: PendingUploadQueue.KeyChange, committedAt: Date,
+        _ publish: (_ handoff: (DatabaseReference) throws -> Void) throws -> T
+    ) throws -> T {
+        let proof = CloudRekeyOwnerProof(binding: binding, operationID: operationID, change: change, committedAt: committedAt)
+        return try withCachePublicationOwner(for: databaseID, sha512: sha512, lease: lease, nonBlocking: true,
+                                             rekeyRecovery: rekeyRecovery, cloudProof: proof, publish)
+    }
+
+    private struct CloudRekeyOwnerProof {
+        let binding: PendingUploadQueue.JournalBinding
+        let operationID: UUID
+        let change: PendingUploadQueue.KeyChange
+        let committedAt: Date
+    }
+
+    private static func withCachePublicationOwner<T>(
+        for databaseID: UUID, sha512: Data, lease: CacheReadLease?, nonBlocking: Bool,
+        rekeyRecovery: CloudRekeyRecoveryEpoch?, cloudProof: CloudRekeyOwnerProof?,
+        _ publish: (_ handoff: (DatabaseReference) throws -> Void) throws -> T
+    ) throws -> T {
+        try withLock(for: databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(databaseID)
-            let state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
+            var state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
             if let lease {
                 guard lease.databaseID == databaseID, lease.epochID == state.epoch.id else { throw OwnershipError.sourceChanged }
                 if let renewal = lease.bookmarkRenewal {
@@ -859,7 +905,8 @@ enum PendingLocalSaveStore {
                           renewal.before.lastMasterKeyChangeAt == lease.masterKeyChangedAt,
                           lease.reference.matches(renewal.before) else { throw OwnershipError.sourceChanged }
                 }
-                if case .known(let date, _) = state.epoch, date != lease.masterKeyChangedAt { throw OwnershipError.sourceChanged }
+                if case .known(let date, _) = state.epoch, date != lease.masterKeyChangedAt,
+                   !(rekeyRecovery?.observed == lease.reference && date == rekeyRecovery?.previousDate) { throw OwnershipError.sourceChanged }
             }
             if let admission = state.operation.admission, admission.purpose.isMasterKeyChange {
                 guard admission.intendedSHA512 == sha512 else { throw OwnershipError.targetChanged }
@@ -881,7 +928,26 @@ enum PendingLocalSaveStore {
                     guard evidence.sha512 == sha512 || evidence.pending?.sha512 == sha512 else { throw OwnershipError.targetChanged }
                 }
             }
-            return try publish()
+            return try publish { reference in
+                guard let proof = cloudProof,
+                      proof.binding.matchesInstalled(reference: reference, operationID: proof.operationID,
+                          keyChange: proof.change, committedAt: proof.committedAt) else { throw OwnershipError.sourceChanged }
+                let previousDate = proof.binding.baseline?.lastMasterKeyChangeAt
+                let committedAt = proof.committedAt
+                let operationID = proof.operationID
+                guard state.operation == .idle, state.retirementID == nil, state.sources.isEmpty,
+                      try sourceURLs(databaseID).isEmpty, state.keyEvidence == nil else { throw OwnershipError.recoveryRequired }
+                if case .known(let date, let epochID) = state.epoch {
+                    if date == committedAt && epochID == operationID {
+                        try persist(state, databaseID: databaseID, io: .init())
+                        return
+                    }
+                    guard date == previousDate else { throw OwnershipError.sourceChanged }
+                }
+                state.epoch = .known(committedAt, operationID)
+                state.associationVersion = operationID
+                try persist(state, databaseID: databaseID, io: .init())
+            }
         }
     }
 
@@ -909,8 +975,8 @@ enum PendingLocalSaveStore {
         }
     }
 
-    static func capturePreference(_ observation: PreferenceObservation) throws -> PreferenceToken {
-        try withLock(for: observation.databaseID) {
+    static func capturePreference(_ observation: PreferenceObservation, nonBlocking: Bool = false) throws -> PreferenceToken {
+        try withLock(for: observation.databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(observation.databaseID)
             let state = try loadState(observation.databaseID) ?? OwnerState(version: 1, removed: false)
             guard state.operation == .idle, state.retirementID == nil, state.keyEvidence?.pending == nil,
@@ -922,8 +988,8 @@ enum PendingLocalSaveStore {
         }
     }
 
-    static func withIdlePreferenceAuthorization<T>(_ token: PreferenceToken, _ publish: () throws -> T) throws -> T {
-        try withLock(for: token.observation.databaseID) {
+    static func withIdlePreferenceAuthorization<T>(_ token: PreferenceToken, nonBlocking: Bool = false, _ publish: () throws -> T) throws -> T {
+        try withLock(for: token.observation.databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(token.observation.databaseID)
             let state = try loadState(token.observation.databaseID) ?? OwnerState(version: 1, removed: false)
             guard token.witness == nil, state.keyEvidence == nil, state.operation == .idle, state.retirementID == nil,
@@ -945,9 +1011,9 @@ enum PendingLocalSaveStore {
 
     static func withPreferencePublication(
         _ token: PreferenceToken, desired: KeyFilePreference, observeTarget: () throws -> (TargetIdentity, Data)?,
-        io: StorageIO = .init(), _ writeRegistry: () -> DurableWriteOutcome
+        io: StorageIO = .init(), nonBlocking: Bool = false, _ writeRegistry: () -> DurableWriteOutcome
     ) throws -> PreferencePublication {
-        try withLock(for: token.observation.databaseID) {
+        try withLock(for: token.observation.databaseID, nonBlocking: nonBlocking) {
             let id = token.observation.databaseID
             try requireNotRemoved(id)
             var state = try loadState(id) ?? OwnerState(version: 1, removed: false)
@@ -986,11 +1052,11 @@ enum PendingLocalSaveStore {
     }
 
     static func finishPreference(
-        _ token: PreferenceToken, proof: DatabaseListStore.DurablePreferenceReceipt, io: StorageIO = .init()
+        _ token: PreferenceToken, proof: DatabaseListStore.DurablePreferenceReceipt, io: StorageIO = .init(), nonBlocking: Bool = false
     ) -> ResolutionOutcome {
         let intent = proof.intent
         do {
-            return try withLock(for: intent.observation.databaseID) {
+            return try withLock(for: intent.observation.databaseID, nonBlocking: nonBlocking) {
                 let id = intent.observation.databaseID
                 try requireNotRemoved(id)
                 var state = try loadState(id) ?? OwnerState(version: 1, removed: false)
@@ -1011,9 +1077,9 @@ enum PendingLocalSaveStore {
 
     static func withAssociationPublicationAuthorization<T>(
         for databaseID: UUID, operationID: UUID, association: KeyFileAssociation,
-        expectedWitness: KeyEpochEvidence?, expectedAssociationVersion: UUID?, observeTarget: () throws -> (TargetIdentity, Data), _ publish: () throws -> T
+        expectedWitness: KeyEpochEvidence?, expectedAssociationVersion: UUID?, nonBlocking: Bool = false, observeTarget: () throws -> (TargetIdentity, Data), _ publish: () throws -> T
     ) throws -> T {
-        try withLock(for: databaseID) {
+        try withLock(for: databaseID, nonBlocking: nonBlocking) {
             try requireNotRemoved(databaseID)
             let state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
             let barrierMatches: Bool
@@ -1333,21 +1399,35 @@ enum PendingLocalSaveStore {
     }
 
     /// List-lock -> flock; revocation never deletes unresolved encrypted sources.
-    static func revokeForRemoval(_ databaseID: UUID) throws -> Bool {
-        try withLock(for: databaseID) {
-            try writeAtomicallyAndDurably(Data("removed".utf8), to: controlDirectory(databaseID).appendingPathComponent(".tombstone"))
+    static func revokeForRemoval(_ databaseID: UUID, nonBlocking: Bool = false) throws -> Bool {
+        try withLock(for: databaseID, nonBlocking: nonBlocking) {
             var state = try loadState(databaseID) ?? OwnerState(version: 1, removed: false)
+            guard try state.retirementID == nil && state.operation == .idle && state.sources.isEmpty
+                && state.keyEvidence?.pending == nil && sourceURLs(databaseID).isEmpty else { return false }
+            try writeAtomicallyAndDurably(Data("removed".utf8), to: controlDirectory(databaseID).appendingPathComponent(".tombstone"))
             state.removed = true
             try persist(state, databaseID: databaseID)
-            return try state.retirementID == nil && state.operation == .idle && state.sources.isEmpty
-                && state.keyEvidence?.pending == nil
-                && sourceURLs(databaseID).isEmpty
+            return true
         }
     }
 
     static func isRevoked(_ databaseID: UUID) -> Bool {
         do { return try withLock(for: databaseID) { try tombstoned(databaseID) || loadState(databaseID)?.removed == true } }
         catch { return true }
+    }
+
+    static func withLegacyFilenameCleanupAuthorization<T>(for databaseID: UUID, _ body: () throws -> T) throws -> T {
+        try withLock(for: databaseID, nonBlocking: true) {
+            try requireNotRemoved(databaseID)
+            return try body()
+        }
+    }
+
+    static func withRelinkAuthorization<T>(for databaseID: UUID, _ body: () throws -> T) throws -> T {
+        try withLock(for: databaseID, nonBlocking: true) {
+            try requireNotRemoved(databaseID)
+            return try body()
+        }
     }
 
     static func moveToBackups(_ save: PendingSave, for reference: DatabaseReference) throws -> URL {
@@ -1391,7 +1471,7 @@ enum PendingLocalSaveStore {
         }
     }
 
-    private static func withLock<T>(for databaseID: UUID, _ body: () throws -> T) throws -> T {
+    private static func withLock<T>(for databaseID: UUID, nonBlocking: Bool = false, _ body: () throws -> T) throws -> T {
         guard let container = AppGroupContainer.resolvedURL else { throw OwnershipError.recoveryRequired }
         return try $ownerContainer.withValue(container) {
             let directory = controlDirectory(databaseID)
@@ -1401,7 +1481,10 @@ enum PendingLocalSaveStore {
             defer { Darwin.close(fd) }
             try protectDurableFile(at: directory.appendingPathComponent(".lock"), descriptor: fd)
             try synchronizeDirectory(directory)
-            guard flock(fd, LOCK_EX) == 0 else { throw POSIXError(.EIO) }
+            guard flock(fd, LOCK_EX | (nonBlocking ? LOCK_NB : 0)) == 0 else {
+                if nonBlocking && (errno == EWOULDBLOCK || errno == EAGAIN) { throw OwnershipError.recoveryRequired }
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
             defer { flock(fd, LOCK_UN) }
             return try body()
         }

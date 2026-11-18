@@ -1000,7 +1000,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let databaseURL = directory.appendingPathComponent("editor-workflow.kdbx")
         try sourceBytes.write(to: databaseURL)
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL, autoFillEnabled: false)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         defer {
             try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
             try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
@@ -1087,7 +1087,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let databaseURL = directory.appendingPathComponent("editor-create-retry.kdbx")
         try sourceBytes.write(to: databaseURL)
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL, autoFillEnabled: false)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         defer {
             try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
             try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
@@ -1577,7 +1577,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let sourceBytes = try fixture.data(in: bundle)
         try sourceBytes.write(to: databaseURL)
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let previousActiveDatabaseID = DatabaseListStore.activeAutoFillDatabaseID
         defer {
             DatabaseListStore.activeAutoFillDatabaseID = previousActiveDatabaseID

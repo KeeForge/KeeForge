@@ -101,7 +101,7 @@ final class MacPendingUploadDiscardTests: XCTestCase {
                 displayPath: "/Vaults/vault.kdbx", remoteContentHash: nil, remoteModifiedAt: nil,
                 lastSyncedAt: nil, lastSyncIssue: nil)))
         self.reference = reference
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try DatabaseListStore.cacheDatabaseCopy(cache, for: reference)
         _ = try PendingUploadQueue.enqueue(PendingUploadQueue.Marker(
             databaseId: reference.id, encryptedBytesCacheURL: "cloud-cache/\(reference.id.uuidString).kdbx",

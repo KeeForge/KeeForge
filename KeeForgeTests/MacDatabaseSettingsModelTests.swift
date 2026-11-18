@@ -60,7 +60,7 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         SettingsService.quickAutoFillEnabled = true
         defer { SettingsService.quickAutoFillEnabled = previousQuickAutoFill }
         let reference = try reference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let session = DatabaseViewModel(databaseReference: reference,
             quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })
         await session.unlock(password: "testpassword123")
@@ -71,10 +71,10 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         XCTAssertTrue(model.canChangeSecurity)
         XCTAssertEqual(model.masterKeySummary, String(localized: "Password"))
         XCTAssertNotNil(model.list.autoFillEnabledRefreshHandler)
-        model.setAutoFillEnabled(true)
+        await model.setAutoFillEnabled(true)
         XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, reference.id)
         XCTAssertTrue(model.current.autoFillEnabled)
-        model.setAutoFillEnabled(false)
+        await model.setAutoFillEnabled(false)
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
         model.nickname = "  Work  "
         model.commitNickname()
@@ -92,12 +92,12 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
 
     func testCommittingANicknameAfterTheDatabaseWasRemovedDoesNotAddItBack() async throws {
         let reference = try reference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let session = DatabaseViewModel(databaseReference: reference,
             quickUnlockKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })
         let model = MacDatabaseSettingsModel(reference: reference, session: session)
         model.nickname = "Typed"
-        DatabaseListViewModel().removeDatabase(reference)
+        await DatabaseListViewModel().removeDatabase(reference)
         model.commitNickname()
         XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
         session.setNickname("Direct")
@@ -106,7 +106,7 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
 
     func testLauncherWritesAutoFillBridgeAndHardwareKeyReadOnly() async throws {
         let reference = try reference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let list = DatabaseListViewModel()
         var refreshed: [UUID] = []
         list.autoFillEnabledRefreshHandler = { refreshed.append($0) }
@@ -117,12 +117,12 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         model.setReadOnly(true)
         XCTAssertEqual(model.current.nickname, "Launcher")
         XCTAssertTrue(model.current.isReadOnly)
-        model.setAutoFillEnabled(true)
+        await model.setAutoFillEnabled(true)
         XCTAssertTrue(model.current.autoFillEnabled)
         XCTAssertEqual(refreshed, [reference.id])
         var hardware = model.current
         hardware.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
-        DatabaseListStore.update(hardware)
+        DatabaseListStore.testUpsert(hardware)
         list.reload()
         model.setReadOnly(false)
         XCTAssertTrue(model.fixedReadOnly)
@@ -165,7 +165,7 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         let file = directory.appendingPathComponent("settings.kdbx")
         try KDBXTestFixture.test.data(in: Bundle(for: Self.self)).write(to: file)
         let reference = try TestDatabaseSupport.makeReference(for: file, autoFillEnabled: false)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let session = DatabaseViewModel(databaseReference: reference,
             localReadKeyPersistOperation: { _, _, _ in false }, storedKeyPresenceCheck: { _ in false })
         await session.unlock(password: "testpassword123")
@@ -188,7 +188,7 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
 
     func testLauncherPresentsNativeSettingsAndDoneCommitsNicknameWithoutShowingWindow() async throws {
         let reference = try reference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let list = DatabaseListViewModel()
         let launcher = MacDatabasesLauncherViewModel(references: { list.databases })
         let parent = NSWindow()

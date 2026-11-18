@@ -1998,7 +1998,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data("fixture".utf8).write(to: url)
         let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: autoFillEnabled)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference.id
     }
 

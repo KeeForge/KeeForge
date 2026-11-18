@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 import KDBXKit
+import CryptoKit
 @testable import KeeForge
 
 @MainActor
@@ -19,640 +20,487 @@ final class PendingUploadDrainerTests: XCTestCase {
         super.tearDown()
     }
 
+
     func test_drain_provisionalMarkerKeepsItsCoverUntilFinalized() async throws {
-        let reference = makeCloudReference()
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("provisional-drain-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let cacheURL = directory.appendingPathComponent("cache.kdbx")
-        let base = Data("pre-autofill-base".utf8)
-        let payload = Data("saved-autofill-payload".utf8)
-        try base.write(to: cacheURL)
-        var queueEnvironment = PendingUploadQueue.Environment.live
-        queueEnvironment.appGroupContainerURL = { directory }
-        queueEnvironment.postDarwinNotification = {}
-        let queue = queueEnvironment
-        let provisional = try PendingUploadQueue.enqueue(
-            PendingUploadQueue.Marker(
-                databaseId: reference.id,
-                encryptedBytesCacheURL: "cache.kdbx",
-                openTimeSHA512: FileDigest.sha512(base),
-                expectedRev: reference.expectedCloudRevision,
-                createdAt: Date(timeIntervalSince1970: 1_000),
-                baseRev: reference.expectedCloudRevision,
-                isPayloadFinalized: false
-            ),
-            notifying: false,
-            environment: queue
-        )
-        let recorder = Recorder()
-        var environment = makeEnvironment(
-            markers: [],
-            reference: reference,
-            recorder: recorder,
-            readBytes: { path in try Data(contentsOf: directory.appendingPathComponent(path)) },
-            sha512: { FileDigest.sha512($0) },
-            pushPendingUpload: { _, bytes, expectedRev in
-                recorder.pushedBytes.append(bytes)
-                recorder.pushedExpectedRevisions.append(expectedRev)
-                return .saved(updatedReference: reference)
-            }
-        )
-        environment.listMarkers = { PendingUploadQueue.listMarkers(for: $0, environment: queue) }
-        environment.dropMarker = { _ = try PendingUploadQueue.dropIfUnchanged($0, environment: queue) }
-        environment.updateMarker = { try PendingUploadQueue.update($0, environment: queue) }
-        let drainer = PendingUploadDrainer(environment: environment)
-
+        let context = try makeContext(install: false)
+        let transport = CloudJournalTransport()
+        let drainer = PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport)))
         let beforeSave = await drainer.drainAll()
-
-        XCTAssertTrue(beforeSave.drainedDatabaseIDs.isEmpty)
-        XCTAssertTrue(recorder.pushedBytes.isEmpty, "The base is not the AutoFill payload")
-        let covered = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id, environment: queue).first)
-        XCTAssertEqual(covered.id, provisional.id)
-        XCTAssertEqual(covered.marker, provisional.marker)
-
-        try payload.write(to: cacheURL, options: .atomic)
-        let interruptedAfterSave = await drainer.drainAll()
-
-        XCTAssertEqual(interruptedAfterSave.conflictDatabaseIDs, [reference.id])
-        XCTAssertTrue(recorder.pushedBytes.isEmpty)
-        let interrupted = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id, environment: queue).first)
-        XCTAssertTrue(interrupted.marker.isConflicted)
-        XCTAssertEqual(interrupted.marker.isPayloadFinalized, false)
-        let recovery = PendingUploadRecovery.Environment(
-            listMarkers: { PendingUploadQueue.listMarkers(for: $0, environment: queue) },
-            cacheURL: { directory.appendingPathComponent($0.encryptedBytesCacheURL) },
-            backupURLs: { _ in [] },
-            readData: { try Data(contentsOf: $0) },
-            dropMarker: { _ = try PendingUploadQueue.dropIfUnchanged($0, environment: queue) }
-        )
-        guard case .unidentified = PendingUploadRecovery.lookUpPayloads(for: reference, environment: recovery) else {
-            return XCTFail("Interrupted finalization must remain visible to recovery")
+        XCTAssertEqual(beforeSave.conflictDatabaseIDs, [context.reference.id])
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.base)
+        XCTAssertEqual(try Data(contentsOf: context.payloadURL), context.payload)
+        let covered = try XCTUnwrap(PendingUploadQueue.readJournal(for: context.reference.id).first)
+        XCTAssertEqual(covered.id, context.stored.id)
+        XCTAssertEqual(covered.marker.isPayloadFinalized, false)
+        guard case .recovered(let sources) = PendingUploadRecovery.lookUpPayloads(for: context.reference) else {
+            return XCTFail("A prepared immutable payload must be recoverable without confusing it with the base")
         }
-
-        var saved = provisional
-        saved.marker.openTimeSHA512 = FileDigest.sha512(payload)
-        let finalized = try PendingUploadQueue.finalize(saved, environment: queue)
-        XCTAssertFalse(finalized.marker.isConflicted)
-        XCTAssertEqual(finalized.marker.isPayloadFinalized, true)
-
+        XCTAssertEqual(sources.map(\.data), [context.payload])
+        let replacement = try LocalDatabaseSaver.replaceFileAtomically(context.payload, at: context.cacheURL,
+            expectedSHA512: FileDigest.sha512(context.base),
+            authorization: .init(databaseID: context.reference.id, enforcesEpoch: false, targetIsSharedCopy: true))
+        guard case .replaced = replacement else { return XCTFail("Expected real prepared-cache replacement") }
         let afterSave = await drainer.drainAll()
-
-        XCTAssertEqual(afterSave.drainedDatabaseIDs, [reference.id])
-        XCTAssertEqual(recorder.pushedBytes, [payload])
-        XCTAssertEqual(recorder.pushedExpectedRevisions, [reference.expectedCloudRevision])
-        XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id, environment: queue).isEmpty)
+        XCTAssertEqual(afterSave.drainedDatabaseIDs, [context.reference.id])
+        XCTAssertEqual(transport.effects.uploads, [.init(bytes: context.payload, revision: "rev-1")])
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: context.reference.id).isEmpty)
     }
 
-    func test_drain_provisionalMarkerIsNotDroppedAsAlreadyUploaded() async {
-        let reference = makeCloudReference()
-        var finalized = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
-        finalized.marker.isPayloadFinalized = true
-        var provisional = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
-        provisional.marker.isPayloadFinalized = false
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [finalized, provisional],
-                reference: reference,
-                recorder: recorder,
-                pushPendingUpload: { _, bytes, expectedRev in
-                    recorder.pushedBytes.append(bytes)
-                    recorder.pushedExpectedRevisions.append(expectedRev)
-                    return .saved(updatedReference: reference)
-                }
-            )
-        )
-
+    func test_drain_provisionalMarkerIsNotDroppedAsAlreadyUploaded() async throws {
+        let context = try makeContext()
+        let provisional = try enqueueLegacy(for: context.reference, bytes: context.payload, finalized: false)
+        let transport = CloudJournalTransport()
+        let drainer = PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport)))
         let outcome = await drainer.drainAll()
-
-        XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
-        XCTAssertEqual(recorder.pushedBytes, [Data("encrypted-bytes".utf8)])
-        XCTAssertEqual(recorder.droppedMarkerIDs, [finalized.id])
-        XCTAssertTrue(recorder.updatedMarkers.isEmpty)
+        XCTAssertEqual(outcome.drainedDatabaseIDs, [context.reference.id])
+        XCTAssertEqual(transport.effects.uploads, [.init(bytes: context.payload, revision: "rev-1")])
+        let remaining = try PendingUploadQueue.readJournal(for: context.reference.id)
+        XCTAssertEqual(remaining.map(\.id), [provisional.id])
+        XCTAssertEqual(remaining.first?.marker, provisional.marker)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
     }
 
-    func test_drain_legacyMarkerWithMatchingCacheStillUploads() async {
-        let reference = makeCloudReference()
-        var storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
-        storedMarker.marker.isPayloadFinalized = nil
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                recorder: recorder,
-                pushPendingUpload: { _, bytes, expectedRev in
-                    recorder.pushedBytes.append(bytes)
-                    recorder.pushedExpectedRevisions.append(expectedRev)
-                    return .saved(updatedReference: reference)
-                }
-            )
-        )
-
-        let outcome = await drainer.drainAll()
-
-        XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
-        XCTAssertEqual(recorder.pushedBytes, [Data("encrypted-bytes".utf8)])
-        XCTAssertEqual(recorder.droppedMarkerIDs, [storedMarker.id])
+    func test_drain_legacyMarkerWithoutPhaseRetainsUnidentifiedPayload() async throws {
+        // A shipped marker without a phase may identify the base, never the saved payload.
+        let reference = registeredReference()
+        let bytes = Data("legacy-cache-ciphertext".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
+        let path = try PendingUploadQueue.makeRelativeAppGroupPath(for: DatabaseListStore.cacheLocation(for: reference))
+        let shippedJSON = """
+        {"databaseId":"\(reference.id.uuidString)","encryptedBytesCacheURL":"\(path)",
+         "openTimeSHA512":"\(FileDigest.sha512(bytes).base64EncodedString())","expectedRev":"rev-1","createdAt":0}
+        """
+        let decoded = try JSONDecoder().decode(PendingUploadQueue.Marker.self, from: Data(shippedJSON.utf8))
+        XCTAssertNil(decoded.isPayloadFinalized)
+        let stored = try PendingUploadQueue.enqueue(decoded, notifying: false)
+        let encoded = try Data(contentsOf: stored.fileURL)
+        XCTAssertFalse(String(decoding: encoded, as: UTF8.self).contains("isPayloadFinalized"))
+        XCTAssertNil(try JSONDecoder().decode(PendingUploadQueue.Marker.self, from: encoded).isPayloadFinalized)
+        let transport = CloudJournalTransport()
+        let saver = transportEnvironment(reference: reference, transport: transport)
+        let outcome = await PendingUploadDrainer(environment: drainerEnvironment(saver: saver)).drainAll()
+        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).map(\.id), [stored.id])
+        guard case .unidentified = PendingUploadRecovery.lookUpPayloads(for: reference) else {
+            return XCTFail("Matching a legacy base hash is not payload authority")
+        }
     }
 
-    func test_drain_happyPath_uploadsAndDropsMarker() async {
-        let reference = makeCloudReference()
-        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                recorder: recorder,
-                pushPendingUpload: { _, bytes, expectedRev in
-                    recorder.pushedExpectedRevisions.append(expectedRev)
-                    recorder.pushedBytes.append(bytes)
-                    return .saved(updatedReference: reference)
-                }
-            )
-        )
+    func test_drain_legacyConflictDoesNotMutateProvisionalSibling() async throws {
+        let reference = registeredReference()
+        let bytes = Data("legacy-sibling-ciphertext".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
+        let unknown = try enqueueLegacy(for: reference, bytes: bytes, finalized: nil)
+        let provisional = try enqueueLegacy(for: reference, bytes: bytes, finalized: false)
+        let transport = CloudJournalTransport()
+        let outcome = await PendingUploadDrainer(environment: drainerEnvironment(
+            saver: transportEnvironment(reference: reference, transport: transport))).drainAll()
+        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        let remaining = try PendingUploadQueue.readJournal(for: reference.id)
+        let conflicted = try XCTUnwrap(remaining.first { $0.id == unknown.id })
+        XCTAssertTrue(conflicted.marker.isConflicted)
+        XCTAssertNil(conflicted.marker.isPayloadFinalized)
+        XCTAssertEqual(remaining.first { $0.id == provisional.id }?.marker, provisional.marker)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+    }
 
-        let outcome = await drainer.drainAll()
+    func testLegacyFinalizedMatchingStrongRevisionWithoutBaselineExportsOriginalFactorsInsteadOfBlindDelivery() async throws {
+        let reference = registeredReference()
+        let bytes = try KDBXTestFixture.kitchenSink.data(in: Bundle(for: Self.self))
+        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
+        let stored = try enqueueLegacy(for: reference, bytes: bytes, finalized: true)
+        let transport = CloudJournalTransport(remote: bytes, revision: reference.expectedCloudRevision)
+        var saver = transportEnvironment(reference: reference, transport: transport)
+        saver.revisionIdentifiesContent = { _, _ in true }
+        let outcome = await PendingUploadDrainer(environment: drainerEnvironment(saver: saver)).drainAll()
+        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
+        XCTAssertEqual(transport.effects.downloads, 0)
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(retained.id, stored.id)
+        XCTAssertNil(retained.marker.remoteBaseSHA512)
+        let exported = try PendingUploadQueue.readImmutablePayload(retained)
+        XCTAssertEqual(exported, bytes)
+        _ = try KDBXParser.parseWithMetaAndHeader(data: exported,
+            password: KDBXTestFixture.kitchenSink.password, sessionKey: SymmetricKey(size: .bits256))
+        guard case .recovered(let sources) = PendingUploadRecovery.lookUpPayloads(for: reference) else {
+            return XCTFail("The existing explicit merge/export route must retain this original-factor snapshot")
+        }
+        XCTAssertEqual(sources.map(\.data), [bytes])
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+    }
 
-        XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
+    func test_drain_finalizedLegacyMarkerPromotesExactCiphertextAndExposesRecovery() async throws {
+        let reference = registeredReference()
+        let bytes = Data("verified-legacy-payload".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
+        let stored = try enqueueLegacy(for: reference, bytes: bytes, finalized: true)
+        let transport = CloudJournalTransport(remote: Data("unseen-remote".utf8))
+        let outcome = await PendingUploadDrainer(environment: drainerEnvironment(
+            saver: transportEnvironment(reference: reference, transport: transport))).drainAll()
+        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        let promoted = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(promoted.id, stored.id)
+        XCTAssertEqual(promoted.marker.intendedPayloadSHA512, FileDigest.sha512(bytes))
+        let path = try XCTUnwrap(promoted.marker.intendedPayloadPath)
+        XCTAssertEqual(try Data(contentsOf: PendingUploadQueue.resolveAppGroupURL(for: path)), bytes)
+        guard case .recovered(let sources) = PendingUploadRecovery.lookUpPayloads(for: reference) else {
+            return XCTFail("Verified legacy payloads must remain usable for explicit recovery")
+        }
+        XCTAssertEqual(sources.map(\.data), [bytes])
+        XCTAssertEqual(sources.map(\.storedMarker.id), [stored.id])
+    }
+
+    func test_drain_happyPath_uploadsAndDropsMarker() async throws {
+        let context = try makeContext()
+        let transport = CloudJournalTransport()
+        let outcome = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport))).drainAll()
+        XCTAssertEqual(outcome.drainedDatabaseIDs, [context.reference.id])
         XCTAssertTrue(outcome.conflictDatabaseIDs.isEmpty)
-        XCTAssertEqual(recorder.droppedMarkerIDs, [storedMarker.id])
-        XCTAssertEqual(recorder.pushedExpectedRevisions, [reference.expectedCloudRevision])
-        XCTAssertEqual(recorder.pushedBytes, [Data("encrypted-bytes".utf8)])
+        XCTAssertEqual(transport.effects.uploads, [.init(bytes: context.payload, revision: "rev-1")])
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: context.reference.id).isEmpty)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try context.payloadURL.path))
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == context.reference.id }?.cloudSyncMetadata?.remoteRev, "rev-2")
     }
 
-    func test_drain_conflict_marksConflicted_keepsMarker() async {
-        let reference = makeCloudReference(rev: "rev-1")
-        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: "rev-1")
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                recorder: recorder,
-                pushPendingUpload: { _, _, _ in
-                    .conflict(remoteRev: "rev-2")
-                }
-            )
-        )
+    func test_drain_conflict_marksConflicted_keepsMarker() async throws {
+        try await assertRemoteConflict(remote: Data("changed-remote".utf8))
+    }
 
-        let outcome = await drainer.drainAll()
-
+    func test_drain_payloadShaMismatch_marksConflicted_doesNotPush() async throws {
+        let context = try makeContext()
+        let tampered = Data("corrupt-immutable-payload".utf8)
+        try tampered.write(to: context.payloadURL)
+        let transport = CloudJournalTransport()
+        let outcome = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport))).drainAll()
         XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
-        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
-        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
-        XCTAssertEqual(recorder.updatedMarkers.count, 1)
-        XCTAssertEqual(recorder.updatedMarkers.first?.marker.isConflicted, true)
+        XCTAssertNotNil(outcome.userIssue)
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+        XCTAssertEqual(try Data(contentsOf: context.payloadURL), tampered)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: context.reference.id).map(\.id), [context.stored.id])
     }
 
-    func test_drain_payloadShaMismatch_marksConflicted_doesNotPush() async {
-        // The shared cache was overwritten after the AutoFill save, so the bytes
-        // no longer hash to the SHA-512 recorded on the marker. They must never
-        // be pushed (that would upload the wrong content and drop the marker as
-        // saved); the marker is surfaced as a conflict instead.
-        let reference = makeCloudReference(rev: "rev-1")
-        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: "rev-1")
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                recorder: recorder,
-                sha512: { _ in Data("clobbered-sha".utf8) },
-                pushPendingUpload: { _, _, _ in
-                    XCTFail("Clobbered payload must never be pushed")
-                    return .saved(updatedReference: reference)
-                }
-            )
-        )
-
-        let outcome = await drainer.drainAll()
-
-        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
-        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
-        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
-        XCTAssertEqual(recorder.updatedMarkers.count, 1)
-        XCTAssertEqual(recorder.updatedMarkers.first?.marker.isConflicted, true)
+    func test_drain_markerOlderThanMasterKeyChange_retainsSourceWithoutDispatch() async throws {
+        let context = try makeContext()
+        var reference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == context.reference.id })
+        reference.lastMasterKeyChangeAt = context.stored.marker.createdAt.addingTimeInterval(10)
+        DatabaseListStore.testUpsert(reference)
+        let transport = CloudJournalTransport()
+        let outcome = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport))).drainAll()
+        XCTAssertNotNil(outcome.userIssue)
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+        XCTAssertEqual(try Data(contentsOf: context.payloadURL), context.payload)
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(retained.marker, context.stored.marker)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
     }
 
-    func test_drain_markerOlderThanMasterKeyChange_marksConflicted_doesNotPush() async {
-        // Enqueued while a master-key change was uploading: the payload is
-        // ciphertext under the old key, and pushing it would revert the rekey
-        // on the remote. It must surface as a conflict instead.
-        var reference = makeCloudReference(rev: "rev-1")
-        reference.lastMasterKeyChangeAt = Date(timeIntervalSince1970: 2_000)
-        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: "rev-1")
-        let recorder = Recorder()
-        let frozenReference = reference
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                recorder: recorder,
-                pushPendingUpload: { _, _, _ in
-                    XCTFail("Old-key payload must never be pushed after a rekey")
-                    return .saved(updatedReference: frozenReference)
-                }
-            )
-        )
-
-        let outcome = await drainer.drainAll()
-
-        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
-        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
-        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
-        XCTAssertEqual(recorder.updatedMarkers.count, 1)
-        XCTAssertEqual(recorder.updatedMarkers.first?.marker.isConflicted, true)
+    func test_drain_crossDeviceConflict_isNotAutoRebased() async throws {
+        try await assertRemoteConflict(remote: Data("foreign-device-ciphertext".utf8), revision: "rev-2")
     }
 
-    func test_drain_crossDeviceConflict_isNotAutoRebased() async {
-        // A sync-down replaced the cache with another device's copy, so the
-        // payload no longer matches the recorded SHA-512, even though the
-        // reference has already reconciled to that remote head (rev-2). The old
-        // rebase heuristic keyed only on `expectedCloudRevision == remoteRev`
-        // and would have force-pushed this device's stale bytes over the
-        // cross-device change. It must now be left conflicted for the user.
-        let reference = makeCloudReference(rev: "rev-2")
-        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: "rev-1")
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                recorder: recorder,
-                sha512: { _ in Data("foreign-copy-sha".utf8) },
-                pushPendingUpload: { _, _, _ in
-                    XCTFail("A cross-device conflict must not be force-pushed")
-                    return .saved(updatedReference: reference)
-                }
-            )
-        )
-
-        let outcome = await drainer.drainAll()
-
-        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
-        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
-        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
-        XCTAssertEqual(recorder.pushedExpectedRevisions, [])
-    }
-
-    func test_drain_offline_keepsMarkerUnchanged() async {
-        let reference = makeCloudReference()
-        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                recorder: recorder,
-                pushPendingUpload: { _, _, _ in
-                    throw CloudProviderError.networkUnavailable
-                }
-            )
-        )
-
-        let outcome = await drainer.drainAll()
-
+    func test_drain_offline_keepsMarkerUnchanged() async throws {
+        let context = try makeContext()
+        let transport = CloudJournalTransport(metadataError: .networkUnavailable)
+        let outcome = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport))).drainAll()
         XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
         XCTAssertTrue(outcome.conflictDatabaseIDs.isEmpty)
         XCTAssertEqual(outcome.userIssue?.kind, .message)
         XCTAssertEqual(outcome.userIssue?.message, CloudProviderError.networkUnavailable.localizedDescription)
-        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
-        XCTAssertTrue(recorder.updatedMarkers.isEmpty)
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: context.reference.id).first?.marker, context.stored.marker)
+        XCTAssertEqual(try Data(contentsOf: context.payloadURL), context.payload)
     }
 
-    func test_drain_writeScopeRequired_surfacesAlertViaList() async {
-        let file = CloudFile(
-            id: "/Vaults/personal.kdbx",
-            name: "personal.kdbx",
-            path: "/Vaults/personal.kdbx",
-            isFolder: false,
-            modifiedDate: nil,
-            size: nil
-        )
-        let reference = DatabaseListStore.addCloud(
-            provider: CloudProviderKind.dropbox.rawValue,
-            accountId: "acct-1",
-            file: file
-        )
-        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                pushPendingUpload: { _, _, _ in
-                    throw CloudProviderError.writeScopeRequired
-                }
-            )
-        )
-        let viewModel = DatabaseListViewModel(pendingUploadDrainer: drainer)
-
-        await viewModel.pushPendingChanges(for: reference)
-
-        XCTAssertEqual(viewModel.pendingUploadAlert?.databaseId, reference.id)
+    func test_drain_writeScopeRequired_surfacesAlertViaList() async throws {
+        let context = try makeContext()
+        let transport = CloudJournalTransport(metadataError: .writeScopeRequired)
+        let viewModel = DatabaseListViewModel(pendingUploadDrainer: PendingUploadDrainer(
+            environment: context.drainerEnvironment(saver: context.environment(transport: transport))))
+        await viewModel.pushPendingChanges(for: context.reference)
+        XCTAssertEqual(viewModel.pendingUploadAlert?.databaseId, context.reference.id)
         XCTAssertEqual(viewModel.pendingUploadAlert?.kind, .writeScopeRequired)
         XCTAssertEqual(viewModel.pendingUploadAlert?.message, CloudProviderError.writeScopeRequired.localizedDescription)
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: context.payloadURL), context.payload)
     }
 
-    func test_drain_skipsLocalSourceMarkers() async {
+    func test_drain_skipsLocalSourceMarkers() async throws {
         let reference = makeLocalReference()
-        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: nil)
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                recorder: recorder,
-                pushPendingUpload: { _, _, _ in
-                    XCTFail("Local markers should not be pushed")
-                    return .saved(updatedReference: reference)
-                }
-            )
-        )
-
-        let outcome = await drainer.drainAll()
-
+        let marker = try enqueueLegacy(for: reference, bytes: Data("local".utf8), finalized: true)
+        var environment = drainerEnvironment(saver: .live)
+        environment.resolveReference = { _ in reference }
+        environment.deliverMarker = { _, _ in XCTFail("A local source must not enter delivery"); return nil }
+        let outcome = await PendingUploadDrainer(environment: environment).drainAll()
         XCTAssertEqual(outcome.skippedDatabaseIDs, [reference.id])
-        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
-        XCTAssertTrue(recorder.updatedMarkers.isEmpty)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).first?.marker, marker.marker)
+        try PendingUploadQueue.removeAllMarkers(for: reference.id)
     }
 
-    func test_drain_rebasesOnlyWhenPayloadDerivesFromRemoteHead() async {
-        // The one situation the auto-rebase remains for: the marker's recorded
-        // base revision equals the reported remote head, so pushing is a pure
-        // fast-forward of content this payload was derived from. The push CAS
-        // (expectedRev) is stale from an earlier attempt and gets rebased.
-        let referenceStore = ReferenceStore(makeCloudReference(rev: "rev-2"))
-        let storedMarker = makeStoredMarker(
-            databaseId: referenceStore.reference.id,
-            expectedRev: "rev-1",
-            baseRev: "rev-2"
-        )
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                referenceResolver: { _ in referenceStore.reference },
-                recorder: recorder,
-                pushPendingUpload: { _, _, expectedRev in
-                    recorder.pushedExpectedRevisions.append(expectedRev)
-                    if recorder.pushedExpectedRevisions.count == 1 {
-                        return .conflict(remoteRev: "rev-2")
-                    }
-
-                    referenceStore.reference.updateCloudSyncMetadata { metadata in
-                        metadata.remoteRev = "rev-3"
-                    }
-                    return .saved(updatedReference: referenceStore.reference)
-                }
-            )
-        )
-
-        let outcome = await drainer.drainAll()
-
-        XCTAssertEqual(recorder.pushedExpectedRevisions, ["rev-1", "rev-2"])
-        XCTAssertEqual(recorder.updatedMarkers.count, 1)
-        XCTAssertEqual(recorder.updatedMarkers.first?.marker.expectedRev, "rev-2")
-        XCTAssertEqual(outcome.drainedDatabaseIDs, [referenceStore.reference.id])
+    func test_drain_rebasesOnlyWhenPayloadDerivesFromRemoteHead() async throws {
+        let context = try makeContext()
+        let transport = CloudJournalTransport(remote: context.base, revision: "rev-2")
+        let outcome = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport))).drainAll()
+        XCTAssertEqual(transport.effects.downloads, 1)
+        XCTAssertEqual(transport.effects.uploads, [.init(bytes: context.payload, revision: "rev-2")])
+        XCTAssertEqual(outcome.drainedDatabaseIDs, [context.reference.id])
         XCTAssertTrue(outcome.conflictDatabaseIDs.isEmpty)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: context.reference.id).isEmpty)
     }
 
-    func test_drain_appSaveCompletedDuringAutoFillSession_isNotForcePushed() async {
-        // Regression: an app save lands (rev-A → rev-B) after AutoFill opened
-        // the cache at rev-A, so the marker's payload SHA and the store's
-        // revision both still satisfy the old rebase conditions. Only
-        // baseRev (rev-A) != head (rev-B) blocks the force-push that would
-        // erase the app's save.
-        let reference = makeCloudReference(rev: "rev-B")
-        let storedMarker = makeStoredMarker(
-            databaseId: reference.id,
-            expectedRev: "rev-A",
-            baseRev: "rev-A"
-        )
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                recorder: recorder,
-                pushPendingUpload: { _, _, expectedRev in
-                    recorder.pushedExpectedRevisions.append(expectedRev)
-                    if expectedRev == "rev-A" {
-                        return .conflict(remoteRev: "rev-B")
-                    }
-                    XCTFail("Stale AutoFill bytes must not be force-pushed over the app's save")
-                    return .saved(updatedReference: reference)
-                }
-            )
-        )
+    func test_drain_appSaveCompletedDuringAutoFillSession_isNotForcePushed() async throws {
+        try await assertRemoteConflict(remote: Data("app-save-ciphertext".utf8), revision: "rev-B")
+    }
 
-        let outcome = await drainer.drainAll()
-
-        XCTAssertEqual(recorder.pushedExpectedRevisions, ["rev-A"])
-        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
+    func test_drain_legacyMarkerWithoutBaseRev_isNeverAutoRebased() async throws {
+        let reference = registeredReference()
+        let bytes = Data("legacy-payload-without-proven-base".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
+        let stored = try enqueueLegacy(for: reference, bytes: bytes, finalized: true, baseRev: nil)
+        let transport = CloudJournalTransport(remote: Data("remote-head".utf8), revision: "rev-2")
+        let outcome = await PendingUploadDrainer(environment: drainerEnvironment(saver: transportEnvironment(reference: reference, transport: transport))).drainAll()
         XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
-        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
-        XCTAssertEqual(recorder.updatedMarkers.first?.marker.isConflicted, true)
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).map(\.id), [stored.id])
+        guard case .recovered(let sources) = PendingUploadRecovery.lookUpPayloads(for: reference) else { return XCTFail("Recovery must expose the legacy payload") }
+        XCTAssertEqual(sources.map(\.data), [bytes])
     }
 
-    func test_drain_legacyMarkerWithoutBaseRev_isNeverAutoRebased() async {
-        // A marker persisted before `baseRev` existed decodes with the field
-        // nil. Even when every legacy rebase condition holds (payload intact,
-        // store reconciled to the remote head), the missing base revision must
-        // be treated conservatively: surface the conflict, never force-push.
-        let reference = makeCloudReference(rev: "rev-2")
-        let storedMarker = makeStoredMarker(
-            databaseId: reference.id,
-            expectedRev: "rev-1",
-            baseRev: .some(nil)
-        )
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                recorder: recorder,
-                pushPendingUpload: { _, _, expectedRev in
-                    recorder.pushedExpectedRevisions.append(expectedRev)
-                    return .conflict(remoteRev: "rev-2")
-                }
-            )
-        )
-
-        let outcome = await drainer.drainAll()
-
-        XCTAssertEqual(recorder.pushedExpectedRevisions, ["rev-1"])
-        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
-        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
+    func testThreeConfirmedAncestorsRetireWithoutReplacingTheCurrentDescendantOrResending() async throws {
+        let first = try makeContext()
+        let referenceB = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == first.reference.id })
+        let second = try CloudJournalTestContext(reference: referenceB, base: first.payload, payload: Data("ciphertext-C".utf8))
+        let referenceC = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == first.reference.id })
+        let third = try CloudJournalTestContext(reference: referenceC, base: second.payload, payload: Data("ciphertext-D".utf8))
+        let owners = [first, second, third]
+        for (index, owner) in owners.enumerated() {
+            let transport = CloudJournalTransport(remote: owner.base, revision: "remote-\(index)",
+                response: .init(modifiedDate: .now, contentHash: nil, size: Int64(owner.payload.count), rev: "remote-\(index + 1)"))
+            let environment = owner.environment(transport: transport)
+            guard case .saved? = try await CloudDatabaseSaver.deliver(owner.stored, reference: owner.reference, environment: environment) else {
+                return XCTFail("Verified ancestry must reconcile without rolling back its descendant")
+            }
+            XCTAssertEqual(transport.effects.uploads, [.init(bytes: owner.payload, revision: "remote-\(index)")])
+            XCTAssertEqual(try Data(contentsOf: third.cacheURL), third.payload)
+            let remaining = try PendingUploadQueue.readJournal(for: first.reference.id)
+            XCTAssertEqual(Set(remaining.map(\.id)), Set(owners.dropFirst(index + 1).map { $0.stored.id }))
+            if let child = remaining.first(where: { $0.marker.predecessorOperationID == owner.stored.id }) {
+                XCTAssertEqual(child.marker.remoteBaseSHA512, FileDigest.sha512(owner.payload))
+                XCTAssertEqual(child.marker.expectedRev, "remote-\(index + 1)")
+            }
+            let lateCompletion = try await CloudDatabaseSaver.deliver(owner.stored, reference: owner.reference, environment: environment)
+            XCTAssertNil(lateCompletion)
+            XCTAssertEqual(transport.effects.uploads.count, 1)
+        }
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: first.reference.id).isEmpty)
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == first.reference.id }?.cloudSyncMetadata?.localHeadOperationID, third.stored.id)
     }
 
-    func test_drain_dropsFollowUpMarkerWhosePayloadAlreadyUploadedThisPass() async {
-        // Two markers recording the same payload SHA (a crash-window artifact
-        // of the two-phase enqueue): once the first upload puts that content at
-        // the remote head, the second marker is satisfied — it must be dropped
-        // rather than re-pushed into a spurious revision conflict.
-        let reference = makeCloudReference()
-        let firstMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
-        let secondMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [firstMarker, secondMarker],
-                reference: reference,
-                recorder: recorder,
-                pushPendingUpload: { _, bytes, expectedRev in
-                    recorder.pushedExpectedRevisions.append(expectedRev)
-                    recorder.pushedBytes.append(bytes)
-                    return .saved(updatedReference: reference)
-                }
-            )
-        )
-
-        let outcome = await drainer.drainAll()
-
-        XCTAssertEqual(recorder.pushedExpectedRevisions.count, 1)
-        XCTAssertEqual(recorder.droppedMarkerIDs, [firstMarker.id, secondMarker.id])
-        XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
-        XCTAssertTrue(outcome.conflictDatabaseIDs.isEmpty)
+    func testConfirmedRetirementRemovalFailureKeepsExactPayloadAndReconcilesWithoutProviderIO() async throws {
+        let context = try makeContext()
+        let transport = CloudJournalTransport()
+        var faulty = context.environment(transport: transport)
+        let faultReached = CloudJournalEffectCounter()
+        let remove = faulty.queue.removeItem
+        faulty.queue.removeItem = { url in
+            if url.resolvingSymlinksInPath().standardizedFileURL == context.stored.fileURL.resolvingSymlinksInPath().standardizedFileURL { faultReached.record(); throw CocoaError(.fileWriteNoPermission) }
+            try remove(url)
+        }
+        do {
+            _ = try await CloudDatabaseSaver.deliver(context.stored, reference: context.reference, environment: faulty)
+            XCTFail("A failed journal retirement cannot report complete")
+        } catch { XCTAssertEqual((error as? CocoaError)?.code, .fileWriteNoPermission) }
+        XCTAssertGreaterThan(faultReached.value, 0)
+        let confirmed = try XCTUnwrap(PendingUploadQueue.readJournal(for: context.reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: confirmed.marker), .confirmed)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(confirmed), context.payload)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+        guard case .saved? = try await CloudDatabaseSaver.deliver(confirmed, reference: context.reference,
+            environment: context.environment(transport: transport)) else { return XCTFail("Explicit confirmation recovery must finish locally") }
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: context.reference.id).isEmpty)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
     }
 
-    func test_drain_requestDuringInFlightDrain_runsAdditionalPass() async {
-        // L3 regression: a marker enqueued while a drain pass is running posts
-        // a Darwin notification whose drain request coalesces onto the running
-        // task. That request must not be swallowed — the running drain owes
-        // the queue one more pass.
-        let reference = makeCloudReference()
-        let firstMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
-        let midDrainMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
-        let recorder = Recorder()
-        let listCallCounter = Counter()
-        let firstPushStarted = AsyncSignal()
+    func test_drain_confirmedFollowUpReconcilesWithoutUploadingAgain() async throws {
+        let context = try makeContext()
+        let transport = CloudJournalTransport()
+        var faulty = context.environment(transport: transport)
+        faulty.synchronizeCacheFile = { _ in throw CocoaError(.fileWriteUnknown) }
+        let first = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: faulty)).drainAll()
+        XCTAssertEqual(first.skippedDatabaseIDs, [context.reference.id])
+        let confirmed = try XCTUnwrap(PendingUploadQueue.readJournal(for: context.reference.id).first)
+        XCTAssertNotNil(confirmed.marker.confirmedAt)
+        XCTAssertEqual(try Data(contentsOf: context.payloadURL), context.payload)
+        let recovered = await PendingUploadDrainer(environment: context.drainerEnvironment(
+            saver: context.environment(transport: transport))).drainAll()
+        XCTAssertEqual(recovered.drainedDatabaseIDs, [context.reference.id])
+        XCTAssertEqual(transport.effects.uploads, [.init(bytes: context.payload, revision: "rev-1")])
+        XCTAssertEqual(transport.effects.metadataCalls, 1)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: context.reference.id).isEmpty)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+    }
+
+    func test_drain_requestDuringInFlightDrain_runsAdditionalPass() async throws {
+        let first = try makeContext()
+        let firstPushStarted = XCTestExpectation(description: "First journal upload entered")
+        firstPushStarted.assertForOverFulfill = false
         let resumeFirstPush = AsyncSignal()
-
-        var environment = makeEnvironment(
-            markers: [],
-            reference: reference,
-            recorder: recorder,
-            pushPendingUpload: { _, _, expectedRev in
-                recorder.pushedExpectedRevisions.append(expectedRev)
-                if recorder.pushedExpectedRevisions.count == 1 {
-                    firstPushStarted.signal()
-                    await resumeFirstPush.wait()
-                }
-                return .saved(updatedReference: reference)
-            }
-        )
-        environment.listMarkers = { _ in
-            switch listCallCounter.incrementAndGet() {
-            case 1: [firstMarker]
-            case 2: [midDrainMarker]
-            default: []
-            }
-        }
-        let drainer = PendingUploadDrainer(environment: environment)
-
+        let transport = CloudJournalTransport(beforeUpload: {
+            firstPushStarted.fulfill()
+            await resumeFirstPush.wait()
+        })
+        let drainer = PendingUploadDrainer(environment: first.drainerEnvironment(saver: first.environment(transport: transport)))
         let firstDrain = Task { await drainer.drainAll() }
-        await firstPushStarted.wait()
-
-        // Coalesces onto the in-flight drain. Yield so the coalescing task
-        // reaches its first suspension point — which is past the rerun-request
-        // registration — before the blocked first push is released.
+        await fulfillment(of: [firstPushStarted], timeout: 5)
+        let second = try makeContext()
         let coalescedDrain = Task { await drainer.drainAll() }
-        for _ in 0..<5 {
-            await Task.yield()
-        }
+        for _ in 0..<5 { await Task.yield() }
         resumeFirstPush.signal()
-
         let outcome = await firstDrain.value
         _ = await coalescedDrain.value
+        XCTAssertEqual(transport.effects.uploads.count, 2)
+        XCTAssertEqual(transport.effects.uploads.map(\.bytes), [first.payload, second.payload])
+        XCTAssertEqual(outcome.drainedDatabaseIDs, [first.reference.id, second.reference.id])
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: first.reference.id).isEmpty)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: second.reference.id).isEmpty)
+    }
 
-        XCTAssertEqual(listCallCounter.value, 2)
-        XCTAssertEqual(recorder.droppedMarkerIDs, [firstMarker.id, midDrainMarker.id])
-        XCTAssertEqual(recorder.pushedExpectedRevisions.count, 2)
+    func test_drain_ignoresReadOnlyFlagForExistingPendingMarkers() async throws {
+        let context = try makeContext()
+        var reference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == context.reference.id })
+        reference.isReadOnly = true
+        DatabaseListStore.testUpsert(reference)
+        let transport = CloudJournalTransport()
+        let outcome = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport))).drainAll()
         XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
+        XCTAssertEqual(transport.effects.uploads, [.init(bytes: context.payload, revision: "rev-1")])
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
     }
 
-    func test_drain_ignoresReadOnlyFlagForExistingPendingMarkers() async {
-        let reference = makeCloudReference(isReadOnly: true)
-        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
-        let recorder = Recorder()
-        let drainer = PendingUploadDrainer(
-            environment: makeEnvironment(
-                markers: [storedMarker],
-                reference: reference,
-                recorder: recorder,
-                pushPendingUpload: { _, _, _ in
-                    .saved(updatedReference: reference)
+    func test_drain_readOnlyDoesNotAuthorizeChangedKeyFactor() async throws {
+        let context = try makeContext()
+        var reference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == context.reference.id })
+        reference.isReadOnly = true
+        reference.keyFileFilename = "foreign.keyx"
+        DatabaseListStore.testUpsert(reference)
+        let transport = CloudJournalTransport()
+        let outcome = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport))).drainAll()
+        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).first?.id, context.stored.id)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+    }
+
+    func test_drain_uncertainAttemptNeverResendsAcrossFreshDrainer() async throws {
+        let context = try makeContext()
+        let transport = CloudJournalTransport(uploadError: .networkUnavailable)
+        let environment = context.drainerEnvironment(saver: context.environment(transport: transport))
+        let first = await PendingUploadDrainer(environment: environment).drainAll()
+        XCTAssertNotNil(first.userIssue)
+        let attempted = try XCTUnwrap(PendingUploadQueue.readJournal(for: context.reference.id).first)
+        XCTAssertNotNil(attempted.marker.uploadAttemptID)
+        XCTAssertNil(attempted.marker.confirmedAt)
+        for _ in 0..<2 {
+            let retry = await PendingUploadDrainer(environment: environment).drainAll()
+            XCTAssertEqual(retry.skippedDatabaseIDs, [context.reference.id])
+        }
+        XCTAssertEqual(transport.effects.uploads, [.init(bytes: context.payload, revision: "rev-1")])
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: context.reference.id).first?.marker, attempted.marker)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+        XCTAssertEqual(try Data(contentsOf: context.payloadURL), context.payload)
+        XCTAssertFalse(try PendingUploadQueue.dropIfUnchanged(attempted))
+    }
+
+    func test_delivery_unknownSchemaAndUnreadableJournalFailClosedWithoutDroppingSource() async throws {
+        for corrupt in [false, true] {
+            let context = try makeContext()
+            let original = try Data(contentsOf: context.stored.fileURL)
+            let faultReached = CloudJournalEffectCounter()
+            var saver = context.environment()
+            if corrupt {
+                saver.queue.readData = { url in
+                    if url.resolvingSymlinksInPath().standardizedFileURL == context.stored.fileURL.resolvingSymlinksInPath().standardizedFileURL { faultReached.record(); throw CocoaError(.fileReadNoPermission) }
+                    return try Data(contentsOf: url)
                 }
-            )
-        )
-
-        let outcome = await drainer.drainAll()
-
-        XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
-        XCTAssertEqual(recorder.droppedMarkerIDs, [storedMarker.id])
+            } else {
+                var marker = context.stored.marker
+                marker.journalVersion = 99
+                try JSONEncoder().encode(marker).write(to: context.stored.fileURL)
+            }
+            let transport = CloudJournalTransport()
+            saver.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+            do {
+                _ = try await CloudDatabaseSaver.deliver(context.stored, reference: context.reference, environment: saver)
+                XCTFail("Unreadable or unknown journal must not be treated as empty")
+            } catch {
+                XCTAssertEqual((error as? CocoaError)?.code, corrupt ? .fileReadNoPermission : .fileReadCorruptFile)
+            }
+            if corrupt { XCTAssertGreaterThan(faultReached.value, 0) }
+            XCTAssertTrue(transport.effects.uploads.isEmpty)
+            XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+            XCTAssertEqual(try Data(contentsOf: context.payloadURL), context.payload)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: context.stored.fileURL.path))
+            try original.write(to: context.stored.fileURL)
+        }
     }
 
-    private func makeEnvironment(
-        markers: [PendingUploadQueue.StoredMarker],
-        reference: DatabaseReference? = nil,
-        referenceResolver: (@Sendable (UUID) -> DatabaseReference?)? = nil,
-        recorder: Recorder = Recorder(),
-        readBytes: (@Sendable (String) throws -> Data)? = nil,
-        sha512: (@Sendable (Data) -> Data)? = nil,
-        pushPendingUpload: @escaping @Sendable (DatabaseReference, Data, String?) async throws -> CloudDatabaseSaver.PendingUploadPushResult
-    ) -> PendingUploadDrainer.Environment {
-        PendingUploadDrainer.Environment(
-            beginBackgroundTask: { _ in .invalid },
-            endBackgroundTask: { _ in },
-            listMarkers: { _ in markers },
-            dropMarker: { marker in
-                recorder.droppedMarkerIDs.append(marker.id)
-            },
-            updateMarker: { marker in
-                recorder.updatedMarkers.append(marker)
-                return marker
-            },
-            resolveReference: { databaseId in
-                if let referenceResolver {
-                    return referenceResolver(databaseId)
-                }
-                guard let reference, reference.id == databaseId else { return nil }
-                return reference
-            },
-            readBytes: readBytes ?? { _ in
-                Data("encrypted-bytes".utf8)
-            },
-            // Default matches `makeStoredMarker`'s `openTimeSHA512` so the
-            // payload-integrity guard treats the cached bytes as unchanged.
-            sha512: sha512 ?? { _ in Data("open-sha".utf8) },
-            pushPendingUpload: pushPendingUpload,
-        )
+    private func assertRemoteConflict(remote: Data, revision: String = "rev-2") async throws {
+        let context = try makeContext()
+        let transport = CloudJournalTransport(remote: remote, revision: revision)
+        let outcome = await PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport))).drainAll()
+        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
+        XCTAssertEqual(outcome.conflictDatabaseIDs, [context.reference.id])
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: context.reference.id).first)
+        XCTAssertEqual(marker.id, context.stored.id)
+        XCTAssertTrue(marker.marker.isConflicted)
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+        XCTAssertEqual(try Data(contentsOf: context.payloadURL), context.payload)
+        guard case .recovered(let sources) = PendingUploadRecovery.lookUpPayloads(for: context.reference) else { return XCTFail("Conflict must expose exact intended bytes") }
+        XCTAssertEqual(sources.map(\.data), [context.payload])
     }
 
-    /// `baseRev` defaults to `expectedRev`, matching what the AutoFill enqueue
-    /// records (both start as the reference revision the extension opened
-    /// from). Pass `baseRev:` explicitly to model rebased or legacy markers.
-    private func makeStoredMarker(
-        databaseId: UUID,
-        expectedRev: String?,
-        baseRev: String?? = nil
-    ) -> PendingUploadQueue.StoredMarker {
-        PendingUploadQueue.StoredMarker(
-            id: UUID(),
-            fileURL: URL(fileURLWithPath: "/tmp/\(UUID().uuidString).json"),
-            marker: PendingUploadQueue.Marker(
-                databaseId: databaseId,
-                encryptedBytesCacheURL: "cloud-cache/\(databaseId.uuidString).kdbx",
-                openTimeSHA512: Data("open-sha".utf8),
-                expectedRev: expectedRev,
-                createdAt: Date(timeIntervalSince1970: 1_000),
-                baseRev: baseRev ?? expectedRev
-            )
-        )
+    private func registeredReference() -> DatabaseReference {
+        let reference = makeCloudReference()
+        DatabaseListStore.testUpsert(reference)
+        return reference
+    }
+
+    private func makeContext(install: Bool = true) throws -> CloudJournalTestContext {
+        try CloudJournalTestContext(reference: registeredReference(), install: install)
+    }
+
+    private func enqueueLegacy(for reference: DatabaseReference, bytes: Data, finalized: Bool?, baseRev: String? = "rev-1") throws -> PendingUploadQueue.StoredMarker {
+        try PendingUploadQueue.enqueue(.init(databaseId: reference.id,
+            encryptedBytesCacheURL: PendingUploadQueue.makeRelativeAppGroupPath(for: DatabaseListStore.cacheLocation(for: reference)),
+            openTimeSHA512: FileDigest.sha512(bytes), expectedRev: reference.expectedCloudRevision,
+            createdAt: .now, baseRev: baseRev, isPayloadFinalized: finalized), notifying: false)
+    }
+
+    private func transportEnvironment(reference: DatabaseReference, transport: CloudJournalTransport) -> CloudDatabaseSaver.Environment {
+        var saver = CloudDatabaseSaver.Environment.live
+        saver.getMetadata = { _ in try transport.metadata(byteCount: 0) }
+        saver.downloadRemoteData = { _ in transport.download(fallback: Data()) }
+        saver.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+        saver.revisionIdentifiesContent = { _, _ in false }
+        return saver
+    }
+
+    private func drainerEnvironment(saver: CloudDatabaseSaver.Environment) -> PendingUploadDrainer.Environment {
+        var environment = PendingUploadDrainer.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.deliverMarker = { try await CloudDatabaseSaver.deliver($0, reference: $1, environment: saver) }
+        return environment
     }
 
     private func makeCloudReference(
@@ -677,7 +525,7 @@ final class PendingUploadDrainerTests: XCTestCase {
                 CloudSyncMetadata(
                     provider: CloudProviderKind.dropbox.rawValue,
                     accountId: "acct-1",
-                    fileId: "/Vaults/cloud.kdbx",
+                    fileId: "/Vaults/\(id.uuidString).kdbx",
                     displayPath: "/Vaults/cloud.kdbx",
                     remoteContentHash: nil,
                     remoteModifiedAt: nil,
@@ -703,39 +551,6 @@ final class PendingUploadDrainerTests: XCTestCase {
             colorTag: nil,
             legacyKeychainFilename: nil
         )
-    }
-
-    private final class Recorder: @unchecked Sendable {
-        var droppedMarkerIDs: [UUID] = []
-        var updatedMarkers: [PendingUploadQueue.StoredMarker] = []
-        var pushedExpectedRevisions: [String?] = []
-        var pushedBytes: [Data] = []
-    }
-
-    private final class ReferenceStore: @unchecked Sendable {
-        var reference: DatabaseReference
-
-        init(_ reference: DatabaseReference) {
-            self.reference = reference
-        }
-    }
-
-    private final class Counter: @unchecked Sendable {
-        private let lock = NSLock()
-        private var storage = 0
-
-        var value: Int {
-            lock.lock()
-            defer { lock.unlock() }
-            return storage
-        }
-
-        func incrementAndGet() -> Int {
-            lock.lock()
-            defer { lock.unlock() }
-            storage += 1
-            return storage
-        }
     }
 
     /// One-shot signal usable across isolation domains: `wait()` suspends

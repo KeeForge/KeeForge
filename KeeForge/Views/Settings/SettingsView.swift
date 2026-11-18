@@ -272,6 +272,8 @@ private struct AutoFillSettingsView: View {
     let listViewModel: DatabaseListViewModel
     let clearEntries: () -> Void
     @State private var isClearEntriesConfirmationPresented = false
+    @State private var selectionAlert: DocumentPickerService.SelectionAlert?
+    @Environment(\.scenePhase) private var scenePhase
 
     private var isProviderEnabled: Bool? { listViewModel.isAutoFillProviderEnabled }
 
@@ -310,6 +312,9 @@ private struct AutoFillSettingsView: View {
         .onAppDidBecomeActive {
             Task { await listViewModel.refreshAutoFillStatus() }
         }
+        .alert(item: $selectionAlert) { alert in
+            Alert(title: Text(alert.title), message: Text(alert.message), dismissButton: .default(Text("OK")))
+        }
     }
 
     private var databasesSection: some View {
@@ -323,7 +328,14 @@ private struct AutoFillSettingsView: View {
                         reference.displayName,
                         isOn: Binding(
                             get: { currentReference(for: reference).autoFillEnabled },
-                            set: { listViewModel.setAutoFillEnabled($0, for: reference) }
+                            set: { enabled in
+                                Task {
+                                    let outcome = await listViewModel.setAutoFillEnabled(enabled, for: currentReference(for: reference))
+                                    if outcome != .saved && outcome != .unchanged {
+                                        selectionAlert = .init(title: String(localized: "AutoFill"), message: CocoaError(.fileWriteUnknown).localizedDescription)
+                                    }
+                                }
+                            }
                         )
                     )
                     .accessibilityIdentifier("settings.autofill.database-toggle.\(reference.id.uuidString)")
@@ -538,6 +550,9 @@ private struct CloudAccountsSettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                NavigationLink("Cloud Recovery") { CloudRecoveryView() }
+            }
             Section {
                 if settings.cloudAccounts.isEmpty {
                     Text("No cloud accounts connected")

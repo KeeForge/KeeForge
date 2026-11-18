@@ -243,7 +243,7 @@ final class CredentialProviderShellMacTests: XCTestCase {
         )
         try Data("fixture".utf8).write(to: url)
         let reference = try TestDatabaseSupport.makeReference(for: url)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
         return reference
     }

@@ -1,12 +1,149 @@
 import XCTest
 @testable import KeeForge
 
-/// Pure-seam coverage for the OneDrive provider: Graph URL construction, the
-/// small-file upload split, the retry/backoff policy, upload-session
-/// resumption, and error mapping. No network, no MSAL — every assertion
-/// targets a `static` helper.
+/// Graph policy and real URLSession transport coverage with isolated URLProtocol
+/// responses and token acquisition; no live account or server is contacted.
 final class OneDriveCloudProviderTests: XCTestCase {
     private let graphBase = "https://graph.microsoft.com/v1.0"
+
+    @MainActor
+    func testReplacementLostAcknowledgementsKeepOneAttemptAcrossSimpleAndChunkBoundaries() async throws {
+        // Independent changed paths: conditional PUT, nil-rev PUT, final chunk 503 and lost chunk response.
+        for scenario in [(32, true, false), (32, false, false), (5 * 1_024 * 1_024 + 1, true, false),
+                         (OneDriveCloudProvider.simpleUploadByteLimit + 1, true, true)] {
+            DatabaseListStore.clearAll()
+            defer { DatabaseListStore.clearAll() }
+            let probe = OneDriveHTTPProbe(firstFailure: 503, dropsResponse: scenario.2)
+            defer { probe.close() }
+            let provider = probe.provider()
+            let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: "probe",
+                file: .init(id: "/probe.kdbx", name: "probe.kdbx", path: "/probe.kdbx", isFolder: false, modifiedDate: nil, size: nil))
+            let context = try CloudJournalTestContext(reference: reference, payload: Data(repeating: 7, count: scenario.0))
+            var environment = context.environment(transport: CloudJournalTransport(revision: scenario.1 ? "base-rev" : nil))
+            environment.writeGuarantee = { _, rev, count in provider.writeGuarantee(expectedRev: rev, byteCount: count) }
+            environment.revisionIdentifiesContent = { _, rev in provider.revisionIdentifiesContent(rev) }
+            environment.upload = { _, bytes, rev, progress in
+                try await provider.upload(accountId: "probe", fileId: "/probe.kdbx", data: bytes, expectedRev: rev, progress: progress)
+            }
+            do {
+                _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
+                XCTFail("Lost acknowledgement cannot settle or be retried internally")
+            } catch { XCTAssertNil(error as? CloudUploadFailure, "Post-dispatch uncertainty is not rejection proof") }
+            let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .attempting)
+            XCTAssertNotNil(retained.marker.uploadAttemptID)
+            XCTAssertFalse(retained.marker.attemptIsFenced == true)
+            let before = probe.puts
+            XCTAssertEqual(before.count, scenario.0 > 5 * 1_024 * 1_024 ? 2 : 1)
+            XCTAssertEqual(before.first?.value(forHTTPHeaderField: "If-Match"),
+                scenario.0 <= OneDriveCloudProvider.simpleUploadByteLimit && scenario.1 ? "base-rev" : nil)
+            for _ in 0..<2 {
+                guard case .retained? = try await CloudDatabaseSaver.deliver(retained, reference: reference, environment: environment) else {
+                    return XCTFail("An unresolved attempt must remain retained")
+                }
+            }
+            XCTAssertEqual(probe.puts.count, before.count)
+            XCTAssertEqual(probe.sessionStatusReads, 0, "Replacement cannot fall back to a possibly accepted range")
+            XCTAssertEqual(probe.acceptedBytes, context.payload)
+            XCTAssertFalse(CloudJournalDecision.permitsMutation([retained.marker], changingKey: true))
+            XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
+            XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
+            XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+        }
+    }
+
+    @MainActor
+    func testSimplePut412AfterUnobservedCommitRemainsUncertain() async throws {
+        DatabaseListStore.clearAll()
+        defer { DatabaseListStore.clearAll() }
+        let probe = OneDriveHTTPProbe(firstFailure: 412, commitBeforeFailure: true)
+        defer { probe.close() }
+        let provider = probe.provider()
+        let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: "probe",
+            file: .init(id: "/probe.kdbx", name: "probe.kdbx", path: "/probe.kdbx", isFolder: false, modifiedDate: nil, size: nil))
+        let context = try CloudJournalTestContext(reference: reference)
+        var environment = context.environment()
+        environment.upload = { _, bytes, rev, progress in
+            try await provider.upload(accountId: "probe", fileId: "/probe.kdbx", data: bytes, expectedRev: rev, progress: progress)
+        }
+        do {
+            _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
+            XCTFail("Expected current-request rejection")
+        } catch let failure as CloudUploadFailure { XCTAssertEqual(failure.outcome, .uncertain) }
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .attempting)
+        XCTAssertFalse(retained.marker.attemptIsFenced == true)
+        XCTAssertEqual(probe.puts.count, 1)
+        XCTAssertEqual(probe.acceptedBytes, context.payload)
+        guard case .retained? = try await CloudDatabaseSaver.deliver(retained, reference: reference, environment: environment) else {
+            return XCTFail("An unobserved commit cannot be retried")
+        }
+        XCTAssertEqual(probe.puts.count, 1)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
+    }
+
+    @MainActor
+    func testReplacementAuthenticationFailureNeverDispatchesContentAndFencesOnlyItsAttempt() async throws {
+        DatabaseListStore.clearAll()
+        defer { DatabaseListStore.clearAll() }
+        let probe = OneDriveHTTPProbe(firstFailure: nil)
+        defer { probe.close() }
+        let tokenCalls = CloudJournalEffectCounter()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [OneDriveProbeURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let provider = OneDriveCloudProvider(session: session, tokenProvider: { _ in
+            tokenCalls.record()
+            if tokenCalls.value == 1 { throw CloudProviderError.notAuthenticated }
+            return probe.token
+        })
+        let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: "probe",
+            file: .init(id: "/probe.kdbx", name: "probe.kdbx", path: "/probe.kdbx", isFolder: false, modifiedDate: nil, size: nil))
+        let context = try CloudJournalTestContext(reference: reference)
+        var environment = context.environment()
+        environment.upload = { _, bytes, rev, progress in
+            try await provider.upload(accountId: "probe", fileId: "/probe.kdbx", data: bytes, expectedRev: rev, progress: progress)
+        }
+        do {
+            _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
+            XCTFail("Expected token acquisition failure")
+        } catch let failure as CloudUploadFailure {
+            XCTAssertEqual(failure.outcome, .notDispatched)
+            XCTAssertEqual(failure.underlying, .notAuthenticated)
+        }
+        let ready = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: ready.marker), .ready)
+        XCTAssertTrue(ready.marker.attemptIsFenced == true)
+        XCTAssertTrue(probe.puts.isEmpty)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(ready), context.payload)
+        guard case .saved? = try await CloudDatabaseSaver.deliver(ready, reference: reference, environment: environment) else {
+            return XCTFail("A separately authenticated explicit attempt can deliver")
+        }
+        XCTAssertEqual(tokenCalls.value, 2)
+        XCTAssertEqual(probe.puts.count, 1)
+    }
+
+    func testShippedCreateKeepsChunkRetryAndFailConflictBehavior() async throws {
+        let probe = OneDriveHTTPProbe(firstFailure: 503)
+        defer { probe.close() }
+        let created = try await probe.provider().createFile(accountId: "probe", path: "/probe.kdbx", data: Data([1, 2, 3]), progress: { _ in })
+        XCTAssertEqual(created.file.id, "/probe.kdbx")
+        XCTAssertEqual(probe.puts.count, 2)
+        XCTAssertEqual(probe.sessionStatusReads, 1)
+        XCTAssertEqual(probe.conflictBehavior, "fail")
+    }
+
+    func testReplacementChunkSuccessCrossesBoundaryWithoutRetries() async throws {
+        let probe = OneDriveHTTPProbe(firstFailure: nil)
+        defer { probe.close() }
+        let bytes = Data(repeating: 9, count: 5 * 1_024 * 1_024 + 1)
+        _ = try await probe.provider().upload(accountId: "probe", fileId: "/probe.kdbx", data: bytes, expectedRev: "base-rev", progress: { _ in })
+        XCTAssertEqual(probe.puts.count, 2)
+        XCTAssertEqual(probe.acceptedBytes, bytes)
+        XCTAssertEqual(probe.puts.last?.value(forHTTPHeaderField: "Content-Range"), "bytes 5242880-5242880/5242881")
+        XCTAssertEqual(probe.conflictBehavior, "replace")
+    }
 
     // MARK: - Graph URL construction
 
@@ -675,4 +812,117 @@ extension OneDriveCloudProviderTests {
     private func driveItem(_ json: String) throws -> OneDriveDriveItem {
         try JSONDecoder().decode(OneDriveDriveItem.self, from: Data(json.utf8))
     }
+}
+
+private final class OneDriveHTTPProbe: @unchecked Sendable {
+    let token = UUID().uuidString
+    let host = "onedrive-\(UUID().uuidString.lowercased()).invalid"
+    private let lock = NSLock()
+    private let firstFailure: Int?
+    private let dropsResponse: Bool
+    private let commitBeforeFailure: Bool
+    private var failed = false
+    private var requests: [URLRequest] = []
+    private var accepted = Data()
+    private var statusReads = 0
+    private var behavior: String?
+    private var session: URLSession?
+    var puts: [URLRequest] { lock.withLock { requests.filter { $0.httpMethod == "PUT" } } }
+    var acceptedBytes: Data { lock.withLock { accepted } }
+    var sessionStatusReads: Int { lock.withLock { statusReads } }
+    var conflictBehavior: String? { lock.withLock { behavior } }
+
+    init(firstFailure: Int?, dropsResponse: Bool = false, commitBeforeFailure: Bool = false) {
+        self.firstFailure = firstFailure
+        self.dropsResponse = dropsResponse
+        self.commitBeforeFailure = commitBeforeFailure
+        OneDriveProbeURLProtocol.install(self)
+    }
+
+    func provider() -> OneDriveCloudProvider {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [OneDriveProbeURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        self.session = session
+        return OneDriveCloudProvider(session: session, tokenProvider: { [token] _ in token })
+    }
+
+    func close() { session?.invalidateAndCancel(); OneDriveProbeURLProtocol.remove(self) }
+
+    private static func body(of request: URLRequest) -> Data {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return Data() }
+        stream.open()
+        defer { stream.close() }
+        var bytes = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            bytes.append(contentsOf: buffer.prefix(count))
+        }
+        return bytes
+    }
+
+    func response(for request: URLRequest) throws -> (Int, Data) {
+        try lock.withLock {
+            requests.append(request)
+            if request.httpMethod == "POST" {
+                let json = try JSONSerialization.jsonObject(with: Self.body(of: request)) as? [String: Any]
+                behavior = (json?["item"] as? [String: Any])?["@microsoft.graph.conflictBehavior"] as? String
+                return (200, Data("{\"uploadUrl\":\"https://\(host)/session\"}".utf8))
+            }
+            if request.httpMethod == "PUT" {
+                let range = request.value(forHTTPHeaderField: "Content-Range")
+                let body = Self.body(of: request)
+                let final: Bool
+                if let range, let total = range.split(separator: "/").last.flatMap({ Int($0) }) {
+                    final = range.contains("-\(total - 1)/")
+                } else { final = true }
+                if !final { accepted.append(body); return (202, Data()) }
+                if !failed, let firstFailure {
+                    failed = true
+                    if firstFailure != 412 || commitBeforeFailure { accepted.append(body) }
+                    if dropsResponse { throw URLError(.networkConnectionLost) }
+                    return (firstFailure, Data("{\"error\":{\"code\":\"\(firstFailure == 412 ? "preconditionFailed" : "serviceNotAvailable")\"}}".utf8))
+                }
+                if range == nil || accepted.count <= body.count { accepted = body } else { accepted.append(body) }
+            }
+            if request.httpMethod == "GET", request.url?.host == host {
+                statusReads += 1
+                return (200, Data(#"{"nextExpectedRanges":["0-"]}"#.utf8))
+            }
+            return (200, Data(#"{"id":"item-id","name":"probe.kdbx","cTag":"next-rev","file":{}}"#.utf8))
+        }
+    }
+}
+
+private final class OneDriveProbeURLProtocol: URLProtocol, @unchecked Sendable {
+    private final class Registry: @unchecked Sendable {
+        let lock = NSLock()
+        var probes: [String: OneDriveHTTPProbe] = [:]
+    }
+    private static let registry = Registry()
+    static func install(_ probe: OneDriveHTTPProbe) { registry.lock.withLock { registry.probes[probe.token] = probe } }
+    static func remove(_ probe: OneDriveHTTPProbe) { registry.lock.withLock { _ = registry.probes.removeValue(forKey: probe.token) } }
+    private static func probe(for request: URLRequest) -> OneDriveHTTPProbe? {
+        registry.lock.withLock {
+            registry.probes.values.first {
+                request.value(forHTTPHeaderField: "Authorization") == "Bearer \($0.token)" || request.url?.host == $0.host
+            }
+        }
+    }
+    override class func canInit(with request: URLRequest) -> Bool { probe(for: request) != nil }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        do {
+            guard let probe = Self.probe(for: request), let url = request.url else { throw URLError(.unsupportedURL) }
+            let (status, data) = try probe.response(for: request)
+            let response = try XCTUnwrap(HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil))
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch { client?.urlProtocol(self, didFailWithError: error) }
+    }
+    override func stopLoading() {}
 }

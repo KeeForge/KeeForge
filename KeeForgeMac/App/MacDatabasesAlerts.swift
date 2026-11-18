@@ -120,7 +120,7 @@ final class MacDatabasesAlerts {
             guard let reference = launcher.pendingRemoval, reference.id == id else { return }
             launcher.pendingRemoval = nil
             // `remove` checks for unsaved work again; a refusal queues behind this alert.
-            if confirmed { launcher.remove(reference) }
+            if confirmed { Task { await launcher.remove(reference) } }
         case .refused(let id):
             guard launcher.refusedRemoval?.id == id else { return }
             launcher.refusedRemoval = nil

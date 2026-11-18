@@ -23,6 +23,7 @@ final class DatabaseReferenceMigrationTests: XCTestCase {
         try SharedVaultStore.saveBookmark(for: url)
         try SharedVaultStore.cacheDatabaseCopy(sourceData, sourceURL: url)
 
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected explicit migration") }
         let migratedReference = try XCTUnwrap(DatabaseListStore.databases.first)
         let migratedCacheURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: migratedReference.id))
 
@@ -38,6 +39,8 @@ final class DatabaseReferenceMigrationTests: XCTestCase {
 
         try SharedVaultStore.saveBookmark(for: url)
 
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected explicit migration") }
+        guard case .alreadyPresent = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected idempotent initialization") }
         let firstRead = try XCTUnwrap(DatabaseListStore.databases.first)
         let secondRead = try XCTUnwrap(DatabaseListStore.databases.first)
 
@@ -52,6 +55,7 @@ final class DatabaseReferenceMigrationTests: XCTestCase {
         try SharedVaultStore.saveBookmark(for: url)
         try SharedVaultStore.cacheDatabaseCopy(sourceData, sourceURL: url)
 
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected explicit migration") }
         let migratedReference = try XCTUnwrap(DatabaseListStore.databases.first)
         XCTAssertTrue(migratedReference.autoFillEnabled)
 
