@@ -357,6 +357,24 @@ final class DocumentsVaultScannerTests: XCTestCase {
         XCTAssertNotEqual(DatabaseListStore.databases.first?.id, reference.id)
     }
 
+    func testIdenticalCopyOfARemovedFileStaysRemoved() throws {
+        let modificationDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let url = try writeDatabaseFile(named: "vault.kdbx", payload: "original")
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        DatabaseListStore.remove(id: try XCTUnwrap(DatabaseListStore.databases.first).id)
+
+        // The same bytes copied back with their metadata: a new inode, so only the content proves it unchanged.
+        let copy = documentsDirectory.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+        try FileManager.default.copyItem(at: url, to: copy)
+        try FileManager.default.removeItem(at: url)
+        try FileManager.default.moveItem(at: copy, to: url)
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+
+        XCTAssertFalse(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
     func testRemovedFileCanStillBeAddedExplicitly() throws {
         let url = try writeDatabaseFile(named: "vault.kdbx")
         DocumentsVaultScanner.scan(directory: documentsDirectory)

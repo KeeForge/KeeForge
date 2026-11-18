@@ -340,7 +340,14 @@ enum DatabaseListStore {
     @discardableResult
     static func addDiscoveredDocumentsFile(url: URL) throws -> DatabaseReference? {
         let reference = try makeReference(from: url)
-        guard try registerLocalReference(reference, target: url, skippingRemovedDocumentsFile: true) else { return nil }
+        // Read before the registry lock: hashing a vault there would fail concurrent mutations.
+        let snapshot = documentsFileSnapshot(for: url)
+        let contentDigest = snapshot.flatMap { snapshot in
+            removedDocumentsFiles.contains { $0.matches(snapshot) } ? nil : contentDigestIfRemoved(url, snapshot)
+        }
+        guard try registerLocalReference(
+            reference, target: url, skippingRemovedDocumentsFile: RemovalCheck(snapshot: snapshot, contentDigest: contentDigest)
+        ) else { return nil }
         cacheInitialCopyIfPossible(from: url, for: reference.id)
         return reference
     }
@@ -405,18 +412,20 @@ enum DatabaseListStore {
     /// concurrent removal cannot slip in between. An explicit add that cannot
     /// clear it fails, and one whose row is not published restores it.
     @discardableResult
-    private static func registerLocalReference(_ reference: DatabaseReference, target: URL?,
-                                               skippingRemovedDocumentsFile: Bool = false) throws -> Bool {
+    private static func registerLocalReference(
+        _ reference: DatabaseReference, target: URL?,
+        skippingRemovedDocumentsFile removalCheck: RemovalCheck? = nil
+    ) throws -> Bool {
         let accessed = target?.startAccessingSecurityScopedResource() ?? false
         defer { if accessed { target?.stopAccessingSecurityScopedResource() } }
         try requireRegistryInitialization()
         guard let observed = try readRegistry(at: databaseListURL) else { throw RegistryWriteError.unavailable }
         let duplicate = target.flatMap { existingLocalReference(matching: $0, in: observed) }
-        let forgetsRemoval = !skippingRemovedDocumentsFile && target.map(isTopLevelDocumentsFile) == true
+        let forgetsRemoval = removalCheck == nil && target.map(isTopLevelDocumentsFile) == true
         let result = mutateRegistry(authorize: { mutate in
-            let forgotten = forgetsRemoval ? try target.flatMap(forgetRemovedDocumentsFile(at:)) : nil
+            let forgotten = forgetsRemoval ? try target.map(forgetRemovedDocumentsFile(at:)) ?? [] : []
             var published = false
-            defer { if !published, let forgotten { restoreRemovedDocumentsFingerprint(forgotten) } }
+            defer { if !published { restoreRemovedDocumentsFiles(forgotten) } }
             let result = try mutate()
             if case .durable(true) = result { published = true }
             if case .visibleUnconfirmed(true, _) = result { published = true }
@@ -430,9 +439,8 @@ enum DatabaseListStore {
                 throw AddDatabaseError.duplicateFile(existingReferenceID: duplicate.id, filename: duplicate.displayName)
             }
             if reference.bookmarkData == nil { try validateAppOnlyCreatedLocal(reference, in: rows) }
-            if skippingRemovedDocumentsFile, let target, isTopLevelDocumentsFile(target),
-               let fingerprint = documentsFileFingerprint(for: target),
-               removedDocumentsFileFingerprints.contains(fingerprint) { return .noop(false) }
+            if let removalCheck, let target, isTopLevelDocumentsFile(target),
+               isRemovedDocumentsFile(target, checkedAs: removalCheck) { return .noop(false) }
             rows.append(reference)
             return .write(true)
         }
@@ -548,13 +556,14 @@ enum DatabaseListStore {
         var revocationObserved = false
         var recoveryRequired = false
         var rowMissing = false
-        var recordedFingerprint: String?
+        var recordedFile: RemovedDocumentsFile?
+        let removedFile = removedDocumentsFileRecord(for: observed)
         do {
             return try PendingUploadQueue.withCommitLock(for: observed.id, nonBlocking: true) {
                 let result = mutateRegistry(io: io, authorize: { mutate in
                     var published = false
                     defer {
-                        if !published, let recordedFingerprint { forgetRemovedDocumentsFingerprint(recordedFingerprint) }
+                        if !published, let recordedFile { forgetRemovedDocumentsFiles([recordedFile]) }
                     }
                     let result = try mutate()
                     switch result {
@@ -577,7 +586,8 @@ enum DatabaseListStore {
                         guard try PendingUploadQueue.readJournal(for: current.id).isEmpty else { return .rejected }
                     }
                     // Durable before the list write: a crash right after it must not re-list the file.
-                    recordedFingerprint = try rememberRemovedDocumentsFile(of: current)
+                    guard removedFile.isCurrent(for: current) else { return .rejected }
+                    recordedFile = try rememberRemovedDocumentsFile(removedFile.file)
                     revocationAttempted = true
                     let ready = try PendingLocalSaveStore.revokeForRemoval(current.id, nonBlocking: true)
                     revocationObserved = true
@@ -2553,6 +2563,62 @@ enum DatabaseListStore {
 
     // MARK: - Removed Documents files
 
+    /// Holds no filename, path or vault bytes: only hashes and the file's
+    /// inode and status-change time.
+    private struct RemovedDocumentsFile: Codable, Hashable {
+        /// SHA-256 of the name, size and modification date.
+        let metadata: String
+        /// SHA-256 of the bytes, so an edit that keeps the metadata is a new file.
+        let content: String
+        let fileNumber: UInt64
+        let statusChange: UInt64
+
+        /// Any write changes the status-change time, so a match proves the
+        /// bytes unchanged without rereading them.
+        func matches(_ snapshot: DocumentsFileSnapshot) -> Bool {
+            metadata == snapshot.metadata && fileNumber == snapshot.fileNumber && statusChange == snapshot.statusChange
+        }
+    }
+
+    /// What the scan read of a file before the registry lock.
+    private struct RemovalCheck {
+        let snapshot: DocumentsFileSnapshot?
+        let contentDigest: String?
+    }
+
+    private struct DocumentsFileSnapshot: Equatable {
+        let metadata: String
+        let fileNumber: UInt64
+        let statusChange: UInt64
+    }
+
+    /// The file a removal records, read before the registry lock and checked
+    /// again under it with a `stat` alone.
+    private struct RemovedDocumentsFileCandidate {
+        let url: URL?
+        let file: RemovedDocumentsFile?
+
+        /// False when the file changed since it was read: the removal is
+        /// refused rather than hashing under the lock. A file that could not
+        /// be read records nothing and does not block the removal.
+        func isCurrent(for reference: DatabaseReference) -> Bool {
+            let currentURL = DatabaseListStore.currentDocumentsFileURL(for: reference)
+            guard currentURL?.standardizedFileURL == url?.standardizedFileURL else { return false }
+            guard let currentURL, let file else { return true }
+            return DatabaseListStore.documentsFileSnapshot(for: currentURL).map(file.matches) == true
+        }
+    }
+
+    private static func removedDocumentsFileRecord(for reference: DatabaseReference) -> RemovedDocumentsFileCandidate {
+        guard let url = currentDocumentsFileURL(for: reference) else { return RemovedDocumentsFileCandidate(url: nil, file: nil) }
+        guard let snapshot = documentsFileSnapshot(for: url), let content = contentDigest(of: url),
+              documentsFileSnapshot(for: url) == snapshot else { return RemovedDocumentsFileCandidate(url: url, file: nil) }
+        return RemovedDocumentsFileCandidate(url: url, file: RemovedDocumentsFile(
+            metadata: snapshot.metadata, content: content,
+            fileNumber: snapshot.fileNumber, statusChange: snapshot.statusChange
+        ))
+    }
+
     /// Only the app's scan reads this, so it stays out of the App Group. The
     /// Mac unit-test host is the real app, hence the redirect.
     private static var removedDocumentsFilesURL: URL {
@@ -2565,80 +2631,107 @@ enum DatabaseListStore {
         AppGroupContainer.isRedirectedForTesting ? sharedContainerURL : URL.libraryDirectory
     }
 
-    private static var removedDocumentsFileFingerprints: Set<String> {
+    private static var removedDocumentsFiles: Set<RemovedDocumentsFile> {
         guard let data = try? Data(contentsOf: removedDocumentsFilesURL),
-              let fingerprints = try? JSONDecoder().decode([String].self, from: data) else { return [] }
-        return Set(fingerprints)
+              let files = try? JSONDecoder().decode([RemovedDocumentsFile].self, from: data) else { return [] }
+        return Set(files)
     }
 
     /// Applies `change` to the record and writes it durably; false when
     /// `change` reports nothing to write. Throws when the result may not
     /// survive a crash.
-    private static func changeRemovedDocumentsFileFingerprints(_ change: (inout Set<String>) -> Bool) throws -> Bool {
-        var fingerprints = removedDocumentsFileFingerprints
-        guard change(&fingerprints) else { return false }
-        let data = try JSONEncoder().encode(fingerprints.sorted())
+    private static func changeRemovedDocumentsFiles(_ change: (inout Set<RemovedDocumentsFile>) -> Bool) throws -> Bool {
+        var files = removedDocumentsFiles
+        guard change(&files) else { return false }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let data = try encoder.encode(files.sorted { ($0.metadata, $0.content) < ($1.metadata, $1.content) })
         switch writeWithDurabilityOutcome(data, to: removedDocumentsFilesURL, directoryAnchor: removedDocumentsFilesAnchor) {
         case .durable: return true
         case .notPublished(let error), .publishedWithoutConfirmedDurability(let error): throw error
         }
     }
 
-    /// Returns the fingerprint only when this call added it, so a failed
-    /// removal can take back exactly what it recorded. Throws when the record
-    /// may not survive a crash, so the removal is refused instead.
-    private static func rememberRemovedDocumentsFile(of reference: DatabaseReference) throws -> String? {
-        guard let url = currentDocumentsFileURL(for: reference),
-              let fingerprint = documentsFileFingerprint(for: url) else {
-            return nil
-        }
+    /// The digest the scan needs only when a record shares the file's
+    /// metadata but not its status, so an unchanged removed vault is not reread.
+    private static func contentDigestIfRemoved(_ url: URL, _ snapshot: DocumentsFileSnapshot) -> String? {
+        guard removedDocumentsFiles.contains(where: { $0.metadata == snapshot.metadata }) else { return nil }
+        guard let content = contentDigest(of: url), documentsFileSnapshot(for: url) == snapshot else { return nil }
+        return content
+    }
+
+    /// Under the registry lock, so only a `stat`. A file that changed since
+    /// the scan read it, or one a removal recorded meanwhile, counts as
+    /// removed until the next scan rereads it.
+    private static func isRemovedDocumentsFile(_ url: URL, checkedAs check: RemovalCheck) -> Bool {
+        guard let snapshot = documentsFileSnapshot(for: url) else { return false }
+        let candidates = removedDocumentsFiles.filter { $0.metadata == snapshot.metadata }
+        guard !candidates.isEmpty else { return false }
+        guard snapshot == check.snapshot else { return true }
+        if candidates.contains(where: { $0.matches(snapshot) }) { return true }
+        guard let content = check.contentDigest else { return true }
+        return candidates.contains { $0.content == content }
+    }
+
+    /// Returns the record only when this call added it, so a failed removal
+    /// can take back exactly what it recorded. Throws when the record may not
+    /// survive a crash, so the removal is refused instead.
+    private static func rememberRemovedDocumentsFile(_ file: RemovedDocumentsFile?) throws -> RemovedDocumentsFile? {
+        guard let file else { return nil }
         do {
-            return try changeRemovedDocumentsFileFingerprints { $0.insert(fingerprint).inserted } ? fingerprint : nil
+            return try changeRemovedDocumentsFiles { $0.insert(file).inserted } ? file : nil
         } catch {
-            forgetRemovedDocumentsFingerprint(fingerprint)
+            forgetRemovedDocumentsFiles([file])
             throw error
         }
     }
 
     /// An explicit add undoes the removal, so a later removal that records
     /// nothing (file missing) cannot leave the old record hiding the file.
-    /// Returns the fingerprint it cleared; throws when clearing may not last.
-    private static func forgetRemovedDocumentsFile(at url: URL) throws -> String? {
-        guard let fingerprint = documentsFileFingerprint(for: url) else { return nil }
-        return try changeRemovedDocumentsFileFingerprints { $0.remove(fingerprint) != nil } ? fingerprint : nil
+    /// Clears every record with the file's metadata, which needs no hashing
+    /// under the lock, and returns them; throws when clearing may not last.
+    private static func forgetRemovedDocumentsFile(at url: URL) throws -> [RemovedDocumentsFile] {
+        guard let snapshot = documentsFileSnapshot(for: url) else { return [] }
+        var forgotten: [RemovedDocumentsFile] = []
+        _ = try changeRemovedDocumentsFiles { files in
+            forgotten = files.filter { $0.metadata == snapshot.metadata }
+            files.subtract(forgotten)
+            return !forgotten.isEmpty
+        }
+        return forgotten
     }
 
     /// Best effort: a record left behind still lets an explicit add, which
     /// clears it or fails, bring the file back.
-    private static func forgetRemovedDocumentsFingerprint(_ fingerprint: String) {
-        _ = try? changeRemovedDocumentsFileFingerprints { $0.remove(fingerprint) != nil }
+    private static func forgetRemovedDocumentsFiles(_ files: [RemovedDocumentsFile]) {
+        guard !files.isEmpty else { return }
+        _ = try? changeRemovedDocumentsFiles { records in
+            let count = records.count
+            records.subtract(files)
+            return records.count != count
+        }
     }
 
     /// Best effort: the file was one the user just asked to add.
-    private static func restoreRemovedDocumentsFingerprint(_ fingerprint: String) {
-        _ = try? changeRemovedDocumentsFileFingerprints { $0.insert(fingerprint).inserted }
+    private static func restoreRemovedDocumentsFiles(_ files: [RemovedDocumentsFile]) {
+        guard !files.isEmpty else { return }
+        _ = try? changeRemovedDocumentsFiles { $0.formUnion(files); return true }
     }
 
-    /// A hash, so no filename is stored. Any change to the name, size,
-    /// modification date or bytes makes a newer copy dropped in through Finder
-    /// or the Files app count as a new file, even one copied with its metadata.
-    private static func documentsFileFingerprint(for url: URL) -> String? {
-        guard let values = try? url.resourceValues(
-                forKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
-              ),
-              values.isRegularFile == true,
-              let size = values.fileSize,
-              let modificationDate = values.contentModificationDate,
-              let contentDigest = contentDigest(of: url) else {
-            return nil
-        }
+    private static func documentsFileSnapshot(for url: URL) -> DocumentsFileSnapshot? {
+        var info = Darwin.stat()
+        guard fstatat(AT_FDCWD, url.path, &info, 0) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
         let identity = [
             url.lastPathComponent.precomposedStringWithCanonicalMapping,
-            String(size),
-            String(modificationDate.timeIntervalSinceReferenceDate.bitPattern),
-            contentDigest,
+            String(info.st_size),
+            String(info.st_mtimespec.tv_sec),
+            String(info.st_mtimespec.tv_nsec),
         ].joined(separator: "\u{1F}")
-        return SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+        return DocumentsFileSnapshot(
+            metadata: SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined(),
+            fileNumber: UInt64(info.st_ino),
+            statusChange: UInt64(bitPattern: Int64(info.st_ctimespec.tv_sec)) &* 1_000_000_000 &+ UInt64(info.st_ctimespec.tv_nsec)
+        )
     }
 
     private static func contentDigest(of url: URL) -> String? {
