@@ -261,6 +261,22 @@ final class DocumentsVaultScannerTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
     }
 
+    /// Removed after a Files-app rename the scan has not caught up with yet:
+    /// the stored filename is stale, but the bookmark still finds the file.
+    func testRemovalAfterAnUnscannedRenameStillSticks() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        let reference = try XCTUnwrap(DatabaseListStore.databases.first)
+        let renamedURL = documentsDirectory.appendingPathComponent("renamed.kdbx")
+        try FileManager.default.moveItem(at: url, to: renamedURL)
+
+        DatabaseListStore.remove(id: reference.id)
+
+        XCTAssertFalse(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: renamedURL.path))
+    }
+
     func testScanRegistersRemovedFileAgainOnceItChanges() throws {
         let url = try writeDatabaseFile(named: "vault.kdbx", payload: "original")
         DocumentsVaultScanner.scan(directory: documentsDirectory)

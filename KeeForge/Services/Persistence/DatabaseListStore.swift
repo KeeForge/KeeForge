@@ -369,14 +369,20 @@ enum DatabaseListStore {
             guard let removedReference = currentDatabases.first(where: { $0.id == id }) else { return true }
             let wasActiveAutoFillDatabase = activeAutoFillDatabase?.id == id
             let remainingDatabases = currentDatabases.filter { $0.id != id }
-            guard saveDatabases(remainingDatabases) else { return false }
+            // Recorded first: a process death right after the list write must not re-list the file.
+            let recordedFingerprint = rememberRemovedDocumentsFile(of: removedReference)
+            guard saveDatabases(remainingDatabases) else {
+                if let recordedFingerprint {
+                    forgetRemovedDocumentsFingerprint(recordedFingerprint)
+                }
+                return false
+            }
 
             KeychainService.deleteCompositeKey(for: removedReference.id)
             if let legacyFilename = removedReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
             }
             QuickUnlockKeychain.removeMasterKeyEntry(for: removedReference.id)
-            rememberRemovedDocumentsFile(of: removedReference)
 
             try? FileManager.default.removeItem(at: cacheLocation(for: removedReference))
             try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removedReference))
@@ -1912,16 +1918,17 @@ enum DatabaseListStore {
         Set(appLocalDefaults.stringArray(forKey: removedDocumentsFilesKey) ?? [])
     }
 
-    private static func rememberRemovedDocumentsFile(of reference: DatabaseReference) {
-        guard reference.isDocumentsResident,
-              let fingerprint = documentsFileFingerprint(
-                for: documentsDirectoryURL.appendingPathComponent(reference.filename, isDirectory: false)
-              ) else {
-            return
+    /// Returns the fingerprint only when this call added it, so a failed
+    /// removal can take back exactly what it recorded.
+    private static func rememberRemovedDocumentsFile(of reference: DatabaseReference) -> String? {
+        guard let url = currentDocumentsFileURL(for: reference),
+              let fingerprint = documentsFileFingerprint(for: url) else {
+            return nil
         }
         var fingerprints = removedDocumentsFileFingerprints
-        fingerprints.insert(fingerprint)
+        guard fingerprints.insert(fingerprint).inserted else { return nil }
         appLocalDefaults.set(fingerprints.sorted(), forKey: removedDocumentsFilesKey)
+        return fingerprint
     }
 
     /// An explicit add undoes the removal, so a later removal that records
@@ -1930,6 +1937,10 @@ enum DatabaseListStore {
         guard isTopLevelDocumentsFile(url), let fingerprint = documentsFileFingerprint(for: url) else {
             return
         }
+        forgetRemovedDocumentsFingerprint(fingerprint)
+    }
+
+    private static func forgetRemovedDocumentsFingerprint(_ fingerprint: String) {
         var fingerprints = removedDocumentsFileFingerprints
         guard fingerprints.remove(fingerprint) != nil else { return }
         appLocalDefaults.set(fingerprints.sorted(), forKey: removedDocumentsFilesKey)
@@ -2000,7 +2011,15 @@ enum DatabaseListStore {
     /// missing (the locate paths perform the heal on unlock/save/scan).
     /// Own-container URLs only, so it never blocks on a file provider.
     static func isDocumentsFileMissing(for reference: DatabaseReference) -> Bool {
-        guard reference.isDocumentsResident else { return false }
+        reference.isDocumentsResident && currentDocumentsFileURL(for: reference) == nil
+    }
+
+    /// The file a Documents-resident reference stands for: its bookmark's
+    /// target when available (it follows a Files-app rename the scan has not
+    /// recorded yet), else whatever sits at `Documents/<filename>`. Own
+    /// container only, so it never blocks on a file provider.
+    private static func currentDocumentsFileURL(for reference: DatabaseReference) -> URL? {
+        guard reference.isDocumentsResident else { return nil }
 
         if let bookmarkData = reference.bookmarkData,
            let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData) {
@@ -2013,12 +2032,12 @@ enum DatabaseListStore {
             }
             if SecurityScopedBookmarkManager.isInTrashDirectory(url) == false,
                FileManager.default.fileExists(atPath: url.path) {
-                return false
+                return url
             }
         }
 
         let candidate = documentsDirectoryURL.appendingPathComponent(reference.filename, isDirectory: false)
-        return FileManager.default.fileExists(atPath: candidate.path) == false
+        return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
     }
 
     /// Rebinds a Documents-resident reference to the KDBX file currently at
