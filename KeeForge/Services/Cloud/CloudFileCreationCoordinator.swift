@@ -14,7 +14,18 @@ final class CloudCreationLifetime: @unchecked Sendable {
 
 // Only a response to this invocation can confirm its fenced attempt.
 enum CloudFileCreationCoordinator {
-    enum RecoveryError: Error { case unavailable, uncertain, registrationRejected, registrationUnconfirmed }
+    enum RecoveryError: LocalizedError {
+        case unavailable, uncertain, registrationRejected, registrationUnconfirmed
+
+        var errorDescription: String? {
+            switch self {
+            case .uncertain:
+                String(localized: "Cloud creation may have succeeded. Open Cloud Recovery to keep or recover the encrypted copy.")
+            case .unavailable, .registrationRejected, .registrationUnconfirmed:
+                String(localized: "Cloud recovery could not finish. Keep the encrypted copy and reopen Cloud Recovery.")
+            }
+        }
+    }
     struct NotDispatched: Error {
         let underlying: CloudProviderError
     }

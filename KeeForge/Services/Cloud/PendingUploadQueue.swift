@@ -993,7 +993,18 @@ extension PendingUploadQueue {
         let serialized: Data
     }
 
-    enum CreationError: Error { case invalid, reserved, changed }
+    enum CreationError: LocalizedError {
+        case invalid, reserved, changed
+
+        var errorDescription: String? {
+            switch self {
+            case .invalid, .changed:
+                String(localized: "The cloud recovery record is unavailable or has changed. Keep your encrypted copies and reopen Cloud Recovery.")
+            case .reserved:
+                String(localized: "A cloud creation for this location is already awaiting recovery. Open Cloud Recovery.")
+            }
+        }
+    }
 
     private static func creationDirectory(_ environment: Environment) -> URL {
         environment.appGroupContainerURL().appendingPathComponent("cloud-creation-journal", isDirectory: true)

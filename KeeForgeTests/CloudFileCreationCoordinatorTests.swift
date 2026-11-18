@@ -44,6 +44,21 @@ final class CloudFileCreationCoordinatorTests: XCTestCase {
         return try PendingUploadQueue.transitionCreation(attempting, to: .confirmed, receipt: receipt, environment: queue)
     }
 
+    func testCreationRecoveryErrorsExplainSafeNextSteps() {
+        XCTAssertEqual(PendingUploadQueue.CreationError.reserved.localizedDescription,
+            "A cloud creation for this location is already awaiting recovery. Open Cloud Recovery.")
+        for error in [PendingUploadQueue.CreationError.invalid, .changed] {
+            XCTAssertEqual(error.localizedDescription,
+                "The cloud recovery record is unavailable or has changed. Keep your encrypted copies and reopen Cloud Recovery.")
+        }
+        XCTAssertEqual(CloudFileCreationCoordinator.RecoveryError.uncertain.localizedDescription,
+            "Cloud creation may have succeeded. Open Cloud Recovery to keep or recover the encrypted copy.")
+        for error in [CloudFileCreationCoordinator.RecoveryError.unavailable, .registrationRejected, .registrationUnconfirmed] {
+            XCTAssertEqual(error.localizedDescription,
+                "Cloud recovery could not finish. Keep the encrypted copy and reopen Cloud Recovery.")
+        }
+    }
+
     func testIntentWriteFailureCannotDispatch() async throws {
         let (root, original, reference) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
