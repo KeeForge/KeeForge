@@ -964,8 +964,8 @@ enum CloudDatabaseSaver {
                    let observed = current.cloudSyncMetadata {
                     let remaining = PendingUploadQueue.listMarkers(for: current.id, environment: environment.queue).filter { $0.id != stored.id }
                     let publication = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: current.id, ifUnchangedFrom: observed, observedReference: current, mutate: {
-                        if let rev = stored.marker.confirmedRemoteRev { $0.remoteRev = rev }
-                        if let hash = stored.marker.confirmedRemoteHash { $0.remoteContentHash = hash }
+                        $0.remoteRev = stored.marker.confirmedRemoteRev
+                        $0.remoteContentHash = stored.marker.confirmedRemoteHash
                         $0.remoteModifiedAt = stored.marker.confirmedAt
                         $0.lastSyncedAt = remaining.isEmpty ? stored.marker.confirmedAt : nil
                         $0.lastSyncIssue = nil
