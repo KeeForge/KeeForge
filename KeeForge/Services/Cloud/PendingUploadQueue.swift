@@ -984,6 +984,7 @@ extension PendingUploadQueue {
         let payloadSHA512: Data
         let referenceTemplate: DatabaseReference
         let isConflictCopy: Bool
+        let conflictBatchID: UUID?
         var phase: Phase
         var receipt: DatabaseReference?
     }
@@ -1026,6 +1027,7 @@ extension PendingUploadQueue {
         let value = try JSONDecoder().decode(CreationIntent.self, from: data)
         guard value.version == 1, value.operationID == id, value.payloadSHA512.count == 64,
               !value.provider.isEmpty, !value.accountID.isEmpty, !value.target.isEmpty,
+              value.isConflictCopy || value.conflictBatchID == nil,
               (value.phase == .prepared || value.phase == .attempting) == (value.receipt == nil),
               value.receipt == nil || value.receipt?.id == value.referenceTemplate.id else { throw CreationError.invalid }
         if let receipt = value.receipt {
@@ -1104,10 +1106,10 @@ extension PendingUploadQueue {
 
     static func prepareCreation(operationID: UUID, provider: String, accountID: String, target: String,
                                 payload: Data, referenceTemplate: DatabaseReference, isConflictCopy: Bool,
-                                environment: Environment = .live) throws -> StoredCreation {
+                                conflictBatchID: UUID? = nil, environment: Environment = .live) throws -> StoredCreation {
         let intent = CreationIntent(version: 1, operationID: operationID, provider: provider, accountID: accountID,
                                     target: target, payloadSHA512: FileDigest.sha512(payload), referenceTemplate: referenceTemplate,
-                                    isConflictCopy: isConflictCopy, phase: .prepared, receipt: nil)
+                                    isConflictCopy: isConflictCopy, conflictBatchID: conflictBatchID, phase: .prepared, receipt: nil)
         return try withCreationLocks(intent, environment: environment) {
             let records = try listCreations(environment: environment)
             guard !records.contains(where: { $0.intent.operationID == operationID }) else { throw CreationError.changed }
@@ -1171,6 +1173,26 @@ extension PendingUploadQueue {
                 try environment.writeMarkerAtomically(stored.serialized, markerURL)
                 try? environment.removeItem(creationPayloadURL(id, environment))
                 try? environment.removeItem(creationStageURL(id, environment))
+            }
+        }
+    }
+
+    static func cleanCompletedConflictCopyAttempts(environment: Environment = .live) throws {
+        let records = try listCreations(environment: environment)
+        for completed in records where completed.intent.phase == .completed && completed.intent.isConflictCopy {
+            guard let batch = completed.intent.conflictBatchID else { continue }
+            let confirmed = try withCreationLocks(completed.intent, environment: environment) {
+                let url = creationURL(completed.intent.operationID, environment)
+                guard try environment.readData(url) == completed.serialized,
+                      try decodeCreation(completed.serialized, id: completed.intent.operationID) == completed.intent else { return false }
+                try environment.writeMarkerAtomically(completed.serialized, url)
+                return true
+            }
+            guard confirmed else { continue }
+            for candidate in records where candidate.intent.phase == .prepared && candidate.intent.isConflictCopy
+                && candidate.intent.conflictBatchID == batch && candidate.intent.provider == completed.intent.provider
+                && candidate.intent.accountID == completed.intent.accountID && candidate.intent.payloadSHA512 == completed.intent.payloadSHA512 {
+                try? discardPreparedCreation(candidate, environment: environment)
             }
         }
     }

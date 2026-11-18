@@ -186,3 +186,5 @@ Unit classes in `../../KeeForgeTests/` are named `<Type>Tests`. Cover success, f
 - `MacDatabasesLauncherViewModel.requestCloudRecovery` is reference-independent and retains the creation/connect busy guard; only the launcher presenter owns the native recovery sheet.
 - Native launcher removal is asynchronous through the same list owner as iOS; confirmation forwards the captured reference and callers may await completion. A list failure cannot be reported as a removed database.
 - Native server prefill projects only the server address, username and transport opt-in from its credential-data reader; it never fills a stored password. Model tests supply encoded credential fixtures, while Keychain round trips stay at the credential-store boundary.
+
+- Numbered cloud conflict-copy retries share one fresh batch ID so a confirmed copy can retire only its own rejected prepared attempts.

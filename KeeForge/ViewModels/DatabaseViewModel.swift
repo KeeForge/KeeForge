@@ -481,7 +481,8 @@ final class DatabaseViewModel {
     typealias CloudConflictCopyOperation = @Sendable (
         _ reference: DatabaseReference,
         _ fileID: String,
-        _ bytes: Data
+        _ bytes: Data,
+        _ batchID: UUID
     ) async throws -> Void
     typealias ReloadOperation = @Sendable (
         _ reference: DatabaseReference,
@@ -865,11 +866,12 @@ final class DatabaseViewModel {
                 bytes: bytes
             )
         },
-        cloudConflictCopyOperation: @escaping CloudConflictCopyOperation = { reference, fileID, bytes in
+        cloudConflictCopyOperation: @escaping CloudConflictCopyOperation = { reference, fileID, bytes, batchID in
             try await DatabaseViewModel.writeConflictCopyToCloud(
                 reference: reference,
                 fileID: fileID,
-                bytes: bytes
+                bytes: bytes,
+                batchID: batchID
             )
         },
         reloadOperation: @escaping ReloadOperation = { reference, compositeKey in
@@ -3792,6 +3794,7 @@ final class DatabaseViewModel {
         case .local:
             try await localConflictCopyOperation(copyReference, filename, bytes)
         case .cloud(let metadata):
+            let batchID = UUID()
             for attempt in 1...Self.conflictCopyNameAttemptLimit {
                 let stillCurrent = try await Task.detached {
                     try DatabaseListStore.readDatabasesStrict().contains { Self.matchesConflictCopyAuthority(copyReference, $0) }
@@ -3801,7 +3804,7 @@ final class DatabaseViewModel {
                 let candidate = attempt == 1 ? filename : Self.uniquifiedConflictCopyName(filename, attempt: attempt)
                 let fileID = Self.siblingCloudConflictFileID(currentFileID: metadata.fileId, filename: candidate)
                 do {
-                    try await cloudConflictCopyOperation(copyReference, fileID, bytes)
+                    try await cloudConflictCopyOperation(copyReference, fileID, bytes, batchID)
                     break
                 } catch let error as CloudProviderError {
                     guard case .conflict = error, attempt < Self.conflictCopyNameAttemptLimit else { throw error }
@@ -6111,6 +6114,7 @@ final class DatabaseViewModel {
         reference: DatabaseReference,
         fileID: String,
         bytes: Data,
+        batchID: UUID? = nil,
         providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:),
         creationEnvironment: CloudFileCreationCoordinator.Environment = .live
     ) async throws {
@@ -6127,7 +6131,7 @@ final class DatabaseViewModel {
         }
         _ = try await CloudFileCreationCoordinator.create(operationID: UUID(), provider: metadata.provider,
             accountID: metadata.accountId, target: fileID, bytes: bytes, referenceTemplate: template,
-            isConflictCopy: true, environment: environment)
+            isConflictCopy: true, conflictBatchID: batchID, environment: environment)
     }
 
     /// How many numbered names a conflict copy may try before giving up.

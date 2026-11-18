@@ -65,18 +65,19 @@ enum CloudFileCreationCoordinator {
     }
 
     static func create(operationID: UUID, provider: String, accountID: String, target: String, bytes: Data,
-                       referenceTemplate: DatabaseReference, isConflictCopy: Bool = false,
+                       referenceTemplate: DatabaseReference, isConflictCopy: Bool = false, conflictBatchID: UUID? = nil,
                        lifetime: CloudCreationLifetime = CloudCreationLifetime(), environment: Environment = .live) async throws -> DatabaseReference {
         let existing = try PendingUploadQueue.listCreations(environment: environment.queue).first { $0.intent.operationID == operationID }
         let stored: PendingUploadQueue.StoredCreation
         if let existing {
             guard existing.intent.provider == provider, existing.intent.accountID == accountID, existing.intent.target == target,
                   existing.intent.referenceTemplate == referenceTemplate, existing.intent.isConflictCopy == isConflictCopy,
-                  existing.intent.payloadSHA512 == FileDigest.sha512(bytes) else { throw RecoveryError.unavailable }
+                  existing.intent.conflictBatchID == conflictBatchID, existing.intent.payloadSHA512 == FileDigest.sha512(bytes) else { throw RecoveryError.unavailable }
             stored = existing
         } else {
             stored = try PendingUploadQueue.prepareCreation(operationID: operationID, provider: provider, accountID: accountID,
-                target: target, payload: bytes, referenceTemplate: referenceTemplate, isConflictCopy: isConflictCopy, environment: environment.queue)
+                target: target, payload: bytes, referenceTemplate: referenceTemplate, isConflictCopy: isConflictCopy,
+                conflictBatchID: conflictBatchID, environment: environment.queue)
         }
         guard stored.intent.phase == .prepared else { throw RecoveryError.uncertain }
         try Task.checkCancellation()
@@ -132,7 +133,7 @@ enum CloudFileCreationCoordinator {
         let bytes = try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue)
         return try await create(operationID: operationID, provider: stored.intent.provider, accountID: stored.intent.accountID,
             target: stored.intent.target, bytes: bytes, referenceTemplate: stored.intent.referenceTemplate,
-            isConflictCopy: stored.intent.isConflictCopy, lifetime: lifetime, environment: environment)
+            isConflictCopy: stored.intent.isConflictCopy, conflictBatchID: stored.intent.conflictBatchID, lifetime: lifetime, environment: environment)
     }
 
     static func resumeKnownRegistration(operationID: UUID, environment: Environment = .live) throws -> DatabaseReference {
@@ -151,6 +152,7 @@ enum CloudFileCreationCoordinator {
         if stored.intent.isConflictCopy {
             _ = try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue)
             _ = try PendingUploadQueue.transitionCreation(stored, to: .completed, environment: environment.queue)
+            try? PendingUploadQueue.cleanCompletedConflictCopyAttempts(environment: environment.queue)
             return receipt
         }
         let bytes = try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue)

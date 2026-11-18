@@ -96,6 +96,7 @@ struct CloudRecoveryView: View {
         do {
             let listing = try await Task.detached {
                 try? PendingUploadQueue.cleanCompletedCreationPayloads()
+                try? PendingUploadQueue.cleanCompletedConflictCopyAttempts()
                 return try PendingUploadQueue.listCreationsForRecovery()
             }.value
             creations = listing.records.filter { $0.intent.phase != .completed }

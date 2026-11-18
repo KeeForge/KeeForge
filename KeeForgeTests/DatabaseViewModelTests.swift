@@ -6033,7 +6033,7 @@ final class DatabaseViewModelTests: XCTestCase {
             conflictCopyEncryptionOperation: { _, _, _ in
                 conflictBytes
             },
-            cloudConflictCopyOperation: { _, fileID, bytes in
+            cloudConflictCopyOperation: { _, fileID, bytes, _ in
                 await recorder.record(filename: fileID, bytes: bytes)
             },
             conflictCopyDateProvider: { fixedDate }
@@ -6067,8 +6067,8 @@ final class DatabaseViewModelTests: XCTestCase {
             CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference), data: fixtureData, status: .current)
         }, cloudSaveOperation: { _, _, _, _, _, _, _, _ in
             .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
-        }, conflictCopyEncryptionOperation: { _, _, _ in bytes }, cloudConflictCopyOperation: { _, fileID, payload in
-            if await recorder.recordAndIsFirst(filename: fileID, bytes: payload) { throw CloudProviderError.conflict(remoteRev: nil) }
+        }, conflictCopyEncryptionOperation: { _, _, _ in bytes }, cloudConflictCopyOperation: { _, fileID, payload, batchID in
+            if await recorder.recordAndIsFirst(filename: fileID, bytes: payload, batchID: batchID) { throw CloudProviderError.conflict(remoteRev: nil) }
         }, conflictCopyDateProvider: { fixedDate })
         defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
@@ -6081,6 +6081,8 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(calls[0].filename, first)
         XCTAssertEqual(calls[1].filename, (first as NSString).deletingPathExtension + " 2.kdbx")
         XCTAssertTrue(calls.allSatisfy { $0.bytes == bytes })
+        XCTAssertNotNil(calls[0].batchID)
+        XCTAssertEqual(calls[0].batchID, calls[1].batchID)
         XCTAssertNil(vm.draft)
         XCTAssertNil(vm.saveConflict)
     }
@@ -6096,7 +6098,7 @@ final class DatabaseViewModelTests: XCTestCase {
             CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference), data: fixtureData, status: .current)
         }, cloudSaveOperation: { _, _, _, _, _, _, _, _ in
             .conflict(remoteSHA512: Data([1]), remoteData: Data([2]))
-        }, conflictCopyEncryptionOperation: { _, _, _ in Data([3]) }, cloudConflictCopyOperation: { _, path, bytes in
+        }, conflictCopyEncryptionOperation: { _, _, _ in Data([3]) }, cloudConflictCopyOperation: { _, path, bytes, _ in
             await recorder.record(filename: path, bytes: bytes)
             await gate.pause(started: started)
             throw CloudProviderError.conflict(remoteRev: nil)
@@ -6134,7 +6136,7 @@ final class DatabaseViewModelTests: XCTestCase {
             }, conflictCopyEncryptionOperation: { _, _, _ in
                 await gate.pause(started: started)
                 return Data([3])
-            }, cloudConflictCopyOperation: { _, path, bytes in
+            }, cloudConflictCopyOperation: { _, path, bytes, _ in
                 await recorder.record(filename: path, bytes: bytes)
             })
             defer { vm.lock(); Task { await gate.resume() } }
@@ -10340,7 +10342,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 )
             }.value
         },
-        cloudConflictCopyOperation: @escaping DatabaseViewModel.CloudConflictCopyOperation = { reference, fileID, bytes in
+        cloudConflictCopyOperation: @escaping DatabaseViewModel.CloudConflictCopyOperation = { reference, fileID, bytes, _ in
             guard let metadata = reference.cloudSyncMetadata,
                   let provider = CloudProviderRegistry.provider(for: metadata.provider) else {
                 throw CloudProviderError.notAuthenticated
@@ -10921,22 +10923,22 @@ private final class LockPendingProbe {
 }
 
 private actor ConflictCopyRecorder {
-    private var calls: [(filename: String, bytes: Data)] = []
+    private var calls: [(filename: String, bytes: Data, batchID: UUID?)] = []
 
     func record(filename: String, bytes: Data) {
-        calls.append((filename, bytes))
+        calls.append((filename, bytes, nil))
     }
 
-    func firstCall() -> (filename: String, bytes: Data)? {
+    func firstCall() -> (filename: String, bytes: Data, batchID: UUID?)? {
         calls.first
     }
 
-    func recordAndIsFirst(filename: String, bytes: Data) -> Bool {
-        calls.append((filename, bytes))
+    func recordAndIsFirst(filename: String, bytes: Data, batchID: UUID? = nil) -> Bool {
+        calls.append((filename, bytes, batchID))
         return calls.count == 1
     }
 
-    func allCalls() -> [(filename: String, bytes: Data)] { calls }
+    func allCalls() -> [(filename: String, bytes: Data, batchID: UUID?)] { calls }
 }
 
 private final class MutableNowProvider: @unchecked Sendable {

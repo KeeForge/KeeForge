@@ -308,6 +308,95 @@ final class CloudFileCreationCoordinatorTests: XCTestCase {
         }
     }
 
+    func testConfirmedConflictCopyCleansOnlyItsProvenPreparedAttempts() async throws {
+        for failCleanup in [false, true] {
+            let (root, queue, reference) = try fixture()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let batch = UUID()
+            let bytes = Data([1, 2, 3])
+            let rejectedID = UUID()
+            var env = CloudFileCreationCoordinator.Environment()
+            env.queue = queue
+            env.createFile = { _, _, _, _ in throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected) }
+            do {
+                _ = try await CloudFileCreationCoordinator.create(operationID: rejectedID, provider: "ftp", accountID: "account",
+                    target: "/taken", bytes: bytes, referenceTemplate: reference, isConflictCopy: true, conflictBatchID: batch, environment: env)
+                XCTFail("Expected a conflict")
+            } catch let error as CloudProviderError {
+                guard case .conflict = error else { return XCTFail("Expected conflict") }
+            }
+            let rejected = try PendingUploadQueue.readCreation(rejectedID, environment: queue)
+            XCTAssertEqual(rejected.intent.phase, .prepared)
+            let unrelated = try PendingUploadQueue.prepareCreation(operationID: UUID(), provider: "ftp", accountID: "account",
+                target: "/other", payload: bytes, referenceTemplate: reference, isConflictCopy: true, conflictBatchID: UUID(), environment: queue)
+            let pending = try PendingUploadQueue.prepareCreation(operationID: UUID(), provider: "ftp", accountID: "account",
+                target: "/uncertain", payload: bytes, referenceTemplate: reference, isConflictCopy: true, conflictBatchID: batch, environment: queue)
+            let attempting = try PendingUploadQueue.transitionCreation(pending, to: .attempting, environment: queue)
+            if failCleanup {
+                let remove = queue.removeItem
+                env.queue.removeItem = { url in
+                    if url.lastPathComponent == rejectedID.uuidString + ".creation" { throw CocoaError(.fileWriteUnknown) }
+                    try remove(url)
+                }
+            }
+            let transport = Transport()
+            env.createFile = { _, _, _, _ in try await transport.create() }
+            _ = try await CloudFileCreationCoordinator.create(operationID: UUID(), provider: "ftp", accountID: "account",
+                target: "/success", bytes: bytes, referenceTemplate: reference, isConflictCopy: true, conflictBatchID: batch, environment: env)
+            XCTAssertEqual(try PendingUploadQueue.readCreationPayload(unrelated, environment: queue), bytes)
+            XCTAssertEqual(try PendingUploadQueue.readCreationPayload(attempting, environment: queue), bytes)
+            XCTAssertEqual(try PendingUploadQueue.readCreation(attempting.intent.operationID, environment: queue).intent.phase, .attempting)
+            if failCleanup {
+                XCTAssertEqual(try PendingUploadQueue.readCreationPayload(rejected, environment: queue), bytes)
+                try PendingUploadQueue.cleanCompletedConflictCopyAttempts(environment: queue)
+            }
+            XCTAssertThrowsError(try PendingUploadQueue.readCreation(rejectedID, environment: queue))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: PendingUploadQueue.creationPayloadURL(rejectedID, queue).path))
+            XCTAssertEqual(try PendingUploadQueue.readCreation(unrelated.intent.operationID, environment: queue).intent.phase, .prepared)
+        }
+    }
+
+    func testConflictCleanupRequiresDurableReceiptAndRetainsRacingAttempt() async throws {
+        let (root, queue, reference) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let batch = UUID()
+        let bytes = Data([1, 2, 3])
+        let completedID = UUID()
+        let transport = Transport()
+        var env = CloudFileCreationCoordinator.Environment()
+        env.queue = queue
+        env.createFile = { _, _, _, _ in try await transport.create() }
+        _ = try await CloudFileCreationCoordinator.create(operationID: completedID, provider: "ftp", accountID: "account",
+            target: "/completed", bytes: bytes, referenceTemplate: reference, isConflictCopy: true, conflictBatchID: batch, environment: env)
+        let candidate = try PendingUploadQueue.prepareCreation(operationID: UUID(), provider: "ftp", accountID: "account",
+            target: "/prepared", payload: bytes, referenceTemplate: reference, isConflictCopy: true, conflictBatchID: batch, environment: queue)
+        let name = completedID.uuidString + ".creation"
+        let write = queue.writeMarkerAtomically
+        for failAfterPublication in [false, true] {
+            var failed = queue
+            failed.writeMarkerAtomically = { data, url in
+                if url.lastPathComponent == name {
+                    if failAfterPublication { try write(data, url) }
+                    throw CocoaError(.fileWriteUnknown)
+                }
+                try write(data, url)
+            }
+            XCTAssertThrowsError(try PendingUploadQueue.cleanCompletedConflictCopyAttempts(environment: failed))
+            XCTAssertEqual(try PendingUploadQueue.readCreationPayload(candidate, environment: queue), bytes)
+        }
+        var racing = queue
+        racing.writeMarkerAtomically = { data, url in
+            if url.lastPathComponent == name {
+                _ = try PendingUploadQueue.transitionCreation(candidate, to: .attempting, environment: queue)
+            }
+            try write(data, url)
+        }
+        try PendingUploadQueue.cleanCompletedConflictCopyAttempts(environment: racing)
+        let retained = try PendingUploadQueue.readCreation(candidate.intent.operationID, environment: queue)
+        XCTAssertEqual(retained.intent.phase, .attempting)
+        XCTAssertEqual(try PendingUploadQueue.readCreationPayload(retained, environment: queue), bytes)
+    }
+
     func testRecoveryActionsMatchPersistedPhase() {
         let actions = CloudFileCreationCoordinator.RecoveryActions.forPhase
         XCTAssertEqual(actions(.prepared), .init(export: true, retry: true, complete: false, discard: true))

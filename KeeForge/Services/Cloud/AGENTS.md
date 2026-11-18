@@ -120,3 +120,5 @@
 - Recovery lists readable creation records independently, but reports unreadable records and never uses the partial listing to authorize a new creation or retry. Export and confirmed local completion read the selected operation directly; exact record locks and CAS still govern completion.
 
 - Cancellation after recording an attempt but before dispatch restores that exact attempt to prepared; if restoration is not confirmed, it stays uncertain and retains its payload.
+
+- Numbered conflict-copy attempts share an operation batch ID. A durably completed receipt permits cleanup only of unchanged prepared siblings in that batch with the same provider, account and payload digest; uncertain attempts and unrelated batches remain owned. Recovery retries interrupted cleanup.
