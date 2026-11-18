@@ -338,7 +338,7 @@ struct MacAutoFillSettingsTab: View {
                         ForEach(listViewModel.databases) { reference in
                             Toggle(isOn: Binding(
                                 get: { listViewModel.databases.first { $0.id == reference.id }?.autoFillEnabled ?? false },
-                                set: { listViewModel.setAutoFillEnabled($0, for: reference) }
+                                set: { enabled in Task { await listViewModel.setAutoFillEnabled(enabled, for: reference) } }
                             )) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(verbatim: reference.displayName)

@@ -143,7 +143,7 @@ final class DatabaseViewModelTests: XCTestCase {
         try await vm.save()
         XCTAssertThrowsError(try vm.renameCustomIcon(uuid, name: "Bad\u{0}"))
         XCTAssertFalse(vm.isDirty)
-        DatabaseListStore.update(vm.databaseReference)
+        DatabaseListStore.testUpsert(vm.databaseReference)
         vm.setReadOnly(true)
         XCTAssertTrue(vm.isReadOnly)
         XCTAssertThrowsError(try vm.renameCustomIcon(uuid, name: "Blocked")) { error in
@@ -161,7 +161,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let copy = directory.appendingPathComponent("icons.kdbx")
         try FileManager.default.copyItem(at: fixtureURL(), to: copy)
         let reference = try TestDatabaseSupport.makeReference(for: copy)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 
@@ -694,7 +694,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testSetNicknamePersistsAndRefreshesCurrentReference() throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
 
         vm.setNickname("Travel Vault")
@@ -757,7 +757,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testUnlockFailsWhenLocalBookmarkCannotBeResolved() async throws {
         var reference = try makeReference()
         reference.bookmarkData = Data("invalid-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         try writeAtomicallyAndDurably(Data(contentsOf: fixtureURL()), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
@@ -792,7 +792,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.canRemoveMissingDocumentsFile)
 
         // Same consequences as a manual list removal.
-        vm.removeMissingDocumentsDatabase()
+        await vm.removeMissingDocumentsDatabase()
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
         XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference.id))
     }
@@ -821,7 +821,7 @@ final class DatabaseViewModelTests: XCTestCase {
         // it stays visible — but a remove after the file came back must be a
         // no-op (re-verified at action time) and clear the stale flag.
         try fixtureData.write(to: fileURL)
-        vm.removeMissingDocumentsDatabase()
+        await vm.removeMissingDocumentsDatabase()
         XCTAssertEqual(DatabaseListStore.databases.map(\.id), [reference.id])
         XCTAssertFalse(vm.canRemoveMissingDocumentsFile)
     }
@@ -959,7 +959,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let fixtureData = try Data(contentsOf: fixtureURL())
         var reference = try TestDatabaseSupport.makeReference(for: fixtureURL(), nickname: "Synced")
         reference.bookmarkData = Data("unresolvable-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try writeAtomicallyAndDurably(fixtureData, to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
 
@@ -999,7 +999,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let fixtureData = try Data(contentsOf: fixtureURL())
         var reference = try TestDatabaseSupport.makeReference(for: fixtureURL())
         reference.bookmarkData = Data("unresolvable-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = DatabaseViewModel(databaseReference: reference)
         await vm.unlock(password: fixturePassword)
         XCTAssertEqual(vm.openFailure?.errorCode, "file.not_found")
@@ -1378,7 +1378,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.draft?.pendingEdits, edits)
         XCTAssertThrowsError(try vm.restore(item, toGroupID: parent.id))
         XCTAssertEqual(vm.contentRevision, revision)
-        DatabaseListStore.update(vm.databaseReference)
+        DatabaseListStore.testUpsert(vm.databaseReference)
         vm.setReadOnly(true)
         XCTAssertFalse(vm.canRestore(item))
         XCTAssertThrowsError(try vm.restore(item, toGroupID: try XCTUnwrap(vm.visibleRootGroupID)))
@@ -1659,7 +1659,7 @@ final class DatabaseViewModelTests: XCTestCase {
         vm.workspace.beginEntrySelection(with: picked[0].id)
         vm.workspace.toggleEntrySelection(picked[1].id)
 
-        DatabaseListStore.update(vm.databaseReference)
+        DatabaseListStore.testUpsert(vm.databaseReference)
         vm.setReadOnly(true)
 
         XCTAssertNil(vm.workspace.entrySelection, "a selection only exists to move entries")
@@ -1992,7 +1992,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testAutoFillDestinationGroupFollowsTheSettingAndFallsBackWithoutRepointingIt() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
         await vm.unlock(password: fixturePassword)
         XCTAssertEqual(vm.autoFillDestinationGroup?.id, vm.visibleRootGroupID)
@@ -2366,7 +2366,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testDownloadingAFaviconIntoAReadOnlyDatabaseFails() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = DatabaseViewModel(databaseReference: reference)
 
         await vm.unlock(password: fixturePassword)
@@ -2607,7 +2607,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testRestoringInAReadOnlyDatabaseNeverReachesDisk() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let localSaverCalls = CallTracker()
         let vm = DatabaseViewModel(
@@ -2958,7 +2958,7 @@ final class DatabaseViewModelTests: XCTestCase {
             KPGroup(name: "Visible", entries: [target]),
         ])
         let vm = try await makeInjectedViewModel(rootGroup: root)
-        DatabaseListStore.update(vm.databaseReference)
+        DatabaseListStore.testUpsert(vm.databaseReference)
 
         vm.setReadOnly(true)
 
@@ -3488,11 +3488,11 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testUnlockDisabledDatabaseDoesNotPopulateOrClaimActivePointer() async throws {
         let otherReference = try makeReference()
-        DatabaseListStore.update(otherReference)
+        DatabaseListStore.testUpsert(otherReference)
         DatabaseListStore.markDatabaseOpened(id: otherReference.id)
 
         let disabledReference = try makeReference(autoFillEnabled: false)
-        DatabaseListStore.update(disabledReference)
+        DatabaseListStore.testUpsert(disabledReference)
 
         CredentialIdentityStoreManager.populateObserver = { _, _ in
             XCTFail("Unlocking an AutoFill-disabled database must not populate the credential store")
@@ -3514,7 +3514,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testUnlockEnabledDatabasePopulatesAndSetsActivePointer() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
 
         let populateExpectation = expectation(description: "Credential store populated after unlocking an enabled database")
@@ -3545,7 +3545,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testSaveOnDisabledDatabaseDoesNotRepopulateStore() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(
             reference: reference,
             localSaveOperation: { _, _, _, _, _, _, _ in
@@ -3569,7 +3569,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testPopulateCredentialStoreIfUnlockedRereadsFlagFromRegistry() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
 
@@ -3607,7 +3607,7 @@ final class DatabaseViewModelTests: XCTestCase {
         }
 
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
 
         let populateExpectation = expectation(description: "Populate observer fired for the unlocked database")
@@ -3650,7 +3650,7 @@ final class DatabaseViewModelTests: XCTestCase {
         CredentialIdentityStoreManager.storeProviderOverride = fake
 
         let referenceA = try makeReference()
-        DatabaseListStore.update(referenceA)
+        DatabaseListStore.testUpsert(referenceA)
         let viewModelA = try makeViewModel(reference: referenceA)
         await unlockAwaitingInitialPopulate(viewModelA)
         try await awaitStoredDatabaseIDs(in: fake, toEqual: [referenceA.id])
@@ -3659,7 +3659,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertState(viewModelA.state, is: .locked)
 
         let referenceB = try makeReference()
-        DatabaseListStore.update(referenceB)
+        DatabaseListStore.testUpsert(referenceB)
         let viewModelB = try makeViewModel(reference: referenceB)
         await unlockAwaitingInitialPopulate(viewModelB)
 
@@ -3678,7 +3678,7 @@ final class DatabaseViewModelTests: XCTestCase {
         CredentialIdentityStoreManager.storeProviderOverride = fake
 
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
         try await awaitStoredDatabaseIDs(in: fake, toEqual: [reference.id])
@@ -3737,7 +3737,7 @@ final class DatabaseViewModelTests: XCTestCase {
         // half (open database disabled in the registry) is pinned by
         // testPopulateCredentialStoreIfUnlockedRereadsFlagFromRegistry.
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
 
@@ -3759,7 +3759,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testToggleOnOfOpenDatabaseRefreshesImmediatelyThroughHandler() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
 
@@ -3783,8 +3783,8 @@ final class DatabaseViewModelTests: XCTestCase {
             refreshExpectation.fulfill()
         }
 
-        listViewModel.setAutoFillEnabled(false, for: reference)
-        listViewModel.setAutoFillEnabled(true, for: reference)
+        await listViewModel.setAutoFillEnabled(false, for: reference)
+        await listViewModel.setAutoFillEnabled(true, for: try XCTUnwrap(listViewModel.databases.first { $0.id == reference.id }))
 
         await fulfillment(of: [refreshExpectation], timeout: 30)
         XCTAssertEqual(observedDatabaseID, reference.id)
@@ -3794,9 +3794,9 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testToggleOnOfNonOpenDatabaseStaysLazy() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let backgroundReference = try makeReference(autoFillEnabled: false)
-        DatabaseListStore.update(backgroundReference)
+        DatabaseListStore.testUpsert(backgroundReference)
 
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
@@ -3812,7 +3812,7 @@ final class DatabaseViewModelTests: XCTestCase {
             XCTFail("Enabling a database that is not the open session must stay lazy")
         }
 
-        listViewModel.setAutoFillEnabled(true, for: backgroundReference)
+        await listViewModel.setAutoFillEnabled(true, for: backgroundReference)
 
         try? await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(handlerInvocations, [backgroundReference.id])
@@ -3824,9 +3824,9 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testToggleOffOfBackgroundDatabaseTriggersRemovalNotClear() async throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let backgroundReference = try makeReference()
-        DatabaseListStore.update(backgroundReference)
+        DatabaseListStore.testUpsert(backgroundReference)
 
         let vm = try makeViewModel(reference: reference)
         await unlockAwaitingInitialPopulate(vm)
@@ -3853,7 +3853,7 @@ final class DatabaseViewModelTests: XCTestCase {
             removalExpectation.fulfill()
         }
 
-        listViewModel.setAutoFillEnabled(false, for: backgroundReference)
+        await listViewModel.setAutoFillEnabled(false, for: backgroundReference)
 
         await fulfillment(of: [removalExpectation], timeout: 30)
         try? await Task.sleep(for: .milliseconds(100))
@@ -3898,8 +3898,11 @@ final class DatabaseViewModelTests: XCTestCase {
         let remoteHash = "hash-abcdefghijklmnop"
         let lastSyncedAt = Date(timeIntervalSince1970: 123)
         let invalidData = Data("not-a-kdbx".utf8)
+        let observedReference = makeCloudReference()
+        DatabaseListStore.testUpsert(observedReference)
         let resolvedReference = {
-            var reference = makeCloudReference(remoteRev: remoteRev)
+            var reference = observedReference
+            reference.updateCloudSyncMetadata { $0.remoteRev = remoteRev }
             reference.updateCloudSyncMetadata { metadata in
                 metadata.remoteContentHash = remoteHash
                 metadata.lastSyncedAt = lastSyncedAt
@@ -3909,7 +3912,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let cacheURL = DatabaseListStore.cacheLocation(for: resolvedReference)
 
         let vm = DatabaseViewModel(
-            databaseReference: makeCloudReference(),
+            databaseReference: observedReference,
             cloudSyncOperation: { _, _ in
                 CloudSyncResolution(
                     reference: resolvedReference,
@@ -3939,6 +3942,31 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(diagnostics.details.contains("/Vaults/vault.kdbx"))
         XCTAssertFalse(diagnostics.details.contains("acct-1"))
         XCTAssertFalse(diagnostics.details.contains("fileId"))
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == observedReference.id })
+        XCTAssertEqual(current.cloudSyncMetadata?.remoteRev, remoteRev)
+        XCTAssertEqual(current.cloudSyncMetadata?.remoteContentHash, remoteHash)
+        XCTAssertEqual(current.cloudSyncMetadata?.lastSyncedAt, lastSyncedAt)
+    }
+
+    func testCloudParseFailureRejectsForeignResolutionMetadata() async throws {
+        let observed = makeCloudReference(remoteRev: "observed-revision")
+        DatabaseListStore.testUpsert(observed)
+        var foreign = makeCloudReference(remoteRev: "foreign-revision-private")
+        foreign.updateCloudSyncMetadata { $0.remoteContentHash = "foreign-hash-private" }
+        let cacheURL = DatabaseListStore.cacheLocation(for: observed)
+        let invalidData = Data("not-a-kdbx".utf8)
+        let resolved = foreign
+        let vm = DatabaseViewModel(databaseReference: observed, cloudSyncOperation: { _, _ in
+            CloudSyncResolution(reference: resolved, localURL: cacheURL, data: invalidData, status: .downloaded)
+        })
+        await vm.unlock(password: fixturePassword)
+        guard case .error(let failure) = vm.state else { return XCTFail("Expected parse failure") }
+        let details = try XCTUnwrap(failure.diagnostics).details
+        XCTAssertFalse(details.contains("foreign-revi"))
+        XCTAssertFalse(details.contains("foreign-hash"))
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == observed.id })
+        XCTAssertEqual(current.cloudSyncMetadata, observed.cloudSyncMetadata)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == resolved.id })
     }
 
     func testBiometricFailureDiagnosticsDescribeBiometricMethodWithoutPasswordOrKeyFileData() throws {
@@ -4123,7 +4151,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testFileAccessErrorDoesNotIncrementFailedAttempts() async throws {
         var reference = try makeReference()
         reference.bookmarkData = Data("invalid-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         try writeAtomicallyAndDurably(Data(contentsOf: fixtureURL()), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
@@ -4636,7 +4664,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.workspace.editEntryRequestID, 1)
         XCTAssertEqual(vm.workspace.deleteSelectionRequestID, 1)
 
-        DatabaseListStore.update(vm.databaseReference)
+        DatabaseListStore.testUpsert(vm.databaseReference)
         vm.setReadOnly(true)
         XCTAssertTrue(vm.isReadOnly)
         requestCommands()
@@ -5429,370 +5457,62 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testMergeAndSaveCloudGatesOnConflictBytesAndKeepsRecordedRevision() async throws {
-        let remoteData = try makeRemoteVariantData { visibleRoot in
-            visibleRoot.entries.append(KPEntry(title: "Cloud Remote Entry"))
-        }
+        let remoteData = try makeRemoteVariantData { $0.entries.append(KPEntry(title: "Cloud Remote Entry")) }
         let remoteHash = FileDigest.sha512(remoteData)
-        let mergedHash = FileDigest.sha512(Data("cloud-merged".utf8))
-        let recorder = MergeSaveRecorder(results: [
-            .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
-            .saved(newSHA512: mergedHash),
-        ])
         let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.testUpsert(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
-        let vm = try makeViewModel(
-            reference: reference,
-            cloudSyncOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: fixtureData,
-                    status: .current
-                )
-            },
-            cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _, _ in
-                recorder.record(
-                    openTimeSHA512: openTimeSHA512,
-                    reconciledRemoteSHA512: reconciledRemoteSHA512,
-                    expectedRev: expectedRev,
-                    rootGroup: draft.rootGroup
-                )
-            }
-        )
-
+        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let calls = RekeyedKeyCapture()
+        let transport = CloudJournalTransport(remote: remoteData, revision: "rev-B",
+            response: .init(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-C"))
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in try transport.metadata(byteCount: remoteData.count) }
+        environment.downloadRemoteData = { _ in transport.download(fallback: remoteData) }
+        environment.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        let saver = environment
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: cacheURL, data: fixtureData, status: .current)
+        }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+            calls.record(oldKey: key, newKey: newKey, expectedRev: rev)
+            return try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+        })
         await vm.unlock(password: fixturePassword)
         vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Cloud Local Entry")
+        try remoteData.write(to: cacheURL, options: .atomic)
         try await vm.save()
         XCTAssertNotNil(vm.saveConflict)
-
+        XCTAssertEqual(try Data(contentsOf: cacheURL), remoteData)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
         try await vm.mergeAndSave()
-
-        let calls = recorder.recordedCalls
-        XCTAssertEqual(calls.count, 2)
-        XCTAssertEqual(calls[1].reconciledRemoteSHA512, remoteHash)
-        // The recorded rev is still the one the session opened: the cloud
-        // saver rebases onto the head that hashes to the merged bytes rather
-        // than being handed a rev the merge never saw.
-        XCTAssertEqual(calls[1].expectedRev, "rev-A")
-
-        let savedTitles = allEntryTitles(in: calls[1].rootGroup)
-        XCTAssertTrue(savedTitles.contains("Cloud Local Entry"))
-        XCTAssertTrue(savedTitles.contains("Cloud Remote Entry"))
+        let mergedBytes = try Data(contentsOf: cacheURL)
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(calls.expectedRev, "rev-A")
+        XCTAssertNil(marker.marker.expectedRev)
+        XCTAssertEqual(marker.marker.remoteBaseSHA512, remoteHash)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker), mergedBytes)
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(mergedBytes))
+        let parsed = try KDBXParser.parse(data: mergedBytes, password: fixturePassword, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertTrue(parsed.allEntries.contains { $0.title == "Cloud Local Entry" })
+        XCTAssertTrue(parsed.allEntries.contains { $0.title == "Cloud Remote Entry" })
         XCTAssertNil(vm.saveConflict)
-        XCTAssertEqual(vm.openTimeSHA512, mergedHash)
+        guard case .saved? = try await CloudDatabaseSaver.deliver(marker, reference: vm.databaseReference, environment: saver) else {
+            return XCTFail("Merged bytes must deliver")
+        }
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(transport.effects.uploads.first?.bytes, mergedBytes)
+        XCTAssertEqual(transport.effects.uploads.first?.revision, "rev-B")
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.expectedCloudRevision, "rev-C")
     }
 
     // MARK: - Merging a conflicted AutoFill upload (#149)
-
-    func testMergePendingUploadsAddsTheAutoFillChangeUploadsAndOnlyThenDropsTheMarker() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let pendingData = try makeRemoteVariantData { visibleRoot in
-            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
-        }
-        let savedHash = FileDigest.sha512(Data("merged-upload".utf8))
-        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: savedHash)])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: pendingData)
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-
-        await vm.unlock(password: fixturePassword)
-        let openedTitles = Set(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)))
-        XCTAssertTrue(vm.hasPendingUploadConflict)
-
-        try await vm.mergePendingUploads()
-
-        let call = try XCTUnwrap(recorder.recordedCalls.first)
-        XCTAssertEqual(recorder.recordedCalls.count, 1)
-        XCTAssertEqual(call.openTimeSHA512, FileDigest.sha512(fixtureData))
-        XCTAssertNil(call.reconciledRemoteSHA512)
-        XCTAssertEqual(call.expectedRev, "rev-A", "The upload must be conditional on the revision the merge was based on")
-        let savedTitles = Set(allEntryTitles(in: call.rootGroup))
-        XCTAssertTrue(savedTitles.contains("AutoFill Entry"))
-        XCTAssertTrue(savedTitles.isSuperset(of: openedTitles), "Nothing from the cloud copy may be lost")
-
-        XCTAssertEqual(pending.droppedMarkerIDs, [pending.storedMarker.id])
-        XCTAssertFalse(vm.hasPendingUploadConflict)
-        XCTAssertNil(vm.pendingUploadMergeFailure)
-        XCTAssertNotNil(vm.mergeSummaryMessage)
-        XCTAssertEqual(vm.openTimeSHA512, savedHash)
-        XCTAssertTrue(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)).contains("AutoFill Entry"))
-    }
-
-    func testMergePendingUploadsKeepsUnsavedEditsInTheUpload() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let pendingData = try makeRemoteVariantData { visibleRoot in
-            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
-        }
-        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: pendingData)
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-
-        await vm.unlock(password: fixturePassword)
-        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved Local Entry")
-        try await vm.mergePendingUploads()
-
-        let savedTitles = allEntryTitles(in: try XCTUnwrap(recorder.recordedCalls.first).rootGroup)
-        XCTAssertTrue(savedTitles.contains("AutoFill Entry"))
-        XCTAssertTrue(savedTitles.contains("Unsaved Local Entry"))
-        XCTAssertFalse(vm.isDirty)
-    }
-
-    func testMergePendingUploadsWhenTheCloudCopyChangedAgainKeepsTheMarker() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let pendingData = try makeRemoteVariantData { visibleRoot in
-            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
-        }
-        let newerCloudData = Data("newer-cloud-copy".utf8)
-        let recorder = MergeSaveRecorder(results: [
-            .conflict(remoteSHA512: FileDigest.sha512(newerCloudData), remoteData: newerCloudData),
-        ])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: pendingData)
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-
-        await vm.unlock(password: fixturePassword)
-        try await vm.mergePendingUploads()
-
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .cloudChanged)
-        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
-        XCTAssertTrue(vm.hasPendingUploadConflict)
-        XCTAssertNil(vm.saveConflict)
-        XCTAssertFalse(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)).contains("AutoFill Entry"))
-        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(fixtureData))
-    }
-
-    /// `.cloudChanged` is also what a manual-sync-policy open gets: the
-    /// session never checked the cloud, so its copy is behind before the
-    /// merge starts, and reopening would skip the check again. The way out
-    /// the message names has to work: Sync Now, then merge again.
-    func testMergePendingUploadsThatHitANewerCloudCopySucceedsAfterSyncNow() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let pendingData = try makeRemoteVariantData { visibleRoot in
-            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
-        }
-        let newerCloudData = try makeRemoteVariantData { visibleRoot in
-            visibleRoot.entries.append(KPEntry(title: "Newer Cloud Entry"))
-        }
-        let newerCloudHash = FileDigest.sha512(newerCloudData)
-        let savedHash = FileDigest.sha512(Data("merged-upload".utf8))
-        let recorder = MergeSaveRecorder(results: [
-            .conflict(remoteSHA512: newerCloudHash, remoteData: newerCloudData),
-            .saved(newSHA512: savedHash),
-        ])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: pendingData)
-        let vm = try makePendingUploadViewModel(
-            reference: reference,
-            fixtureData: fixtureData,
-            pending: pending,
-            recorder: recorder,
-            cloudRefreshOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: newerCloudData,
-                    status: .downloaded
-                )
-            }
-        )
-
-        await vm.unlock(password: fixturePassword)
-        try await vm.mergePendingUploads()
-
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .cloudChanged)
-        let message = PendingUploadMergeFailure.cloudChanged.message
-        XCTAssertTrue(message.contains("Sync Now"), "Reopening skips the check under the manual policy; only Sync Now gets the newer copy")
-        XCTAssertFalse(message.contains("open it again"))
-        vm.dismissPendingUploadMergeFailure()
-
-        await vm.syncCloudNow()
-        XCTAssertEqual(vm.cloudSyncOutcome, .updated)
-        XCTAssertEqual(vm.openTimeSHA512, newerCloudHash)
-        XCTAssertTrue(vm.hasPendingUploadConflict)
-
-        try await vm.mergePendingUploads()
-
-        XCTAssertEqual(recorder.recordedCalls.count, 2)
-        let retry = try XCTUnwrap(recorder.recordedCalls.last)
-        XCTAssertEqual(retry.openTimeSHA512, newerCloudHash, "The retry must be based on the copy Sync Now fetched")
-        let savedTitles = Set(allEntryTitles(in: retry.rootGroup))
-        XCTAssertTrue(savedTitles.contains("AutoFill Entry"))
-        XCTAssertTrue(savedTitles.contains("Newer Cloud Entry"))
-        XCTAssertNil(vm.pendingUploadMergeFailure)
-        XCTAssertEqual(pending.droppedMarkerIDs, [pending.storedMarker.id])
-        XCTAssertFalse(vm.hasPendingUploadConflict)
-        XCTAssertEqual(vm.openTimeSHA512, savedHash)
-    }
-
-    func testSyncStatusBannerLeavesAConflictedUploadToTheConflictBanner() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let pendingData = try makeRemoteVariantData { visibleRoot in
-            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
-        }
-        let reference = makeCloudReference(remoteRev: "rev-A")
-
-        let conflicted = PendingUploadFake(reference: reference, payload: pendingData)
-        let conflictedVM = try makePendingUploadViewModel(
-            reference: reference,
-            fixtureData: fixtureData,
-            pending: conflicted,
-            recorder: MergeSaveRecorder(results: []),
-            pendingUploadMarkerCheck: { _ in true }
-        )
-        await conflictedVM.unlock(password: fixturePassword)
-        XCTAssertTrue(conflictedVM.hasPendingCloudUploads)
-        XCTAssertTrue(conflictedVM.hasPendingUploadConflict)
-        XCTAssertFalse(
-            CloudSyncControls.showsPendingUploadNote(for: conflictedVM),
-            "\"Still waiting to upload\" contradicts the conflict banner saying the upload failed"
-        )
-
-        let waiting = PendingUploadFake(reference: reference, payload: pendingData, isConflicted: false)
-        let waitingVM = try makePendingUploadViewModel(
-            reference: reference,
-            fixtureData: fixtureData,
-            pending: waiting,
-            recorder: MergeSaveRecorder(results: []),
-            pendingUploadMarkerCheck: { _ in true }
-        )
-        await waitingVM.unlock(password: fixturePassword)
-        XCTAssertFalse(waitingVM.hasPendingUploadConflict)
-        XCTAssertTrue(CloudSyncControls.showsPendingUploadNote(for: waitingVM))
-    }
-
-    func testMergePendingUploadsWhoseUploadFailsKeepsTheMarker() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let pendingData = try makeRemoteVariantData { visibleRoot in
-            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
-        }
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: pendingData)
-        let uploadCalls = CallTracker()
-        let vm = try makeViewModel(
-            reference: reference,
-            cloudSyncOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: fixtureData,
-                    status: .current
-                )
-            },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
-                uploadCalls.recordCall()
-                throw URLError(.notConnectedToInternet)
-            },
-            pendingUploadRecovery: pending.environment
-        )
-
-        await vm.unlock(password: fixturePassword)
-        do {
-            try await vm.mergePendingUploads()
-            XCTFail("An upload that failed must be reported")
-        } catch {
-            XCTAssertEqual((error as? URLError)?.code, .notConnectedToInternet)
-        }
-
-        XCTAssertTrue(uploadCalls.didCall, "The upload must be attempted before its failure is asserted")
-        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
-        XCTAssertTrue(vm.hasPendingUploadConflict)
-        XCTAssertFalse(vm.isSaving)
-    }
-
-    func testMergePendingUploadsWithTheChangeGoneFromTheDeviceWritesNothing() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8), storesPayload: false)
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-
-        await vm.unlock(password: fixturePassword)
-        try await vm.mergePendingUploads()
-
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnavailable)
-        XCTAssertTrue(recorder.recordedCalls.isEmpty)
-        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
-    }
-
-    func testMergePendingUploadsWithAnUnprovenMarkerWritesNothingAndKeepsIt() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let baseData = try makeRemoteVariantData { visibleRoot in
-            visibleRoot.entries.append(KPEntry(title: "Base Only"))
-        }
-        let pending = PendingUploadFake(reference: reference, payload: baseData, isPayloadFinalized: nil)
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-
-        await vm.unlock(password: fixturePassword)
-        try await vm.mergePendingUploads()
-
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnidentified)
-        XCTAssertTrue(recorder.recordedCalls.isEmpty)
-        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
-        XCTAssertTrue(vm.hasPendingUploadConflict)
-        XCTAssertNil(vm.mergeSummaryMessage)
-    }
-
-    func testMergePendingUploadsWithAnUnreadableChangeWritesNothing() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: Data("not-a-kdbx-file".utf8))
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-
-        await vm.unlock(password: fixturePassword)
-        try await vm.mergePendingUploads()
-
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnreadable(.backup(PendingUploadFake.payloadURL)))
-        XCTAssertTrue(recorder.recordedCalls.isEmpty)
-        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
-    }
-
-    func testMergePendingUploadsWithDivergedAttachmentsWritesNothing() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let pendingData = try makeRemoteVariantData(
-            binaryPoolFields: [Data([0x00]) + Data("attachment-bytes".utf8)]
-        ) { visibleRoot in
-            var entry = KPEntry(title: "AutoFill Entry With Attachment")
-            entry.attachments = [KPAttachment(name: "note.txt", ref: 0)]
-            visibleRoot.entries.append(entry)
-        }
-        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: pendingData)
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-
-        await vm.unlock(password: fixturePassword)
-        try await vm.mergePendingUploads()
-
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .attachmentsDiverged(.backup(PendingUploadFake.payloadURL)))
-        XCTAssertTrue(recorder.recordedCalls.isEmpty)
-        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
-    }
-
-    func testMergePendingUploadsRefusesARemoteRefIntoAFileTheUnsavedEditAdded() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let pendingData = try makeRemoteVariantData { visibleRoot in
-            var entry = KPEntry(title: "AutoFill Entry With Missing Attachment")
-            entry.attachments = [KPAttachment(name: "missing.txt", ref: 0)]
-            visibleRoot.entries.append(entry)
-        }
-        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: pendingData)
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-        await vm.unlock(password: fixturePassword)
-        XCTAssertEqual(vm.binaryPool?.count, 0, "Fixture precondition: the opened database has no attachments")
-        try addUnsavedAttachment(in: vm, name: "local.txt", bytes: Data("local-bytes".utf8))
-
-        try await vm.mergePendingUploads()
-
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .attachmentsDiverged(.backup(PendingUploadFake.payloadURL)))
-        XCTAssertTrue(recorder.recordedCalls.isEmpty)
-        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
-    }
 
     func testARefusedPendingMergeNamesTheBackupInsteadOfExportCopy() throws {
         let backupURL = URL(fileURLWithPath: "/backups/20260924-080000-000000.kdbx")
@@ -5814,160 +5534,6 @@ final class DatabaseViewModelTests: XCTestCase {
         }
         XCTAssertTrue(PendingUploadMergeFailure.changeUnreadable(.cache).message.contains(currentCopyAction))
         XCTAssertTrue(PendingUploadMergeFailure.attachmentsDiverged(.cache).message.contains(currentCopyAction))
-    }
-
-    func testAnOrdinarySaveThatAbsorbsThePendingUploadHidesTheBanner() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8))
-        let vm = try makeViewModel(
-            reference: reference,
-            cloudSyncOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: fixtureData,
-                    status: .current
-                )
-            },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
-                // `CloudDatabaseSaver.finishSave` drops the pending uploads
-                // whose payload the saved base already contained.
-                pending.dropAll()
-                return .saved(newSHA512: Data("saved".utf8))
-            },
-            pendingUploadRecovery: pending.environment
-        )
-
-        await vm.unlock(password: fixturePassword)
-        XCTAssertTrue(vm.hasPendingUploadConflict)
-
-        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Ordinary Edit")
-        try await vm.save()
-
-        XCTAssertFalse(vm.hasPendingUploadConflict)
-    }
-
-    func testPendingUploadConflictIsNotOfferedForAReadOnlyDatabase() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
-        var reference = makeCloudReference(remoteRev: "rev-A")
-        reference.isReadOnly = true
-        DatabaseListStore.update(reference)
-        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8))
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-
-        await vm.unlock(password: fixturePassword)
-        XCTAssertFalse(vm.hasPendingUploadConflict)
-
-        try await vm.mergePendingUploads()
-
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .sessionUnavailable)
-        XCTAssertTrue(recorder.recordedCalls.isEmpty)
-    }
-
-    func testPendingUploadConflictAvailabilityTracksReadOnlyChanges() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
-        var reference = makeCloudReference(remoteRev: "rev-A")
-        reference.isReadOnly = true
-        DatabaseListStore.update(reference)
-        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8))
-        let vm = try makePendingUploadViewModel(
-            reference: reference,
-            fixtureData: fixtureData,
-            pending: pending,
-            recorder: recorder
-        )
-
-        await vm.unlock(password: fixturePassword)
-        XCTAssertFalse(vm.hasPendingUploadConflict)
-
-        vm.setReadOnly(false)
-        XCTAssertTrue(vm.hasPendingUploadConflict)
-
-        vm.setReadOnly(true)
-        XCTAssertFalse(vm.hasPendingUploadConflict)
-    }
-
-    func testPendingUploadConflictIsNotReportedWithoutAConflict() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8), isConflicted: false)
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-
-        await vm.unlock(password: fixturePassword)
-
-        XCTAssertFalse(vm.hasPendingUploadConflict)
-    }
-
-    func testAConflictTheDrainerMarksLaterIsPickedUpWithoutAReferenceChange() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let recorder = MergeSaveRecorder(results: [])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8), isConflicted: false)
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-        await vm.unlock(password: fixturePassword)
-        XCTAssertFalse(vm.hasPendingUploadConflict)
-
-        pending.markConflicted()
-        let listed = DatabaseListStore.databases.first { $0.id == reference.id } ?? vm.databaseReference
-        XCTAssertEqual(listed, vm.databaseReference, "the list reload carries the same reference")
-        vm.reconcileReference(listed)
-
-        XCTAssertTrue(vm.hasPendingUploadConflict)
-    }
-
-    func testLockingClearsThePendingUploadState() async throws {
-        let fixtureData = try Data(contentsOf: fixtureURL())
-        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
-        let reference = makeCloudReference(remoteRev: "rev-A")
-        let pending = PendingUploadFake(reference: reference, payload: Data("not-a-kdbx-file".utf8))
-        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
-
-        await vm.unlock(password: fixturePassword)
-        try await vm.mergePendingUploads()
-        XCTAssertNotNil(vm.pendingUploadMergeFailure)
-
-        vm.lock()
-
-        XCTAssertFalse(vm.hasPendingUploadConflict)
-        XCTAssertNil(vm.pendingUploadMergeFailure)
-    }
-
-    private func makePendingUploadViewModel(
-        reference: DatabaseReference,
-        fixtureData: Data,
-        pending: PendingUploadFake,
-        recorder: MergeSaveRecorder,
-        cloudRefreshOperation: @escaping DatabaseViewModel.CloudSyncOperation = { _, _ in
-            throw CloudProviderError.networkUnavailable
-        },
-        pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { _ in false }
-    ) throws -> DatabaseViewModel {
-        try makeViewModel(
-            reference: reference,
-            cloudSyncOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: fixtureData,
-                    status: .current
-                )
-            },
-            cloudRefreshOperation: cloudRefreshOperation,
-            cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _, _ in
-                recorder.record(
-                    openTimeSHA512: openTimeSHA512,
-                    reconciledRemoteSHA512: reconciledRemoteSHA512,
-                    expectedRev: expectedRev,
-                    rootGroup: draft.rootGroup
-                )
-            },
-            pendingUploadRecovery: pending.environment,
-            pendingUploadMarkerCheck: pendingUploadMarkerCheck
-        )
     }
 
     func testMergeAndSaveDeclinedOnDivergedAttachmentPoolKeepsConflictOptions() async throws {
@@ -6231,7 +5797,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testSaveWhenReadOnlyThrowsDatabaseIsReadOnlyDoesNotEncrypt() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let localSaverCalls = CallTracker()
         let vm = DatabaseViewModel(
@@ -7336,7 +6902,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testSetReadOnlyUpdatesInMemoryReferenceAndStore() throws {
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = DatabaseViewModel(databaseReference: reference)
         XCTAssertFalse(vm.isReadOnly)
 
@@ -7794,7 +7360,7 @@ final class DatabaseViewModelTests: XCTestCase {
         var reference = try DatabaseListStore.add(url: initialURL)
         try FileManager.default.moveItem(at: initialURL, to: url)
         reference.legacyKeychainFilename = "late-app-legacy-\(UUID().uuidString).kdbx"
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let gate = InFlightSaveGate()
         let stored = OSAllocatedUnfairLock(initialState: Optional<SymmetricKey>.none)
         let lateCalls = OSAllocatedUnfairLock(initialState: 0)
@@ -8881,7 +8447,7 @@ final class DatabaseViewModelTests: XCTestCase {
         try oldBytes.write(to: url)
         var reference = try DatabaseListStore.add(url: url)
         reference.isDocumentsResident = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.documentsDirectoryOverride = folder
         defer { DatabaseListStore.documentsDirectoryOverride = nil }
         let encryptions = OSAllocatedUnfairLock(initialState: 0)
@@ -9275,7 +8841,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let oldCompositeKey = try XCTUnwrap(vm.compositeKey)
         XCTAssertEqual(vm.masterKeyComposition, .init(hasPassword: true, hasKeyFile: false))
 
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
 
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
@@ -9299,13 +8865,13 @@ final class DatabaseViewModelTests: XCTestCase {
         let keyFileData = Data("rekey key file bytes".utf8)
         let bookmarkData = Data("rekey-bookmark".utf8)
         let reference = try makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(
         )
 
         await vm.unlock(password: fixturePassword)
 
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
 
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
@@ -9326,7 +8892,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(stored.keyFileFilename, "vault.key")
     }
 
-    func testRemovalDuringInstalledMasterKeyChangeRetainsRecoveryAndRejectsPublication() async throws {
+    func testRejectedRemovalDuringInstalledMasterKeyChangeAllowsCompletion() async throws {
         let url = try fixtureURL()
         let reference = try DatabaseListStore.add(url: url)
         let vm = try makeViewModel(reference: reference,
@@ -9340,19 +8906,15 @@ final class DatabaseViewModelTests: XCTestCase {
             })
         defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
-        do {
-            try await vm.changeMasterKey(newPassword: "rotated", newKeyFileData: nil,
-                newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
-            XCTFail("Removal must prevent publication through the retired reference")
-        } catch {
-            XCTAssertEqual((error as? SaveAssociationWarning)?.reason, .authorityChanged)
-        }
+        try await vm.changeMasterKey(newPassword: "rotated", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
         XCTAssertTrue(DatabaseListStore.databases.contains { $0.id == reference.id })
         let recovery = try PendingLocalSaveStore.recovery(for: reference.id)
-        XCTAssertTrue(recovery.isRevoked)
-        XCTAssertNotNil(recovery.admission)
+        XCTAssertFalse(recovery.isRevoked)
+        XCTAssertNil(recovery.admission)
         let bytes = try Data(contentsOf: url)
         let newKey = KDBXCrypto.compositeKey(password: "rotated")
+        XCTAssertEqual(vm.compositeKey, newKey)
         _ = try KDBXParser.parse(data: bytes, compositeKey: newKey, sessionKey: SymmetricKey(size: .bits256))
         XCTAssertThrowsError(try KDBXParser.parse(data: bytes,
             compositeKey: KDBXCrypto.compositeKey(password: fixturePassword), sessionKey: SymmetricKey(size: .bits256)))
@@ -9362,14 +8924,14 @@ final class DatabaseViewModelTests: XCTestCase {
         var reference = try makeReference()
         reference.keyFileBookmarkData = Data("stale-bookmark".utf8)
         reference.keyFileFilename = "old.key"
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let vm = try makeViewModel(
             reference: reference
         )
 
         await vm.unlock(password: fixturePassword)
 
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
 
         try await vm.changeMasterKey(
             newPassword: "password-only",
@@ -9387,49 +8949,107 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testChangeMasterKeyCloudRoutesNewKeyThroughCloudSaveOperation() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.testUpsert(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
+        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let capturedKeys = RekeyedKeyCapture()
-        let vm = try makeViewModel(
-            reference: reference,
-            cloudSyncOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: fixtureData,
-                    status: .current
-                )
-            },
-            cloudSaveOperation: { _, _, compositeKey, _, _, expectedRev, newCompositeKey, _ in
-                capturedKeys.record(oldKey: compositeKey, newKey: newCompositeKey, expectedRev: expectedRev)
-                return .saved(newSHA512: Data("cloud-rekeyed-hash".utf8))
-            },
-            pendingUploadMarkerCheck: { _ in false }
-        )
-
+        let storedKeys = RekeyedKeyCapture()
+        let transport = CloudJournalTransport(remote: fixtureData, revision: "rev-A",
+            response: .init(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-B"))
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in try transport.metadata(byteCount: fixtureData.count) }
+        environment.downloadRemoteData = { _ in transport.download(fallback: fixtureData) }
+        environment.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        let saver = environment
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: cacheURL, data: fixtureData, status: .current)
+        }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+            capturedKeys.record(oldKey: key, newKey: newKey, expectedRev: rev)
+            return try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+        }, storedKeyPresenceCheck: { _ in true },
+           storedKeyStoreOperation: { key, _ in storedKeys.record(oldKey: nil, newKey: key) })
         await vm.unlock(password: fixturePassword)
-        let oldCompositeKey = try XCTUnwrap(vm.compositeKey)
-
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
-
-        try await vm.changeMasterKey(
-            newPassword: "cloud-rotated",
-            newKeyFileData: nil,
-            newKeyFileBookmarkData: nil,
-            newKeyFileFilename: nil
-        )
-
-        let expectedNewKey = try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil)
-        XCTAssertEqual(capturedKeys.oldKey, oldCompositeKey)
-        XCTAssertEqual(capturedKeys.newKey, expectedNewKey)
+        let oldKey = try XCTUnwrap(vm.compositeKey)
+        try await vm.changeMasterKey(newPassword: "cloud-rotated", newKeyFileData: nil,
+            newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+        let newKey = try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil)
+        let bytes = try Data(contentsOf: cacheURL)
+        XCTAssertEqual(capturedKeys.oldKey, oldKey)
+        XCTAssertEqual(capturedKeys.newKey, newKey)
         XCTAssertEqual(capturedKeys.expectedRev, "rev-A")
-        XCTAssertEqual(vm.compositeKey, expectedNewKey)
-        XCTAssertEqual(vm.openTimeSHA512, Data("cloud-rekeyed-hash".utf8))
+        XCTAssertEqual(storedKeys.newKey, newKey)
+        XCTAssertEqual(vm.compositeKey, newKey)
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(bytes))
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(transport.effects.uploads.first?.bytes, bytes)
+        _ = try KDBXParser.parseWithMetaAndHeader(data: bytes, compositeKey: newKey, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertThrowsError(try KDBXParser.parseWithMetaAndHeader(data: bytes, compositeKey: oldKey, sessionKey: SymmetricKey(size: .bits256)))
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertNotEqual(current.cloudSyncMetadata?.keyEpoch, reference.cloudSyncMetadata?.keyEpoch)
+        XCTAssertNil(current.keyFileBookmarkData)
+        XCTAssertNil(current.keyFileFilename)
+        XCTAssertEqual(current.expectedCloudRevision, "rev-B")
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+    }
+
+    func testCloudRekeyUnknownUploadRetainsPayloadWithoutResending() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.testUpsert(reference)
+        let original = try Data(contentsOf: fixtureURL())
+        try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let storedKeys = RekeyedKeyCapture()
+        let transport = CloudJournalTransport(remote: original, revision: "rev-A", uploadError: .networkUnavailable)
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in try transport.metadata(byteCount: original.count) }
+        environment.downloadRemoteData = { _ in transport.download(fallback: original) }
+        environment.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        let saver = environment
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: cacheURL, data: original, status: .current)
+        }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+            try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+        }, storedKeyPresenceCheck: { _ in true },
+           storedKeyStoreOperation: { key, _ in storedKeys.record(oldKey: nil, newKey: key) })
+        await vm.unlock(password: fixturePassword)
+        let oldKey = try XCTUnwrap(vm.compositeKey)
+        do {
+            try await vm.changeMasterKey(newPassword: "cloud-rotated", newKeyFileData: nil,
+                newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+            XCTFail("Lost upload acknowledgement must remain uncertain")
+        } catch { XCTAssertTrue(error is CloudSaveRecoveryWarning || error is CloudProviderError) }
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertNotNil(marker.marker.uploadAttemptID)
+        XCTAssertNil(marker.marker.confirmedAt)
+        let payload = try PendingUploadQueue.readImmutablePayload(marker)
+        let newKey = try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil)
+        _ = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: newKey, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertThrowsError(try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: oldKey, sessionKey: SymmetricKey(size: .bits256)))
+        XCTAssertEqual(try Data(contentsOf: cacheURL), original)
+        XCTAssertEqual(vm.compositeKey, oldKey)
+        XCTAssertNil(storedKeys.newKey)
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        _ = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: saver)
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)), payload)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), original)
     }
 
     func testChangeMasterKeyWhenReadOnlyThrowsWithoutSaving() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
             reference: reference,
@@ -9628,7 +9248,7 @@ final class DatabaseViewModelTests: XCTestCase {
         QuickUnlockKeychain.recordMasterKeyEntry(for: secondReference.id, at: enteredAt)
         expressRemovals.withLock { $0.removeAll() }
 
-        if !first.databaseReference.isCloudBacked { DatabaseListStore.update(first.databaseReference) }
+        if !first.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(first.databaseReference) }
 
         try await first.changeMasterKey(
             newPassword: "rotated-master", newKeyFileData: nil,
@@ -9662,7 +9282,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
             newKeyFileData: nil,
@@ -9685,7 +9305,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
             newKeyFileData: nil,
@@ -9707,7 +9327,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         await vm.unlock(password: fixturePassword)
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
             newKeyFileData: nil,
@@ -9719,54 +9339,181 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testChangeMasterKeyCloudRekeyAppliedRemotelyStillRefreshesStoredKey() async throws {
+        try await exerciseConfirmedCloudRekeyRecovery(.normal)
+    }
+
+    func testConfirmedCloudRekeyRecoveryDoesNotResurrectLockedOrRetiredSessions() async throws {
+        try await exerciseConfirmedCloudRekeyRecovery(.locked)
+        DatabaseListStore.clearAll()
+        try await exerciseConfirmedCloudRekeyRecovery(.retired)
+    }
+
+    func testConfirmedCloudRekeyRecoveryDoesNotPublishAfterAnotherAction() async throws {
+        try await exerciseConfirmedCloudRekeyRecovery(.otherAction)
+    }
+
+    func testConfirmedCloudRekeyRevocationDuringPublicationRejectsKeyEffects() async throws {
+        try await exerciseConfirmedCloudRekeyRecovery(.duringPublication)
+    }
+
+    func testConfirmedCloudRekeyRecoveryRejectsChangedEpoch() async throws {
+        try await exerciseConfirmedCloudRekeyRecovery(.changedEpoch)
+    }
+
+    private enum RecoveryCase { case normal, locked, retired, otherAction, duringPublication, changedEpoch }
+
+    private func exerciseConfirmedCloudRekeyRecovery(_ scenario: RecoveryCase) async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
-        let fixtureData = try Data(contentsOf: fixtureURL())
+        DatabaseListStore.testUpsert(reference)
+        let original = try Data(contentsOf: fixtureURL())
+        try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let storedKeys = RekeyedKeyCapture()
-        let vm = try makeViewModel(
-            reference: reference,
-            cloudSyncOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: fixtureData,
-                    status: .current
-                )
-            },
-            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
-                throw SaveError.rekeyAppliedRemotely
-            },
-            pendingUploadMarkerCheck: { _ in false },
-            storedKeyPresenceCheck: { _ in true },
-            storedKeyStoreOperation: { key, _ in storedKeys.record(oldKey: nil, newKey: key) }
-        )
-
-        await vm.unlock(password: fixturePassword)
-        let oldCompositeKey = try XCTUnwrap(vm.compositeKey)
-
-        do {
-            if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
-            try await vm.changeMasterKey(
-                newPassword: "cloud-rotated",
-                newKeyFileData: nil,
-                newKeyFileBookmarkData: nil,
-                newKeyFileFilename: nil
-            )
-            XCTFail("Expected rekeyAppliedRemotely to propagate")
-        } catch SaveError.rekeyAppliedRemotely {
-            // Expected: the upload landed but the local apply failed.
+        let effects = OSAllocatedUnfairLock(initialState: 0)
+        let pause = KeyPublicationPause()
+        let publicationFailed = XCTestExpectation(description: "revoked recovery publication returned")
+        var publicationIO = DatabaseListStore.KeyCommitPublicationIO()
+        let nativeRead = publicationIO.read
+        if scenario == .duringPublication {
+            publicationIO.read = { url in try pause.wait(); return try nativeRead(url) }
+            publicationIO.didFinish = { pause.finished.fulfill() }
         }
-
-        XCTAssertEqual(
-            storedKeys.newKey,
-            try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil),
-            "Keychain must point at the key the remote now requires"
-        )
-        XCTAssertEqual(
-            vm.compositeKey,
-            oldCompositeKey,
-            "The session keeps the key matching the still-old local cache"
-        )
-        XCTAssertNil(vm.masterKeyComposition, "The summary must not name the old key the remote no longer takes")
+        defer { pause.resume() }
+        let transport = CloudJournalTransport(remote: original, revision: "rev-A",
+            response: .init(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-B"))
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in try transport.metadata(byteCount: original.count) }
+        environment.downloadRemoteData = { _ in transport.download(fallback: original) }
+        environment.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        let recovery = environment
+        environment.rekeyReplacementIO.stage = { _, _ in throw CocoaError(.fileWriteNoPermission) }
+        let faulty = environment
+        let vm = try makeViewModel(reference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: cacheURL, data: original, status: .current)
+        }, localPublicationFailure: { phase, _ in
+            if scenario == .duringPublication && phase == "cloud-rekey-recovery-publication" { publicationFailed.fulfill() }
+        }, keyCommitPublicationIO: publicationIO, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+            try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: faulty)
+        }, expressUnlockKeySaveOperation: { _, _ in effects.withLock { $0 += 1 } },
+           storedKeyPresenceCheck: { _ in true },
+           storedKeyStoreOperation: { key, _ in effects.withLock { $0 += 1 }; storedKeys.record(oldKey: nil, newKey: key) })
+        await vm.unlock(password: fixturePassword)
+        let list = DatabaseListViewModel()
+        let sessions = DatabaseSessionStore()
+        sessions.adopt(vm)
+        sessions.installListHooks(on: list)
+        effects.withLock { $0 = 0 }
+        let oldKey = try XCTUnwrap(vm.compositeKey)
+        do {
+            try await vm.changeMasterKey(newPassword: "cloud-rotated", newKeyFileData: nil,
+                newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
+            XCTFail("Expected local reconciliation failure")
+        } catch is CloudSaveRecoveryWarning { }
+        let oldSHA = vm.openTimeSHA512
+        let oldReference = vm.databaseReference
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertNotNil(marker.marker.confirmedAt)
+        let payload = try PendingUploadQueue.readImmutablePayload(marker)
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(transport.effects.uploads.first?.bytes, payload)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), original)
+        CloudDatabaseSaver.RekeyTicket.complete(UUID())
+        await Task.yield()
+        XCTAssertNil(storedKeys.newKey)
+        switch scenario {
+        case .locked:
+            vm.lock()
+        case .retired:
+            let store = DatabaseSessionStore()
+            store.adopt(vm)
+            XCTAssertTrue(store.retire(reference.id, force: true))
+            XCTAssertNil(store.session(for: reference.id))
+        case .otherAction:
+            vm.discardDraft()
+        case .changedEpoch:
+            let observedReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            let observed = try XCTUnwrap(observedReference.cloudSyncMetadata)
+            let foreignEpoch = UUID()
+            guard case .published = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id,
+                ifUnchangedFrom: observed, observedReference: observedReference, mutate: { $0.keyEpoch = foreignEpoch }) else {
+                return XCTFail("The competing epoch must be durably published")
+            }
+            let changed = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            XCTAssertEqual(changed.cloudSyncMetadata?.keyEpoch, foreignEpoch)
+            XCTAssertEqual(changed.cloudSyncMetadata?.localHeadOperationID, observed.localHeadOperationID)
+            XCTAssertEqual(changed.lastMasterKeyChangeAt, observedReference.lastMasterKeyChangeAt)
+            XCTAssertThrowsError(try CloudDatabaseSaver.recoverConfirmed(marker, reference: reference, environment: recovery))
+            XCTAssertNil(storedKeys.newKey)
+            XCTAssertEqual(vm.compositeKey, oldKey)
+            XCTAssertEqual(try Data(contentsOf: cacheURL), original)
+            XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).count, 1)
+            vm.lock()
+            return
+        case .normal, .duringPublication: break
+        }
+        guard case .saved? = try CloudDatabaseSaver.recoverConfirmed(marker, reference: reference, environment: recovery) else {
+            return XCTFail("Confirmed remote rekey must reconcile without upload")
+        }
+        list.reload()
+        let newKey = try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil)
+        if scenario == .duringPublication {
+            await fulfillment(of: [pause.entered], timeout: 15)
+            CloudDatabaseSaver.RekeyTicket.complete(marker.id)
+            await Task.yield()
+            vm.discardDraft()
+            pause.resume()
+            await fulfillment(of: [pause.finished, publicationFailed], timeout: 15)
+            XCTAssertEqual(effects.withLock { $0 }, 0)
+            XCTAssertEqual(storedKeys.writeCount, 0)
+            XCTAssertEqual(vm.compositeKey, oldKey)
+            XCTAssertEqual(vm.openTimeSHA512, oldSHA)
+            XCTAssertEqual(vm.databaseReference, oldReference)
+            XCTAssertEqual(try Data(contentsOf: cacheURL), payload)
+            XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+            XCTAssertEqual(transport.effects.uploads.count, 1)
+            vm.lock()
+            return
+        }
+        if scenario != .normal {
+            await Task.yield()
+            if scenario == .otherAction {
+                XCTAssertEqual(vm.state, .unlocked)
+                XCTAssertEqual(vm.compositeKey, oldKey)
+                vm.lock()
+            } else {
+                XCTAssertEqual(vm.state, .locked)
+                XCTAssertNil(vm.compositeKey)
+            }
+            XCTAssertNil(storedKeys.newKey)
+            XCTAssertEqual(try Data(contentsOf: cacheURL), payload)
+            XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+            return
+        }
+        let deadline = ContinuousClock.now + .seconds(10)
+        while vm.compositeKey != newKey && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), payload)
+        _ = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: newKey, sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertThrowsError(try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: oldKey, sessionKey: SymmetricKey(size: .bits256)))
+        let current = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertNotEqual(current.cloudSyncMetadata?.keyEpoch, reference.cloudSyncMetadata?.keyEpoch)
+        XCTAssertEqual(current.expectedCloudRevision, "rev-B")
+        XCTAssertNil(current.keyFileBookmarkData)
+        XCTAssertNil(current.keyFileFilename)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertEqual(storedKeys.newKey, newKey, "The recovered owner must publish the current key")
+        XCTAssertEqual(vm.compositeKey, newKey, "The still-unlocked session must track the recovered ciphertext")
+        CloudDatabaseSaver.RekeyTicket.complete(marker.id)
+        await Task.yield()
+        XCTAssertEqual(storedKeys.writeCount, 1)
+        vm.lock()
     }
 
     func testChangeMasterKeySavesDraftThatGrewDuringRekey() async throws {
@@ -9794,7 +9541,7 @@ final class DatabaseViewModelTests: XCTestCase {
         }
 
         await vm.unlock(password: fixturePassword)
-        if !vm.databaseReference.isCloudBacked { DatabaseListStore.update(vm.databaseReference) }
+        if !vm.databaseReference.isCloudBacked { DatabaseListStore.testUpsert(vm.databaseReference) }
         try await vm.changeMasterKey(
             newPassword: "rotated-master",
             newKeyFileData: nil,
@@ -9902,7 +9649,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testImportEntriesRefusesAReadOnlyDatabaseWithoutTouchingTheDraft() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let saved = SavedDraftCapture()
         let vm = try makeViewModel(
             reference: reference,
@@ -10146,52 +9893,87 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testChangeEncryptionSettingsCloudAdoptsTheUploadedRevision() async throws {
+        try await exerciseCloudSettingsPublication(foreignHead: false)
+    }
+
+    func testChangeEncryptionSettingsCloudRejectsForeignPublishedHead() async throws {
+        try await exerciseCloudSettingsPublication(foreignHead: true)
+    }
+
+    private func exerciseCloudSettingsPublication(foreignHead: Bool) async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let fixtureData = try Data(contentsOf: fixtureURL())
+        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let capture = EncryptionSettingsCapture()
-        let vm = try makeViewModel(
-            reference: reference,
+        let keyEffects = OSAllocatedUnfairLock(initialState: 0)
+        let transport = CloudJournalTransport(remote: fixtureData, revision: "rev-A",
+            response: .init(modifiedDate: .now, contentHash: nil, size: 0, rev: "rev-B"))
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in try transport.metadata(byteCount: fixtureData.count) }
+        environment.downloadRemoteData = { _ in transport.download(fallback: fixtureData) }
+        environment.upload = { _, bytes, rev, _ in try await transport.upload(bytes, revision: rev) }
+        environment.revisionIdentifiesContent = { _, _ in false }
+        let saver = environment
+        let vm = try makeViewModel(reference: reference,
             cloudSyncOperation: { reference, _ in
-                CloudSyncResolution(
-                    reference: reference,
-                    localURL: DatabaseListStore.cacheLocation(for: reference),
-                    data: fixtureData,
-                    status: .current
-                )
-            },
-            cloudSaveOperation: { _, reference, compositeKey, _, _, expectedRev, newCompositeKey, encryptionSettings in
-                capture.record(
-                    compositeKey: compositeKey,
-                    newCompositeKey: newCompositeKey,
-                    change: encryptionSettings,
-                    expectedRev: expectedRev
-                )
-                var uploaded = reference
-                uploaded.updateCloudSyncMetadata { $0.remoteRev = "rev-B" }
-                DatabaseListStore.update(uploaded)
-                return .saved(newSHA512: Data("cloud-re-encrypted-hash".utf8))
-            },
-            pendingUploadMarkerCheck: { _ in false }
-        )
-
+                CloudSyncResolution(reference: reference, localURL: cacheURL, data: fixtureData, status: .current)
+            }, cloudSaveOperation: { draft, reference, key, sha, remoteSHA, rev, newKey, settings in
+                capture.record(compositeKey: key, newCompositeKey: newKey, change: settings, expectedRev: rev)
+                let result = try await CloudDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                    openTimeSHA512: sha, reconciledRemoteSHA512: remoteSHA, expectedRev: rev,
+                    kdfPolicy: .mainApp, newCompositeKey: newKey, encryptionSettings: settings, environment: saver)
+                let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+                guard case .saved? = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: saver) else {
+                    throw SaveError.saveContextUnavailable
+                }
+                if foreignHead {
+                    let observedReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+                    let observed = try XCTUnwrap(observedReference.cloudSyncMetadata)
+                    guard case .published = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id,
+                        ifUnchangedFrom: observed, observedReference: observedReference, mutate: { $0.localHeadOperationID = UUID() }) else {
+                        throw SaveError.saveContextUnavailable
+                    }
+                }
+                return result
+            }, expressUnlockKeySaveOperation: { _, _ in keyEffects.withLock { $0 += 1 } })
         await vm.unlock(password: fixturePassword)
+        keyEffects.withLock { $0 = 0 }
+        if foreignHead {
+            do {
+                try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
+                XCTFail("A different head cannot authorize this key effect")
+            } catch is CloudSaveRecoveryWarning { }
+            XCTAssertEqual(keyEffects.withLock { $0 }, 0)
+            XCTAssertEqual(transport.effects.uploads.count, 1)
+            XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+            vm.lock()
+            return
+        }
         try await vm.changeEncryptionSettings(cipher: .chacha20, keyDerivation: nil, isCompressed: nil)
-
+        XCTAssertEqual(keyEffects.withLock { $0 }, 1)
+        let bytes = try Data(contentsOf: cacheURL)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: bytes,
+            compositeKey: KDBXCrypto.compositeKey(password: fixturePassword), sessionKey: SymmetricKey(size: .bits256))
+        XCTAssertEqual(parsed.header.cipherID, KDBXOuterCipher.chaCha20.uuid)
         XCTAssertEqual(capture.expectedRev, "rev-A")
         XCTAssertEqual(capture.change?.cipherID, KDBXOuterCipher.chaCha20.uuid)
-        XCTAssertEqual(vm.openTimeSHA512, Data("cloud-re-encrypted-hash".utf8))
-        XCTAssertEqual(
-            vm.databaseReference.expectedCloudRevision,
-            "rev-B",
-            "The next save must not reuse the revision this change replaced."
-        )
+        XCTAssertNil(capture.newCompositeKey)
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(bytes))
+        XCTAssertEqual(transport.effects.uploads.count, 1)
+        XCTAssertEqual(transport.effects.uploads.first?.bytes, bytes)
+        XCTAssertEqual(transport.effects.uploads.first?.revision, "rev-A")
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertEqual(vm.databaseReference.expectedCloudRevision, "rev-B")
     }
 
     func testChangeEncryptionSettingsWhenReadOnlyThrowsWithoutSaving() async throws {
         var reference = try makeReference()
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
             reference: reference,
@@ -10395,6 +10177,7 @@ final class DatabaseViewModelTests: XCTestCase {
             )
         },
         localPublicationFailure: @escaping @Sendable (String, Error) -> Void = { _, _ in },
+        keyCommitPublicationIO: DatabaseListStore.KeyCommitPublicationIO = .init(),
         cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings in
             try await CloudDatabaseSaver.save(
                 draft: draft,
@@ -10446,6 +10229,9 @@ final class DatabaseViewModelTests: XCTestCase {
             return try QuickUnlockKeychain.retrieve(for: reference, context: context)
         },
         pendingUploadRecovery: PendingUploadRecovery.Environment = .live,
+        expressUnlockKeySaveOperation: @escaping DatabaseViewModel.ExpressUnlockKeySaveOperation = { key, reference in
+            QuickUnlockKeychain.replaceExpressKey(with: key, for: reference)
+        },
         pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { reference in
             PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
         },
@@ -10476,6 +10262,7 @@ final class DatabaseViewModelTests: XCTestCase {
             cloudSyncOperation: cloudSyncOperation,
             cloudRefreshOperation: cloudRefreshOperation,
             localPublicationFailure: localPublicationFailure,
+            keyCommitPublicationIO: keyCommitPublicationIO,
             localSaveOperation: localSaveOperation,
             cloudSaveOperation: cloudSaveOperation,
             conflictCopyEncryptionOperation: conflictCopyEncryptionOperation,
@@ -10483,6 +10270,7 @@ final class DatabaseViewModelTests: XCTestCase {
             cloudConflictCopyOperation: cloudConflictCopyOperation,
             reloadOperation: reloadOperation,
             biometricCompositeKeyOperation: biometricCompositeKeyOperation,
+            expressUnlockKeySaveOperation: expressUnlockKeySaveOperation,
             pendingUploadMarkerCheck: pendingUploadMarkerCheck,
             pendingUploadRecovery: pendingUploadRecovery,
             storedKeyPresenceCheck: storedKeyPresenceCheck,
@@ -10526,7 +10314,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     private func makeReference(autoFillEnabled: Bool = true) throws -> DatabaseReference {
         let reference = try TestDatabaseSupport.makeReference(for: fixtureURL(), autoFillEnabled: autoFillEnabled)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 
@@ -10833,9 +10621,12 @@ private final class RekeyedKeyCapture: @unchecked Sendable {
     private var storedOldKey: SymmetricKey?
     private var storedNewKey: SymmetricKey?
     private var storedExpectedRev: String?
+    private var writes = 0
+    var writeCount: Int { lock.withLock { writes } }
 
     func record(oldKey: SymmetricKey?, newKey: SymmetricKey?, expectedRev: String? = nil) {
         lock.lock()
+        writes += 1
         storedOldKey = oldKey
         storedNewKey = newKey
         storedExpectedRev = expectedRev
@@ -10861,82 +10652,6 @@ private final class RekeyedKeyCapture: @unchecked Sendable {
     }
 }
 
-/// Scripts a sequence of save outcomes and records what each save was gated
-/// on, so a merge save's baseline can be asserted from the seam the view model
-/// actually calls.
-/// A conflicted pending upload whose payload sits in the one candidate file.
-private final class PendingUploadFake: @unchecked Sendable {
-    let storedMarker: PendingUploadQueue.StoredMarker
-    private let payload: Data
-    private let storesPayload: Bool
-    private let lock = NSLock()
-    private var markers: [PendingUploadQueue.StoredMarker]
-    private var dropped: [UUID] = []
-    static let payloadURL = URL(fileURLWithPath: "/pending-upload-fake/20260924-080000-000000.kdbx")
-
-    init(
-        reference: DatabaseReference,
-        payload: Data,
-        isConflicted: Bool = true,
-        storesPayload: Bool = true,
-        isPayloadFinalized: Bool? = true
-    ) {
-        let id = UUID()
-        storedMarker = PendingUploadQueue.StoredMarker(
-            id: id,
-            fileURL: URL(fileURLWithPath: "/pending-upload-fake/\(id.uuidString).json"),
-            marker: PendingUploadQueue.Marker(
-                databaseId: reference.id,
-                encryptedBytesCacheURL: "cache.kdbx",
-                openTimeSHA512: FileDigest.sha512(payload),
-                expectedRev: "rev-0",
-                createdAt: Date(timeIntervalSince1970: 1_000),
-                isConflicted: isConflicted,
-                baseRev: "rev-0",
-                isPayloadFinalized: isPayloadFinalized
-            )
-        )
-        self.payload = payload
-        self.storesPayload = storesPayload
-        markers = [storedMarker]
-    }
-
-    var droppedMarkerIDs: [UUID] {
-        lock.withLock { dropped }
-    }
-
-    func dropAll() {
-        lock.withLock { markers.removeAll() }
-    }
-
-    /// What the drainer does when the cloud copy moved on: the marker changes, the reference does not.
-    func markConflicted() {
-        lock.withLock {
-            for index in markers.indices { markers[index].marker.isConflicted = true }
-        }
-    }
-
-    var environment: PendingUploadRecovery.Environment {
-        PendingUploadRecovery.Environment(
-            listMarkers: { databaseId in
-                self.lock.withLock { self.markers.filter { $0.marker.databaseId == databaseId } }
-            },
-            cacheURL: { _ in URL(fileURLWithPath: "/pending-upload-fake/cloud-copy.kdbx") },
-            backupURLs: { _ in [Self.payloadURL] },
-            readData: { url in
-                guard self.storesPayload, url == Self.payloadURL else { throw CocoaError(.fileReadNoSuchFile) }
-                return self.payload
-            },
-            dropMarker: { storedMarker in
-                self.lock.withLock {
-                    self.dropped.append(storedMarker.id)
-                    self.markers.removeAll { $0.id == storedMarker.id }
-                }
-            }
-        )
-    }
-}
-
 private final class DraftPoolRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var pools: [[Data]?] = []
@@ -10954,6 +10669,9 @@ private final class DraftPoolRecorder: @unchecked Sendable {
     }
 }
 
+/// Scripts a sequence of save outcomes and records what each save was gated
+/// on, so a merge save's baseline can be asserted from the seam the view model
+/// actually calls.
 private final class MergeSaveRecorder: @unchecked Sendable {
     struct Call {
         let openTimeSHA512: Data

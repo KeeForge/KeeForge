@@ -317,6 +317,7 @@ targets:
       - path: KeeForge/Services/Persistence/PendingLocalSaveStore.swift
       - path: KeeForge/Services/Security/PasskeyCrypto.swift
       - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
+      - path: KeeForge/Services/Cloud/CloudJournalDecision.swift
       - path: KeeForge/Services/Cloud/CloudSyncModels.swift
       - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
       - path: KeeForge/Resources/eff_large_wordlist.txt
@@ -393,6 +394,7 @@ targets:
       - path: KeeForge/Services/Persistence/PendingLocalSaveStore.swift
       - path: KeeForge/Services/Security/PasskeyCrypto.swift
       - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
+      - path: KeeForge/Services/Cloud/CloudJournalDecision.swift
       - path: KeeForge/Services/Cloud/CloudSyncModels.swift
       - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
       - path: KeeForge/Resources/eff_large_wordlist.txt

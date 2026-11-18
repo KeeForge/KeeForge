@@ -363,6 +363,46 @@ final class DatabaseSessionStoreTests: XCTestCase {
         XCTAssertNotNil(retained.sessionKey)
     }
 
+    func testUnavailableRegistryPreservesDirtySessionUntilValidRemoval() async throws {
+        let session = try await makeUnlockedSession()
+        defer { session.lock() }
+        DatabaseListStore.testUpsert(session.databaseReference)
+        let list = DatabaseListViewModel()
+        let store = DatabaseSessionStore()
+        store.adopt(session)
+        store.activeSessionID = session.databaseReference.id
+        let root = try XCTUnwrap(session.rootGroup)
+        session.draft = try DatabaseDraft(rootGroup: root, meta: KPMeta(recycleBin: root.recycleBinUUID.map { .group($0) }),
+                                          sessionKey: XCTUnwrap(session.sessionKey)).apply(.createEntry(
+            parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: root), draft: EntryDraftPayload(title: "Unsaved", password: "secret")))
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let valid = try Data(contentsOf: url)
+        try Data("{broken".utf8).write(to: url)
+        list.reload()
+        XCTAssertNotNil(list.registryReadError)
+        store.retireSessionsMissingFromDatabaseList(list.databases.map(\.id))
+        XCTAssertTrue(store.session(for: session.databaseReference.id) === session)
+        XCTAssertEqual(session.state, .unlocked)
+        XCTAssertNotNil(session.draft)
+        try FileManager.default.removeItem(at: url)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+        list.reload()
+        XCTAssertNotNil(list.registryReadError)
+        store.retireSessionsMissingFromDatabaseList(list.databases.map(\.id))
+        XCTAssertNotNil(session.draft)
+        try FileManager.default.removeItem(at: url)
+        try valid.write(to: url)
+        list.reload()
+        XCTAssertNil(list.registryReadError)
+        XCTAssertNotNil(session.draft)
+        try Data("[]".utf8).write(to: url)
+        list.reload()
+        XCTAssertNil(list.registryReadError)
+        store.retireSessionsMissingFromDatabaseList(list.databases.map(\.id))
+        XCTAssertNil(store.session(for: session.databaseReference.id))
+        XCTAssertEqual(session.state, .locked)
+    }
+
     func testReferenceReconciliationUpdatesOnlyMatchingSessionAndPreservesUnsavedWork() async throws {
         let store = DatabaseSessionStore()
         let first = try await makeUnlockedSession()
@@ -389,7 +429,7 @@ final class DatabaseSessionStoreTests: XCTestCase {
         renamed.isReadOnly = true
         renamed.keyFileFilename = "new.keyx"
         renamed.keyFileBookmarkData = Data([1, 2, 3])
-        DatabaseListStore.update(renamed)
+        DatabaseListStore.testUpsert(renamed)
 
         store.reconcileReferences([renamed])
 
@@ -483,7 +523,7 @@ final class DatabaseSessionStoreTests: XCTestCase {
         var renamed = removed.databaseReference
         renamed.nickname = "Late rename"
 
-        list.removeDatabase(removed.databaseReference)
+        await list.removeDatabase(removed.databaseReference)
         let cycle = removed.lockCycleID
         delayed([renamed, retained.databaseReference])
 
@@ -500,7 +540,7 @@ final class DatabaseSessionStoreTests: XCTestCase {
     }
 
     func testStaleListCallbackPreservesMetadataWrittenBySessionSync() async throws {
-        var reference = DatabaseListStore.addCloud(
+        var reference = try DatabaseListStore.addCloud(
             provider: CloudProviderKind.webDAV.rawValue,
             accountId: "account",
             file: CloudFile(id: "/cloud.kdbx", name: "cloud.kdbx", path: "/cloud.kdbx",
@@ -508,7 +548,7 @@ final class DatabaseSessionStoreTests: XCTestCase {
         )
         reference.autoFillEnabled = false
         reference.updateCloudSyncMetadata { $0.remoteRev = "old" }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let data = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         let session = DatabaseViewModel(
             databaseReference: reference,
@@ -561,7 +601,7 @@ final class DatabaseSessionStoreTests: XCTestCase {
             for: KDBXTestFixture.test.url(in: Bundle(for: Self.self)),
             autoFillEnabled: false
         )
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 

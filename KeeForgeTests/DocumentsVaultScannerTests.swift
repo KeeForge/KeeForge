@@ -81,7 +81,7 @@ final class DocumentsVaultScannerTests: XCTestCase {
         // Finder replace over USB is delete+recopy: the old bookmark stops
         // resolving. Corrupt it so resolution fails deterministically.
         reference.bookmarkData = Data("stale-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try FileManager.default.removeItem(at: url)
         let replacedContents = try writeDatabaseFile(named: "vault.kdbx", payload: "replaced")
 
@@ -107,7 +107,7 @@ final class DocumentsVaultScannerTests: XCTestCase {
         var reference = try XCTUnwrap(DatabaseListStore.databases.first)
 
         reference.bookmarkData = Data("stale-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent("vault.kdbx"))
         try writeDatabaseFile(named: "other.kdbx")
 
@@ -131,7 +131,7 @@ final class DocumentsVaultScannerTests: XCTestCase {
         try FileManager.default.moveItem(at: url, to: trashedURL)
         let replacedContents = try writeDatabaseFile(named: "vault.kdbx", payload: "replaced")
         reference.bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: trashedURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let resolvedBeforeScan = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: try XCTUnwrap(reference.bookmarkData)))
         XCTAssertEqualFilePaths(resolvedBeforeScan.url, trashedURL)
 
@@ -172,7 +172,7 @@ final class DocumentsVaultScannerTests: XCTestCase {
             legacyKeychainFilename: nil,
             isDocumentsResident: true
         )
-        DatabaseListStore.update(stranded)
+        DatabaseListStore.testUpsert(stranded)
 
         DocumentsVaultScanner.scan(directory: documentsDirectory)
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- Retain encrypted cloud saves for recovery, queue cached changes durably, and avoid automatically resending uncertain replacement requests.
+
 ### Changes
 
 - Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
@@ -9,6 +13,7 @@
 
 ### Fixes
 
+- Refusing to remove a database with pending AutoFill changes no longer permanently blocks its recovery.
 - Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
 - A cloud database no longer reports "The file couldn't be saved because a file with that name already exists" when two syncs overlap, for example Sync Now while the app refreshes after you return to it.
 - On iPhone, and on iPad in a narrow window, a database that locks by itself, after the Auto-Lock timeout or when you leave the app, now stays on its unlock page instead of going back to the database list, so Auto-Unlock with Face ID or Touch ID opens it again right away (#312). Locking with the Lock button still returns to the list.

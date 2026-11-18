@@ -27,7 +27,7 @@ final class DatabaseExportServiceTests: XCTestCase {
     private static let fixedDate = Date(timeIntervalSince1970: 1_723_642_530) // 2024-08-14 13:35:30 UTC
 
     private func makeCloudReference(name: String = "personal.kdbx") -> DatabaseReference {
-        DatabaseListStore.addCloud(
+        try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-export",
             file: CloudFile(

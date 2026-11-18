@@ -256,6 +256,56 @@ final class WebDAVCloudProviderTests: XCTestCase {
         XCTAssertNil(put.value(forHTTPHeaderField: "If-Match"))
     }
 
+    @MainActor
+    func testJournalRetainsWebDAVResponsesThatMayFollowAnUnobservedRetry() async throws {
+        for status in [401, 403, 412, 423, 507, 503] {
+            DatabaseListStore.clearAll()
+            defer { DatabaseListStore.clearAll() }
+            let accountId = "journal-\(status)"
+            let credential = WebDAVCredential(serverURL: "https://host.example.com/dav/", username: accountId, password: "test")
+            let puts = CloudJournalEffectCounter()
+            let hiddenCommits = WebDAVCommitRecorder()
+            let responder = TransportResponder { request in
+                if request.httpMethod == "PUT" {
+                    puts.record()
+                    if status == 412 { hiddenCommits.record(request.httpBody ?? Data()) }
+                    return StubResponse(status: puts.value == 1 ? status : 201, headers: ["ETag": "\"next\""])
+                }
+                return StubResponse(status: 200, headers: ["ETag": "\"base\""])
+            }
+            let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport), credentialLoader: { _ in credential })
+            let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: accountId,
+                file: .init(id: "/journal.kdbx", name: "journal.kdbx", path: "/journal.kdbx", isFolder: false, modifiedDate: nil, size: nil))
+            let context = try CloudJournalTestContext(reference: reference)
+            var environment = context.environment(transport: CloudJournalTransport(revision: "\"base\""))
+            environment.upload = { _, bytes, rev, progress in
+                try await provider.upload(accountId: accountId, fileId: "/journal.kdbx", data: bytes, expectedRev: rev, progress: progress)
+            }
+            do {
+                _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
+                XCTFail("Expected HTTP failure")
+            } catch {
+                if status == 412 { XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .uncertain) }
+                else { XCTAssertNil(error as? CloudUploadFailure) }
+            }
+            let owner = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            XCTAssertEqual(CloudJournalDecision.state(of: owner.marker), .attempting)
+            XCTAssertFalse(owner.marker.attemptIsFenced == true)
+            XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(owner), context.payload)
+            XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+            XCTAssertEqual(puts.value, 1)
+            if status == 412 { XCTAssertEqual(hiddenCommits.bytes, context.payload) }
+            for _ in 0..<2 {
+                guard case .retained? = try await CloudDatabaseSaver.deliver(owner, reference: reference, environment: environment) else {
+                    return XCTFail("Unknown PUT remains owned")
+                }
+            }
+            XCTAssertEqual(puts.value, 1)
+            XCTAssertFalse(CloudJournalDecision.permitsMutation([owner.marker], changingKey: true))
+            XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
+        }
+    }
+
     func testUpload412ThrowsConflict() async throws {
         let accountId = try seedCredential(username: "alice")
         let responder = TransportResponder { request in
@@ -276,7 +326,9 @@ final class WebDAVCloudProviderTests: XCTestCase {
                 progress: { _ in }
             )
             XCTFail("Expected conflict")
-        } catch let error as CloudProviderError {
+        } catch let failure as CloudUploadFailure {
+            XCTAssertEqual(failure.outcome, .uncertain)
+            let error = failure.underlying
             guard case .conflict(let remoteRev) = error else {
                 return XCTFail("Expected .conflict, got \(error)")
             }
@@ -609,6 +661,13 @@ private struct StubResponse {
 
 /// Wraps an async responder closure into a `WebDAVClient.Transport`, building the
 /// `HTTPURLResponse` from the returned `StubResponse`.
+private final class WebDAVCommitRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = Data()
+    var bytes: Data { lock.withLock { value } }
+    func record(_ data: Data) { lock.withLock { value = data } }
+}
+
 private struct TransportResponder {
     let respond: @Sendable (URLRequest) async -> StubResponse
 

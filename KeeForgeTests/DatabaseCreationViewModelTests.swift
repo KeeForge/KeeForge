@@ -109,7 +109,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
     func testChoosingAListedDatabaseFileIsRefusedBeforeAnythingIsWritten() async throws {
         let url = try makeTemporaryFileURL(name: "Listed.kdbx", contents: Data([42]))
         let listed = try TestDatabaseSupport.makeReference(for: url)
-        DatabaseListStore.update(listed)
+        DatabaseListStore.testUpsert(listed)
         let preparations = PreparationCount()
         let model = DatabaseCreationViewModel(preparationOperation: { request, environment in
             await preparations.increment()

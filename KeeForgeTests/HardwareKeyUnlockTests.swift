@@ -478,7 +478,7 @@ final class HardwareKeyUnlockTests: XCTestCase {
 
     func testChangingOnlyTheSlotKeepsTheStoredQuickLaunchKey() throws {
         let reference = try TestDatabaseSupport.makeReference(for: fixture.url(in: bundle))
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         defer { KeychainService.deleteCompositeKey(for: reference.id) }
         try requireStoredKey(for: reference.id)
 
@@ -486,10 +486,12 @@ final class HardwareKeyUnlockTests: XCTestCase {
         XCTAssertFalse(KeychainService.hasStoredKey(for: reference.id), "Turning the YubiKey on changes what the item means")
 
         try requireStoredKey(for: reference.id)
-        DatabaseListStore.setHardwareKey(HardwareKeyConfiguration(transport: .nfc, slot: .one), for: reference)
+        let withHardware = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        DatabaseListStore.setHardwareKey(HardwareKeyConfiguration(transport: .nfc, slot: .one), for: withHardware)
         XCTAssertTrue(KeychainService.hasStoredKey(for: reference.id), "A slot change keeps the pre-key")
 
-        DatabaseListStore.setHardwareKey(nil, for: reference)
+        let withOtherSlot = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        DatabaseListStore.setHardwareKey(nil, for: withOtherSlot)
         XCTAssertFalse(KeychainService.hasStoredKey(for: reference.id), "Turning the YubiKey off changes what the item means")
         XCTAssertNil(DatabaseListStore.databases.first { $0.id == reference.id }?.hardwareKey)
     }

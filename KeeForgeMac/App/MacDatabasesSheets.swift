@@ -136,9 +136,11 @@ final class MacDatabasesSheets: NSObject {
                     }
                 }
             } else if let selection = model.databaseSelection() {
-                let reference = self.list.addCloudDatabase(selection: selection)
-                self.end(); self.launcher.sheet = nil
-                self.launcher.open(reference)
+                do {
+                    let reference = try self.list.addCloudDatabase(selection: selection)
+                    self.end(); self.launcher.sheet = nil
+                    self.launcher.open(reference)
+                } catch { self.showError(error.localizedDescription) }
             }
         }
         present(sheet)

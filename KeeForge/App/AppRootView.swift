@@ -297,11 +297,13 @@ struct AppRootView: View {
             let reference = try listViewModel.addDatabase(from: url)
             openDatabaseAfterLaunchPresentation(reference)
         } catch DatabaseListStore.AddDatabaseError.duplicateFile(let existingReferenceID, _) {
-            if let existing = listViewModel.databases.first(where: { $0.id == existingReferenceID }) {
+            listViewModel.reload()
+            if listViewModel.registryReadError == nil, let existing = listViewModel.databases.first(where: { $0.id == existingReferenceID }) {
                 openDatabaseAfterLaunchPresentation(existing)
             }
         } catch {
-            if let existing = listViewModel.databases.first(where: {
+            listViewModel.reload()
+            if listViewModel.registryReadError == nil, let existing = listViewModel.databases.first(where: {
                 $0.filename == url.lastPathComponent
             }) {
                 openDatabaseAfterLaunchPresentation(existing)

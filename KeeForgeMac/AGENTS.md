@@ -75,4 +75,5 @@ Mac behaviour lives in `@Observable` models and AppKit controllers tested headle
 
 - Local-save recovery is available from Database Settings even for a locked database. Shared recovery content uses the same captured receipts as iOS; Mac discard confirmation is a native alert with Cancel as the default. Both security sheets finish uncertain writes with Done and never repeat the completed operation. Tests: `MacDatabaseSettingsModelTests`, `MacDatabaseExporterTests`, `MacMasterKeySheetTests`, `MacEncryptionSettingsSheetTests`.
 
+- Native removal locks a clean session before asynchronous registry removal, refuses unsaved work again at dispatch, and awaits the storage outcome before completing its action. Recovery or unconfirmed publication keeps the reference and offers its existing recovery surface. Tests join actual removal before checking session/window retirement.
 - Workspace column widths and divider positions use the split view’s arranged-column coordinates. AppKit may inset a controller’s content inside its column; those inner frames cannot define a column’s saved width or full-height extent.

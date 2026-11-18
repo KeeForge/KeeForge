@@ -86,7 +86,7 @@ final class MacDatabaseExporterTests: XCTestCase {
     }
 
     func testCloudCurrentCopyUsesTheCachedEncryptedBytes() async throws {
-        let reference = DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue, accountId: "export-test",
+        let reference = try DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue, accountId: "export-test",
             file: CloudFile(id: "/Personal.kdbx", name: "Personal.kdbx", path: "/Personal.kdbx", isFolder: false, modifiedDate: nil, size: nil))
         defer { DatabaseListStore.clearAll() }
         let bytes = Data([0x03, 0xD9, 0xA2, 0x9A, 0x67, 0xFB, 0x4B, 0xB5, 4, 5])
