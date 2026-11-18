@@ -2619,23 +2619,38 @@ enum DatabaseListStore {
         _ = try? changeRemovedDocumentsFileFingerprints { $0.insert(fingerprint).inserted }
     }
 
-    /// A hash, so no filename is stored. Size and modification date make a
-    /// newer copy dropped in through Finder or the Files app count as a new file.
+    /// A hash, so no filename is stored. Any change to the name, size,
+    /// modification date or bytes makes a newer copy dropped in through Finder
+    /// or the Files app count as a new file, even one copied with its metadata.
     private static func documentsFileFingerprint(for url: URL) -> String? {
         guard let values = try? url.resourceValues(
                 forKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
               ),
               values.isRegularFile == true,
               let size = values.fileSize,
-              let modificationDate = values.contentModificationDate else {
+              let modificationDate = values.contentModificationDate,
+              let contentDigest = contentDigest(of: url) else {
             return nil
         }
         let identity = [
             url.lastPathComponent.precomposedStringWithCanonicalMapping,
             String(size),
             String(modificationDate.timeIntervalSinceReferenceDate.bitPattern),
+            contentDigest,
         ].joined(separator: "\u{1F}")
         return SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func contentDigest(of url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        do {
+            while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+                hasher.update(data: chunk)
+            }
+        } catch { return nil }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     /// Persists a re-minted bookmark for a stranded Documents-resident

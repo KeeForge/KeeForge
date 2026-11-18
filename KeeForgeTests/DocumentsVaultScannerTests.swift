@@ -340,6 +340,23 @@ final class DocumentsVaultScannerTests: XCTestCase {
         XCTAssertEqual(stored.filename, "vault.kdbx")
     }
 
+    func testScanRegistersRemovedFileAgainWhenOnlyItsBytesChanged() throws {
+        let modificationDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let url = try writeDatabaseFile(named: "vault.kdbx", payload: "original")
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        let reference = try XCTUnwrap(DatabaseListStore.databases.first)
+        DatabaseListStore.remove(id: reference.id)
+
+        // A separately edited copy with the same size, copied with its metadata.
+        try writeDatabaseFile(named: "vault.kdbx", payload: "replaced")
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+
+        XCTAssertTrue(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertEqual(DatabaseListStore.databases.count, 1)
+        XCTAssertNotEqual(DatabaseListStore.databases.first?.id, reference.id)
+    }
+
     func testRemovedFileCanStillBeAddedExplicitly() throws {
         let url = try writeDatabaseFile(named: "vault.kdbx")
         DocumentsVaultScanner.scan(directory: documentsDirectory)
