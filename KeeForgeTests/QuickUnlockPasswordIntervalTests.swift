@@ -44,7 +44,7 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
             source: .cloud(CloudSyncMetadata(provider: CloudProviderKind.dropbox.rawValue, accountId: "date-test",
                 fileId: "/cloud-date.kdbx", displayPath: "/cloud-date.kdbx", remoteContentHash: nil,
                 remoteModifiedAt: nil, remoteRev: "date-revision", lastSyncedAt: nil, lastSyncIssue: nil)))
-        DatabaseListStore.update(cloudReference)
+        DatabaseListStore.testUpsert(cloudReference)
         defer {
             SettingsService.quickUnlockPasswordInterval = previousInterval
             DatabaseListStore.clearAll()
@@ -102,7 +102,7 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
             startPublication.signal()
             XCTAssertEqual(race.firstSnapshot.wait(timeout: .now() + 5), .success)
             return QuickUnlockKeychain.$masterKeyEntryAccessObserver.withValue(observer) {
-                let stored = QuickUnlockKeychain.persist(keys, for: reference, masterKeyEntered: typed)
+                let stored = QuickUnlockKeychain.persistKeychainItems(keys, for: reference, masterKeyEntered: typed) == .stored
                 persisted.withLock { $0 = stored }
                 return stored
             }
@@ -136,7 +136,7 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
             DatabaseListStore.clearAll()
             if clearsList {
                 for id in removedIDs {
-                    DatabaseListStore.update(DatabaseReference(id: id, nickname: nil, filename: "date-\(id).kdbx", bookmarkData: nil,
+                    DatabaseListStore.testUpsert(DatabaseReference(id: id, nickname: nil, filename: "date-\(id).kdbx", bookmarkData: nil,
                         keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false,
                         lastOpenedAt: nil, addedAt: .now, colorTag: nil, legacyKeychainFilename: nil))
                 }
@@ -304,7 +304,7 @@ final class QuickUnlockPasswordIntervalTests: XCTestCase {
         var reference = DatabaseReference(id: databaseID, nickname: "Keep metadata", filename: "Legacy.kdbx", bookmarkData: nil,
             keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
             addedAt: .now, colorTag: nil, legacyKeychainFilename: "legacy-\(UUID().uuidString).kdbx")
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         defer { DatabaseListStore.clearAll() }
         let key = SymmetricKey(size: .bits256)
         do { try KeychainService.storeCompositeKey(key, for: databaseID) }

@@ -194,7 +194,7 @@ final class MacDatabaseSettingsModel {
         return nil
     }
 
-    func setAutoFillEnabled(_ enabled: Bool) { list.setAutoFillEnabled(enabled, for: current) }
+    func setAutoFillEnabled(_ enabled: Bool) async { await list.setAutoFillEnabled(enabled, for: current) }
     func syncNow() async { await session?.syncCloudNow(); list.reload() }
 }
 #endif

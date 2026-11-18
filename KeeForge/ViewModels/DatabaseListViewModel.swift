@@ -47,6 +47,8 @@ final class DatabaseListViewModel {
     }()
 
     private(set) var databases: [DatabaseReference] = []
+    private(set) var registryReadError: String?
+    private var initializationUnconfirmed = false
     private(set) var rowStatuses: [UUID: DatabaseRowStatus] = [:]
     private(set) var pendingUploadAlert: PendingUploadAlert?
     private(set) var isAutoFillProviderEnabled: Bool?
@@ -84,21 +86,36 @@ final class DatabaseListViewModel {
         self.pendingUploadDrainer = pendingUploadDrainer
         self.keyFileBookmarkOperation = keyFileBookmarkOperation
         self.keyFilePreferenceIO = keyFilePreferenceIO
-        reload()
+        switch DatabaseListStore.initializeRegistry() {
+        case .initialized, .alreadyPresent: reload()
+        case .notPublished(let error): registryReadError = error.localizedDescription
+        case .visibleUnconfirmed(let error):
+            initializationUnconfirmed = true
+            registryReadError = error.localizedDescription
+        }
     }
 
+    var pendingUploadsDidChange: ((Set<UUID>) -> Void)?
     var referencesDidChange: (([DatabaseReference]) -> Void)?
 
     func reload() {
-        databases = DatabaseListStore.databases
-        refreshRowStatuses()
-        referencesDidChange?(databases)
+        guard !initializationUnconfirmed else { return }
+        do {
+            let snapshot = try DatabaseListStore.readDatabasesStrict()
+            databases = snapshot
+            registryReadError = nil
+            refreshRowStatuses()
+            referencesDidChange?(databases)
+        } catch {
+            registryReadError = error.localizedDescription
+        }
     }
 
     func databaseToAutoOpenOnLaunch() -> DatabaseReference? {
         guard didConsumeInitialLaunchSelection == false else { return nil }
         didConsumeInitialLaunchSelection = true
-        return DatabaseListStore.quickLaunchDatabase
+        guard registryReadError == nil else { return nil }
+        return databases.first(where: \.isQuickLaunch)
     }
 
     func addDatabase(from url: URL) throws -> DatabaseReference {
@@ -107,8 +124,8 @@ final class DatabaseListViewModel {
         return reference
     }
 
-    func addCloudDatabase(selection: CloudDatabaseSelection) -> DatabaseReference {
-        let reference = DatabaseListStore.addCloud(
+    func addCloudDatabase(selection: CloudDatabaseSelection) throws -> DatabaseReference {
+        let reference = try DatabaseListStore.addCloud(
             provider: selection.provider,
             accountId: selection.account.id,
             file: selection.file
@@ -118,41 +135,32 @@ final class DatabaseListViewModel {
     }
 
     @discardableResult
-    func removeDatabase(_ reference: DatabaseReference) -> Bool {
-        let removed = DatabaseListStore.remove(id: reference.id)
+    func removeDatabase(_ reference: DatabaseReference) async -> DatabaseListStore.RemovalOutcome {
+        let removed = await Task.detached { DatabaseListStore.remove(observed: reference) }.value
         reload()
         return removed
     }
 
     func moveDatabases(from source: IndexSet, to destination: Int) {
-        DatabaseListStore.move(from: source, to: destination)
+        DatabaseListStore.move(from: source, to: destination, observedIDs: databases.map(\.id))
         reload()
     }
 
     func toggleQuickLaunch(for reference: DatabaseReference) {
         let currentValue = databases.first(where: { $0.id == reference.id })?.isQuickLaunch ?? reference.isQuickLaunch
 
-        for database in databases where database.id != reference.id && database.isQuickLaunch {
-            var updatedDatabase = database
-            updatedDatabase.isQuickLaunch = false
-            DatabaseListStore.update(updatedDatabase)
-        }
-
-        update(reference) { updatedReference in
-            updatedReference.isQuickLaunch = !currentValue
-        }
+        DatabaseListStore.setQuickLaunch(!currentValue, for: reference.id, observed: currentValue)
+        reload()
     }
 
     func setNickname(_ nickname: String?, for reference: DatabaseReference) {
-        update(reference) { updatedReference in
-            updatedReference.nickname = nickname
-        }
+        DatabaseListStore.setNickname(nickname, for: reference.id)
+        reload()
     }
 
     func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) {
-        update(reference) { updatedReference in
-            updatedReference.isReadOnly = isReadOnly
-        }
+        DatabaseListStore.setReadOnly(isReadOnly, for: reference)
+        reload()
     }
 
     func setCloudSyncPolicy(_ policy: CloudSyncPolicy, for reference: DatabaseReference) {
@@ -172,12 +180,14 @@ final class DatabaseListViewModel {
     /// database is disabled. Enabling is lazy in the store; when the toggled
     /// database is the currently unlocked session, the application-installed
     /// `autoFillEnabledRefreshHandler` republishes its identities immediately.
-    func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) {
-        DatabaseListStore.setAutoFillEnabled(isEnabled, for: reference)
+    @discardableResult
+    func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) async -> DatabaseListStore.AutoFillPreferenceOutcome {
+        let outcome = await Task.detached { DatabaseListStore.setAutoFillEnabled(isEnabled, for: reference) }.value
         reload()
-        if isEnabled {
+        if isEnabled && outcome == .saved {
             autoFillEnabledRefreshHandler?(reference.id)
         }
+        return outcome
     }
 
     func isChangingKeyFile(for id: UUID) -> Bool { keyFileRequests[id] != nil }
@@ -210,7 +220,7 @@ final class DatabaseListViewModel {
                 if let token {
                     return DatabaseListStore.publishKeyFilePreference(token, desired: desired, io: io, canPublish: { !request.isCancelled })
                 }
-                return DatabaseListStore.publishRegistryKeyFilePreference(for: observed, desired: desired,
+                return DatabaseListStore.publishCloudKeyFilePreference(for: observed, desired: desired,
                     io: io.registry, canPublish: { !request.isCancelled })
             }.value
         } onCancel: { request.cancel() }
@@ -254,8 +264,9 @@ final class DatabaseListViewModel {
     }
 
     func drainPendingUploadsOnAppActive() async {
-        _ = await pendingUploadDrainer.drainAll()
+        let outcome = await pendingUploadDrainer.drainAll()
         reload()
+        pendingUploadsDidChange?(outcome.drainedDatabaseIDs.union(outcome.conflictDatabaseIDs).union(outcome.skippedDatabaseIDs))
     }
 
     /// The one push behind every Push Pending Changes. The list shows what went
@@ -265,6 +276,7 @@ final class DatabaseListViewModel {
     func pushPendingChanges(for reference: DatabaseReference, presentsAlert: Bool = true) async -> PendingUploadAlert? {
         let outcome = await pendingUploadDrainer.drain(databaseId: reference.id)
         reload()
+        pendingUploadsDidChange?(outcome.drainedDatabaseIDs.union(outcome.conflictDatabaseIDs).union(outcome.skippedDatabaseIDs))
         let alert = Self.alert(for: outcome, preferredDatabaseId: reference.id)
         if presentsAlert, let alert { pendingUploadAlert = alert }
         return alert
@@ -344,13 +356,6 @@ final class DatabaseListViewModel {
 
     // MARK: - Private
 
-    private func update(_ reference: DatabaseReference, mutate: (inout DatabaseReference) throws -> Void) rethrows {
-        guard var updatedReference = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else { return }
-        try mutate(&updatedReference)
-        DatabaseListStore.update(updatedReference)
-        reload()
-    }
-
     private func refreshRowStatuses() {
         var updatedStatuses: [UUID: DatabaseRowStatus] = [:]
         let pendingMarkers = PendingUploadQueue.listMarkers()
@@ -419,7 +424,6 @@ final class DatabaseListViewModel {
         }
 
         rowStatuses = updatedStatuses
-        databases = DatabaseListStore.databases
     }
 
     private static func alert(

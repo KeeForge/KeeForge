@@ -300,7 +300,7 @@ final class CredentialProviderPickerCreationTests: XCTestCase {
         _ coordinator: CredentialProviderCoordinator,
         reference: DatabaseReference
     ) {
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         coordinator.activeDatabaseReference = reference
         coordinator.serviceIdentifiers = [
             ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)

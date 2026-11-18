@@ -777,7 +777,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let (coordinator, presenter) = makeCoordinator()
         var reference = try seedResolvableDefaultDatabase()
         reference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         presenter.isPresentationActive = true
 
         coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
@@ -1903,6 +1903,22 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.targetRecordIdentifier, "The stale per-entry target must be dropped so post-unlock lookup can't dead-end")
         XCTAssertEqual(coordinator.activeDatabaseReference?.id, databaseA.id, "The request degrades to the default database")
         XCTAssertNotNil(presenter.unlockPrompt, "Never a dead tap — the fallback unlock prompt must present")
+    }
+
+    func test_resolution_corruptRegistryDoesNotRemoveIdentities() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        _ = try makeRegisteredDatabase(named: "registry-corrupt.kdbx")
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        try Data("{broken".utf8).write(to: url)
+        let removal = expectation(description: "No identity removal")
+        removal.isInverted = true
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in removal.fulfill() }
+        let identifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
+        coordinator.prepareInterfaceToProvideCredential(for: makePasswordIdentity(recordIdentifier: identifier))
+        coordinator.presentationDidBecomeActive()
+        await fulfillment(of: [removal], timeout: 0.2)
+        XCTAssertNotNil(presenter.unlockError)
+        XCTAssertNil(presenter.noEnabledDatabasesState)
     }
 
     func test_resolution_disabledDatabaseTreatedAsUnknown() async throws {
@@ -3347,7 +3363,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let (coordinator, presenter) = makeCoordinator()
         var reference = try seedResolvableDefaultDatabase()
         reference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         var keyReads = 0
         coordinator.biometricQuickUnlockKeys = { _, _ in
             keyReads += 1
@@ -3377,7 +3393,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     func testLocalLegacyUnlockUsesRealKeychainOnlyWriterWithoutReenteringOwner() async throws {
         var database = try seedResolvableDefaultDatabase()
         database.legacyKeychainFilename = "legacy-unlock-\(UUID().uuidString).kdbx"
-        DatabaseListStore.update(database)
+        DatabaseListStore.testUpsert(database)
         let original = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
         try seedDatabaseBytes(original, for: database)
         let key = KDBXCrypto.compositeKey(password: "testpassword123")
@@ -3543,7 +3559,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             let trace = TestDatabaseSupport.LocalPublicationTrace()
             var database = try seedResolvableDefaultDatabase()
             database.legacyKeychainFilename = "late-legacy-\(UUID().uuidString).kdbx"
-            DatabaseListStore.update(database)
+            DatabaseListStore.testUpsert(database)
             let original = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
             try seedDatabaseBytes(original, for: database)
             let (coordinator, presenter) = makeCoordinator()
@@ -3763,7 +3779,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         )
         try KDBXTestFixture.kitchenSink.data(in: bundle).write(to: trashedURL)
         let database = try TestDatabaseSupport.makeReference(for: trashedURL)
-        DatabaseListStore.update(database)
+        DatabaseListStore.testUpsert(database)
         DatabaseListStore.activeAutoFillDatabaseID = database.id
         try writeAtomicallyAndDurably(KDBXTestFixture.test.data(in: bundle), to: DatabaseListStore.cacheLocation(for: database), directoryAnchor: AppGroupContainer.url)
 
@@ -3824,6 +3840,31 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     /// The extension cannot sync a cloud database, so its copy is only as
     /// current as the app's last sync, and the picker is told when that was.
+    func test_cloudRecoveryFailureStillUnlocksAndFillsTheAuthenticatedCacheWithoutPublishingKeys() async throws {
+        let bytes = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        for fault in CloudJournalReadFault.allCases {
+            let database = try! DatabaseListStore.addCloud(provider: CloudProviderKind.dropbox.rawValue, accountId: "read-recovery",
+                file: .init(id: "/\(fault).kdbx", name: "\(fault).kdbx", path: "/\(fault).kdbx", isFolder: false, modifiedDate: nil, size: nil))
+            let context = try CloudJournalTestContext(reference: database, base: bytes, payload: bytes)
+            try fault.install(in: context)
+            DatabaseListStore.activeAutoFillDatabaseID = database.id
+            let effects = CloudJournalEffectCounter()
+            let (coordinator, presenter) = makeCoordinator()
+            coordinator.persistQuickUnlockKeys = { _, _, _ in effects.record(); return true }
+            let search = try await unlockDefaultDatabaseAndPresentSearch(coordinator, presenter)
+            let entry = try XCTUnwrap(search.searchEntries.first)
+            let finished = expectation(description: "Authenticated cached credential fills")
+            presenter.onCompleteRequest = { _ in finished.fulfill() }
+            try fillBySelectingFromPicker(coordinator, presenter, entry: entry)
+            let completion = await XCTWaiter.fulfillment(of: [finished], timeout: 15)
+            XCTAssertEqual(completion, .completed)
+            XCTAssertEqual(effects.value, 0)
+            XCTAssertEqual(try Data(contentsOf: context.cacheURL), bytes)
+            XCTAssertFalse(PendingUploadQueue.listMarkers(for: database.id).isEmpty)
+            coordinator.cleanup()
+        }
+    }
+
     func test_unlockCloudDatabase_datesTheSharedCopyByTheLastSync() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let lastSyncedAt = Date(timeIntervalSince1970: 1_790_000_000)
@@ -3853,7 +3894,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
                 )
             )
         )
-        DatabaseListStore.update(database)
+        DatabaseListStore.testUpsert(database)
         DatabaseListStore.activeAutoFillDatabaseID = database.id
         try DatabaseListStore.cacheDatabaseCopy(KDBXTestFixture.test.data(in: Bundle(for: Self.self)), for: database)
 
@@ -4221,7 +4262,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let reference = try TestDatabaseSupport.makeReference(
             for: makeTemporaryFileURL(name: "default.kdbx")
         )
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
         return reference
     }
@@ -4235,7 +4276,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         try XCTUnwrap(fixture.keyFileData(in: bundle)).write(to: keyFileURL)
         reference.keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: keyFileURL, readOnly: true)
         reference.keyFileFilename = keyFileURL.lastPathComponent
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 
@@ -4322,7 +4363,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             for: makeTemporaryFileURL(name: name),
             autoFillEnabled: autoFillEnabled
         )
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 

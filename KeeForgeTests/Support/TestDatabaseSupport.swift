@@ -37,6 +37,25 @@ enum TestDatabaseSupport {
         }
     }
 
+    static func cloudDiagnosticSnapshot(_ label: String, reference: DatabaseReference, savedSHA: Data?, openSHA: Data?) {
+        let cache = try? Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        let hash = cache.map { FileDigest.sha512($0) }
+        let current = DatabaseListStore.databases.first { $0.id == reference.id }
+        let expected = reference.cloudSyncMetadata
+        let observed = current?.cloudSyncMetadata
+        let tupleMatches = current != nil && expected != nil && observed != nil
+            && expected?.provider == observed?.provider && expected?.accountId == observed?.accountId
+            && expected?.fileId == observed?.fileId && expected?.keyEpoch == observed?.keyEpoch
+            && current?.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt
+            && current?.keyFileBookmarkData == reference.keyFileBookmarkData
+            && current?.keyFileFilename == reference.keyFileFilename
+            && current?.legacyKeychainFilename == reference.legacyKeychainFilename
+            && current?.hardwareKey == reference.hardwareKey
+        let journal = try? PendingUploadQueue.readJournal(for: reference.id)
+        let states = journal?.map { CloudJournalDecision.state(of: $0.marker) }
+        print("diagnostic \(label) cacheReadable=\(cache != nil) savedHashMatches=\(hash != nil && savedSHA != nil && hash == savedSHA) openHashMatches=\(hash != nil && openSHA != nil && hash == openSHA) tupleMatches=\(tupleMatches) journalReadable=\(journal != nil) journalCount=\(journal?.count ?? -1) ready=\(states?.contains(.ready) ?? false) attempted=\(states?.contains(.attempting) ?? false) confirmed=\(states?.contains(.confirmed) ?? false)")
+    }
+
     static func reportLocalPublicationFailure(_ stage: String, _ error: Error, reference: DatabaseReference,
         file: StaticString = #filePath, line: UInt = #line) {
         if stage.hasPrefix("read-key") || stage.hasPrefix("rekey-") {

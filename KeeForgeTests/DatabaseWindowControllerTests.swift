@@ -199,7 +199,7 @@ final class DatabaseWindowControllerTests: XCTestCase {
         XCTAssertTrue(a.validateMenuItem(item("saveDatabase:")))
         XCTAssertFalse(b.validateMenuItem(item("saveDatabase:")))
 
-        DatabaseListStore.setNickname("Window A Title", for: first.databaseReference)
+        XCTAssertTrue(DatabaseListStore.setNickname("Window A Title", for: first.databaseReference.id))
         var renamed = first.databaseReference
         renamed.nickname = "Window A Title"
         first.reconcileReference(renamed)

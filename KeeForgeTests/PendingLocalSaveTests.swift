@@ -12,11 +12,15 @@ final class PendingLocalSaveTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
     }
 
     override func tearDown() async throws {
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
+        await resetCredentialIdentityStoreState()
         try await super.tearDown()
     }
 
@@ -355,8 +359,11 @@ final class PendingLocalSaveTests: XCTestCase {
         let id = UUID()
         let source = try seedAcceptedSource(Data("encrypted snapshot".utf8), for: id)
         XCTAssertFalse(try PendingLocalSaveStore.revokeForRemoval(id))
+        let removedID = UUID()
+        XCTAssertTrue(try PendingLocalSaveStore.revokeForRemoval(removedID))
         let owner = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(id.uuidString)")
-        let files = [source.fileURL, owner.appendingPathComponent("owner.json"), owner.appendingPathComponent(".tombstone"), owner.appendingPathComponent(".lock")]
+        let tombstone = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(removedID.uuidString)/.tombstone")
+        let files = [source.fileURL, owner.appendingPathComponent("owner.json"), tombstone, owner.appendingPathComponent(".lock")]
         for file in files {
             let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
             XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600, file.lastPathComponent)
@@ -430,24 +437,44 @@ final class PendingLocalSaveTests: XCTestCase {
         assertSavesEqual(PendingLocalSaveStore.saves(for: id), [later])
     }
 
-    func testRevocationFencesAReplacementAndPreventsSourceAndReferenceResurrection() throws {
+    func testSuccessfulRemovalFencesAReplacementAndPreventsSourceAndReferenceResurrection() throws {
         let url = try makeScratchDatabaseCopy()
         let reference = try DatabaseListStore.add(url: url)
         let source = try seedAcceptedSource(Data("A".utf8), for: reference.id)
         let original = try Data(contentsOf: url)
         XCTAssertFalse(DatabaseListStore.remove(id: reference.id), "Ordinary removal is not consent to lose AutoFill changes")
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        XCTAssertFalse(PendingLocalSaveStore.isRevoked(reference.id))
+        _ = try seedAcceptedSource(Data("late add".utf8), for: reference.id)
+        XCTAssertEqual(try Data(contentsOf: source.fileURL), Data("A".utf8))
+        try PendingLocalSaveStore.discard(PendingLocalSaveStore.recovery(for: reference.id))
+        XCTAssertTrue(DatabaseListStore.remove(id: reference.id))
         XCTAssertThrowsError(try LocalDatabaseSaver.replaceFileAtomically(
             Data("late replacement".utf8), at: url, expectedSHA512: FileDigest.sha512(original),
             authorization: .init(databaseID: reference.id)
         ))
         XCTAssertEqual(try Data(contentsOf: url), original)
-        XCTAssertThrowsError(try seedAcceptedSource(Data("late add".utf8), for: reference.id))
-        XCTAssertEqual(try Data(contentsOf: source.fileURL), Data("A".utf8))
-        try PendingLocalSaveStore.discard(PendingLocalSaveStore.recovery(for: reference.id))
-        XCTAssertTrue(DatabaseListStore.remove(id: reference.id))
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
         XCTAssertThrowsError(try seedAcceptedSource(Data("stale add".utf8), for: reference.id))
+    }
+
+    func testRejectedRemovalLeavesPendingChangesRecoverableAndDoesNotRevokeOwner() throws {
+        let url = try makeScratchDatabaseCopy()
+        let reference = try DatabaseListStore.add(url: url)
+        let source = try seedAcceptedSource(Data("pending ciphertext".utf8), for: reference.id)
+
+        XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
+        XCTAssertFalse(PendingLocalSaveStore.isRevoked(reference.id))
+        XCTAssertTrue(DatabaseListStore.databases.contains { $0.id == reference.id })
+        let snapshot = try PendingLocalSaveStore.recovery(for: reference.id)
+        XCTAssertEqual(try PendingLocalSaveStore.export(XCTUnwrap(snapshot.receipts.first), for: reference.id),
+                       Data("pending ciphertext".utf8))
+        try PendingLocalSaveStore.discard(snapshot)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.fileURL.path))
+        XCTAssertFalse(PendingLocalSaveStore.isRevoked(reference.id))
+        XCTAssertTrue(DatabaseListStore.remove(id: reference.id))
+        XCTAssertTrue(PendingLocalSaveStore.isRevoked(reference.id))
     }
 
     func testUnknownOwnerVersionBlocksWritesButExactEncryptedExportAndExplicitDiscardRemainAvailable() throws {
@@ -602,7 +629,7 @@ final class PendingLocalSaveTests: XCTestCase {
     func testMergeCompletionKeepsBookmarkScopeThroughSourceRetirementAndRealCacheRefresh() async throws {
         let setup = try makeAdmittedSave()
         let cache = DatabaseListStore.cacheLocation(for: setup.reference)
-        DatabaseListStore.update(setup.reference)
+        DatabaseListStore.testUpsert(setup.reference)
         try FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
         try setup.original.write(to: cache, options: .atomicProtected)
         let commit = try await replaceAdmittedTarget(reference: setup.reference, token: setup.token,
@@ -686,10 +713,10 @@ final class PendingLocalSaveTests: XCTestCase {
             case "reference-epoch":
                 var changed = reference
                 changed.lastMasterKeyChangeAt = .now
-                DatabaseListStore.update(changed)
+                DatabaseListStore.testUpsert(changed)
             case "removal":
                 XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
-                XCTAssertTrue(PendingLocalSaveStore.isRevoked(reference.id))
+                XCTAssertFalse(PendingLocalSaveStore.isRevoked(reference.id))
             default: break
             }
             var writer = DurableFileWriteIO()
@@ -697,7 +724,11 @@ final class PendingLocalSaveTests: XCTestCase {
             if change == "bookmark-flush" {
                 writer.afterPublication = { _ in publications.increment(); throw POSIXError(.EIO) }
             }
-            if change == "new-source" {
+            if change == "removal" {
+                let renewed = try DatabaseListStore.publishInstalledMergeBookmark(for: reference, commit: commit, grantedTarget: url)
+                XCTAssertEqual(LocalDatabaseSaver.completePendingMerge(commit, reference: renewed.after), .resolved)
+                XCTAssertFalse(FileManager.default.fileExists(atPath: source.fileURL.path))
+            } else if change == "new-source" {
                 let laterBytes = Data("another encrypted source owned by a later operation".utf8)
                 let later = try seedAcceptedSource(laterBytes, for: reference.id)
                 let renewed = try DatabaseListStore.publishInstalledMergeBookmark(for: reference, commit: commit, grantedTarget: url)
@@ -743,7 +774,7 @@ final class PendingLocalSaveTests: XCTestCase {
         source: PendingLocalSaveStore.PendingSave, sources: [PendingLocalSaveStore.PendingSave], token: PendingLocalSaveStore.Token, context: SaveContext) {
         let url = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: url)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let original = try Data(contentsOf: url)
         let sources = try (0..<sourceCount).map { index in
             try seedAcceptedSource(original, for: reference.id, now: Date(timeIntervalSince1970: 1_800_000_000 + Double(index)))
@@ -788,6 +819,74 @@ final class PendingLocalSaveTests: XCTestCase {
         XCTAssertThrowsError(try LocalDatabaseSaver.replaceFileAtomically(Data("late".utf8), at: url,
             expectedSHA512: FileDigest.sha512(original), authorization: .init(databaseID: reference.id)))
         XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+
+    func testRemovalRegistryFailureRetainsDataAndSameIDRetryCompletes() async throws {
+        let url = try makeScratchDatabaseCopy()
+        let reference = try DatabaseListStore.add(url: url)
+        let cache = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
+        let cached = try Data(contentsOf: cache)
+        let hasKeychain: Bool
+        do {
+            try KeychainService.storeCompositeKey(SymmetricKey(size: .bits256), for: reference.id)
+            hasKeychain = true
+        } catch KeychainService.KeychainError.storeFailed(let status) where status == -34018 {
+            hasKeychain = false
+        }
+        defer { KeychainService.deleteCompositeKey(for: reference.id) }
+        let noRemoval = expectation(description: "No identity removal before registry publication")
+        noRemoval.isInverted = true
+        CredentialIdentityStoreManager.removeDatabaseObserver = { id, _ in if id == reference.id { noRemoval.fulfill() } }
+        defer { CredentialIdentityStoreManager.removeDatabaseObserver = nil }
+        var io = DurableFileWriteIO()
+        io.synchronizeFile = { _ in throw POSIXError(.EIO) }
+        XCTAssertEqual(DatabaseListStore.remove(observed: reference, io: io), .revokedRegistryNotPublished)
+        XCTAssertTrue(PendingLocalSaveStore.isRevoked(reference.id))
+        XCTAssertTrue(DatabaseListStore.databases.contains { $0.id == reference.id })
+        XCTAssertEqual(try Data(contentsOf: cache), cached)
+        if hasKeychain { XCTAssertTrue(KeychainService.hasStoredKey(for: reference.id)) }
+        let original = try Data(contentsOf: url)
+        XCTAssertThrowsError(try LocalDatabaseSaver.replaceFileAtomically(Data("late".utf8), at: url,
+            expectedSHA512: FileDigest.sha512(original), authorization: .init(databaseID: reference.id)))
+        await fulfillment(of: [noRemoval], timeout: 0.2)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        let removed = expectation(description: "Identity removal after durable registry publication")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { id, _ in if id == reference.id { removed.fulfill() } }
+        XCTAssertEqual(DatabaseListStore.remove(observed: reference), .removed)
+        await fulfillment(of: [removed], timeout: 1)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cache.path))
+        if hasKeychain { XCTAssertFalse(KeychainService.hasStoredKey(for: reference.id)) }
+    }
+
+    func testRemovalVisibleUnconfirmedKeepsCacheAndDoesNotEnqueueCleanup() async throws {
+        let url = try makeScratchDatabaseCopy()
+        let reference = try DatabaseListStore.add(url: url)
+        let cache = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
+        let bytes = try Data(contentsOf: cache)
+        let hasKeychain: Bool
+        do {
+            try KeychainService.storeCompositeKey(SymmetricKey(size: .bits256), for: reference.id)
+            hasKeychain = true
+        } catch KeychainService.KeychainError.storeFailed(let status) where status == -34018 {
+            hasKeychain = false
+        }
+        defer { KeychainService.deleteCompositeKey(for: reference.id); try? FileManager.default.removeItem(at: cache) }
+        let noRemoval = expectation(description: "No identity removal after unconfirmed registry publication")
+        noRemoval.isInverted = true
+        CredentialIdentityStoreManager.removeDatabaseObserver = { id, _ in if id == reference.id { noRemoval.fulfill() } }
+        defer { CredentialIdentityStoreManager.removeDatabaseObserver = nil }
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        XCTAssertEqual(DatabaseListStore.remove(observed: reference, io: io), .visibleUnconfirmed)
+        XCTAssertTrue(PendingLocalSaveStore.isRevoked(reference.id))
+        XCTAssertEqual(try Data(contentsOf: cache), bytes)
+        if hasKeychain { XCTAssertTrue(KeychainService.hasStoredKey(for: reference.id)) }
+        XCTAssertEqual(DatabaseListStore.remove(observed: reference), .alreadyMissing)
+        XCTAssertEqual(try Data(contentsOf: cache), bytes)
+        await fulfillment(of: [noRemoval], timeout: 0.2)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
     }
 
     func testRealStagingFailureReleasesAdmissionForOneExplicitSuccessfulRetry() async throws {
@@ -1151,7 +1250,7 @@ final class PendingLocalSaveTests: XCTestCase {
     func testAutoFillSaveOfABookmarkedDatabaseLandsWhereTheExtensionCanWrite() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let original = try Data(contentsOf: databaseURL)
         try DatabaseListStore.cacheDatabaseCopy(original, for: reference)
         let sessionKey = SymmetricKey(size: .bits256)
@@ -1283,7 +1382,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try writeAtomicallyAndDurably(Data("stale".utf8), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         let vm = DatabaseViewModel(databaseReference: reference)
 
@@ -1397,14 +1496,14 @@ final class PendingLocalSaveTests: XCTestCase {
                 let other = try SecurityScopedBookmarkManager.makeBookmarkData(for: old.deletingLastPathComponent())
                 var changed = renewal.after
                 changed.bookmarkData = other
-                DatabaseListStore.update(changed)
+                DatabaseListStore.testUpsert(changed)
             case "epoch":
                 var changed = renewal.after
                 changed.lastMasterKeyChangeAt = Date(timeIntervalSince1970: 2_000_000_000)
-                DatabaseListStore.update(changed)
+                DatabaseListStore.testUpsert(changed)
             case "removal":
-                XCTAssertFalse(DatabaseListStore.remove(id: ref.id), "Unarchived source prevents deletion, but revokes its owner")
-                XCTAssertTrue(PendingLocalSaveStore.isRevoked(ref.id))
+                XCTAssertFalse(DatabaseListStore.remove(id: ref.id), "Unarchived source prevents deletion")
+                XCTAssertFalse(PendingLocalSaveStore.isRevoked(ref.id))
             case "missing-receipt": return .saved(newSHA512: outputSHA, expressKey: express)
             case "foreign-receipt":
                 var foreign = PendingLocalSaveStore.CommitReceipt(databaseID: UUID(), admission: commit.admission,
@@ -1423,7 +1522,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let installed = try Data(contentsOf: moved)
         XCTAssertTrue(try entryTitles(in: installed).contains("Tail Passkey"), "\(fault ?? "positive"): " + trace.summary)
         let cache = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
-        if fault == nil || fault == "settled-rekey" {
+        if fault == nil || fault == "settled-rekey" || fault == "removal" {
             let renewal = try XCTUnwrap(observations.renewal)
             XCTAssertEqual(vm.databaseReference.bookmarkData, renewal.after.bookmarkData)
             XCTAssertEqual(cache, installed, trace.summary)
@@ -1434,14 +1533,14 @@ final class PendingLocalSaveTests: XCTestCase {
         } else {
             XCTAssertEqual(cache, oldCache, "Rejected or incomplete tail must not overwrite retained ciphertext: \(fault ?? "")")
         }
-        if fault == "unconfirmed" || fault == "removal" || fault == "missing-receipt" {
+        if fault == "unconfirmed" || fault == "missing-receipt" {
             let retained = try PendingLocalSaveStore.recovery(for: reference.id)
             if fault == "missing-receipt" {
                 XCTAssertEqual(vm.pendingUploadMergeFailure, .localSaveBookkeeping)
                 XCTAssertTrue(PendingLocalSaveStore.hasSaves(for: reference.id))
             } else { XCTAssertTrue(retained.needsRecovery || retained.isRevoked) }
             XCTAssertTrue(retained.receipts.contains(where: { (try? PendingLocalSaveStore.export($0, for: reference.id)) == diverged }))
-        } else {
+        } else if fault != "removal" {
             let backup = try XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first { (try? Data(contentsOf: $0)) == diverged })
             XCTAssertEqual(try Data(contentsOf: backup), diverged)
             guard case .attachmentsDivergedFromFile(let reported)? = vm.pendingUploadMergeFailure else {
@@ -1578,7 +1677,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = diagnosticViewModel(reference, trace: trace)
         defer { vm.lock() }
@@ -1612,7 +1711,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = diagnosticViewModel(reference, trace: trace)
         defer { vm.lock() }
@@ -1683,7 +1782,7 @@ final class PendingLocalSaveTests: XCTestCase {
         try seedPendingSave(pending, for: reference)
 
         do {
-            DatabaseListStore.update(vm.databaseReference)
+            DatabaseListStore.testUpsert(vm.databaseReference)
             try await vm.changeMasterKey(
                 newPassword: "rotated-master",
                 newKeyFileData: nil,
@@ -1702,7 +1801,7 @@ final class PendingLocalSaveTests: XCTestCase {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let trace = TestDatabaseSupport.LocalPublicationTrace()
         let vm = diagnosticViewModel(reference, trace: trace)
         defer { vm.lock() }
@@ -1727,21 +1826,48 @@ final class PendingLocalSaveTests: XCTestCase {
 
     func testBecomingActiveMergesAPendingSaveInsteadOfReplacingTheSharedCopy() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
-        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let reference = try DatabaseListStore.add(url: databaseURL)
         let original = try Data(contentsOf: databaseURL)
-        let vm = DatabaseViewModel(databaseReference: reference)
+        let trace = TestDatabaseSupport.LocalPublicationTrace()
+        let vm = diagnosticViewModel(reference, trace: trace)
+        defer { vm.lock() }
         await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.state, .unlocked, trace.summary)
         let pending = try makeVariantData(of: original) { $0.entries.append(KPEntry(title: "New Passkey")) }
         try seedPendingSave(pending, for: reference)
 
-        vm.refreshSharedDatabaseCacheIfPossible()
-
-        try await waitUntil("the pending save is merged") {
-            PendingLocalSaveStore.hasSaves(for: reference.id) == false && vm.isSaving == false
+        let worker = try XCTUnwrap(vm.refreshSharedDatabaseCacheIfPossible())
+        let finished = expectation(description: "foreground merge worker finished")
+        Task { await worker.value; finished.fulfill() }
+        let joined = await XCTWaiter.fulfillment(of: [finished], timeout: 60)
+        if joined != .completed {
+            let owner = try? PendingLocalSaveStore.recovery(for: reference.id)
+            let saved = try? Data(contentsOf: databaseURL)
+            let cache = try? Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+            XCTFail("foreground worker timeout: state=\(vm.state) saving=\(vm.isSaving) mergeFailure=\(String(describing: vm.pendingUploadMergeFailure)) receipts=\(owner?.receipts.count.description ?? "unavailable") entries=\(owner?.entries.count.description ?? "unavailable") admission=\(owner?.admission != nil) revoked=\(owner?.isRevoked == true) cacheMatchesFile=\(cache == saved) trace=\(trace.summary)")
+            worker.cancel()
+            vm.lock()
+            let stopped = expectation(description: "foreground worker stopped after cancellation")
+            Task { await worker.value; stopped.fulfill() }
+            guard await XCTWaiter.fulfillment(of: [stopped], timeout: 30) == .completed else {
+                fatalError("Unquiesced foreground merge test task")
+            }
+            return
         }
+        await worker.value
+        let owner = try PendingLocalSaveStore.recovery(for: reference.id)
         let saved = try Data(contentsOf: databaseURL)
+        let cached = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        print("foreground merge joined: state=\(vm.state) saving=\(vm.isSaving) mergeFailure=\(String(describing: vm.pendingUploadMergeFailure)) receipts=\(owner.receipts.count) entries=\(owner.entries.count) admission=\(owner.admission != nil) needsRecovery=\(owner.needsRecovery) cacheMatchesFile=\(cached == saved) trace=\(trace.summary)")
+        XCTAssertEqual(vm.state, .unlocked, trace.summary)
+        XCTAssertFalse(vm.isSaving, trace.summary)
+        XCTAssertNil(vm.pendingUploadMergeFailure, trace.summary)
+        XCTAssertTrue(owner.receipts.isEmpty, trace.summary)
+        XCTAssertTrue(owner.entries.isEmpty, trace.summary)
+        XCTAssertNil(owner.admission, trace.summary)
+        XCTAssertFalse(owner.needsRecovery, trace.summary)
         XCTAssertTrue(try entryTitles(in: saved).contains("New Passkey"))
-        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), saved)
+        XCTAssertEqual(cached, saved, trace.summary)
     }
 
     func testBecomingActiveWhileLockedLeavesThePendingSaveAndTheSharedCopy() async throws {
@@ -1797,13 +1923,14 @@ final class PendingLocalSaveTests: XCTestCase {
     /// What the extension leaves behind: the saved bytes in the shared copy
     /// and the same bytes as a pending save.
     private func seedPendingSave(_ data: Data, for reference: DatabaseReference, now: Date = .now) throws {
-        if !DatabaseListStore.databases.contains(where: { $0.id == reference.id }) { DatabaseListStore.update(reference) }
+        if !DatabaseListStore.databases.contains(where: { $0.id == reference.id }) { DatabaseListStore.testUpsert(reference) }
         _ = try seedAcceptedSource(data, for: reference.id, now: now, masterKeyChangedAt: reference.lastMasterKeyChangeAt)
     }
 
     private func diagnosticViewModel(_ reference: DatabaseReference, trace: TestDatabaseSupport.LocalPublicationTrace) -> DatabaseViewModel {
         DatabaseViewModel(databaseReference: reference, localPublicationFailure: { trace.record($0, $1) },
             localSaveOperation: { draft, ref, key, sha, reconciled, newKey, settings in
+                trace.recordObservation("saver-start")
                 var environment = LocalDatabaseSaver.Environment.live
                 environment.localPublicationFailure = { trace.record($0, $1) }
                 environment.replaceFileAtomically = { bytes, target, baseline, authorization in
@@ -1812,9 +1939,16 @@ final class PendingLocalSaveTests: XCTestCase {
                     return try LocalDatabaseSaver.replaceFileAtomically(bytes, at: target, expectedSHA512: baseline,
                         authorization: authorization, io: io)
                 }
-                return try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
+                let result = try await LocalDatabaseSaver.save(draft: draft, reference: ref, compositeKey: key,
                     openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
                     newCompositeKey: newKey, encryptionSettings: settings, environment: environment)
+                switch result {
+                case .saved(_, _, let receipt), .committedWithoutConfirmedDurability(_, _, let receipt, _):
+                    trace.recordObservation("saver-result unconfirmed=\(result.hasUnconfirmedDurability) targetDurable=\(receipt?.targetDurabilityConfirmed == true) owner=\(String(describing: receipt?.mergeCompletion?.resolution)) bookmark=\(receipt?.mergeCompletion?.bookmark != nil)")
+                case .indeterminate: trace.recordObservation("saver-indeterminate")
+                case .conflict: trace.recordObservation("saver-conflict")
+                }
+                return result
             })
     }
 

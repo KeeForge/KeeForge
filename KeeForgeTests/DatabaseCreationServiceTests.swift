@@ -481,7 +481,7 @@ final class DatabaseCreationServiceTests: XCTestCase {
             modifiedDate: nil,
             size: nil
         )
-        _ = DatabaseListStore.addCloud(
+        _ = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: existingFile

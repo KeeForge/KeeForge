@@ -5604,6 +5604,64 @@
         }
       }
     },
+    "A cloud request may still be running. Keep an encrypted copy. Uncertain requests will not be sent again automatically." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Cloud-Anfrage wird möglicherweise noch ausgeführt. Bewahre eine verschlüsselte Kopie auf. Anfragen mit ungewissem Ergebnis werden nicht automatisch erneut gesendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A cloud request may still be running. Keep an encrypted copy. Uncertain requests will not be sent again automatically."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una solicitud a la nube podría seguir en curso. Conserva una copia cifrada. Las solicitudes con resultado incierto no se volverán a enviar automáticamente."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une requête cloud peut être encore en cours. Conservez une copie chiffrée. Les requêtes au résultat incertain ne seront pas renvoyées automatiquement."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una richiesta cloud potrebbe essere ancora in corso. Conserva una copia cifrata. Le richieste con esito incerto non verranno inviate di nuovo automaticamente."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドへのリクエストがまだ実行中の可能性があります。暗号化コピーを保管してください。結果が不明なリクエストは自動的に再送信されません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Облачный запрос может ещё выполняться. Сохраните зашифрованную копию. Запросы с неопределённым результатом не будут отправлены повторно автоматически."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端请求可能仍在进行。请保留加密副本。结果不确定的请求不会自动重新发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雲端請求可能仍在進行。請保留加密副本。結果不確定的請求不會自動重新傳送。"
+          }
+        }
+      }
+    },
     "A database with this name already exists in this cloud folder." : {
       "localizations" : {
         "de" : {
@@ -16933,6 +16991,64 @@
         }
       }
     },
+    "Cloud Recovery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud-Wiederherstellung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud Recovery"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recuperación en la nube"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Récupération cloud"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recupero cloud"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドの復旧"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановление облака"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端恢复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雲端復原"
+          }
+        }
+      }
+    },
     "Cloud Service Unavailable" : {
       "localizations" : {
         "de" : {
@@ -17293,6 +17409,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "雲端同步警告"
+          }
+        }
+      }
+    },
+    "Cloud uploads check the server's copy first and stop if it changed. AutoFill uses the cached copy only." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud-Uploads prüfen zuerst die Kopie auf dem Server und werden angehalten, wenn sie sich geändert hat. AutoFill verwendet nur die zwischengespeicherte Kopie."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud uploads check the server's copy first and stop if it changed. AutoFill uses the cached copy only."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las cargas a la nube comprueban primero la copia del servidor y se detienen si ha cambiado. El autorrelleno solo usa la copia en caché."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les envois vers le cloud vérifient d’abord la copie du serveur et s’arrêtent si elle a changé. Le remplissage automatique utilise uniquement la copie en cache."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I caricamenti sul cloud verificano prima la copia sul server e si interrompono se è cambiata. L’inserimento automatico usa solo la copia nella cache."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドへのアップロードは最初にサーバーのコピーを確認し、変更されている場合は停止します。自動入力はキャッシュ済みのコピーのみを使用します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При отправке в облако сначала проверяется копия на сервере; если она изменилась, отправка останавливается. Автозаполнение использует только кешированную копию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端上传会先检查服务器上的副本，若其已更改则停止上传。自动填充仅使用缓存副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雲端上傳會先檢查伺服器上的副本，若其已變更則停止上傳。自動填寫僅使用快取副本。"
           }
         }
       }
@@ -31789,6 +31963,64 @@
         }
       }
     },
+    "Export Encrypted Copy" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verschlüsselte Kopie exportieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Encrypted Copy"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar copia cifrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter une copie chiffrée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esporta copia cifrata"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化コピーを書き出す"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Экспортировать зашифрованную копию"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出加密副本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸出加密副本"
+          }
+        }
+      }
+    },
     "Export Encrypted Output…" : {
       "localizations" : {
         "de" : {
@@ -45700,6 +45932,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "合併變更，無需二選一"
+          }
+        }
+      }
+    },
+    "Merge the pending changes before reloading this cloud database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Führe die ausstehenden Änderungen zusammen, bevor du diese Cloud-Datenbank neu lädst."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge the pending changes before reloading this cloud database."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Combina los cambios pendientes antes de volver a cargar esta base de datos en la nube."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionnez les modifications en attente avant de recharger cette base de données cloud."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unisci le modifiche in sospeso prima di ricaricare questo database nel cloud."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このクラウドデータベースを再読み込みする前に、保留中の変更をマージしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Объедините ожидающие изменения перед повторной загрузкой этой облачной базы данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新加载此云数据库之前，请先合并待处理的更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新載入此雲端資料庫之前，請先合併待處理的變更。"
           }
         }
       }
@@ -68687,6 +68977,64 @@
         }
       }
     },
+    "The change saved through AutoFill was merged into the cached copy and queued for upload." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gesicherte Änderung wurde mit der zwischengespeicherten Kopie zusammengeführt und zum Hochladen vorgemerkt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The change saved through AutoFill was merged into the cached copy and queued for upload."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante Autorrelleno se combinó con la copia en caché y quedó pendiente de subida."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique a été fusionnée dans la copie en cache et mise en attente d'envoi."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modifica salvata tramite Riempimento automatico è stata unita alla copia nella cache e messa in coda per il caricamento."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存した変更はキャッシュされたコピーにマージされ、アップロード待ちになりました。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменение, сохранённое через автозаполнение, объединено с кэшированной копией и поставлено в очередь на отправку."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改已合并到缓存副本中，并已加入上传队列。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更已合併到快取副本中，並已加入上傳佇列。"
+          }
+        }
+      }
+    },
     "The change saved through AutoFill was merged with the cloud copy and uploaded." : {
       "localizations" : {
         "de" : {
@@ -74235,6 +74583,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此 KeeForge 版本缺少開啟該資料庫所需的雲端同步設定。"
+          }
+        }
+      }
+    },
+    "This cloud operation needs recovery. Keep both the original and new keys if you changed them. Export the encrypted copy from Settings → Cloud → Cloud Recovery before trying another operation. An uncertain request will not be sent again automatically." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Cloud-Vorgang muss wiederhergestellt werden. Bewahre bei einer Schlüsseländerung den ursprünglichen und den neuen Schlüssel auf. Exportiere die verschlüsselte Kopie unter Einstellungen → Cloud → Cloud-Wiederherstellung, bevor du einen weiteren Vorgang startest. Eine Anfrage mit ungewissem Ergebnis wird nicht automatisch erneut gesendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This cloud operation needs recovery. Keep both the original and new keys if you changed them. Export the encrypted copy from Settings → Cloud → Cloud Recovery before trying another operation. An uncertain request will not be sent again automatically."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta operación en la nube requiere recuperación. Conserva las claves originales y las nuevas si las cambiaste. Exporta la copia cifrada desde Ajustes → Nube → Recuperación en la nube antes de intentar otra operación. Una solicitud con resultado incierto no se volverá a enviar automáticamente."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette opération cloud nécessite une récupération. Si vous avez changé les clés, conservez les anciennes et les nouvelles. Exportez la copie chiffrée depuis Réglages → Cloud → Récupération cloud avant de tenter une autre opération. Une requête au résultat incertain ne sera pas renvoyée automatiquement."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa operazione cloud richiede un recupero. Se hai cambiato le chiavi, conserva sia quelle originali sia quelle nuove. Esporta la copia cifrata da Impostazioni → Cloud → Recupero cloud prima di provare un’altra operazione. Una richiesta con esito incerto non verrà inviata di nuovo automaticamente."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このクラウド操作には復旧が必要です。キーを変更した場合は、元のキーと新しいキーの両方を保管してください。別の操作を試す前に、設定 → クラウド → クラウドの復旧から暗号化コピーを書き出してください。結果が不明なリクエストは自動的に再送信されません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этой облачной операции требуется восстановление. Если вы меняли ключи, сохраните и исходные, и новые. Экспортируйте зашифрованную копию через Настройки → Облако → Восстановление облака перед другой операцией. Запрос с неопределённым результатом не будет отправлен повторно автоматически."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此云端操作需要恢复。如果更改了密钥，请保留原密钥和新密钥。在尝试其他操作前，请从设置 → 云端 → 云端恢复导出加密副本。结果不确定的请求不会自动重新发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此雲端操作需要復原。如果更改了金鑰，請保留原金鑰和新金鑰。在嘗試其他操作前，請從設定 → 雲端 → 雲端復原輸出加密副本。結果不確定的請求不會自動重新傳送。"
           }
         }
       }

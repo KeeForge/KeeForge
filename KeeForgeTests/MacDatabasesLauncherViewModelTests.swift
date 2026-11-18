@@ -177,7 +177,7 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         XCTAssertTrue(recorder.removed.isEmpty, "Remove asks first")
     }
 
-    func testRemoveButtonConfirmsOrRefusesAndConfirmationChecksAgain() throws {
+    func testRemoveButtonConfirmsOrRefusesAndConfirmationChecksAgain() async throws {
         let dirty = try reference()
         let clean = try reference()
         let (recorder, launcher) = makeLauncher([dirty, clean])
@@ -197,7 +197,7 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         launcher.removeSelection()
         XCTAssertEqual(launcher.pendingRemoval?.id, clean.id)
         recorder.unsaved = [clean.id]
-        launcher.confirmRemoval()
+        await launcher.confirmRemoval()
         XCTAssertNil(launcher.pendingRemoval)
         XCTAssertEqual(launcher.refusedRemoval?.id, clean.id, "Confirming checks again")
         XCTAssertTrue(recorder.removed.isEmpty)
@@ -205,7 +205,7 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         recorder.unsaved = []
         launcher.refusedRemoval = nil
         launcher.removeSelection()
-        launcher.confirmRemoval()
+        await launcher.confirmRemoval()
         XCTAssertEqual(recorder.removed, [clean.id])
         XCTAssertNil(launcher.selectedDatabaseID, "The removed row is no longer selected")
     }
@@ -244,7 +244,7 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
     }
 
     /// Removal force-retires the session, so it never runs while that session holds unsaved work.
-    func testRemovalIsRefusedWhileTheDatabaseHasUnsavedWork() throws {
+    func testRemovalIsRefusedWhileTheDatabaseHasUnsavedWork() async throws {
         let dirty = try reference()
         let clean = try reference()
         let (recorder, launcher) = makeLauncher([dirty, clean])
@@ -253,18 +253,18 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         XCTAssertFalse(launcher.requestRemoval(dirty))
         XCTAssertEqual(launcher.refusedRemoval?.id, dirty.id)
         launcher.refusedRemoval = nil
-        launcher.remove(dirty)
+        await launcher.remove(dirty)
         XCTAssertEqual(launcher.refusedRemoval?.id, dirty.id, "Confirming checks again")
         XCTAssertTrue(recorder.removed.isEmpty)
 
         launcher.refusedRemoval = nil
         XCTAssertTrue(launcher.requestRemoval(clean))
-        launcher.remove(clean)
+        await launcher.remove(clean)
         XCTAssertNil(launcher.refusedRemoval)
         XCTAssertEqual(recorder.removed, [clean.id])
 
         recorder.unsaved = []
-        launcher.remove(dirty)
+        await launcher.remove(dirty)
         XCTAssertEqual(recorder.removed, [clean.id, dirty.id])
     }
 

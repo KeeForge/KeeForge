@@ -22,10 +22,12 @@ enum DocumentsVaultScanner {
 
         let residentSnapshot = DatabaseListStore.databases.filter(\.isDocumentsResident)
         for reference in residentSnapshot {
-            switch DatabaseListStore.locateDatabaseFile(for: reference) {
+            var observed = reference
+            switch DatabaseListStore.locateDatabaseFile(for: reference, onBookmarkRenewal: { observed = $0.after },
+                                                        onDocumentsRebind: { observed = $0 }) {
             case .available(let url):
-                rederiveIdentityIfNeeded(for: reference, at: url)
-                reconcileSharedCache(for: reference, with: url)
+                rederiveIdentityIfNeeded(for: observed, at: url)
+                reconcileSharedCache(for: observed, with: url)
             case .inTrash, nil:
                 // Never auto-remove: absence is ambiguous during a Finder
                 // delete+recopy window, and keeping the entry preserves the
@@ -87,7 +89,7 @@ enum DocumentsVaultScanner {
         let isTopLevel = DatabaseListStore.isTopLevelDocumentsFile(url)
         guard filename != reference.filename || isTopLevel == false else { return }
         DatabaseListStore.rederiveDocumentsIdentity(
-            for: reference.id,
+            for: reference,
             filename: filename,
             isDocumentsResident: isTopLevel
         )

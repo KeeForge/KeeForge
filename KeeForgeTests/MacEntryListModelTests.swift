@@ -459,7 +459,7 @@ final class MacEntryListModelTests: XCTestCase {
         session.workspace.selectedGroupID = work.id
         XCTAssertEqual(MacEntryListSnapshot.make(session: session).rows.map(\.isMovable), [true])
 
-        DatabaseListStore.update(session.databaseReference)
+        DatabaseListStore.testUpsert(session.databaseReference)
         session.setReadOnly(true)
         XCTAssertEqual(MacEntryListSnapshot.make(session: session).rows.map(\.isMovable), [false])
     }

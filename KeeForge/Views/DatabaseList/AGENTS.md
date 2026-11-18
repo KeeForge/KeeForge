@@ -59,4 +59,5 @@
 
 - Distinguish a known committed ordinary file from an unknown save outcome. Known output supports a new explicit save without destructive record discard; neither acknowledgement nor activation resends the previous operation. Keep file-durability and record warnings truthful.
 
+- Cloud Details links to Cloud Recovery independently of a session, including when removal refuses pending journal ownership. Local recovery and source semantics stay separate.
 - Local recovery content is shared with native Mac Database Settings; each platform owns its confirmation and encrypted export presenter. Confirmation copy belongs to `PendingLocalRecoveryViewModel` so a known commit is never described as an unknown write on another platform.

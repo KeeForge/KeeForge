@@ -45,6 +45,7 @@ struct DatabaseListView: View {
         .onAppear {
             refreshUsageStatsVisibility()
             viewModel.reload()
+            showRegistryReadError(viewModel.registryReadError)
         }
         .task {
             await viewModel.refreshAutoFillStatus()
@@ -54,6 +55,9 @@ struct DatabaseListView: View {
         }
         .onChange(of: showDatabaseUsageStats) { _, _ in
             viewModel.reload()
+        }
+        .onChange(of: viewModel.registryReadError) { _, error in
+            showRegistryReadError(error)
         }
         .fileImporter(
             isPresented: Binding(
@@ -145,9 +149,13 @@ struct DatabaseListView: View {
             CloudFileBrowserView(
                 providerID: provider.rawValue,
                 onSelect: { selection in
-                    let reference = viewModel.addCloudDatabase(selection: selection)
-                    activeCloudProvider = nil
-                    onSelectDatabase(reference)
+                    do {
+                        let reference = try viewModel.addCloudDatabase(selection: selection)
+                        activeCloudProvider = nil
+                        onSelectDatabase(reference)
+                    } catch {
+                        selectionAlert = makeCloudSelectionAlert(error: error, provider: provider)
+                    }
                 },
                 onFailure: { error in
                     selectionAlert = makeCloudSelectionAlert(error: error, provider: provider)
@@ -377,10 +385,15 @@ struct DatabaseListView: View {
             presenting: pendingRemoval
         ) { target in
             Button("Remove", role: .destructive) {
-                if viewModel.removeDatabase(target) == false {
-                    Task { @MainActor in
+                Task { @MainActor in
+                    let outcome = await viewModel.removeDatabase(target)
+                    switch outcome {
+                    case .removed, .alreadyMissing: break
+                    case .recoveryRequired, .revokedRegistryNotPublished:
                         await Task.yield()
                         detailsReference = target
+                    case .rejected, .notPublished, .revocationUnconfirmed, .visibleUnconfirmed:
+                        selectionAlert = .init(title: String(localized: "Databases"), message: CocoaError(.fileWriteUnknown).localizedDescription)
                     }
                 }
                 pendingRemoval = nil
@@ -676,6 +689,11 @@ struct DatabaseListView: View {
             title: String(localized: "Couldn’t Open \(provider.displayName)"),
             message: error.localizedDescription
         )
+    }
+
+    private func showRegistryReadError(_ message: String?) {
+        guard let message else { return }
+        selectionAlert = .init(title: String(localized: "Databases"), message: message)
     }
 
 }
