@@ -444,6 +444,40 @@ final class CloudFileCreationCoordinatorTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
+    func testKnownReceiptFinishesAfterPresentationChangesWithoutResending() async throws {
+        let (root, queue, reference) = try fixture()
+        defer { _ = DatabaseListStore.remove(id: reference.id); try? FileManager.default.removeItem(at: root) }
+        let transport = Transport()
+        var env = CloudFileCreationCoordinator.Environment()
+        env.queue = queue
+        env.createFile = { _, _, _, _ in try await transport.create() }
+        env.register = { stored, bytes, queue in
+            var io = DurableFileWriteIO()
+            io.afterPublication = { _ in throw CocoaError(.fileWriteUnknown) }
+            return DatabaseListStore.registerCloudCreation(stored, bytes: bytes, queue: queue, registryIO: io)
+        }
+        let operation = UUID()
+        do {
+            _ = try await CloudFileCreationCoordinator.create(operationID: operation, provider: "webdav",
+                accountID: "account-" + reference.id.uuidString, target: "/vault-" + operation.uuidString,
+                bytes: Data([1, 2, 3]), referenceTemplate: reference, environment: env)
+            XCTFail("Expected unconfirmed publication")
+        } catch {}
+        var existing = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        existing.nickname = "Renamed"
+        existing.colorTag = "blue"
+        existing.lastOpenedAt = Date(timeIntervalSince1970: 100)
+        DatabaseListStore.testUpsert(existing)
+        env.register = { DatabaseListStore.registerCloudCreation($0, bytes: $1, queue: $2) }
+        _ = try CloudFileCreationCoordinator.resumeKnownRegistration(operationID: operation, environment: env)
+        let retained = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(retained, existing)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: retained)), Data([1, 2, 3]))
+        XCTAssertEqual(try PendingUploadQueue.listCreations(environment: queue).first?.intent.phase, .completed)
+        let count = await transport.count()
+        XCTAssertEqual(count, 1)
+    }
+
     func testCompletedRecordDoesNotResurrectRemovedReference() async throws {
         let (root, queue, reference) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }

@@ -1137,7 +1137,12 @@ enum DatabaseListStore {
                     do {
                         guard var rows = try readRegistry(at: registry) else { return }
                         let existing = rows.first(where: { $0.id == reference.id })
-                        guard existing == nil || existing == reference else { return }
+                        if var existing {
+                            existing.nickname = reference.nickname
+                            existing.colorTag = reference.colorTag
+                            existing.lastOpenedAt = reference.lastOpenedAt
+                            guard existing == reference else { return }
+                        }
                         guard !rows.contains(where: { $0.id != reference.id && cacheLocation(for: $0).standardizedFileURL == cache.standardizedFileURL }) else { return }
                         if existing == nil { try validateCreatedCloud(reference, in: rows) }
                         outcome = try PendingLocalSaveStore.withCachePublicationAuthorization(for: reference.id, sha512: snapshot.intent.payloadSHA512, lease: lease, nonBlocking: true) {
