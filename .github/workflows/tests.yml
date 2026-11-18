@@ -41,7 +41,7 @@ jobs:
     runs-on: macos-26
     # The suite itself takes about half this; the rest is headroom for slow
     # runners, which have taken the same commit from 28 to over 41 minutes.
-    timeout-minutes: 135
+    timeout-minutes: 180
     env:
       SCHEME: KeeForge
       PROJECT: KeeForge.xcodeproj
