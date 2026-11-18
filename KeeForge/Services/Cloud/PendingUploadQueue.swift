@@ -1123,6 +1123,21 @@ extension PendingUploadQueue {
         }
     }
 
+    // Reconfirm a completed receipt before removing copies left by an interrupted cleanup.
+    static func cleanCompletedCreationPayloads(environment: Environment = .live) throws {
+        for stored in try listCreations(environment: environment) where stored.intent.phase == .completed {
+            try withCreationLocks(stored.intent, environment: environment) {
+                let id = stored.intent.operationID
+                let markerURL = creationURL(id, environment)
+                guard try environment.readData(markerURL) == stored.serialized,
+                      try decodeCreation(stored.serialized, id: id) == stored.intent else { return }
+                try environment.writeMarkerAtomically(stored.serialized, markerURL)
+                try? environment.removeItem(creationPayloadURL(id, environment))
+                try? environment.removeItem(creationStageURL(id, environment))
+            }
+        }
+    }
+
     // Only the invocation with affirmative no-commit proof may unwind its exact attempt.
     static func restoreCreationAfterNoCommit(_ stored: StoredCreation, environment: Environment = .live) throws -> StoredCreation {
         try withCreationLocks(stored.intent, environment: environment) {
@@ -1161,6 +1176,10 @@ extension PendingUploadQueue {
             let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
             let data = try encoder.encode(next)
             try environment.writeMarkerAtomically(data, creationURL(next.operationID, environment))
+            if phase == .completed {
+                try? environment.removeItem(creationPayloadURL(next.operationID, environment))
+                try? environment.removeItem(creationStageURL(next.operationID, environment))
+            }
             return StoredCreation(intent: next, serialized: data)
         }
     }

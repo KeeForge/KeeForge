@@ -25,3 +25,5 @@
 - The native Mac File → Cloud Recovery command exposes the Databases window’s recovery sheet independently of database registration; Database Settings also exposes it for an existing cloud reference. The launcher sheet owner handles its presentation and teardown.
 
 - A recovery view owns one creation lifetime for its whole presentation. Native sheet teardown cancels it synchronously, before any delayed view disappearance; a dismissed recovery cannot dispatch another creation or finish local registration.
+
+- Opening Cloud Recovery retries cleanup of redundant ciphertext for durably completed creations; cleanup failure does not prevent listing remaining recovery records.

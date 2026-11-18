@@ -95,7 +95,8 @@ struct CloudRecoveryView: View {
         failure = nil
         do {
             creations = try await Task.detached {
-                try PendingUploadQueue.listCreations().filter { $0.intent.phase != .completed }
+                try? PendingUploadQueue.cleanCompletedCreationPayloads()
+                return try PendingUploadQueue.listCreations().filter { $0.intent.phase != .completed }
             }.value
         } catch {
             creations = []

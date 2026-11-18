@@ -39,6 +39,24 @@ final class PendingUploadQueueTests: XCTestCase {
         let confirmed = try PendingUploadQueue.transitionCreation(attempting, to: .confirmed, receipt: receipt, environment: environment)
         let completed = try PendingUploadQueue.transitionCreation(confirmed, to: .completed, environment: environment)
         XCTAssertEqual(completed.intent.receipt, receipt)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: PendingUploadQueue.creationPayloadURL(prepared.intent.operationID, environment).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: PendingUploadQueue.creationStageURL(prepared.intent.operationID, environment).path))
+        XCTAssertEqual(try PendingUploadQueue.listCreations(environment: environment).first?.intent.phase, .completed)
+        XCTAssertThrowsError(try PendingUploadQueue.prepareCreation(operationID: prepared.intent.operationID, provider: "webdav", accountID: "account",
+            target: "/vault.kdbx", payload: payload, referenceTemplate: reference, isConflictCopy: false, environment: environment))
+        try payload.write(to: PendingUploadQueue.creationPayloadURL(prepared.intent.operationID, environment))
+        try payload.write(to: PendingUploadQueue.creationStageURL(prepared.intent.operationID, environment))
+        let unfinished = try PendingUploadQueue.prepareCreation(operationID: UUID(), provider: "webdav", accountID: "account",
+            target: "/other.kdbx", payload: payload, referenceTemplate: reference, isConflictCopy: false, environment: environment)
+        var failingEnvironment = environment
+        failingEnvironment.writeMarkerAtomically = { _, _ in throw CocoaError(.fileWriteUnknown) }
+        XCTAssertThrowsError(try PendingUploadQueue.cleanCompletedCreationPayloads(environment: failingEnvironment))
+        XCTAssertEqual(try Data(contentsOf: PendingUploadQueue.creationPayloadURL(prepared.intent.operationID, environment)), payload)
+        XCTAssertEqual(try Data(contentsOf: PendingUploadQueue.creationStageURL(prepared.intent.operationID, environment)), payload)
+        try PendingUploadQueue.cleanCompletedCreationPayloads(environment: environment)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: PendingUploadQueue.creationPayloadURL(prepared.intent.operationID, environment).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: PendingUploadQueue.creationStageURL(prepared.intent.operationID, environment).path))
+        XCTAssertEqual(try PendingUploadQueue.readCreationPayload(unfinished, environment: environment), payload)
     }
 
     func test_creationCannotPrepareWhenPayloadWriteFails() throws {
