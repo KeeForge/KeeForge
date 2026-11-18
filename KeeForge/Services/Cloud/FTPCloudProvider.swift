@@ -266,16 +266,26 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         let temporaryPath = scratchPath(beside: path, kind: .upload)
 
         let metadata = try await perform(context: .write, location: location, credential: credential) { session in
-            guard try await session.stat(path) == nil else {
-                throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected)
+            do {
+                guard try await session.stat(path) == nil else {
+                    throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected)
+                }
+            } catch {
+                if error is CloudUploadFailure { throw error }
+                throw CloudCreationNotDispatched(underlying: Self.mapError(error, context: .write))
             }
             do {
                 try await session.store(temporaryPath, data: data)
                 guard try await session.stat(path) == nil else {
                     throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected)
                 }
-                try await session.rename(temporaryPath, to: path)
             } catch {
+                try? await session.delete(temporaryPath)
+                if error is CloudUploadFailure { throw error }
+                throw CloudCreationNotDispatched(underlying: Self.mapError(error, context: .write))
+            }
+            do { try await session.rename(temporaryPath, to: path) }
+            catch {
                 try? await session.delete(temporaryPath)
                 throw error
             }
@@ -501,7 +511,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
 
     private static func mapError(_ error: Error, context: OperationContext) -> Error {
         switch error {
-        case is CancellationError, is CloudProviderError, is CloudUploadFailure, is FTPURLError:
+        case is CancellationError, is CloudProviderError, is CloudUploadFailure, is CloudCreationNotDispatched, is FTPURLError:
             return error
         case FTPClientError.unexpectedReply(let reply), FTPClientError.renameRefused(let reply):
             return mapReply(reply, context: context)
