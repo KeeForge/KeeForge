@@ -256,7 +256,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
                 progress: progress
             )
         }
-        return await metadataAfterUpload(uploadedItem: item, token: token)
+        return Self.makeCloudFileMetadata(from: item)
     }
 
     func createFile(
@@ -288,27 +288,8 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
 
         return CloudCreatedFile(
             file: file,
-            metadata: await metadataAfterUpload(uploadedItem: item, token: token)
+            metadata: Self.makeCloudFileMetadata(from: item)
         )
-    }
-
-    /// Re-reads the committed item so the stored rev/hash come from the same
-    /// `$select`ed request shape as `getMetadata`; the upload response's shape
-    /// differs and OneDrive can omit `cTag`/`eTag`/`hashes` from it.
-    private func metadataAfterUpload(uploadedItem: OneDriveDriveItem, token: String) async -> CloudFileMetadata {
-        await Self.resolveUploadMetadata(fallback: Self.makeCloudFileMetadata(from: uploadedItem)) {
-            try await self.fetchItemMetadata(path: Self.itemIdPath(for: uploadedItem.id), token: token)
-        }
-    }
-
-    /// The upload has already committed when this runs, so a failed re-read
-    /// must not report the save as failed — fall back to the upload response's
-    /// metadata. Internal for testing.
-    static func resolveUploadMetadata(
-        fallback: CloudFileMetadata,
-        fetchAuthoritative: () async throws -> CloudFileMetadata
-    ) async -> CloudFileMetadata {
-        (try? await fetchAuthoritative()) ?? fallback
     }
 
     @MainActor

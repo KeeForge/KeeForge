@@ -218,23 +218,11 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
 
         progress(1)
 
-        // A PUT response may omit the ETag; if so, do a follow-up HEAD for an
-        // authoritative rev to avoid a spurious re-download on the next open.
-        if let rev = Self.rev(from: response) {
-            return CloudFileMetadata(
-                modifiedDate: Self.date(fromLastModified: response.lastModified) ?? .now,
-                contentHash: nil,
-                size: Int64(data.count),
-                rev: rev
-            )
-        }
-
-        let head = try? await client.head(url: fileURL, credential: context.credential)
         return CloudFileMetadata(
-            modifiedDate: Self.date(fromLastModified: head?.lastModified) ?? .now,
+            modifiedDate: Self.date(fromLastModified: response.lastModified) ?? .now,
             contentHash: nil,
             size: Int64(data.count),
-            rev: head.flatMap { Self.rev(from: $0) }
+            rev: Self.rev(from: response)
         )
     }
 
@@ -271,16 +259,8 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
 
         progress(1)
 
-        let rev: String?
-        let modifiedDate: Date
-        if let putRev = Self.rev(from: response) {
-            rev = putRev
-            modifiedDate = Self.date(fromLastModified: response.lastModified) ?? .now
-        } else {
-            let head = try? await client.head(url: fileURL, credential: context.credential)
-            rev = head.flatMap { Self.rev(from: $0) }
-            modifiedDate = Self.date(fromLastModified: head?.lastModified) ?? .now
-        }
+        let rev = Self.rev(from: response)
+        let modifiedDate = Self.date(fromLastModified: response.lastModified) ?? .now
 
         let normalizedPath = Self.serverRelativePath(from: path)
         let file = CloudFile(
