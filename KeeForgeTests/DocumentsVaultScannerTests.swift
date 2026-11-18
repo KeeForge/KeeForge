@@ -277,6 +277,34 @@ final class DocumentsVaultScannerTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: renamedURL.path))
     }
 
+    func testRemovalIsRefusedWhenItsRecordCannotBeWritten() throws {
+        try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        let reference = try XCTUnwrap(DatabaseListStore.databases.first)
+        let recordDirectory = AppGroupContainer.url
+            .appendingPathComponent("Library/Application Support", isDirectory: true)
+        try FileManager.default.createDirectory(at: recordDirectory, withIntermediateDirectories: true)
+        let restore = try makeReadOnly(recordDirectory)
+        defer { restore() }
+
+        XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
+
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [reference.id])
+    }
+
+    func testFailedExplicitAddKeepsTheFileRemoved() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        DatabaseListStore.remove(id: try XCTUnwrap(DatabaseListStore.databases.first).id)
+        let restore = try makeReadOnly(AppGroupContainer.url)
+
+        XCTAssertThrowsError(try DatabaseListStore.add(url: url))
+        restore()
+
+        XCTAssertFalse(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
     func testScanRegistersRemovedFileAgainOnceItChanges() throws {
         let url = try writeDatabaseFile(named: "vault.kdbx", payload: "original")
         DocumentsVaultScanner.scan(directory: documentsDirectory)
@@ -366,6 +394,18 @@ final class DocumentsVaultScannerTests: XCTestCase {
     }
 
     private static let kdbxMagic = Data([0x03, 0xD9, 0xA2, 0x9A, 0x67, 0xFB, 0x4B, 0xB5])
+
+    /// Returns the call that restores the directory's permissions.
+    private func makeReadOnly(_ directory: URL) throws -> () -> Void {
+        let fileManager = FileManager.default
+        let original = try fileManager.attributesOfItem(atPath: directory.path)[.posixPermissions]
+        try fileManager.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
+        return {
+            if let original {
+                try? fileManager.setAttributes([.posixPermissions: original], ofItemAtPath: directory.path)
+            }
+        }
+    }
 
     @discardableResult
     private func writeDatabaseFile(named name: String, payload: String = "body") throws -> URL {

@@ -402,7 +402,8 @@ enum DatabaseListStore {
 
     /// False only when `skippingRemovedDocumentsFile` found the file's removal
     /// record. The record is read and cleared under the registry lock, so a
-    /// concurrent removal cannot slip in between.
+    /// concurrent removal cannot slip in between, and cleared only once the
+    /// row is published, so a failed add keeps the file removed.
     @discardableResult
     private static func registerLocalReference(_ reference: DatabaseReference, target: URL?,
                                                skippingRemovedDocumentsFile: Bool = false) throws -> Bool {
@@ -411,7 +412,16 @@ enum DatabaseListStore {
         try requireRegistryInitialization()
         guard let observed = try readRegistry(at: databaseListURL) else { throw RegistryWriteError.unavailable }
         let duplicate = target.flatMap { existingLocalReference(matching: $0, in: observed) }
-        let result = mutateRegistry { rows -> RegistryDecision<Bool> in
+        let forgetsRemoval = !skippingRemovedDocumentsFile && target.map(isTopLevelDocumentsFile) == true
+        let result = mutateRegistry(authorize: { mutate in
+            let result = try mutate()
+            switch result {
+            case .durable(true), .visibleUnconfirmed(true, _):
+                if forgetsRemoval, let target { forgetRemovedDocumentsFile(at: target) }
+            default: break
+            }
+            return result
+        }) { rows -> RegistryDecision<Bool> in
             guard rows.count == observed.count, zip(rows, observed).allSatisfy({ current, previous in
                 current.id == previous.id && current.bookmarkData == previous.bookmarkData && current.isCloudBacked == previous.isCloudBacked
             }) else { return .rejected }
@@ -420,14 +430,9 @@ enum DatabaseListStore {
                 throw AddDatabaseError.duplicateFile(existingReferenceID: duplicate.id, filename: duplicate.displayName)
             }
             if reference.bookmarkData == nil { try validateAppOnlyCreatedLocal(reference, in: rows) }
-            if let target, isTopLevelDocumentsFile(target) {
-                if skippingRemovedDocumentsFile {
-                    if let fingerprint = documentsFileFingerprint(for: target),
-                       removedDocumentsFileFingerprints.contains(fingerprint) { return .noop(false) }
-                } else {
-                    forgetRemovedDocumentsFile(at: target)
-                }
-            }
+            if skippingRemovedDocumentsFile, let target, isTopLevelDocumentsFile(target),
+               let fingerprint = documentsFileFingerprint(for: target),
+               removedDocumentsFileFingerprints.contains(fingerprint) { return .noop(false) }
             rows.append(reference)
             return .write(true)
         }
@@ -546,7 +551,18 @@ enum DatabaseListStore {
         var recordedFingerprint: String?
         do {
             return try PendingUploadQueue.withCommitLock(for: observed.id, nonBlocking: true) {
-                let result = mutateRegistry(io: io) { rows -> RegistryDecision<RemovalReceipt> in
+                let result = mutateRegistry(io: io, authorize: { mutate in
+                    var published = false
+                    defer {
+                        if !published, let recordedFingerprint { forgetRemovedDocumentsFingerprint(recordedFingerprint) }
+                    }
+                    let result = try mutate()
+                    switch result {
+                    case .durable, .visibleUnconfirmed: published = true
+                    default: break
+                    }
+                    return result
+                }) { rows -> RegistryDecision<RemovalReceipt> in
                     guard let index = rows.firstIndex(where: { $0.id == observed.id }) else { rowMissing = true; return .missing }
                     let current = rows[index]
                     guard PendingLocalSaveStore.PreferenceObservation(observed).matches(current),
@@ -560,6 +576,8 @@ enum DatabaseListStore {
                     if current.isCloudBacked {
                         guard try PendingUploadQueue.readJournal(for: current.id).isEmpty else { return .rejected }
                     }
+                    // Durable before the list write: a crash right after it must not re-list the file.
+                    recordedFingerprint = try rememberRemovedDocumentsFile(of: current)
                     revocationAttempted = true
                     let ready = try PendingLocalSaveStore.revokeForRemoval(current.id, nonBlocking: true)
                     revocationObserved = true
@@ -568,14 +586,8 @@ enum DatabaseListStore {
                         rows.contains { $0.id != current.id && $0.legacyKeychainFilename == name }
                     } ?? false
                     let receipt = RemovalReceipt(reference: current, wasActive: activeAutoFillDatabase(in: rows)?.id == current.id, sharedLegacy: sharedLegacy)
-                    // Recorded first: a process death right after the list write must not re-list the file.
-                    recordedFingerprint = rememberRemovedDocumentsFile(of: current)
                     rows.remove(at: index)
                     return .write(receipt)
-                }
-                switch result {
-                case .durable, .visibleUnconfirmed: break
-                default: if let recordedFingerprint { forgetRemovedDocumentsFingerprint(recordedFingerprint) }
                 }
                 switch result {
                 case .durable(let receipt):
@@ -2198,7 +2210,7 @@ enum DatabaseListStore {
         let currentDatabases = loadDatabases()
         currentDatabases.forEach { _ = remove(observed: $0) }
         withStateLock {
-            appLocalDefaults.removeObject(forKey: removedDocumentsFilesKey)
+            try? FileManager.default.removeItem(at: removedDocumentsFilesURL)
             try? FileManager.default.removeItem(at: databaseListURL)
             try? FileManager.default.removeItem(at: backupsRootURL)
             try? PendingUploadQueue.clearAll()
@@ -2541,29 +2553,48 @@ enum DatabaseListStore {
 
     // MARK: - Removed Documents files
 
-    private static let removedDocumentsFilesKey = "removedDocumentsFileFingerprints"
-
     /// Only the app's scan reads this, so it stays out of the App Group. The
     /// Mac unit-test host is the real app, hence the redirect.
-    private static var appLocalDefaults: UserDefaults {
-        AppGroupContainer.isRedirectedForTesting ? AppGroupContainer.defaults : .standard
+    private static var removedDocumentsFilesURL: URL {
+        let directory = AppGroupContainer.isRedirectedForTesting ? applicationSupportURL : URL.applicationSupportDirectory
+        return directory.appendingPathComponent("removed-documents-files.json", isDirectory: false)
+    }
+
+    /// Existing ancestor from which the durable write creates missing directories.
+    private static var removedDocumentsFilesAnchor: URL {
+        AppGroupContainer.isRedirectedForTesting ? sharedContainerURL : URL.libraryDirectory
     }
 
     private static var removedDocumentsFileFingerprints: Set<String> {
-        Set(appLocalDefaults.stringArray(forKey: removedDocumentsFilesKey) ?? [])
+        guard let data = try? Data(contentsOf: removedDocumentsFilesURL),
+              let fingerprints = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return Set(fingerprints)
+    }
+
+    private static func writeRemovedDocumentsFileFingerprints(_ fingerprints: Set<String>) -> DurableWriteOutcome {
+        guard let data = try? JSONEncoder().encode(fingerprints.sorted()) else {
+            return .notPublished(CocoaError(.fileWriteUnknown))
+        }
+        return writeWithDurabilityOutcome(data, to: removedDocumentsFilesURL, directoryAnchor: removedDocumentsFilesAnchor)
     }
 
     /// Returns the fingerprint only when this call added it, so a failed
-    /// removal can take back exactly what it recorded.
-    private static func rememberRemovedDocumentsFile(of reference: DatabaseReference) -> String? {
+    /// removal can take back exactly what it recorded. Throws when the record
+    /// may not survive a crash, so the removal is refused instead.
+    private static func rememberRemovedDocumentsFile(of reference: DatabaseReference) throws -> String? {
         guard let url = currentDocumentsFileURL(for: reference),
               let fingerprint = documentsFileFingerprint(for: url) else {
             return nil
         }
         var fingerprints = removedDocumentsFileFingerprints
         guard fingerprints.insert(fingerprint).inserted else { return nil }
-        appLocalDefaults.set(fingerprints.sorted(), forKey: removedDocumentsFilesKey)
-        return fingerprint
+        switch writeRemovedDocumentsFileFingerprints(fingerprints) {
+        case .durable: return fingerprint
+        case .publishedWithoutConfirmedDurability(let error):
+            forgetRemovedDocumentsFingerprint(fingerprint)
+            throw error
+        case .notPublished(let error): throw error
+        }
     }
 
     /// An explicit add undoes the removal, so a later removal that records
@@ -2578,7 +2609,7 @@ enum DatabaseListStore {
     private static func forgetRemovedDocumentsFingerprint(_ fingerprint: String) {
         var fingerprints = removedDocumentsFileFingerprints
         guard fingerprints.remove(fingerprint) != nil else { return }
-        appLocalDefaults.set(fingerprints.sorted(), forKey: removedDocumentsFilesKey)
+        _ = writeRemovedDocumentsFileFingerprints(fingerprints)
     }
 
     /// A hash, so no filename is stored. Size and modification date make a
