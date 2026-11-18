@@ -248,7 +248,214 @@ final class DocumentsVaultScannerTests: XCTestCase {
         XCTAssertFalse(stored.isDocumentsResident)
     }
 
+    func testScanDoesNotRegisterFileAgainAfterUserRemovedIt() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        let reference = try XCTUnwrap(DatabaseListStore.databases.first)
+
+        DatabaseListStore.remove(id: reference.id)
+        let didChange = DocumentsVaultScanner.scan(directory: documentsDirectory)
+
+        XCTAssertFalse(didChange)
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    /// Removed after a Files-app rename the scan has not caught up with yet:
+    /// the stored filename is stale, but the bookmark still finds the file.
+    func testRemovalAfterAnUnscannedRenameStillSticks() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        let reference = try XCTUnwrap(DatabaseListStore.databases.first)
+        let renamedURL = documentsDirectory.appendingPathComponent("renamed.kdbx")
+        try FileManager.default.moveItem(at: url, to: renamedURL)
+
+        DatabaseListStore.remove(id: reference.id)
+
+        XCTAssertFalse(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: renamedURL.path))
+    }
+
+    func testRemovalIsRefusedWhenItsRecordCannotBeWritten() throws {
+        try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        let reference = try XCTUnwrap(DatabaseListStore.databases.first)
+        let recordDirectory = AppGroupContainer.url
+            .appendingPathComponent("Library/Application Support", isDirectory: true)
+        try FileManager.default.createDirectory(at: recordDirectory, withIntermediateDirectories: true)
+        let restore = try makeReadOnly(recordDirectory)
+        defer { restore() }
+
+        XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
+
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [reference.id])
+    }
+
+    func testFailedExplicitAddKeepsTheFileRemoved() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        DatabaseListStore.remove(id: try XCTUnwrap(DatabaseListStore.databases.first).id)
+        let restore = try makeReadOnly(AppGroupContainer.url)
+
+        XCTAssertThrowsError(try DatabaseListStore.add(url: url))
+        restore()
+
+        XCTAssertFalse(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
+    func testExplicitAddFailsWhenItCannotClearTheRemoval() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        DatabaseListStore.remove(id: try XCTUnwrap(DatabaseListStore.databases.first).id)
+        let restore = try makeReadOnly(
+            AppGroupContainer.url.appendingPathComponent("Library/Application Support", isDirectory: true)
+        )
+
+        XCTAssertThrowsError(try DatabaseListStore.add(url: url))
+        restore()
+
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        XCTAssertFalse(DocumentsVaultScanner.scan(directory: documentsDirectory))
+    }
+
+    func testScanRegistersRemovedFileAgainOnceItChanges() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx", payload: "original")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        let reference = try XCTUnwrap(DatabaseListStore.databases.first)
+        DatabaseListStore.remove(id: reference.id)
+
+        // A newer copy dropped in through Finder or the Files app.
+        try writeDatabaseFile(named: "vault.kdbx", payload: "replaced version")
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: 60)],
+            ofItemAtPath: url.path
+        )
+
+        XCTAssertTrue(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first)
+        XCTAssertEqual(DatabaseListStore.databases.count, 1)
+        XCTAssertNotEqual(stored.id, reference.id)
+        XCTAssertEqual(stored.filename, "vault.kdbx")
+    }
+
+    func testScanRegistersRemovedFileAgainWhenOnlyItsBytesChanged() throws {
+        let modificationDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let url = try writeDatabaseFile(named: "vault.kdbx", payload: "original")
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        let reference = try XCTUnwrap(DatabaseListStore.databases.first)
+        DatabaseListStore.remove(id: reference.id)
+
+        // A separately edited copy with the same size, copied with its metadata.
+        try writeDatabaseFile(named: "vault.kdbx", payload: "replaced")
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+
+        XCTAssertTrue(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertEqual(DatabaseListStore.databases.count, 1)
+        XCTAssertNotEqual(DatabaseListStore.databases.first?.id, reference.id)
+    }
+
+    func testIdenticalCopyOfARemovedFileStaysRemoved() throws {
+        let modificationDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let url = try writeDatabaseFile(named: "vault.kdbx", payload: "original")
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        DatabaseListStore.remove(id: try XCTUnwrap(DatabaseListStore.databases.first).id)
+
+        // The same bytes copied back with their metadata: a new inode, so only the content proves it unchanged.
+        let copy = documentsDirectory.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+        try FileManager.default.copyItem(at: url, to: copy)
+        try FileManager.default.removeItem(at: url)
+        try FileManager.default.moveItem(at: copy, to: url)
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+
+        XCTAssertFalse(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
+    func testRemovedFileCanStillBeAddedExplicitly() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        DatabaseListStore.remove(id: try XCTUnwrap(DatabaseListStore.databases.first).id)
+
+        let readded = try DatabaseListStore.add(url: url)
+
+        XCTAssertFalse(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [readded.id])
+        XCTAssertTrue(readded.isDocumentsResident)
+    }
+
+    func testExplicitAddForgetsEarlierRemovalOfTheSameFile() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx")
+        let modificationDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+        let contents = try Data(contentsOf: url)
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        DatabaseListStore.remove(id: try XCTUnwrap(DatabaseListStore.databases.first).id)
+        let readded = try DatabaseListStore.add(url: url)
+
+        // Removed again while its file is missing, which records nothing;
+        // the identical file then comes back.
+        try FileManager.default.removeItem(at: url)
+        DatabaseListStore.remove(id: readded.id)
+        try contents.write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: url.path)
+
+        XCTAssertTrue(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertEqual(DatabaseListStore.databases.map(\.filename), ["vault.kdbx"])
+    }
+
+    func testRemovalDoesNotAffectOtherDocumentsFiles() throws {
+        try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        DatabaseListStore.remove(id: try XCTUnwrap(DatabaseListStore.databases.first).id)
+
+        try writeDatabaseFile(named: "other.kdbx")
+
+        XCTAssertTrue(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertEqual(DatabaseListStore.databases.map(\.filename), ["other.kdbx"])
+    }
+
+    func testRemovingReferenceWhoseFileIsMissingDoesNotHideTheFileWhenItReturns() throws {
+        let url = try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        let reference = try XCTUnwrap(DatabaseListStore.databases.first)
+        let contents = try Data(contentsOf: url)
+        try FileManager.default.removeItem(at: url)
+
+        DatabaseListStore.remove(id: reference.id)
+        try contents.write(to: url)
+
+        XCTAssertTrue(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertEqual(DatabaseListStore.databases.map(\.filename), ["vault.kdbx"])
+    }
+
+    func testClearAllForgetsRemovedDocumentsFiles() throws {
+        try writeDatabaseFile(named: "vault.kdbx")
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+        DatabaseListStore.remove(id: try XCTUnwrap(DatabaseListStore.databases.first).id)
+
+        DatabaseListStore.clearAll()
+
+        XCTAssertTrue(DocumentsVaultScanner.scan(directory: documentsDirectory))
+        XCTAssertEqual(DatabaseListStore.databases.map(\.filename), ["vault.kdbx"])
+    }
+
     private static let kdbxMagic = Data([0x03, 0xD9, 0xA2, 0x9A, 0x67, 0xFB, 0x4B, 0xB5])
+
+    /// Returns the call that restores the directory's permissions.
+    private func makeReadOnly(_ directory: URL) throws -> () -> Void {
+        let fileManager = FileManager.default
+        let original = try fileManager.attributesOfItem(atPath: directory.path)[.posixPermissions]
+        try fileManager.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
+        return {
+            if let original {
+                try? fileManager.setAttributes([.posixPermissions: original], ofItemAtPath: directory.path)
+            }
+        }
+    }
 
     @discardableResult
     private func writeDatabaseFile(named name: String, payload: String = "body") throws -> URL {
