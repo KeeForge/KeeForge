@@ -336,9 +336,8 @@ final class WebDAVCloudProviderTests: XCTestCase {
         }
     }
 
-    func testUploadPutWithoutETagDoesNotAdoptLaterHead() async throws {
-        let accountId = "isolated"
-        let credential = WebDAVCredential(serverURL: "https://host.example.com/dav/", username: "alice", password: "test")
+    func testUploadPutWithoutETagTriggersFollowupHead() async throws {
+        let accountId = try seedCredential(username: "alice")
         let recorder = MethodRecorder()
         let responder = TransportResponder { request in
             await recorder.record(request)
@@ -347,7 +346,7 @@ final class WebDAVCloudProviderTests: XCTestCase {
             }
             return StubResponse(status: 200, headers: ["ETag": "\"head-etag\""])
         }
-        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport), credentialLoader: { _ in credential })
+        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
 
         let metadata = try await provider.upload(
             accountId: accountId,
@@ -357,9 +356,9 @@ final class WebDAVCloudProviderTests: XCTestCase {
             progress: { _ in }
         )
 
-        XCTAssertNil(metadata.rev)
+        XCTAssertEqual(metadata.rev, "\"head-etag\"")
         let capturedHead = await recorder.firstMatching(method: "HEAD")
-        XCTAssertNil(capturedHead)
+        XCTAssertNotNil(capturedHead)
     }
 
     // MARK: - Provider: createFile
@@ -388,21 +387,6 @@ final class WebDAVCloudProviderTests: XCTestCase {
         XCTAssertEqual(created.metadata.rev, "\"created-etag\"")
         XCTAssertEqual(created.file.name, "new%20db 100%.kdbx")
         XCTAssertEqual(created.file.path, "/Vaults/new%20db 100%.kdbx")
-    }
-
-    func testCreateWithoutETagDoesNotAdoptLaterHead() async throws {
-        let credential = WebDAVCredential(serverURL: "https://host.example.com/dav/", username: "alice", password: "test")
-        let recorder = MethodRecorder()
-        let responder = TransportResponder { request in
-            await recorder.record(request)
-            return request.httpMethod == "PUT" ? StubResponse(status: 201, headers: [:])
-                : StubResponse(status: 200, headers: ["ETag": "\"other-client\""])
-        }
-        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport), credentialLoader: { _ in credential })
-        let created = try await provider.createFile(accountId: "isolated", path: "/vault.kdbx", data: Data([1]), progress: { _ in })
-        XCTAssertNil(created.metadata.rev)
-        let head = await recorder.firstMatching(method: "HEAD")
-        XCTAssertNil(head)
     }
 
     func testCreateFile412ThrowsConflict() async throws {
