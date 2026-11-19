@@ -4,7 +4,7 @@
 
 ## Ownership
 
-- `AutoFillSaveCoordinator.saveNewEntry`: the only extension-safe write path, and the only creator of pending-upload markers (`../Cloud/AGENTS.md`).
+- `AutoFillSaveCoordinator.saveNewEntry`: the extension-safe new-entry write path, delegating cache and pending-upload journal ownership to `LocalDatabaseSaver` (`../Cloud/AGENTS.md`).
 - `AutoFillSaveCoordinator.destinationGroup(in:preferredGroupID:)`: the one decision of which group a new AutoFill entry goes into. Database Details and the creators display the same resolution; do not resolve it anywhere else.
 - `CredentialIdentityStoreManager`: every mutation of the system credential identity store. `CredentialRecordIdentifier` is the sole encoder and parser of the database-tagged record identifier.
 - `Packages/SiteMatching` (`../../../Packages/SiteMatching/AGENTS.md`): what a request matches, host normalization, registrable domains, and which hosts may be published. `CredentialMatcher` is the app's bridge to it: it accepts `SiteRequest`s directly, converts service identifiers into those same entry points, builds `SiteCandidate`s from non-expired entries, and maps matched IDs back to entries. Published identities and the pickers both read URLs through it.
@@ -16,8 +16,9 @@
 
 - Everything here must stay extension-safe on iOS and macOS. A new dependency on another service file needs that file on both allow-lists.
 - A new entry never goes into the synthetic KDBX Root: other KeePass apps cannot read entries there. The fallback is the first top-level group, and the configured group is used only while it exists outside the recycle bin. A group that stops resolving is not cleared from the setting.
-- The two-phase marker order in `saveNewEntry` is load-bearing; the crash analysis is in the comment there.
+- `saveNewEntry` delegates cloud journal publication and cache replacement to `LocalDatabaseSaver` with its AutoFill environment; it never orchestrates markers itself.
 - After a save, identities are published and the active AutoFill pointer moves only if the reference has AutoFill enabled.
+- Disabling a database schedules identity removal only after confirmed registry publication. The system index update is asynchronous and best effort; its non-incremental fallback can remove other databases' suggestions and is not atomic with the registry across processes.
 - The extension saves with `KDFExecutionPolicy.autoFillExtension`.
 
 ### Credential identities
@@ -66,3 +67,7 @@
 
 - `../AGENTS.md`, `../Cloud/AGENTS.md`, `../Persistence/AGENTS.md`
 - `../../../AutoFillExtension/AGENTS.md`: request handling and platform limits
+
+- Save outcomes distinguish a known installed change with unconfirmed durability from an indeterminate effect. Preserve known installed state, but do not publish identities, active-pointer success or registration completion for a warning. Provisional cloud markers are dropped only for affirmative local pre-replacement failure/conflict, never an opaque error; this does not prove a cloud upload had no effect.
+
+- Cloud AutoFill saves use the local saver’s extension-safe immutable cloud journal. The extension never performs provider IO; a pending key epoch or uncertain attempt blocks mutation while valid cached credentials can still fill. App reconciliation must not replace these snapshots with a mutable cache alias.

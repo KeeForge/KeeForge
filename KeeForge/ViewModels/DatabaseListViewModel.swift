@@ -47,6 +47,8 @@ final class DatabaseListViewModel {
     }()
 
     private(set) var databases: [DatabaseReference] = []
+    private(set) var registryReadError: String?
+    private var initializationUnconfirmed = false
     private(set) var rowStatuses: [UUID: DatabaseRowStatus] = [:]
     private(set) var pendingUploadAlert: PendingUploadAlert?
     private(set) var isAutoFillProviderEnabled: Bool?
@@ -62,24 +64,58 @@ final class DatabaseListViewModel {
     private(set) var isAutoFillEnableRequestRejected = false
     private var didConsumeInitialLaunchSelection = false
     private let pendingUploadDrainer: PendingUploadDrainer
+    typealias KeyFileBookmarkOperation = @Sendable (URL) async throws -> Data
+    private let keyFileBookmarkOperation: KeyFileBookmarkOperation
+    private let keyFilePreferenceIO: DatabaseListStore.KeyFilePreferenceIO
+    private var keyFileRequests: [UUID: KeyFilePreferenceRequest] = [:]
 
-    init(pendingUploadDrainer: PendingUploadDrainer = PendingUploadDrainer()) {
-        self.pendingUploadDrainer = pendingUploadDrainer
-        reload()
+    private final class KeyFilePreferenceRequest: @unchecked Sendable {
+        let id = UUID()
+        private let lock = NSLock()
+        private var cancelled = false
+        func cancel() { lock.lock(); defer { lock.unlock() }; cancelled = true }
+        var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return cancelled }
     }
 
+
+    init(pendingUploadDrainer: PendingUploadDrainer = PendingUploadDrainer(),
+        keyFileBookmarkOperation: @escaping KeyFileBookmarkOperation = { url in
+            try await Task.detached { try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true) }.value
+        }, keyFilePreferenceIO: DatabaseListStore.KeyFilePreferenceIO = .init()
+    ) {
+        self.pendingUploadDrainer = pendingUploadDrainer
+        self.keyFileBookmarkOperation = keyFileBookmarkOperation
+        self.keyFilePreferenceIO = keyFilePreferenceIO
+        switch DatabaseListStore.initializeRegistry() {
+        case .initialized, .alreadyPresent: reload()
+        case .notPublished(let error): registryReadError = error.localizedDescription
+        case .visibleUnconfirmed(let error):
+            initializationUnconfirmed = true
+            registryReadError = error.localizedDescription
+        }
+    }
+
+    var pendingUploadsDidChange: ((Set<UUID>) -> Void)?
     var referencesDidChange: (([DatabaseReference]) -> Void)?
 
     func reload() {
-        databases = DatabaseListStore.databases
-        refreshRowStatuses()
-        referencesDidChange?(databases)
+        guard !initializationUnconfirmed else { return }
+        do {
+            let snapshot = try DatabaseListStore.readDatabasesStrict()
+            databases = snapshot
+            registryReadError = nil
+            refreshRowStatuses()
+            referencesDidChange?(databases)
+        } catch {
+            registryReadError = error.localizedDescription
+        }
     }
 
     func databaseToAutoOpenOnLaunch() -> DatabaseReference? {
         guard didConsumeInitialLaunchSelection == false else { return nil }
         didConsumeInitialLaunchSelection = true
-        return DatabaseListStore.quickLaunchDatabase
+        guard registryReadError == nil else { return nil }
+        return databases.first(where: \.isQuickLaunch)
     }
 
     func addDatabase(from url: URL) throws -> DatabaseReference {
@@ -88,8 +124,8 @@ final class DatabaseListViewModel {
         return reference
     }
 
-    func addCloudDatabase(selection: CloudDatabaseSelection) -> DatabaseReference {
-        let reference = DatabaseListStore.addCloud(
+    func addCloudDatabase(selection: CloudDatabaseSelection) throws -> DatabaseReference {
+        let reference = try DatabaseListStore.addCloud(
             provider: selection.provider,
             accountId: selection.account.id,
             file: selection.file
@@ -98,40 +134,33 @@ final class DatabaseListViewModel {
         return reference
     }
 
-    func removeDatabase(_ reference: DatabaseReference) {
-        DatabaseListStore.remove(id: reference.id)
+    @discardableResult
+    func removeDatabase(_ reference: DatabaseReference) async -> DatabaseListStore.RemovalOutcome {
+        let removed = await Task.detached { DatabaseListStore.remove(observed: reference) }.value
         reload()
+        return removed
     }
 
     func moveDatabases(from source: IndexSet, to destination: Int) {
-        DatabaseListStore.move(from: source, to: destination)
+        DatabaseListStore.move(from: source, to: destination, observedIDs: databases.map(\.id))
         reload()
     }
 
     func toggleQuickLaunch(for reference: DatabaseReference) {
         let currentValue = databases.first(where: { $0.id == reference.id })?.isQuickLaunch ?? reference.isQuickLaunch
 
-        for database in databases where database.id != reference.id && database.isQuickLaunch {
-            var updatedDatabase = database
-            updatedDatabase.isQuickLaunch = false
-            DatabaseListStore.update(updatedDatabase)
-        }
-
-        update(reference) { updatedReference in
-            updatedReference.isQuickLaunch = !currentValue
-        }
+        DatabaseListStore.setQuickLaunch(!currentValue, for: reference.id, observed: currentValue)
+        reload()
     }
 
     func setNickname(_ nickname: String?, for reference: DatabaseReference) {
-        update(reference) { updatedReference in
-            updatedReference.nickname = nickname
-        }
+        DatabaseListStore.setNickname(nickname, for: reference.id)
+        reload()
     }
 
     func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) {
-        update(reference) { updatedReference in
-            updatedReference.isReadOnly = isReadOnly
-        }
+        DatabaseListStore.setReadOnly(isReadOnly, for: reference)
+        reload()
     }
 
     func setCloudSyncPolicy(_ policy: CloudSyncPolicy, for reference: DatabaseReference) {
@@ -151,24 +180,52 @@ final class DatabaseListViewModel {
     /// database is disabled. Enabling is lazy in the store; when the toggled
     /// database is the currently unlocked session, the application-installed
     /// `autoFillEnabledRefreshHandler` republishes its identities immediately.
-    func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) {
-        DatabaseListStore.setAutoFillEnabled(isEnabled, for: reference)
+    @discardableResult
+    func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) async -> DatabaseListStore.AutoFillPreferenceOutcome {
+        let outcome = await Task.detached { DatabaseListStore.setAutoFillEnabled(isEnabled, for: reference) }.value
         reload()
-        if isEnabled {
+        if isEnabled && outcome == .saved {
             autoFillEnabledRefreshHandler?(reference.id)
+        }
+        return outcome
+    }
+
+    func isChangingKeyFile(for id: UUID) -> Bool { keyFileRequests[id] != nil }
+
+    func cancelKeyFilePreference(for id: UUID? = nil) {
+        if let id { keyFileRequests.removeValue(forKey: id)?.cancel() }
+        else {
+            for request in keyFileRequests.values { request.cancel() }
+            keyFileRequests.removeAll()
         }
     }
 
-    func setKeyFile(url: URL?, for reference: DatabaseReference) throws {
-        try update(reference) { updatedReference in
-            if let url {
-                updatedReference.keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url, readOnly: true)
-                updatedReference.keyFileFilename = url.lastPathComponent
-            } else {
-                updatedReference.keyFileBookmarkData = nil
-                updatedReference.keyFileFilename = nil
-            }
+    func setKeyFile(url: URL?, for reference: DatabaseReference) async throws {
+        let observed = databases.first { $0.id == reference.id } ?? reference
+        let request = KeyFilePreferenceRequest()
+        keyFileRequests[reference.id]?.cancel()
+        keyFileRequests[reference.id] = request
+        defer {
+            reload()
+            if keyFileRequests[reference.id]?.id == request.id { keyFileRequests.removeValue(forKey: reference.id) }
         }
+        let token = observed.isCloudBacked ? nil : try await Task.detached { try DatabaseListStore.prepareKeyFilePreference(for: observed) }.value
+        let bookmark: Data?
+        if let url { bookmark = try await keyFileBookmarkOperation(url) } else { bookmark = nil }
+        guard !Task.isCancelled, !request.isCancelled, keyFileRequests[reference.id]?.id == request.id else { throw CancellationError() }
+        let desired = PendingLocalSaveStore.KeyFilePreference(bookmarkData: bookmark, filename: url?.lastPathComponent)
+        let io = keyFilePreferenceIO
+        let outcome = await withTaskCancellationHandler {
+            await Task.detached {
+                if let token {
+                    return DatabaseListStore.publishKeyFilePreference(token, desired: desired, io: io, canPublish: { !request.isCancelled })
+                }
+                return DatabaseListStore.publishCloudKeyFilePreference(for: observed, desired: desired,
+                    io: io.registry, canPublish: { !request.isCancelled })
+            }.value
+        } onCancel: { request.cancel() }
+        guard !Task.isCancelled, !request.isCancelled, keyFileRequests[reference.id]?.id == request.id else { throw CancellationError() }
+        guard outcome == .saved else { throw DatabaseListStore.KeyFilePreferenceError(outcome: outcome) }
     }
 
     func refreshBookmarks() {
@@ -207,8 +264,9 @@ final class DatabaseListViewModel {
     }
 
     func drainPendingUploadsOnAppActive() async {
-        _ = await pendingUploadDrainer.drainAll()
+        let outcome = await pendingUploadDrainer.drainAll()
         reload()
+        pendingUploadsDidChange?(outcome.drainedDatabaseIDs.union(outcome.conflictDatabaseIDs).union(outcome.skippedDatabaseIDs))
     }
 
     /// The one push behind every Push Pending Changes. The list shows what went
@@ -218,6 +276,7 @@ final class DatabaseListViewModel {
     func pushPendingChanges(for reference: DatabaseReference, presentsAlert: Bool = true) async -> PendingUploadAlert? {
         let outcome = await pendingUploadDrainer.drain(databaseId: reference.id)
         reload()
+        pendingUploadsDidChange?(outcome.drainedDatabaseIDs.union(outcome.conflictDatabaseIDs).union(outcome.skippedDatabaseIDs))
         let alert = Self.alert(for: outcome, preferredDatabaseId: reference.id)
         if presentsAlert, let alert { pendingUploadAlert = alert }
         return alert
@@ -297,13 +356,6 @@ final class DatabaseListViewModel {
 
     // MARK: - Private
 
-    private func update(_ reference: DatabaseReference, mutate: (inout DatabaseReference) throws -> Void) rethrows {
-        guard var updatedReference = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else { return }
-        try mutate(&updatedReference)
-        DatabaseListStore.update(updatedReference)
-        reload()
-    }
-
     private func refreshRowStatuses() {
         var updatedStatuses: [UUID: DatabaseRowStatus] = [:]
         let pendingMarkers = PendingUploadQueue.listMarkers()
@@ -372,7 +424,6 @@ final class DatabaseListViewModel {
         }
 
         rowStatuses = updatedStatuses
-        databases = DatabaseListStore.databases
     }
 
     private static func alert(
@@ -422,4 +473,93 @@ final class DatabaseListViewModel {
         return alert
     }
 
+}
+
+@MainActor @Observable
+final class PendingLocalRecoveryViewModel {
+    private let databaseID: UUID
+    private var reference: DatabaseReference?
+    private var refreshID = UUID()
+    private(set) var targetNeedsRecovery = false
+    private(set) var snapshot: PendingLocalSaveStore.RecoverySnapshot?
+    private var loadError: String?
+    private var actionError: String?
+    var errorMessage: String? { actionError ?? loadError }
+
+    init(databaseID: UUID, reference: DatabaseReference? = nil) { self.databaseID = databaseID; self.reference = reference }
+
+    func refresh(reference updatedReference: DatabaseReference? = nil) async {
+        let request = UUID()
+        refreshID = request
+        if let updatedReference { reference = updatedReference }
+        let id = databaseID
+        do {
+            let loaded = try await Task.detached { try PendingLocalSaveStore.recovery(for: id) }.value
+            guard request == refreshID, !Task.isCancelled else { return }
+            snapshot = loaded
+            let targetMismatch: Bool
+            if let reference { targetMismatch = await LocalDatabaseSaver.keyTargetNeedsRecovery(for: reference, snapshot: loaded) }
+            else { targetMismatch = false }
+            guard request == refreshID, !Task.isCancelled else { return }
+            targetNeedsRecovery = targetMismatch
+            loadError = loaded.ownerUnavailable ? PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription : nil
+        } catch { if request == refreshID { loadError = error.localizedDescription } }
+    }
+
+    func becameActive() async { await refresh() }
+
+    func retry() async {
+        actionError = nil
+        await refresh()
+    }
+
+    func confirmInstalledKeyChange(reference: DatabaseReference, snapshot: PendingLocalSaveStore.RecoverySnapshot) async {
+        if let intent = snapshot.preferenceIntent {
+            let outcome = await Task.detached { DatabaseListStore.recoverKeyFilePreference(intent) }.value
+            actionError = outcome == .saved ? nil : DatabaseListStore.KeyFilePreferenceError(outcome: outcome).localizedDescription
+            await refresh()
+            return
+        }
+        do {
+            let outcome = try await Task.detached { try LocalDatabaseSaver.confirmInstalledKeyChange(for: reference, snapshot: snapshot) }.value
+            switch outcome {
+            case .resolved: actionError = nil
+            case .resolvedVisibleWithoutConfirmedDurability: actionError = RecoveryRecordWarning().localizedDescription
+            case .retainedForRecovery: actionError = PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription
+            }
+        } catch { actionError = error.localizedDescription }
+        await refresh()
+    }
+
+    static func discardMessage(for snapshot: PendingLocalSaveStore.RecoverySnapshot, abandonKeyRecord: Bool) -> String {
+        if snapshot.preferenceIntent != nil {
+            return String(localized: "Abandoning this key-file preference recovery disables local writes. It does not change the database master key. Keep any snapshots and unsaved edits you need, then remove and add the database again.")
+        } else if snapshot.admission?.purpose == .ordinarySave, snapshot.admission?.knownTarget != nil,
+                  snapshot.entries.isEmpty, snapshot.keyEvidence?.pending == nil, !abandonKeyRecord, !snapshot.ownerUnavailable {
+            return String(localized: "The file contains this change, but its durability or recovery record is unconfirmed. You can make a new explicit save from this version without discarding recovery. Discarding the record does not undo the file change or discard your open draft.")
+        } else if snapshot.admission?.purpose == .ordinarySave, snapshot.keyEvidence?.pending == nil, !abandonKeyRecord, !snapshot.ownerUnavailable {
+            return String(localized: "This local save has an unresolved outcome. Export the database and any unsaved changes before discarding this recovery record. Discarding does not undo a replacement and deletes only the snapshots listed here; later snapshots and your open draft are kept.")
+        } else if abandonKeyRecord || snapshot.ownerUnavailable || snapshot.admission?.purpose.isMasterKeyChange == true || snapshot.keyEvidence?.pending != nil {
+            return String(localized: "Discarding this recovery record disables local writes. It does not undo a saved master-key change. Export any snapshots and unsaved edits you need first, then remove and add the database again using the correct master key. Changes not saved elsewhere will be lost.")
+        } else {
+            return String(localized: "This permanently deletes the selected AutoFill snapshots and their recovery record. Changes not saved elsewhere will be lost. New snapshots added after this confirmation was opened are kept.")
+        }
+    }
+
+    func discard(_ confirmed: PendingLocalSaveStore.RecoverySnapshot, abandonKeyRecord: Bool = false) async {
+        do {
+            let outcome = try await Task.detached { try PendingLocalSaveStore.discard(confirmed, abandonKeyRecord: abandonKeyRecord) }.value
+            switch outcome {
+            case .resolved:
+                actionError = nil
+                if !abandonKeyRecord, let reference {
+                    let retirement = await Task.detached { LocalDatabaseSaver.retireSettledKeyWitness(for: reference) }.value
+                    if retirement != .resolved { actionError = RecoveryRecordWarning().localizedDescription }
+                }
+            case .resolvedVisibleWithoutConfirmedDurability: actionError = RecoveryRecordWarning().localizedDescription
+            case .retainedForRecovery: actionError = PendingLocalSaveStore.OwnershipError.recoveryRequired.localizedDescription
+            }
+        } catch { actionError = error.localizedDescription }
+        await refresh()
+    }
 }

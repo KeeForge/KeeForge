@@ -1,5 +1,6 @@
 import CryptoKit
 import LocalAuthentication
+import os
 import Security
 import XCTest
 import KDBXKit
@@ -360,7 +361,7 @@ final class ExpressUnlockTests: XCTestCase {
             openTimeSHA512: context.openTimeSHA512, kdfPolicy: .mainApp
         )
 
-        guard case .saved(_, let expressKey) = result else {
+        guard case .saved(_, let expressKey, _) = result else {
             return XCTFail("Expected save to succeed.")
         }
         try assertOpensWithoutTheKDF(
@@ -374,18 +375,61 @@ final class ExpressUnlockTests: XCTestCase {
         let context = try makeSaveContext(data: try Data(contentsOf: cacheURL))
         let uploaded = UploadedBytes()
 
+        var environment = makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
+        let base = try Data(contentsOf: cacheURL)
+        environment.getMetadata = { _ in
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 100), contentHash: nil, size: Int64(base.count), rev: "rev-1")
+        }
+        environment.downloadRemoteData = { _ in base }
         let result = try await CloudDatabaseSaver.save(
             draft: context.draft, reference: reference, compositeKey: context.compositeKey,
             openTimeSHA512: context.openTimeSHA512, expectedRev: "rev-1", kdfPolicy: .mainApp,
-            environment: makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
+            environment: environment
         )
 
-        guard case .saved(_, let expressKey) = result else {
+        guard case .saved(_, let expressKey, _) = result else {
             return XCTFail("Expected save to succeed.")
         }
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first)
+        let committed = try Data(contentsOf: cacheURL)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(marker, environment: environment.queue), committed)
+        guard case .saved? = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment) else {
+            return XCTFail("Expected delivery of the locally committed ciphertext")
+        }
+        XCTAssertEqual(uploaded.count, 1)
+        XCTAssertEqual(uploaded.data, try Data(contentsOf: cacheURL))
         try assertOpensWithoutTheKDF(
             try XCTUnwrap(uploaded.data), expressKey: XCTUnwrap(expressKey), compositeKey: context.compositeKey
         )
+    }
+
+    func testCloudSaveDoesNotUploadWhenRemoteBytesDiffer() async throws {
+        let cacheURL = try makeScratchCopy(of: .test)
+        let reference = makeCloudReference()
+        let context = try makeSaveContext(data: try Data(contentsOf: cacheURL))
+        let uploaded = UploadedBytes()
+        var environment = makeCloudEnvironment(cacheURL: cacheURL, uploaded: uploaded)
+        let remote = Data("different remote bytes".utf8)
+        environment.getMetadata = { _ in
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 100), contentHash: nil, size: Int64(remote.count), rev: "rev-other")
+        }
+        environment.downloadRemoteData = { _ in remote }
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft, reference: reference, compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512, expectedRev: "rev-1", kdfPolicy: .mainApp,
+            environment: environment
+        )
+        guard case .saved = result else { return XCTFail("Expected local ciphertext commit") }
+        let saved = try Data(contentsOf: cacheURL)
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first)
+        guard case .conflict? = try await CloudDatabaseSaver.deliver(marker, reference: reference, environment: environment) else {
+            return XCTFail("Different remote bytes must prevent upload")
+        }
+        XCTAssertEqual(uploaded.count, 0)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), saved)
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id, environment: environment.queue).first)
+        XCTAssertTrue(retained.marker.isConflicted)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained, environment: environment.queue), saved)
     }
 
     /// The saver never hands out a key for a hardware-key database, whatever
@@ -403,18 +447,23 @@ final class ExpressUnlockTests: XCTestCase {
             openTimeSHA512: localContext.openTimeSHA512, kdfPolicy: .mainApp
         )
 
-        let cacheURL = try makeScratchCopy(of: .test)
+        let fixture = try Data(contentsOf: databaseURL)
         var cloudReference = makeCloudReference()
         cloudReference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
-        let cloudContext = try makeSaveContext(data: try Data(contentsOf: cacheURL))
+        DatabaseListStore.testUpsert(cloudReference)
+        try DatabaseListStore.cacheDatabaseCopy(fixture, for: cloudReference)
+        let cloudContext = try makeSaveContext(data: fixture)
+        var cloudEnvironment = CloudDatabaseSaver.Environment.live
+        cloudEnvironment.beginBackgroundTask = { _ in .invalid }
+        cloudEnvironment.endBackgroundTask = { _ in }
         let cloudResult = try await CloudDatabaseSaver.save(
             draft: cloudContext.draft, reference: cloudReference, compositeKey: cloudContext.compositeKey,
             openTimeSHA512: cloudContext.openTimeSHA512, expectedRev: "rev-1", kdfPolicy: .mainApp,
-            environment: makeCloudEnvironment(cacheURL: cacheURL, uploaded: UploadedBytes())
+            environment: cloudEnvironment
         )
 
         for result in [localResult, cloudResult] {
-            guard case .saved(_, let expressKey) = result else {
+            guard case .saved(_, let expressKey, _) = result else {
                 return XCTFail("Expected save to succeed.")
             }
             XCTAssertNil(expressKey)
@@ -492,7 +541,7 @@ final class ExpressUnlockTests: XCTestCase {
     }
 
     private func makeCloudReference() -> DatabaseReference {
-        DatabaseReference(
+        let reference = DatabaseReference(
             id: UUID(),
             nickname: nil,
             filename: "express.kdbx",
@@ -520,15 +569,21 @@ final class ExpressUnlockTests: XCTestCase {
                 )
             )
         )
+        DatabaseListStore.testUpsert(reference)
+        return reference
     }
 
+
     private func makeCloudEnvironment(cacheURL: URL, uploaded: UploadedBytes) -> CloudDatabaseSaver.Environment {
-        let backupDirectory = cacheURL.deletingLastPathComponent().appendingPathComponent("Backups", isDirectory: true)
+        let anchor = cacheURL.deletingLastPathComponent()
+        let backupDirectory = anchor.appendingPathComponent("Backups", isDirectory: true)
         var environment = CloudDatabaseSaver.Environment.live
         environment.beginBackgroundTask = { _ in .invalid }
         environment.endBackgroundTask = { _ in }
         environment.cacheURL = { _ in cacheURL }
         environment.backupDirectoryURL = { _ in backupDirectory }
+        environment.createDirectory = { url in try createDurableDirectory(at: url, anchor: anchor) }
+        environment.writeBackup = { data, url in try writeAtomicallyAndDurably(data, to: url, directoryAnchor: anchor) }
         environment.pruneBackups = { _, _ in }
         environment.getMetadata = { _ in
             CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 100), contentHash: nil, size: 0, rev: "rev-1")
@@ -537,8 +592,10 @@ final class ExpressUnlockTests: XCTestCase {
             uploaded.record(data)
             return CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: nil, size: Int64(data.count), rev: "rev-2")
         }
-        environment.applyUploadedBytes = { reference, _, _ in reference }
-        environment.dropSupersededPendingUploads = { _, _ in }
+        environment.queue.appGroupContainerURL = { cacheURL.deletingLastPathComponent() }
+        environment.queue.createDirectory = { url in
+            try createDurableDirectory(at: url, anchor: cacheURL.deletingLastPathComponent())
+        }
         return environment
     }
 }
@@ -546,11 +603,13 @@ final class ExpressUnlockTests: XCTestCase {
 private final class UploadedBytes: @unchecked Sendable {
     private let lock = NSLock()
     private var bytes: Data?
+    private var calls = 0
 
     var data: Data? { lock.withLock { bytes } }
+    var count: Int { lock.withLock { calls } }
 
     func record(_ data: Data) {
-        lock.withLock { bytes = data }
+        lock.withLock { bytes = data; calls += 1 }
     }
 }
 
@@ -836,7 +895,14 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
             let vm = try makeViewModel(
                 data: try KDBXTestFixture.test.data(in: bundle),
                 persisted: PersistedKeys(),
-                localSave: { _, _, _, _, _, _, _ in .saved(newSHA512: Data("saved".utf8), expressKey: Self.savedVersionKey) },
+                localSave: { draft, reference, key, sha, reconciled, newKey, settings in
+                    if newKey != nil {
+                        return try await LocalDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                            openTimeSHA512: sha, reconciledRemoteSHA512: reconciled, kdfPolicy: .mainApp,
+                            newCompositeKey: newKey, encryptionSettings: settings)
+                    }
+                    return .saved(newSHA512: Data("saved".utf8), expressKey: Self.savedVersionKey)
+                },
                 storedKeyPresenceCheck: { _ in storesNewKey },
                 expressSaves: expressSaves
             )
@@ -922,15 +988,19 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         storedKeyPresenceCheck: @escaping DatabaseViewModel.StoredKeyPresenceCheck = { _ in false },
         expressSaves: ExpressKeySaves = ExpressKeySaves()
     ) throws -> DatabaseViewModel {
-        let url = try KDBXTestFixture.test.url(in: bundle)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("express-unlock.kdbx")
+        try data.write(to: url)
         var reference = try TestDatabaseSupport.makeReference(for: url)
         reference.hardwareKey = hardwareKey
+        DatabaseListStore.testUpsert(reference)
+        addTeardownBlock { try? FileManager.default.removeItem(at: folder) }
         return DatabaseViewModel(
             databaseReference: reference,
-            localDatabaseReadOperation: { _ in DatabaseViewModel.LocalDatabaseReadResult(url: url, data: data) },
             localSaveOperation: localSave,
             biometricCompositeKeyOperation: biometricKeys,
-            quickUnlockKeyPersistOperation: { keys, _, masterKeyEntered in
+            localReadKeyPersistOperation: { keys, _, masterKeyEntered in
                 persisted.record(keys, masterKeyEntered: masterKeyEntered)
                 return storesQuickUnlockKey
             },
@@ -993,22 +1063,17 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
     }
 }
 
-@MainActor
-private final class ExpressKeySaves {
-    private(set) var keys: [ExpressUnlockKey?] = []
-
-    func record(_ key: ExpressUnlockKey?) {
-        keys.append(key)
-    }
+private final class ExpressKeySaves: @unchecked Sendable {
+    private let storage = OSAllocatedUnfairLock(initialState: [ExpressUnlockKey?]())
+    var keys: [ExpressUnlockKey?] { storage.withLock { $0 } }
+    func record(_ key: ExpressUnlockKey?) { storage.withLock { $0.append(key) } }
 }
 
-@MainActor
-private final class PersistedKeys {
-    private(set) var last: QuickUnlockKeys?
-    private(set) var lastMasterKeyEntered: Bool?
-
+private final class PersistedKeys: @unchecked Sendable {
+    private let storage = OSAllocatedUnfairLock(initialState: (keys: Optional<QuickUnlockKeys>.none, entered: Optional<Bool>.none))
+    var last: QuickUnlockKeys? { storage.withLock { $0.keys } }
+    var lastMasterKeyEntered: Bool? { storage.withLock { $0.entered } }
     func record(_ keys: QuickUnlockKeys, masterKeyEntered: Bool) {
-        last = keys
-        lastMasterKeyEntered = masterKeyEntered
+        storage.withLock { $0 = (keys, masterKeyEntered) }
     }
 }

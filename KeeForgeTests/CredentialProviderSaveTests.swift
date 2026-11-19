@@ -91,6 +91,24 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(draft.url, "")
     }
 
+    func test_saveNewEntry_committedWarningPreservesInstalledResultWithoutPublishingIdentities() async throws {
+        let recorder = SaveRecorder()
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "Database")])
+        let result = try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: EntryDraftPayload(title: "Committed", username: "user", password: "secret"),
+            reference: makeLocalReference(), rootGroup: root, meta: KPMeta(), sessionKey: SymmetricKey(size: .bits256),
+            compositeKey: SymmetricKey(size: .bits256), openTimeSHA512: Data("baseline".utf8),
+            environment: makeEnvironment(recorder: recorder, saveDraft: { draft, _, _, _ in
+                .committedWithoutConfirmedDurability(.init(savedRootGroup: draft.rootGroup,
+                    newSHA512: Data("installed".utf8), enqueuedPendingUpload: false, warningScope: .sharedCopy))
+            }))
+        guard case .committedWithoutConfirmedDurability(let outcome) = result else { return XCTFail("Expected committed warning") }
+        XCTAssertEqual(outcome.newSHA512, Data("installed".utf8))
+        XCTAssertEqual(outcome.savedRootGroup.allEntries.map(\.title), ["Committed"])
+        XCTAssertTrue(recorder.populatedEntryTitles.isEmpty)
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+    }
+
     func test_saveNewEntry_localSource_createsDraftAndPublishesIdentitiesWithoutEnqueuing() async throws {
         let reference = makeLocalReference()
         let sessionKey = SymmetricKey(size: .bits256)
@@ -125,7 +143,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertTrue(outcome.savedRootGroup.entries.isEmpty, "Entry should not be on the synthetic root")
         XCTAssertEqual(outcome.savedRootGroup.groups.first?.entries.count, 1, "Entry should be in the visible root group")
         XCTAssertEqual(recorder.saveCalls.count, 1)
-        XCTAssertTrue(recorder.enqueuedMarkers.isEmpty)
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id).isEmpty)
         XCTAssertEqual(recorder.populatedEntryTitles, [["Example"]])
         XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, reference.id)
     }
@@ -147,7 +165,7 @@ final class CredentialProviderSaveTests: XCTestCase {
                     openTimeSHA512: openTimeSHA512,
                     kdfPolicy: .autoFillExtension
                 ) {
-                case .saved(let newSHA512, _):
+                case .saved(let newSHA512, _, _):
                     return .saved(
                         AutoFillSaveCoordinator.SaveOutcome(
                             savedRootGroup: draft.rootGroup,
@@ -155,25 +173,15 @@ final class CredentialProviderSaveTests: XCTestCase {
                             enqueuedPendingUpload: false
                         )
                     )
+                case .committedWithoutConfirmedDurability(let sha, _, _, let scope):
+                    return .committedWithoutConfirmedDurability(.init(savedRootGroup: draft.rootGroup,
+                        newSHA512: sha, enqueuedPendingUpload: false, warningScope: scope))
+                case .indeterminate(let scope): return .indeterminate(scope)
                 case .conflict:
                     return .conflict
                 }
             },
-            relativePathForURL: { _ in "unused" },
-            enqueuePendingUpload: { marker in
-                PendingUploadQueue.StoredMarker(
-                    id: UUID(),
-                    fileURL: URL(fileURLWithPath: "/tmp/unused.json"),
-                    marker: marker
-                )
-            },
-            finalizePendingUpload: { _ in },
-            dropPendingUpload: { _ in },
-            dropSupersededPendingUploads: { _, _, _ in },
-            notifyPendingUploadEnqueued: {},
-            resolveReference: { _ in nil },
-            populateCredentialStore: { _, _ in },
-            now: { .now }
+            populateCredentialStore: { _, _ in }
         )
 
         let result = try await AutoFillSaveCoordinator.saveNewEntry(
@@ -206,311 +214,266 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish AutoFill Entry" })
     }
 
-    func test_saveNewEntry_cloudSource_enqueuesProvisionalMarkerBeforeSave_finalizesAfter() async throws {
-        // Ordering regression: the marker must be durable BEFORE the save
-        // rewrites the shared cache, so no window leaves unmarked unuploaded
-        // bytes, and the drain notification fires only once the payload lands.
-        let reference = makeCloudReference(rev: "rev-9")
-        let sessionKey = SymmetricKey(size: .bits256)
+    func test_saveNewEntry_cloudSource_preparesImmutableJournalBeforeReplacementAndPublishesAfter() async throws {
+        let loaded = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: Bundle(for: Self.self))
+        let reference = try registerCloud(loaded)
         let recorder = SaveRecorder()
-        let expectedCacheURL = DatabaseListStore.cacheLocation(for: reference)
-
-        let result = try await AutoFillSaveCoordinator.saveNewEntry(
-            draftPayload: EntryDraftPayload(
-                title: "Dropbox Entry",
-                username: "cloud-user",
-                password: "secret",
-                url: "https://dropbox.example.com"
-            ),
-            reference: reference,
-            rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
-            meta: KPMeta(),
-            sessionKey: sessionKey,
-            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
-            openTimeSHA512: Data("open-sha".utf8),
-            environment: makeEnvironment(
-                recorder: recorder,
-                relativePathForURL: { url in
-                    recorder.relativePathInputs.append(url)
-                    return "cloud-cache/\(reference.id.uuidString).kdbx"
-                }
-            )
-        )
-
-        guard case .saved(let outcome) = result else {
-            return XCTFail("Expected save to succeed")
+        let probe = CloudSaveProbe()
+        let sourceData = loaded.sourceData
+        var local = LocalDatabaseSaver.Environment.autoFillExtension
+        let replace = local.replaceFileAtomically
+        local.replaceFileAtomically = { data, url, sha, authorization in
+            let prepared = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            XCTAssertEqual(prepared.marker.isPayloadFinalized, false)
+            XCTAssertEqual(prepared.marker.openTimeSHA512, FileDigest.sha512(sourceData))
+            XCTAssertEqual(prepared.marker.intendedPayloadSHA512, FileDigest.sha512(data))
+            XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(prepared), data)
+            XCTAssertEqual(try Data(contentsOf: url), sourceData)
+            XCTAssertEqual(sha, FileDigest.sha512(sourceData))
+            probe.record(prepared: prepared, ciphertext: data)
+            return try replace(data, url, sha, authorization)
         }
-
-        XCTAssertTrue(outcome.enqueuedPendingUpload)
-        XCTAssertEqual(recorder.relativePathInputs, [expectedCacheURL])
-        XCTAssertEqual(recorder.events, ["enqueue", "saveDraft", "finalize", "dropSuperseded", "notify"])
-
-        let provisionalMarker = try XCTUnwrap(recorder.enqueuedMarkers.first)
-        XCTAssertEqual(recorder.enqueuedMarkers.count, 1)
-        XCTAssertEqual(provisionalMarker.databaseId, reference.id)
-        XCTAssertEqual(provisionalMarker.encryptedBytesCacheURL, "cloud-cache/\(reference.id.uuidString).kdbx")
-        XCTAssertEqual(provisionalMarker.openTimeSHA512, Data("open-sha".utf8), "Provisional marker must cover the base bytes still in the cache")
-        XCTAssertEqual(provisionalMarker.expectedRev, "rev-9")
-        XCTAssertEqual(provisionalMarker.baseRev, "rev-9")
-        XCTAssertFalse(provisionalMarker.isConflicted)
-        XCTAssertEqual(provisionalMarker.isPayloadFinalized, false)
-
-        let finalizedMarker = try XCTUnwrap(recorder.finalizedMarkers.first)
-        XCTAssertEqual(recorder.finalizedMarkers.count, 1)
-        XCTAssertEqual(finalizedMarker.marker.openTimeSHA512, Data("new-sha".utf8))
-        XCTAssertEqual(finalizedMarker.marker.expectedRev, "rev-9")
-        XCTAssertEqual(finalizedMarker.marker.baseRev, "rev-9")
-        XCTAssertEqual(finalizedMarker.marker.isPayloadFinalized, true)
-
-        // The just-enqueued marker itself must be excluded from supersession.
-        XCTAssertEqual(recorder.supersededDrops.count, 1)
-        XCTAssertEqual(recorder.supersededDrops.first?.databaseId, reference.id)
-        XCTAssertEqual(recorder.supersededDrops.first?.payloadSHA512, Data("open-sha".utf8))
-        XCTAssertEqual(recorder.supersededDrops.first?.excludedMarkerID, recorder.enqueuedMarkerIDs.first)
-
-        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
-        XCTAssertEqual(recorder.populatedEntryTitles, [["Dropbox Entry"]])
+        let outcome = try await saveCloudEntry(to: reference, loaded: loaded, source: loaded.sourceData,
+            title: "Dropbox Entry", environment: makeLiveCloudEnvironment(local: local, recorder: recorder))
+        guard case .saved(let saved) = outcome else { return XCTFail("Expected durable local save") }
+        let installed = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        let finalized = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertTrue(saved.enqueuedPendingUpload)
+        XCTAssertEqual(saved.newSHA512, FileDigest.sha512(installed))
+        XCTAssertEqual(probe.snapshot.ciphertexts, [installed])
+        XCTAssertEqual(probe.snapshot.prepared.map(\.id), [finalized.id])
+        XCTAssertEqual(finalized.marker.openTimeSHA512, saved.newSHA512)
+        XCTAssertEqual(finalized.marker.intendedPayloadSHA512, saved.newSHA512)
+        XCTAssertEqual(finalized.marker.expectedRev, "rev-9")
+        XCTAssertEqual(finalized.marker.baseRev, "rev-9")
+        XCTAssertEqual(finalized.marker.isPayloadFinalized, true)
+        XCTAssertFalse(finalized.marker.isConflicted)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(finalized), installed)
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata?.localHeadOperationID, finalized.id)
+        XCTAssertEqual(DatabaseListStore.recentBackups(for: reference).compactMap { try? Data(contentsOf: $0) }, [loaded.sourceData])
+        XCTAssertEqual(recorder.saveCalls.count, 1)
+        XCTAssertEqual(recorder.saveCalls.first?.openTimeSHA512, FileDigest.sha512(sourceData))
+        XCTAssertEqual(recorder.saveCalls.first?.compositeKey.withUnsafeBytes { Data($0) }, loaded.compositeKey.withUnsafeBytes { Data($0) })
+        XCTAssertEqual(recorder.populatedEntryTitles.count, 1)
+        XCTAssertTrue(recorder.populatedEntryTitles.first?.contains("Dropbox Entry") == true)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: installed, compositeKey: loaded.compositeKey,
+            sessionKey: loaded.sessionKey, kdfPolicy: .autoFillExtension)
+        XCTAssertTrue(parsed.rootGroup.allEntries.contains { $0.title == "Dropbox Entry" && $0.username == "cloud-user" })
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, reference.id)
     }
 
-    func test_saveNewEntry_cloudSource_saveThrowing_dropsProvisionalMarker() async {
-        let reference = makeCloudReference(rev: "rev-9")
+    func test_saveNewEntry_cloudSource_provenPreReplacementFailure_retiresOnlyItsOwnJournal() async throws {
+        try await assertCloudPreReplacementFailure(withEarlierSave: false)
+    }
+
+    func test_saveNewEntry_cloudSource_provenPreReplacementFailure_keepsTheEarlierSavesMarker() async throws {
+        try await assertCloudPreReplacementFailure(withEarlierSave: true)
+    }
+
+    func test_saveNewEntry_cloudSource_saved_preservesEarlierCiphertextAndLinksItsDescendant() async throws {
+        let loaded = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: Bundle(for: Self.self))
+        let reference = try registerCloud(loaded)
         let recorder = SaveRecorder()
+        let environment = makeLiveCloudEnvironment(local: .autoFillExtension, recorder: recorder)
+        guard case .saved = try await saveCloudEntry(to: reference, loaded: loaded, source: loaded.sourceData,
+            title: "First Save", environment: environment) else { return XCTFail("Expected first save") }
+        let earlier = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        let earlierBytes = try PendingUploadQueue.readImmutablePayload(earlier)
+        let nextReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(nextReference.cloudSyncMetadata?.localHeadOperationID, earlier.id)
+        guard case .saved(let saved) = try await saveCloudEntry(to: nextReference, loaded: loaded, source: earlierBytes,
+            title: "Second Save", environment: environment) else { return XCTFail("Expected descendant save") }
+        let markers = try PendingUploadQueue.readJournal(for: reference.id)
+        XCTAssertEqual(markers.count, 2)
+        XCTAssertEqual(markers.first { $0.id == earlier.id }?.marker, earlier.marker)
+        let descendant = try XCTUnwrap(markers.first { $0.id != earlier.id })
+        XCTAssertEqual(descendant.marker.predecessorOperationID, earlier.id)
+        XCTAssertEqual(descendant.marker.predecessorSHA512, FileDigest.sha512(earlierBytes))
+        XCTAssertEqual(descendant.marker.openTimeSHA512, saved.newSHA512)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(earlier), earlierBytes)
+        let current = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(descendant), current)
+        XCTAssertEqual(FileDigest.sha512(current), saved.newSHA512)
+        XCTAssertTrue(saved.savedRootGroup.allEntries.contains { $0.title == "First Save" })
+        XCTAssertTrue(saved.savedRootGroup.allEntries.contains { $0.title == "Second Save" })
+        XCTAssertEqual(recorder.saveCalls.count, 2)
+    }
 
+    func test_saveNewEntry_cloudSource_finalizeLosingCASRace_reusesTheDurableJournal() async throws {
+        let loaded = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: Bundle(for: Self.self))
+        let reference = try registerCloud(loaded)
+        let recorder = SaveRecorder()
+        let probe = CloudSaveProbe()
+        var local = LocalDatabaseSaver.Environment.autoFillExtension
+        let replace = local.replaceFileAtomically
+        local.replaceFileAtomically = { bytes, url, sha, authorization in
+            let prepared = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            let raced = try PendingUploadQueue.markConflicted(prepared)
+            XCTAssertGreaterThan(raced.marker.generation, prepared.marker.generation)
+            probe.record(prepared: raced, ciphertext: bytes)
+            return try replace(bytes, url, sha, authorization)
+        }
+        guard case .saved(let saved) = try await saveCloudEntry(to: reference, loaded: loaded, source: loaded.sourceData,
+            title: "Raced", environment: makeLiveCloudEnvironment(local: local, recorder: recorder)) else { return XCTFail("Expected save") }
+        let remaining = try PendingUploadQueue.readJournal(for: reference.id)
+        XCTAssertEqual(remaining.count, 1)
+        let finalized = try XCTUnwrap(remaining.first)
+        XCTAssertEqual(finalized.id, probe.snapshot.prepared.first?.id)
+        XCTAssertGreaterThan(finalized.marker.generation, try XCTUnwrap(probe.snapshot.prepared.first?.marker.generation))
+        XCTAssertFalse(finalized.marker.isConflicted)
+        XCTAssertEqual(finalized.marker.isPayloadFinalized, true)
+        XCTAssertEqual(finalized.marker.expectedRev, "rev-9")
+        XCTAssertEqual(finalized.marker.baseRev, "rev-9")
+        XCTAssertEqual(finalized.marker.openTimeSHA512, saved.newSHA512)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(finalized), try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)))
+        XCTAssertEqual(probe.snapshot.ciphertexts.count, 1)
+        XCTAssertEqual(recorder.saveCalls.count, 1)
+    }
+
+    func test_saveNewEntry_cloudSource_indeterminateReplacementKeepsEarlierAndNewSourcesForRecovery() async throws {
+        let loaded = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: Bundle(for: Self.self))
+        let reference = try registerCloud(loaded)
+        let recorder = SaveRecorder()
+        guard case .saved = try await saveCloudEntry(to: reference, loaded: loaded, source: loaded.sourceData,
+            title: "First Save", environment: makeLiveCloudEnvironment(local: .autoFillExtension, recorder: recorder)) else { return XCTFail("Expected first save") }
+        let earlier = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        let earlierBytes = try PendingUploadQueue.readImmutablePayload(earlier)
+        recorder.populatedEntryTitles = []
+        DatabaseListStore.activeAutoFillDatabaseID = nil
+        var local = LocalDatabaseSaver.Environment.autoFillExtension
+        let replace = local.replaceFileAtomically
+        let probe = CloudSaveProbe()
+        local.replaceFileAtomically = { bytes, url, sha, authorization in
+            let outcome = try replace(bytes, url, sha, authorization)
+            guard case .replaced = outcome else { return outcome }
+            let prepared = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first { $0.id != earlier.id })
+            probe.record(prepared: prepared, ciphertext: bytes)
+            return .indeterminate
+        }
+        let nextReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(nextReference.cloudSyncMetadata?.localHeadOperationID, earlier.id)
+        let result = try await saveCloudEntry(to: nextReference, loaded: loaded, source: earlierBytes, title: "Interrupted",
+            environment: makeLiveCloudEnvironment(local: local, recorder: recorder))
+        guard case .indeterminate(.sharedCopy) = result else { return XCTFail("An unknown replacement cannot publish success") }
+        let intended = try XCTUnwrap(probe.snapshot.ciphertexts.first)
+        let markers = try PendingUploadQueue.readJournal(for: reference.id)
+        XCTAssertEqual(markers.count, 2)
+        XCTAssertEqual(markers.first { $0.id == earlier.id }?.marker, earlier.marker)
+        let prepared = try XCTUnwrap(markers.first { $0.id != earlier.id })
+        XCTAssertEqual(prepared.marker.isPayloadFinalized, false)
+        XCTAssertEqual(prepared.marker.predecessorOperationID, earlier.id)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(prepared), intended)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(earlier), earlierBytes)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), intended)
+        XCTAssertTrue(recorder.populatedEntryTitles.isEmpty)
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+        try PendingUploadQueue.withCommitLock(for: reference.id) { try PendingUploadQueue.recoverLocalCommits(for: reference.id) }
+        let recovered = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first { $0.id == prepared.id })
+        XCTAssertEqual(recovered.marker.isPayloadFinalized, true)
+        XCTAssertEqual(recovered.marker.openTimeSHA512, FileDigest.sha512(intended))
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata?.localHeadOperationID, prepared.id)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(recovered), intended)
+        XCTAssertEqual(recorder.saveCalls.count, 2, "Recovery must not encrypt or save the draft again")
+    }
+
+    private func assertCloudPreReplacementFailure(withEarlierSave: Bool) async throws {
+        let loaded = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: Bundle(for: Self.self))
+        let reference = try registerCloud(loaded)
+        let recorder = SaveRecorder()
+        var base = loaded.sourceData
+        var earlier: PendingUploadQueue.StoredMarker?
+        if withEarlierSave {
+            guard case .saved = try await saveCloudEntry(to: reference, loaded: loaded, source: base, title: "First Save",
+                environment: makeLiveCloudEnvironment(local: .autoFillExtension, recorder: recorder)) else { return XCTFail("Expected first save") }
+            earlier = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            base = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        }
+        recorder.populatedEntryTitles = []
+        DatabaseListStore.activeAutoFillDatabaseID = nil
+        let probe = CloudSaveProbe()
+        var local = LocalDatabaseSaver.Environment.autoFillExtension
+        local.replaceFileAtomically = { bytes, _, _, _ in
+            let prepared = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).last)
+            probe.record(prepared: prepared, ciphertext: bytes)
+            throw LocalSaveBeforeReplacementFailure(underlying: SaveError.databaseLocationUnavailable)
+        }
+        let nextReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        if let earlier { XCTAssertEqual(nextReference.cloudSyncMetadata?.localHeadOperationID, earlier.id) }
         do {
-            _ = try await AutoFillSaveCoordinator.saveNewEntry(
-                draftPayload: EntryDraftPayload(
-                    title: "Failing",
-                    username: "alex",
-                    password: "secret",
-                    url: "https://example.com"
-                ),
-                reference: reference,
-                rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
-                meta: KPMeta(),
-                sessionKey: SymmetricKey(size: .bits256),
-                compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
-                openTimeSHA512: Data("open-sha".utf8),
-                environment: makeEnvironment(
-                    recorder: recorder,
-                    saveDraft: { _, _, _, _ in
-                        throw SaveError.databaseLocationUnavailable
-                    }
-                )
-            )
-            XCTFail("Expected the save error to propagate")
+            _ = try await saveCloudEntry(to: nextReference, loaded: loaded, source: base, title: "Failing",
+                environment: makeLiveCloudEnvironment(local: local, recorder: recorder))
+            XCTFail("Expected pre-replacement error")
         } catch {
-            XCTAssertEqual(error as? SaveError, .databaseLocationUnavailable)
+            XCTAssertEqual((error as? LocalSaveBeforeReplacementFailure)?.underlying as? SaveError, .databaseLocationUnavailable)
         }
-
-        XCTAssertEqual(recorder.events, ["enqueue", "drop"])
-        XCTAssertEqual(recorder.droppedMarkerIDs, recorder.enqueuedMarkerIDs)
-        XCTAssertTrue(recorder.finalizedMarkers.isEmpty)
-        XCTAssertEqual(recorder.notifyCount, 0)
+        XCTAssertEqual(probe.snapshot.ciphertexts.count, 1)
+        let remaining = try PendingUploadQueue.readJournal(for: reference.id)
+        XCTAssertEqual(remaining.map(\.id), earlier.map { [$0.id] } ?? [])
+        if let earlier {
+            XCTAssertEqual(remaining.first?.marker, earlier.marker)
+            XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(earlier), base)
+        }
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), base)
+        XCTAssertTrue(recorder.populatedEntryTitles.isEmpty)
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
     }
 
-    func test_saveNewEntry_cloudSource_saveThrowing_keepsTheEarlierSavesMarker() async throws {
+    private func registerCloud(_ loaded: KDBXCompatibilitySupport.LoadedFixture) throws -> DatabaseReference {
         let reference = makeCloudReference(rev: "rev-9")
-        defer { try? PendingUploadQueue.removeAllMarkers(for: reference.id) }
-        let earlierMarker = try enqueueFinalizedMarker(for: reference, payloadSHA512: Data("open-sha".utf8))
-
-        var environment = makeQueueBackedEnvironment()
-        environment.saveDraft = { _, _, _, _ in
-            throw SaveError.databaseLocationUnavailable
-        }
-        do {
-            _ = try await saveCloudEntry(to: reference, environment: environment)
-            XCTFail("Expected the save error to propagate")
-        } catch {
-            XCTAssertEqual(error as? SaveError, .databaseLocationUnavailable)
-        }
-
-        let markers = PendingUploadQueue.listMarkers(for: reference.id)
-        XCTAssertEqual(markers.map(\.id), [earlierMarker.id], "The unchanged cache must stay covered")
-        XCTAssertEqual(markers.first?.marker.isPayloadFinalized, true)
+        DatabaseListStore.testUpsert(reference)
+        try DatabaseListStore.cacheDatabaseCopy(loaded.sourceData, for: reference)
+        return reference
     }
 
-    func test_saveNewEntry_cloudSource_saved_replacesTheEarlierSavesMarker() async throws {
-        let reference = makeCloudReference(rev: "rev-9")
-        defer { try? PendingUploadQueue.removeAllMarkers(for: reference.id) }
-        let earlierMarker = try enqueueFinalizedMarker(for: reference, payloadSHA512: Data("open-sha".utf8))
-
-        var environment = makeQueueBackedEnvironment()
-        environment.saveDraft = { draft, _, _, _ in
-            .saved(
-                AutoFillSaveCoordinator.SaveOutcome(
-                    savedRootGroup: draft.rootGroup,
-                    newSHA512: Data("new-sha".utf8),
-                    enqueuedPendingUpload: false
-                )
-            )
-        }
-        _ = try await saveCloudEntry(to: reference, environment: environment)
-
-        let markers = PendingUploadQueue.listMarkers(for: reference.id)
-        XCTAssertEqual(markers.count, 1)
-        XCTAssertNotEqual(markers.first?.id, earlierMarker.id)
-        XCTAssertEqual(markers.first?.marker.openTimeSHA512, Data("new-sha".utf8))
-        XCTAssertEqual(markers.first?.marker.isPayloadFinalized, true)
+    private func saveCloudEntry(to reference: DatabaseReference, loaded: KDBXCompatibilitySupport.LoadedFixture,
+        source: Data, title: String, environment: AutoFillSaveCoordinator.Environment) async throws -> AutoFillSaveCoordinator.SaveResult {
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: source, compositeKey: loaded.compositeKey,
+            sessionKey: loaded.sessionKey, kdfPolicy: .autoFillExtension)
+        return try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: EntryDraftPayload(title: title, username: "cloud-user", password: "secret", url: "https://example.com"),
+            reference: reference, rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: loaded.sessionKey,
+            compositeKey: loaded.compositeKey, openTimeSHA512: FileDigest.sha512(source), environment: environment)
     }
 
-    private func enqueueFinalizedMarker(
-        for reference: DatabaseReference,
-        payloadSHA512: Data
-    ) throws -> PendingUploadQueue.StoredMarker {
-        try PendingUploadQueue.enqueue(
-            PendingUploadQueue.Marker(
-                databaseId: reference.id,
-                encryptedBytesCacheURL: try PendingUploadQueue.makeRelativeAppGroupPath(
-                    for: DatabaseListStore.cacheLocation(for: reference)
-                ),
-                openTimeSHA512: payloadSHA512,
-                expectedRev: reference.expectedCloudRevision,
-                createdAt: Date(timeIntervalSince1970: 1_000),
-                baseRev: reference.expectedCloudRevision,
-                isPayloadFinalized: true
-            ),
-            notifying: false
-        )
-    }
-
-    private func makeQueueBackedEnvironment() -> AutoFillSaveCoordinator.Environment {
+    private func makeLiveCloudEnvironment(local: LocalDatabaseSaver.Environment, recorder: SaveRecorder) -> AutoFillSaveCoordinator.Environment {
         var environment = AutoFillSaveCoordinator.Environment.live
-        environment.notifyPendingUploadEnqueued = {}
-        environment.populateCredentialStore = { _, _ in }
+        environment.populateCredentialStore = { databaseID, entries in
+            recorder.populatedDatabaseIDs.append(databaseID)
+            recorder.populatedEntryTitles.append(entries.map(\.title).sorted())
+        }
+        environment.saveDraft = { draft, reference, key, sha in
+            recorder.saveCalls.append(.init(referenceID: reference.id, compositeKey: key,
+                openTimeSHA512: sha, entryTitles: draft.rootGroup.allEntries.map(\.title)))
+            switch try await LocalDatabaseSaver.save(draft: draft, reference: reference, compositeKey: key,
+                openTimeSHA512: sha, kdfPolicy: .autoFillExtension, environment: local) {
+            case .saved(let newSHA, _, _):
+                return .saved(.init(savedRootGroup: draft.rootGroup, newSHA512: newSHA, enqueuedPendingUpload: true))
+            case .committedWithoutConfirmedDurability(let newSHA, _, _, let scope):
+                return .committedWithoutConfirmedDurability(.init(savedRootGroup: draft.rootGroup,
+                    newSHA512: newSHA, enqueuedPendingUpload: true, warningScope: scope))
+            case .indeterminate(let scope): return .indeterminate(scope)
+            case .conflict: return .conflict
+            }
+        }
         return environment
     }
 
-    private func saveCloudEntry(
-        to reference: DatabaseReference,
-        environment: AutoFillSaveCoordinator.Environment
-    ) async throws -> AutoFillSaveCoordinator.SaveResult {
-        try await AutoFillSaveCoordinator.saveNewEntry(
-            draftPayload: EntryDraftPayload(
-                title: "Second Save",
-                username: "alex",
-                password: "secret",
-                url: "https://example.com"
-            ),
-            reference: reference,
-            rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
-            meta: KPMeta(),
-            sessionKey: SymmetricKey(size: .bits256),
-            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
-            openTimeSHA512: Data("open-sha".utf8),
-            environment: environment
-        )
-    }
-
-    func test_saveNewEntry_cloudSource_finalizeLosingCASRace_reenqueuesConservativeMarker() async throws {
-        // Provisional marker vanishes mid-save: a replacement must cover the
-        // still-unuploaded bytes with the ORIGINAL expectedRev (a fresh one
-        // could CAS-land over a mid-flight app save) and no baseRev, so the
-        // drainer conflicts instead of auto-rebasing.
-        let reference = makeCloudReference(rev: "rev-9")
-        var refreshedReference = reference
-        refreshedReference.updateCloudSyncMetadata { metadata in
-            metadata.remoteRev = "rev-10"
+    private final class CloudSaveProbe: @unchecked Sendable {
+        struct Snapshot {
+            var prepared: [PendingUploadQueue.StoredMarker] = []
+            var ciphertexts: [Data] = []
         }
-        let recorder = SaveRecorder()
-        var environment = makeEnvironment(recorder: recorder)
-        environment.finalizePendingUpload = { [recorder] storedMarker in
-            recorder.events.append("finalize")
-            recorder.finalizedMarkers.append(storedMarker)
-            throw PendingUploadQueue.UpdateError.markerNoLongerExists
+        private let lock = NSLock()
+        private var storage = Snapshot()
+        var snapshot: Snapshot { lock.withLock { storage } }
+        func record(prepared: PendingUploadQueue.StoredMarker, ciphertext: Data) {
+            lock.withLock { storage.prepared.append(prepared); storage.ciphertexts.append(ciphertext) }
         }
-        let resolvedReference = refreshedReference
-        environment.resolveReference = { [recorder] databaseId in
-            recorder.events.append("resolveReference")
-            return databaseId == resolvedReference.id ? resolvedReference : nil
-        }
-
-        let result = try await AutoFillSaveCoordinator.saveNewEntry(
-            draftPayload: EntryDraftPayload(
-                title: "Raced",
-                username: "alex",
-                password: "secret",
-                url: "https://example.com"
-            ),
-            reference: reference,
-            rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
-            meta: KPMeta(),
-            sessionKey: SymmetricKey(size: .bits256),
-            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
-            openTimeSHA512: Data("open-sha".utf8),
-            environment: environment
-        )
-
-        guard case .saved = result else {
-            return XCTFail("Expected save to succeed")
-        }
-
-        XCTAssertEqual(
-            recorder.events,
-            ["enqueue", "saveDraft", "finalize", "resolveReference", "enqueue", "dropSuperseded", "notify"]
-        )
-        XCTAssertEqual(recorder.enqueuedMarkers.count, 2)
-        let replacementMarker = try XCTUnwrap(recorder.enqueuedMarkers.last)
-        XCTAssertEqual(replacementMarker.openTimeSHA512, Data("new-sha".utf8))
-        XCTAssertEqual(replacementMarker.expectedRev, "rev-9")
-        XCTAssertNil(replacementMarker.baseRev)
-        XCTAssertFalse(replacementMarker.isConflicted)
-        XCTAssertEqual(replacementMarker.isPayloadFinalized, true)
-        XCTAssertEqual(recorder.notifyCount, 1)
-    }
-
-    func test_saveNewEntry_cloudSource_finalizeAndReplacementFailing_keepsTheEarlierSavesMarker() async throws {
-        // With no marker covering the new bytes, the earlier save's marker is
-        // the only thing that still uploads them.
-        let reference = makeCloudReference(rev: "rev-9")
-        let recorder = SaveRecorder()
-        var environment = makeEnvironment(recorder: recorder)
-        environment.finalizePendingUpload = { [recorder] _ in
-            recorder.events.append("finalize")
-            throw PendingUploadQueue.UpdateError.markerNoLongerExists
-        }
-        environment.resolveReference = { [recorder] databaseId in
-            recorder.events.append("resolveReference")
-            return databaseId == reference.id ? reference : nil
-        }
-        let provisionalEnqueue = environment.enqueuePendingUpload
-        environment.enqueuePendingUpload = { [recorder] marker in
-            if recorder.enqueuedMarkers.isEmpty {
-                return try provisionalEnqueue(marker)
-            }
-            recorder.events.append("enqueueFailed")
-            throw CocoaError(.fileWriteUnknown)
-        }
-
-        let result = try await AutoFillSaveCoordinator.saveNewEntry(
-            draftPayload: EntryDraftPayload(
-                title: "Raced",
-                username: "alex",
-                password: "secret",
-                url: "https://example.com"
-            ),
-            reference: reference,
-            rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
-            meta: KPMeta(),
-            sessionKey: SymmetricKey(size: .bits256),
-            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
-            openTimeSHA512: Data("open-sha".utf8),
-            environment: environment
-        )
-
-        guard case .saved = result else {
-            return XCTFail("Expected save to succeed")
-        }
-        XCTAssertEqual(
-            recorder.events,
-            ["enqueue", "saveDraft", "finalize", "resolveReference", "enqueueFailed"]
-        )
-        XCTAssertTrue(recorder.supersededDrops.isEmpty)
-        XCTAssertEqual(recorder.notifyCount, 0)
     }
 
     func test_activeAutoFillDatabase_retainsLocalReadOnlyFlag() {
         let reference = makeLocalReference(isReadOnly: true)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
 
         let active = DatabaseListStore.activeAutoFillDatabase
@@ -520,7 +483,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
     func test_activeAutoFillDatabase_retainsCloudReadOnlyFlag() {
         let reference = makeCloudReference(rev: "rev-1", isReadOnly: true)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
 
         let active = DatabaseListStore.activeAutoFillDatabase
@@ -528,46 +491,21 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertTrue(active?.isReadOnly == true)
     }
 
-    func test_saveNewEntry_conflict_dropsProvisionalMarkerWithoutFinalizingOrPopulating() async throws {
-        let reference = makeCloudReference(rev: "rev-2")
-        let sessionKey = SymmetricKey(size: .bits256)
+    func test_saveNewEntry_conflict_keepsConcurrentCacheAndDoesNotPublishIdentities() async throws {
+        let loaded = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: Bundle(for: Self.self))
+        let reference = try registerCloud(loaded)
+        let concurrent = Data("concurrent-ciphertext".utf8)
+        try concurrent.write(to: DatabaseListStore.cacheLocation(for: reference), options: .atomic)
         let recorder = SaveRecorder()
-
-        let result = try await AutoFillSaveCoordinator.saveNewEntry(
-            draftPayload: EntryDraftPayload(
-                title: "Conflict",
-                username: "alex",
-                password: "secret",
-                url: "https://example.com"
-            ),
-            reference: reference,
-            rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
-            meta: KPMeta(),
-            sessionKey: sessionKey,
-            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
-            openTimeSHA512: Data("open-sha".utf8),
-            environment: makeEnvironment(
-                recorder: recorder,
-                saveDraft: { [recorder] _, _, _, _ in
-                    recorder.events.append("saveDraft")
-                    return .conflict
-                }
-            )
-        )
-
-        guard case .conflict = result else {
-            return XCTFail("Expected save conflict")
-        }
-
-        // The provisional marker precedes the save; a conflict means the cache
-        // was never rewritten, so that marker must be dropped again — and
-        // neither finalized nor announced to the drainer.
-        XCTAssertEqual(recorder.events, ["enqueue", "saveDraft", "drop"])
-        XCTAssertEqual(recorder.droppedMarkerIDs, recorder.enqueuedMarkerIDs)
-        XCTAssertTrue(recorder.finalizedMarkers.isEmpty)
-        XCTAssertEqual(recorder.notifyCount, 0)
+        let result = try await saveCloudEntry(to: reference, loaded: loaded, source: loaded.sourceData, title: "Conflict",
+            environment: makeLiveCloudEnvironment(local: .autoFillExtension, recorder: recorder))
+        guard case .conflict = result else { return XCTFail("Expected optimistic concurrency conflict") }
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), concurrent)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
         XCTAssertTrue(recorder.populatedEntryTitles.isEmpty)
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+        XCTAssertEqual(recorder.saveCalls.count, 1)
     }
 
     func test_saveNewEntry_autoFillDisabledReference_doesNotSetActiveOrPopulate() async throws {
@@ -735,8 +673,8 @@ final class CredentialProviderSaveTests: XCTestCase {
 
         let enabled = makeLocalReference()
         let disabled = makeLocalReference(autoFillEnabled: false)
-        DatabaseListStore.update(enabled)
-        DatabaseListStore.update(disabled)
+        DatabaseListStore.testUpsert(enabled)
+        DatabaseListStore.testUpsert(disabled)
         DatabaseListStore.markDatabaseOpened(id: enabled.id, at: Date(timeIntervalSince1970: 1_000))
         DatabaseListStore.markDatabaseOpened(id: disabled.id, at: Date(timeIntervalSince1970: 2_000))
         // Clear the pointer `markDatabaseOpened` just set so the resolution
@@ -762,7 +700,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         }
 
         let disabled = makeLocalReference(autoFillEnabled: false)
-        DatabaseListStore.update(disabled)
+        DatabaseListStore.testUpsert(disabled)
         DatabaseListStore.markDatabaseOpened(id: disabled.id, at: Date(timeIntervalSince1970: 1_000))
 
         let presenter = CredentialProviderPresentingSpy()
@@ -785,7 +723,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         }
 
         for reference in [makeLocalReference(isReadOnly: true), makeCloudReference(rev: "rev-1", isReadOnly: true)] {
-            DatabaseListStore.update(reference)
+            DatabaseListStore.testUpsert(reference)
             DatabaseListStore.activeAutoFillDatabaseID = reference.id
             let presenter = CredentialProviderPresentingSpy()
             presenter.isPresentationActive = false
@@ -819,7 +757,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
         for (user, password) in [("alex", "{REF:P@T:Bank}"), ("{ref:U@I:0123456789ABCDEF0123456789ABCDEF}", "secret")] {
             let reference = makeLocalReference()
-            DatabaseListStore.update(reference)
+            DatabaseListStore.testUpsert(reference)
             DatabaseListStore.activeAutoFillDatabaseID = reference.id
             let presenter = CredentialProviderPresentingSpy()
             let coordinator = CredentialProviderCoordinator(presenter: presenter)
@@ -860,8 +798,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
     private func makeEnvironment(
         recorder: SaveRecorder,
-        saveDraft: (@Sendable (DatabaseDraft, DatabaseReference, SymmetricKey, Data) async throws -> AutoFillSaveCoordinator.SaveResult)? = nil,
-        relativePathForURL: (@Sendable (URL) throws -> String)? = nil
+        saveDraft: (@Sendable (DatabaseDraft, DatabaseReference, SymmetricKey, Data) async throws -> AutoFillSaveCoordinator.SaveResult)? = nil
     ) -> AutoFillSaveCoordinator.Environment {
         AutoFillSaveCoordinator.Environment(
             generatePassword: {
@@ -885,49 +822,9 @@ final class CredentialProviderSaveTests: XCTestCase {
                     )
                 )
             },
-            relativePathForURL: relativePathForURL ?? { _ in
-                "cloud-cache/db.kdbx"
-            },
-            enqueuePendingUpload: { marker in
-                recorder.events.append("enqueue")
-                recorder.enqueuedMarkers.append(marker)
-                let storedMarker = PendingUploadQueue.StoredMarker(
-                    id: UUID(),
-                    fileURL: URL(fileURLWithPath: "/tmp/\(UUID().uuidString).json"),
-                    marker: marker
-                )
-                recorder.enqueuedMarkerIDs.append(storedMarker.id)
-                return storedMarker
-            },
-            finalizePendingUpload: { storedMarker in
-                recorder.events.append("finalize")
-                recorder.finalizedMarkers.append(storedMarker)
-            },
-            dropPendingUpload: { storedMarker in
-                recorder.events.append("drop")
-                recorder.droppedMarkerIDs.append(storedMarker.id)
-            },
-            dropSupersededPendingUploads: { databaseId, payloadSHA512, excludedMarkerID in
-                recorder.events.append("dropSuperseded")
-                recorder.supersededDrops.append(
-                    SaveRecorder.SupersededDrop(
-                        databaseId: databaseId,
-                        payloadSHA512: payloadSHA512,
-                        excludedMarkerID: excludedMarkerID
-                    )
-                )
-            },
-            notifyPendingUploadEnqueued: {
-                recorder.events.append("notify")
-                recorder.notifyCount += 1
-            },
-            resolveReference: { _ in nil },
             populateCredentialStore: { databaseID, entries in
                 recorder.populatedDatabaseIDs.append(databaseID)
                 recorder.populatedEntryTitles.append(entries.map(\.title).sorted())
-            },
-            now: {
-                Date(timeIntervalSince1970: 2_000)
             }
         )
     }
@@ -998,22 +895,9 @@ final class CredentialProviderSaveTests: XCTestCase {
             let entryTitles: [String]
         }
 
-        struct SupersededDrop: Sendable {
-            let databaseId: UUID
-            let payloadSHA512: Data
-            let excludedMarkerID: UUID
-        }
-
         var events: [String] = []
         var saveCalls: [SaveCall] = []
-        var enqueuedMarkers: [PendingUploadQueue.Marker] = []
-        var enqueuedMarkerIDs: [UUID] = []
-        var finalizedMarkers: [PendingUploadQueue.StoredMarker] = []
-        var droppedMarkerIDs: [UUID] = []
-        var supersededDrops: [SupersededDrop] = []
-        var notifyCount = 0
         var populatedEntryTitles: [[String]] = []
         var populatedDatabaseIDs: [UUID] = []
-        var relativePathInputs: [URL] = []
     }
 }

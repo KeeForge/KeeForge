@@ -119,7 +119,7 @@ targets:
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
         MARKETING_VERSION: "1.23.0"
-        CURRENT_PROJECT_VERSION: "86"
+        CURRENT_PROJECT_VERSION: "87"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
@@ -190,7 +190,7 @@ targets:
         CREATE_INFOPLIST_SECTION_IN_BINARY: "YES"
         GENERATE_INFOPLIST_FILE: "YES"
         MARKETING_VERSION: "1.23.0"
-        CURRENT_PROJECT_VERSION: "86"
+        CURRENT_PROJECT_VERSION: "87"
         ENABLE_HARDENED_RUNTIME: "YES"
         CODE_SIGN_ENTITLEMENTS: BrowserHost/BrowserHost.entitlements
         SKIP_INSTALL: "YES"
@@ -219,7 +219,7 @@ targets:
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
         MARKETING_VERSION: "1.23.0"
-        CURRENT_PROJECT_VERSION: "86"
+        CURRENT_PROJECT_VERSION: "87"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         # Sparkle authenticates the direct-download channel only. Both values
@@ -304,7 +304,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtension.entitlements
         MARKETING_VERSION: "1.23.0"
-        CURRENT_PROJECT_VERSION: "86"
+        CURRENT_PROJECT_VERSION: "87"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
@@ -350,6 +350,7 @@ targets:
       - path: KeeForge/Services/Persistence/PendingLocalSaveStore.swift
       - path: KeeForge/Services/Security/PasskeyCrypto.swift
       - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
+      - path: KeeForge/Services/Cloud/CloudJournalDecision.swift
       - path: KeeForge/Services/Cloud/CloudSyncModels.swift
       - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
       - path: KeeForge/Resources/eff_large_wordlist.txt
@@ -380,7 +381,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtensionMac.entitlements
         MARKETING_VERSION: "1.23.0"
-        CURRENT_PROJECT_VERSION: "86"
+        CURRENT_PROJECT_VERSION: "87"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
@@ -426,6 +427,7 @@ targets:
       - path: KeeForge/Services/Persistence/PendingLocalSaveStore.swift
       - path: KeeForge/Services/Security/PasskeyCrypto.swift
       - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
+      - path: KeeForge/Services/Cloud/CloudJournalDecision.swift
       - path: KeeForge/Services/Cloud/CloudSyncModels.swift
       - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
       - path: KeeForge/Resources/eff_large_wordlist.txt

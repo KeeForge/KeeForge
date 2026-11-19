@@ -136,7 +136,22 @@ final class MacWindowCoordinator {
         launcher.hasUnsavedWork = { [weak self] databaseID in
             self?.sessionStore.session(for: databaseID).map(Self.hasUnsavedWork) ?? false
         }
-        launcher.removeDatabase = { listViewModel.removeDatabase($0) }
+        launcher.removeDatabase = { [weak self] reference in
+            guard let self else { return }
+            if let session = self.sessionStore.session(for: reference.id) {
+                guard !Self.hasUnsavedWork(session) else { self.launcher.refusedRemoval = reference; return }
+                session.lockForDatabaseTransition()
+                guard session.state == .locked else { self.launcher.refusedRemoval = reference; return }
+            }
+            let outcome = await listViewModel.removeDatabase(reference)
+            switch outcome {
+            case .removed, .alreadyMissing: break
+            case .recoveryRequired, .revokedRegistryNotPublished:
+                self.launcher.sheet = .details(reference.id)
+            case .rejected, .notPublished, .revocationUnconfirmed, .visibleUnconfirmed:
+                self.launcher.selectionAlert = .init(title: String(localized: "Databases"), message: CocoaError(.fileWriteUnknown).localizedDescription)
+            }
+        }
         launcher.chooseEnrollmentDestinationHandler = { [weak self] in self?.chooseEnrollmentDestination($0) }
         launcher.cancelEnrollmentDestinationHandler = { [weak self] in self?.enrollment.discardEnrollment() }
         quickAccess.showDatabaseWindow = { [weak self] in self?.showDatabaseWindow($0) ?? false }
@@ -381,8 +396,10 @@ final class MacWindowCoordinator {
                 self.removalPrompt(.refused, reference, window) { _ in }
                 return
             }
-            self.launcher.remove(reference)
-            self.showDatabasesWindow()
+            Task {
+                await self.launcher.remove(reference)
+                self.showDatabasesWindow()
+            }
         }
     }
 

@@ -179,6 +179,12 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         windowCoordinator.commandTarget()?.session.state == .unlocked
     }
 
+    @objc func showCloudRecovery(_ sender: Any?) {
+        guard !windowCoordinator.launcher.isSheetBusy() else { return }
+        windowCoordinator.showDatabasesWindow()
+        windowCoordinator.launcher.requestCloudRecovery()
+    }
+
     @objc func connectToServer(_ sender: Any?) {
         guard windowCoordinator.launcher.canRequestConnect else { return }
         windowCoordinator.showDatabasesWindow()
@@ -195,6 +201,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
         case #selector(connectToServer): return windowCoordinator.launcher.canRequestConnect
+        case #selector(showCloudRecovery): return !windowCoordinator.launcher.isSheetBusy()
         case #selector(newDatabase): return windowCoordinator.launcher.canCreateDatabase
         case #selector(lockAllDatabases): return windowCoordinator.canLockAllDatabases
         case #selector(showPasswordGenerator): return canShowPasswordGenerator

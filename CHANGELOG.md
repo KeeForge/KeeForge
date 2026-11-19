@@ -5,6 +5,22 @@
 ### New Features
 
 - On Mac, fill logins in your web browser with the KeeForge browser extension (#299). Turn on Settings → Browsers → "Allow browser extensions to fill from KeeForge", set up each browser there, then install the extension and pair it by checking that the code in the browser matches the one KeeForge shows. Click the key button the extension puts in a login or verification-code field (or press Option-Down there), or the extension's toolbar button, to see the logins that match the site you're on; choosing one fills it after Touch ID or your Mac password, in a prompt that names the login and the site (no prompt inside your authentication grace period). To show the key button, the extension asks to read and change pages on all secure (`https`) websites. Settings → Browsers lists paired browsers and removes them. The bridge is off until you turn it on.
+- Retain encrypted cloud saves for recovery, queue cached changes durably, and avoid automatically resending uncertain replacement requests.
+
+### Changes
+
+- Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
+- AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
+
+### Fixes
+
+- FTP creation name conflicts keep the encrypted draft recoverable; conflict copies can try a numbered name.
+- Cloud creations that have not been sent can be discarded from Cloud Recovery.
+- Preserve encrypted cloud creation data when the outcome is uncertain instead of automatically creating another remote copy.
+- Refusing to remove a database with pending AutoFill changes no longer permanently blocks its recovery.
+- Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
+- On iPhone, and on iPad in a narrow window, a database that locks by itself, after the Auto-Lock timeout or when you leave the app, now stays on its unlock page instead of going back to the database list, so Auto-Unlock with Face ID or Touch ID opens it again right away (#312). Locking with the Lock button still returns to the list.
+- On iPhone and iPad, a database in KeeForge's own folder in the Files app (On My iPhone or On My iPad ▸ KeeForge) that you remove from the list stays removed. Before, it came back the next time KeeForge opened. The file itself stays in the folder. It is listed again if you copy a changed version there or import it again.
 
 ## v1.23.0 (2026-11-15)
 
@@ -51,6 +67,7 @@
 - An AutoFill suggestion for a website no longer fills an entry whose URL has since changed to another site; the picker opens instead.
 - Password import skips rows that contain a KeePass field reference (`{REF:…}`) and lists them with the other skipped rows. A verification-code setup link no longer prefills a title or user name that contains one.
 - A database whose groups or data nest more than 256 levels deep now reports that it can't be opened instead of closing KeeForge or AutoFill, and a save that would nest that deeply is refused with the group or entry named.
+- A cloud database no longer reports "The file couldn't be saved because a file with that name already exists" when two syncs overlap, for example Sync Now while the app refreshes after you return to it.
 
 ### Changes
 
@@ -68,7 +85,7 @@
   - An entry URL that starts with another scheme and `://`, such as `androidapp://`, `ftp://`, or `ssh://`, no longer matches a website or appears in the system's suggestions. Before, an Android app stored as `androidapp://com.mybank.app` matched the website `mybank.app`.
   - A URL is read the way browsers read it: a backslash counts as a slash, so `https://example.com\@other.example` matches `example.com`, not `other.example`.
 
-## v1.22.0 (2026-11-10)
+## v1.22.0 (2026-11-16)
 
 ### New Features
 

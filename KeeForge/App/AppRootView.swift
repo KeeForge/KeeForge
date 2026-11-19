@@ -86,6 +86,11 @@ struct AppRootView: View {
         }
         .onChange(of: routingSession, initial: true) { _, session in
             routing.enrollment.updateSession(session)
+            // Unlocking stamps the reference. Reloading only on the way back
+            // races the list's rebuild, which can keep the rows it built first.
+            if session?.isUnlocked == true {
+                listViewModel.reload()
+            }
         }
         .onChange(of: routing.databaseTransition?.id, initial: true) { _, _ in
             finishDatabaseTransitionIfReady()
@@ -292,11 +297,13 @@ struct AppRootView: View {
             let reference = try listViewModel.addDatabase(from: url)
             openDatabaseAfterLaunchPresentation(reference)
         } catch DatabaseListStore.AddDatabaseError.duplicateFile(let existingReferenceID, _) {
-            if let existing = listViewModel.databases.first(where: { $0.id == existingReferenceID }) {
+            listViewModel.reload()
+            if listViewModel.registryReadError == nil, let existing = listViewModel.databases.first(where: { $0.id == existingReferenceID }) {
                 openDatabaseAfterLaunchPresentation(existing)
             }
         } catch {
-            if let existing = listViewModel.databases.first(where: {
+            listViewModel.reload()
+            if listViewModel.registryReadError == nil, let existing = listViewModel.databases.first(where: {
                 $0.filename == url.lastPathComponent
             }) {
                 openDatabaseAfterLaunchPresentation(existing)

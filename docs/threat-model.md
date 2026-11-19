@@ -58,12 +58,18 @@ flowchart LR
 
 Arrows mark data or authority crossings, not blanket trust. Cloud storage, imported files, and requesting clients are untrusted. The OS mediates authentication, entitlements, and requesting-client identity; KeeForge owns credential selection, session handling, and encrypted writes. The Mac extension cannot use the app's external-file or network entitlements, so its file arrow is iOS-only. Web pages are untrusted as well: the browser extension's content script runs inside them, but the logins it lists stay in an extension frame the page cannot read.
 
+The per-database AutoFill toggle commits its registry change before scheduling identity removal. The system suggestion index is an asynchronous best-effort derivative, not authority to authenticate or fill; its existing non-incremental fallback may clear suggestions belonging to other databases. Registry publication and the system index are not an atomic cross-process transaction.
+
+Database removal revokes the pending-local owner before publishing the registry change. If registry publication fails or is unconfirmed, KeeForge retains the cache, keys, pending sources and suggestion identities; an observed revocation is not proof that removal completed or that an unresolved owner is usable. An idle owner can be retried with the same captured database identity.
+
+Cloud metadata learned across an await is published only if the captured cloud identity, revision, local head, epoch and reference preferences still match inside coordinated registry access. A visible but unconfirmed registry publication is not a durable receipt for the caller.
+
 On Mac, [AppDelegate](../KeeForgeMac/App/AppDelegate.swift) owns the session store, lifecycle and lock services, and AppKit menus. [MacWindowCoordinator](../KeeForgeMac/App/MacWindowCoordinator.swift) keeps a Databases window and one window per open database, keyed by the database UUID that also keys the session. Each [DatabaseWindowController](../KeeForgeMac/App/DatabaseWindowController.swift) holds its session directly; content, title, commands, close, enrollment sheets and automatic unlock act only on it, and opening one database never locks or retires another. Menu commands resolve through [MacDatabaseCommandTargetResolver](../KeeForgeMac/App/MacDatabaseCommandTargetResolver.swift) at validation and again at dispatch: the key database window or a key sheet's parent; the main database window when Settings or a panel is key; nothing when the Databases window is key. An authenticated password copy re-checks that the originating controller still owns the session. The Databases window lists and manages references and never shows database contents. Each database window keeps its root host mounted; its unlocked workspace puts a native sidebar outline, a native entry table and a SwiftUI detail host under a native split controller and a native toolbar. A completed lock drops the split controller and toolbar, and the window-owned native sheet/alert presenters end presentations top-down on lock, close and invalidation, reject old lock-cycle callbacks (including deferred Keep Editing authentication and Save and Lock completion), and clear editors and pending actions. Hosted authentication/import cancellation runs synchronously when the shell ends; an in-flight write continues; split autosave retains only geometry and collapse state, per database UUID. The separate retained Settings window reads no window's session and receives the same blur cover and best-effort capture policy; the coordinator applies the capture policy to each window before first showing it. Closing a database window settles its unsaved work through the close guard, then locks and retires only that session, supersedes any opening still in flight, and releases the window; cancel or a failed save keeps both. A locked database window shows only the database's name, file name, storage provider, last-opened time, associated key file's name, the failure and its code, and why it locked, never a path or server address; its Remove from List asks in that window and applies the Databases window's unsaved-work refusal and cleanup ([MacLockedDatabaseSummary](../KeeForge/ViewModels/MacLockedDatabaseSummary.swift), [MacWindowCoordinator](../KeeForgeMac/App/MacWindowCoordinator.swift)). A verification-code link binds to the database window targeted when it arrives, or to a database the user picks in the Databases window; focus changes never retarget it. Hide and minimize do not introduce lock triggers.
 
 Mac per-database settings use an [attached native sheet](../KeeForgeMac/App/MacDatabaseSettingsSheet.swift), owned by the originating workspace's lock cycle, or a reference-only launcher presenter. The launcher omits decrypted destination groups and key-changing actions. [The settings model](../KeeForge/ViewModels/MacDatabaseSettingsModel.swift) reads plaintext header facts and scoped encrypted backups; AutoFill participation retains the list model's refresh bridge. Password/key-file presence flags are session-only display metadata from typed unlock or rekey, cleared on lock; composite-key-only and hardware-key unlocks, and a rekey that reached only the remote, leave composition unknown. A rekey replaces the session's key-file bytes, so a removed key file never returns in the next change. The sheet drops key-file association controls; existing unlock, launcher-row and rekey paths keep their bookmark/storage boundaries. Export still delegates to the existing encrypted-copy exporter. No new plaintext output, key-file writer or authentication path is introduced.
 
 
-App-global activation, background/system-lock requests, and live Settings effects reach every session retained by [DatabaseSessionStore](../KeeForge/ViewModels/DatabaseSessionStore.swift), regardless of active selection. Each session applies its existing lock policy and unsaved-work deferral. Mac activity resolves the event window, sheet or child parent through the app-owned MacDatabaseWindowRegistry and resets only that database's timer, throttled per database. Settings, panels and unregistered windows extend no deadline. Mac activation evaluates existing deadlines without renewing idle sessions; cache refresh and upload draining remain global. iOS activity retains its all-session fan-out. Unregistering a database window clears pending close callbacks, preventing stale grants after replacement. A Mac database window's committed close retires its session; reopening creates a new, locked window. The application installs list-reconciliation hooks when it creates the shared models, so removing a database from the list force-retires its session and clears its secrets even without a mounted root view. The Mac Databases window refuses that removal while the session has unsaved work or a write in flight, checks again after the confirmation, and shows a refusal raised as the confirmation ends from a per-window native alert queue rather than dropping it ([MacAlertQueue](../KeeForgeMac/App/MacAlertQueue.swift)); a close waits out a write in flight on its session, and a failed master-key or encryption-settings write keeps the window. Reference reconciliation updates only existing sessions, reads the latest persisted reference to avoid rolling back session-written sync metadata, and never reloads decrypted content.
+App-global activation, background/system-lock requests, and live Settings effects reach every session retained by [DatabaseSessionStore](../KeeForge/ViewModels/DatabaseSessionStore.swift), regardless of active selection. Each session applies its existing lock policy and unsaved-work deferral. Mac activity resolves the event window, sheet or child parent through the app-owned MacDatabaseWindowRegistry and resets only that database's timer, throttled per database. Settings, panels and unregistered windows extend no deadline. Mac activation evaluates existing deadlines without renewing idle sessions; cache refresh and upload draining remain global. iOS activity retains its all-session fan-out. Unregistering a database window clears pending close callbacks, preventing stale grants after replacement. A Mac database window's committed close retires its session; reopening creates a new, locked window. The application installs list-reconciliation hooks when it creates the shared models, so removing a database from the list force-retires its session and clears its secrets even without a mounted root view. The Mac Databases window refuses that removal while the session has unsaved work or a write in flight, checks again after the confirmation, and shows a refusal raised as the confirmation ends from a per-window native alert queue rather than dropping it ([MacAlertQueue](../KeeForgeMac/App/MacAlertQueue.swift)); a close waits out a write in flight on its session, and a failed master-key or encryption-settings write keeps the window. Reference reconciliation updates only existing sessions, reads the latest persisted reference to avoid rolling back session-written sync metadata, and never reloads decrypted content. An unlocked local session or in-flight write retains its authenticated target and master-key epoch across these callbacks; list metadata cannot authorize a new key epoch.
 
 ## Threat model, trust boundaries, and assumptions
 
@@ -128,9 +134,69 @@ The legitimate user selects databases, authorizes unlocks, chooses recipients, a
 - The Mac browser bridge is covered by unit tests (real Unix sockets with a shared reference client in the Mac tests, and the extension's Node tests against vectors the Swift tests write and the shared conformance fixtures in `TestFixtures/browser-bridge/`) and by two Mac UI classes that run only on the owner's test Mac, never in CI. `MacBrowserBridgeUITests` passed on a development-signed, sandboxed build with the real embedded host started outside the test runner's sandbox: the Browsers switch, the pairing alert with a matching code, Return declining and Allow pairing, status, matches and a credential with real fixture values, removal, switching off, a locked database and its unlock, and Remove All. `MacBrowserExtensionUITests` passed with the shipped extension in real headless Chrome launching the embedded host itself: pairing, the key button's menu, a fill, the locked menu and Unlock, the toolbar popup and removal. Both launch with a five-minute authentication grace period, so they prove release inside it, not the owner prompt. The `browser-extension` CI job (`BrowserExtension/tools/ci.sh`, not yet a required check) runs the Node tests and real headless Chrome and Firefox checks against the development mock host on every pull request; in Firefox they cover the button, the menu embedding, and that the page receives no messages and cannot learn the extension's UUID or load other packaged files, but no fill. Not yet verified, and to be treated as open questions: the owner prompt on screen (Touch ID or password), including through the in-field menu, a verification-code fill through the real app, pairing, filling and the two-click confirm in Firefox with a registered host, headed Chrome, right-to-left layouts, the menu inside a modal dialog as drawn, the back/forward cache and a background restart while Touch ID waits, store-signed extensions and a distribution-signed app (whether container protection prompts for an unsandboxed peer), the Chromium store extension ID (release builds allow none yet, so set-up refuses Chromium browsers; an open release blocker for Chromium-family browsers until the store assigns an ID), and whether the pairing alert comes forward over a browser. Chrome shows its "read and change all your data on all websites" warning at install, and store review will ask for a justification of the host access ([Mac security model](../KeeForgeMac/SECURITY.md#browser-bridge), [extension walkthrough](../BrowserExtension/README.md#owner-browser-walkthrough), [real-browser checks](../BrowserExtension/README.md#real-browser-checks)).
 - This source-based model does not verify deployed server settings, installed entitlements, dependency vulnerabilities, release-key custody, or all parser resource bounds. Those require targeted validation when the corresponding boundary changes. A valid encrypted file can still be stale or contain hostile content supplied by someone who knows its key.
 
+### Local replacement and key recovery
+
+Unconfirmed/planned target evidence, source admission, key publication, retirement
+and revocation remain fail-closed. A ready-to-retire certificate is established only
+after target/association/required-source settlement, with durable new owner epoch
+before withdrawal. Certified replay can finish owner CAS without a permanent target
+SHA check; planned/unconfirmed replay cannot. Fully durable retirement deliberately
+restores main's external restore/open/conflict behavior: no permanent cryptographic
+antirollback protection is claimed. Source epochs and tombstones still fence stale
+actors and preserve later ciphertext.
+
+Local cache reads capture reference/epoch before IO. Scanner, healing/relink,
+migration, creation and VM publication recheck current reference, actual bytes,
+epoch and revocation under list lock → original/cache coordination → owner flock.
+Recovery ciphertext and pending sources cannot be replaced by an older read or
+recreated after removal. Idle key-file preferences update only current registry
+fields; actual pending association intents retain their exact desired-field CAS.
+No password/key-file bytes/session key/XML enter owner records.
+
+A single authenticated ciphertext may remain in session RAM and clears on lock or
+new unlock. Explicit encrypted draft export is independent of owner availability,
+verifies the reopened full document/pool off main and never clears edits or grants
+cleanup permission. Active recovery prevents destructive conflict reload/merge;
+normal conflict actions resume after settlement. Native file grants, UI and physical
+durability remain separate validation requirements.
+
 ### Effective resource inventory
 
 Container paths below are relative to the OS-resolved location, not fixed device paths. They describe production behavior. Injected unit tests instead use `<temporary directory>/KeeForgeUnitTestAppGroup/group.com.keevault.shared` and the `group.com.keevault.shared.unit-tests` defaults suite. In production, failure to resolve the group directory falls back to the process temporary directory; defaults independently fall back to standard defaults if the suite is unavailable ([AppGroupContainer.swift:37](../KeeForge/Services/Persistence/AppGroupContainer.swift#L37)). Neither fallback guarantees app/extension sharing.
+
+Pending local AutoFill snapshots also live under `pending-local-saves/<database UUID>/`.
+New sources have an exclusive UUID parent and an unchanged timestamp `.kdbx` name;
+legacy flat sources remain readable. `pending-local-save-owners/<database UUID>/`
+contains a stable lock, permanent removal tombstone and versioned nonsecret retirement
+receipts (relative identity, inode and SHA-512). Database removal revokes late local
+writes before registry mutation and refuses to erase unresolved sources implicitly.
+The coordinated replace holds this owner lock through its final receipt/revocation
+check and replacement; the owner never takes the database-list lock. Partial source
+retirement remains a recovery requirement, including missing payloads. Exact encrypted
+source export is available without unlocking; destructive discard needs a separate
+snapshot-specific confirmation and never follows from export failure. App Group denial
+or unknown owner metadata blocks mutation instead of using the temporary fallback.
+Source preparation persists a provisional owner before publishing ciphertext; shared-copy
+installation and activation are distinct effects. Merge admission precedes its saver,
+and surviving admission prevents automatic reencryption, including of later sources.
+Known committed outcomes retain installed keys and SHA despite failed final sync or
+coordination; unknown outcomes retain recovery ownership. Exact target re-observation
+and durable removal of admitted sources precede idle publication. A visible idle
+rename whose final sync fails is reported as bookkeeping uncertainty, not rollback.
+
+Local master-key publication has its own barrier and a durable field-specific
+association receipt. Epoch settlement retains exact new-target identity/SHA and any
+unconfirmed target durability; later mutations reconfirm visible owner metadata under
+flock and reject rollback/missing/foreign targets and incompatible associations. Late
+old-epoch sources stay retained and ineligible. Valid encrypted reads, receipt exports
+and an unlocked session's verified encrypted draft export remain separate from mutation
+permission. Draft export keeps edits and uses the unlocked session's key; failed export
+never authorizes destructive discard. Abandoning key publication revokes writes without
+undoing an installed change. Native save completion and identity publication are withheld
+on warnings; lock-cycle guards still prevent secret restoration.
+
+These controls do not make database-list writes transactional or establish physical
+power-loss behavior ([PendingLocalSaveStore.swift](../KeeForge/Services/Persistence/PendingLocalSaveStore.swift)).
 
 | Deployment and resource | Effective location or configuration | Access and enforcing control | Evidence and limitation |
 | --- | --- | --- | --- |
@@ -140,6 +206,7 @@ Container paths below are relative to the OS-resolved location, not fixed device
 | Express-unlock key | Same group and service, account `expressUnlockKey:<database UUID>`: a version byte, a 32-byte binding, and the 32-byte KDBX 4 KDF output of the version last opened by the app or AutoFill, or saved by the app. Never written for a hardware-key database or KDBX 3.1. | Same protection class and access control as the quick-unlock item. The app and both AutoFill extensions read it, with the context that released the quick-unlock item and no prompt of its own, and write it right after that item. Storing or deleting the quick-unlock item (app or extension) deletes it first. It opens only the version it was derived for, since every save rotates the KDF salt, and grants nothing the quick-unlock item does not: an app save stores the saved version's key only while that item holds the session's composite key, and a rekey or encryption-settings change only drops it. | [KeychainService.swift:37](../KeeForge/Services/Security/KeychainService.swift#L38), [express item:56](../KeeForge/Services/Security/KeychainService.swift#L57), [read:18](../KeeForge/Services/Security/QuickUnlockKeychain.swift#L18), [persist:45](../KeeForge/Services/Security/QuickUnlockKeychain.swift#L45), [save: replaceExpressUnlockKeyAfterSave](../KeeForge/ViewModels/DatabaseViewModel.swift), [hardware-key exclusion: finalizeSuccessfulUnlock](../KeeForge/ViewModels/DatabaseViewModel.swift), [AutoFill: biometricQuickUnlockKeys](../AutoFillExtension/CredentialProviderCoordinator.swift). |
 | Cloud provider credentials | `CloudKeychainAccessGroup` from build settings, or the default Keychain group if absent; service `com.keevault.cloud-token.<provider>`. | Entitled app-family code can access these `AfterFirstUnlockThisDeviceOnly` items without a vault-unlock or biometric gate; the intended consumer is app sync. SDK-managed OAuth caches have separate policies. | [CloudTokenStore.swift:9](../KeeForge/Services/Cloud/CloudTokenStore.swift#L9), [query:62](../KeeForge/Services/Cloud/CloudTokenStore.swift#L62), [iOS setting:118](../project.yml#L118), [Mac setting:217](../project.yml#L217). |
 | iOS OAuth callback | App URL schemes for Dropbox and OneDrive return through `onOpenURL` to provider handlers before other link routing. Mac declares no corresponding schemes. | The OS delivers the URL; provider SDKs receive it and are expected to validate the authentication callback. KeeForge must preserve its association with the initiated provider/account flow. | [AppRootView.swift:43](../KeeForge/App/AppRootView.swift#L43), [routing:274](../KeeForge/App/AppRootView.swift#L274), [CloudProviderRegistry.swift:52](../KeeForge/Services/Cloud/CloudProviderRegistry.swift#L52), [iOS Info.plist:13](../KeeForge/Info.plist#L13). |
+| iOS removed Documents files | `Library/Application Support/removed-documents-files.json` in the app's own container, never the App Group, written durably with complete file protection: per Documents file the user removed from the list, SHA-256 hashes of its name, size, and modification date and of its contents, plus its inode and status-change time. | Main app only; the Documents scan skips a matching file so a removal sticks. Holds no filename, path, or vault content; the file stays in Documents. | [DatabaseListStore.swift](../KeeForge/Services/Persistence/DatabaseListStore.swift), [DocumentsVaultScanner.swift](../KeeForge/Services/Persistence/DocumentsVaultScanner.swift). |
 | iOS optional icons and account metadata | `<App Group>/favicons` and App Group cloud-account defaults. | App family can read this plaintext metadata; requested domains go to `icons.duckduckgo.com`. Website icons default off. The `favicons` directory is excluded from device backups. | [FaviconService.swift:39](../KeeForge/Services/AppSupport/FaviconService.swift#L39), [SharedVaultStore.swift:35](../KeeForge/Services/Persistence/SharedVaultStore.swift#L35), [SettingsService.swift:402](../KeeForge/Services/AppSupport/SettingsService.swift#L402). |
 | Mac optional icons and account metadata | `<app Application Support>/favicons`, with temporary-directory fallback, and app-local defaults for accounts. | Main app can use these resources. Mac AutoFill has no outbound-network entitlement. | [FaviconService.swift:57](../KeeForge/Services/AppSupport/FaviconService.swift#L57), [SharedVaultStore.swift:35](../KeeForge/Services/Persistence/SharedVaultStore.swift#L35), [Mac extension entitlements](../AutoFillExtension/AutoFillExtensionMac.entitlements). |
 | Mac window restoration | Versionless JSON under `MacWindowRestoration` in injected Mac app-local UserDefaults, never the AutoFill App Group suite. | Ordered database UUIDs and frames, launcher visibility/frame, optional frontmost UUID; deliberately excludes all secret, workspace, title, path, and bookmark fields listed above. Written by `MacWindowCoordinator`, the sole owner of top-level frames (no AppKit frame autosave or state restoration); frozen during a quit that proceeds. AppKit owns per-database split geometry, removed with the database. | [MacWindowRestorationStore.swift](../KeeForge/Services/AppSupport/MacWindowRestorationStore.swift), [Mac security model](../KeeForgeMac/SECURITY.md#shared-storage). |
@@ -181,6 +248,29 @@ Priority indicates review order by potential impact and reachability, not a find
 | 3 | Bridge clients tie up the app or keep bringing its windows forward | Same-user process, or a paired browser | Recoverable loss of the bridge, a busy app, windows fronted repeatedly | 64-connection cap refusing more, connect and reveal deadlines, send timeout and queue limit, per-connection request limits including the `matches` rate (a burst of 10, then 5 a second) and the `reveal`/`unlock` rate | Keep every per-connection limit on the injected clock and tested; revisit if a client class with less privilege than the user appears | [MacBrowserBridgeController.swift](../KeeForge/Services/BrowserBridge/MacBrowserBridgeController.swift), [LocalSocketServer.swift:349](../KeeForge/Services/AppSupport/LocalSocketServer.swift#L349) |
 | 3 | Optional services or credential suggestions disclose more metadata than intended | Icons/AutoFill enabled or feedback submitted | Domain, account, or user-content privacy loss | Icons default off, explicit feedback flow, metadata-only credential identities | Keep opt-in and payload boundaries clear; review actual fields and recipients when adding diagnostics | [SettingsService.swift:402](../KeeForge/Services/AppSupport/SettingsService.swift#L402), [FeedbackSubmissionService.swift:143](../KeeForge/Services/AppSupport/FeedbackSubmissionService.swift#L143), [CredentialIdentityStoreManager.swift:852](../KeeForge/Services/AutoFill/CredentialIdentityStoreManager.swift#L852) |
 
+## Cloud creation journal
+
+New cloud databases and remote conflict copies retain encrypted payloads and nonsecret destination, reference and attempt metadata before create-only dispatch. An attempting record prevents an uncertain request from being sent again; only that request's response can supply a receipt. A known receipt permits local registration of a new database, while a conflict copy completes without changing the database list or the original. Dismissal stops a late response from registering through the dismissed creation flow. Cloud Recovery can export the exact encrypted payload, retry or explicitly discard an unchanged prepared record, and finish local work for confirmed receipts. Discard rechecks the exact record under its target and operation locks before deleting its encrypted copies. Attempting records cannot be retried or removed from that screen; they may represent a creation that succeeded remotely. The journal stores no passwords, keys or tokens ([CloudFileCreationCoordinator.swift](../KeeForge/Services/Cloud/CloudFileCreationCoordinator.swift), [PendingUploadQueue.swift](../KeeForge/Services/Cloud/PendingUploadQueue.swift)).
+
+FTP can prove a creation conflict before the target rename; the prepared payload remains recoverable, and a conflict copy can try a numbered name after rechecking session authority. A failure during or after rename remains uncertain. FTP cannot prevent another client from creating the destination between its final check and rename.
+
+## Cloud replacement journal
+
+The cloud pipeline retains immutable encrypted KDBX snapshots and nonsecret intent/attempt/receipt metadata in the App Group before provider mutation. The pure journal policy gates admission and dispatch; adapters perform IO. Remote equality, a changed revision, an absent file, cancellation or timeout cannot prove that an earlier request has stopped. An uncertain dispatched request remains a fence and is not automatically resent. Confirmed responses support local reconciliation without provider mutation. An initiating unlocked session may retain the new composite key and key-file data in memory while a confirmed rekey awaits reconciliation. Ordinary cloud saves also bind optional express-key effects to their own preselected operation and output digest, original target and session action. A weak operation-scoped completion ticket carries no secret; the session must independently validate its action, lock cycle, target, epoch, operation and installed cache through the key-publication fence. Lock, retirement, competing authority or mutation clears the context, and unknown outcomes never authorize publication. Marker retirement synchronizes its namespace before deleting payloads. Explicit Z/A/B reconciliation authenticates the captured pending snapshots and remote bytes before a single-use RAM context can authorize replacement of the exact current cache. Cache coordination, immediate reference/commit-lock checks and local owner fencing remain held through replacement and exact source ownership transfer; remote baseline proof remains separate. The context carries no persisted state or Keychain permission, and changed/new sources or unconfirmed effects retain recovery ownership. Cloud-open metadata CAS rejection preserves historical authentication authority instead of importing a newer reference into older bytes; the final key-publication fence remains independent of readable snapshot access. Fresh authentication after full settlement does not inherit an obsolete invocation's restriction. A merge's enqueue notification is emitted after its owned source handoff exits all locks, preventing its own drainer from competing for that unfinished lease. Independent contention still fails closed; neither observation nor notification creates retry permission. Cleared reconciled validators require a remote byte check even if the baseline equals the local predecessor; an older reference hash cannot authorize overwrite by that equality.
+
+New journal bindings capture the exact original cloud identity, operation, factor-preference fingerprint and head/epoch/date without copying keys or credentials. A confirmed rekey rechecks the bound marker and its original baseline, or its exact already-installed epoch, head, association and cache hash, under combined cache and registry coordination and immediate owner locks before deleting old keys or replacing cache. Before retirement, the same owner lock advances an idle pending-local epoch only after the exact installed rekey proof and durable registry publication; unresolved sources or key evidence prevent that handoff. Unconfirmed publication retains the journal and known ciphertext; unbound legacy data grants no automatic delivery authority. Authenticated legacy merge and export compatibility require their own verification and are not established by retaining bytes alone.
+
+Delivery of an existing ordinary journal can tolerate a later read-only preference while retaining its bound cloud identity, factors and epoch; rekey authority remains strict. Legacy data without a known phase may be surfaced for recovery without gaining upload authority; a false-phase marker remains unchanged.
+
+Explicit remote reads during pending delivery use a temporary encrypted snapshot and cannot replace the pending cache. Merge binds the exact authenticated remote baseline and source snapshots into a durable output before conditional source retirement. Confirmed journals cannot be removed by discard; only confirmed reconciliation owns that retirement. Cloud-open metadata CAS does not overwrite a newer epoch/reference, and a queued cache commit defers optional express-key effects without repeating encryption.
+
+
+A journal decode/IO failure does not prevent reading valid cached credentials, but blocks mutation and key publication. Cache and Keychain effects validate current reference/epoch, target bytes and local revocation inside coordinated ownership. Stale parse/save callbacks cannot authorize their keys merely because their own session remains unlocked. After complete settlement, fresh authenticated restores retain the normal product behavior; no permanent cryptographic antirollback guarantee is added.
+
+Provider limits remain: FTP and weak WebDAV validators offer preflight checks, large OneDrive upload sessions do not enforce the final commit revision, and an acknowledged provider write is not a physical-storage durability proof. Dropbox and OneDrive replacement content uploads do not retry at the application layer after uncertainty; shipped create-only behavior is unchanged. URLSession or an intermediary may retry a PUT after a lost response, so a later WebDAV or OneDrive rejection does not prove the earlier request failed. FTP preflight mismatch can fence its own attempt before target installation; FTP post-install errors, generic transport errors and lost content responses remain uncertain. Shared registry serialization remains process-local outside the explicitly fenced cloud transactions; this draft does not implement global cross-process registry CAS. Cloud key publication performs coordination, hashing and keychain-only effects on the shared off-main worker. Cancellation or a deadline closes unclaimed permission; an already-claimed effect may finish later under its original authority, so timeout never proves no effects. Native recovery presentation, provider integration and power-loss behavior have not been established by static checks.
+
+Automatic cloud key-file bookmark renewal defers while a pending upload exists, under the same commit lock used to publish upload intent. This keeps the bound preferences stable without preventing use of the resolved key-file URL. Explicit selection can rebind ready ordinary markers under that lock: each marker records authority for both the current and selected preference before the registry changes, and retires the old authority after confirmed publication. A partial transition blocks delivery until the current registry is durably reconfirmed and its matching authority retained. Uncertain, legacy and key-changing markers still require recovery; a new selection cannot settle an unknown remote outcome.
+
 ## Severity calibration (Critical, High, Medium, Low)
 
 Severity applies to a validated failure with a demonstrated trust-boundary crossing. Impact, reachability, confidence, and missing evidence should be recorded separately.
@@ -193,3 +283,105 @@ Severity applies to a validated failure with a demonstrated trust-boundary cross
 | Low | Limited unintended non-secret disclosure or a minor security-relevant behavior with constrained impact | Authorized copying, expected optional favicon disclosure, and documented platform behavior alone are not vulnerabilities. |
 
 Maintain this model when unlock factors, shared storage, provider transports, AutoFill authority, SSH agent authority, browser bridge authority, plaintext outputs, or distribution trust change. Keep detailed platform contracts next to their implementation and historical audit results in `docs/audits/`.
+
+Ordinary local saves share the pending-local typed admission, with no source
+receipts, before encryption. Unknown effects or interruption block another
+automatic attempt across sessions until explicit recovery; old observable bytes
+are not proof of no replacement. Durable completion or affirmative pre-replacement
+proof releases that operation. Database-bookmark renewal is field-specific and
+bound to its observed epoch, so a stale resolver cannot restore old factors.
+Local AutoFill final key publication validates the read-bound ciphertext/identity,
+reference epoch and revocation under the owner lock through keychain-only writes.
+Legacy registry cleanup occurs afterwards by field CAS, without list-lock inversion;
+refusing key publication does not prevent filling authenticated credentials.
+
+Known ordinary output is distinct from an unknown effect: its typed commit is
+recorded in the existing empty-receipt admission. A new explicit save requires the
+exact installed identity/SHA and epoch, uses a new operation UUID, and never drains
+receipts or retries an unknown outcome. Only the exact actual commit receipt can
+authorize cache repair when its owner publication fails. Failed pre-replacement
+release remains an actionable recovery error rather than a promise of safe retry.
+App unlock now also holds the final reference/owner fence through keychain-only
+publication; old parsed data remains readable without overwriting later keys.
+
+Initial admission publication retains its ownership token on observed rename with
+unconfirmed sync/coordinator completion, stopping the action before encryption and
+showing recovery rather than promising retry. Rekey Keychain publication holds the
+current installed receipt/operation/epoch/revocation fence through keychain-only
+effects, including invalidation. Provider work and both checks run off MainActor:
+list snapshot is brief, full provider reads precede an immediate coord -> try-list
+attempt, and owner flock follows only successful try-list. Contention rejects
+without waiting or retry. Coordination/list/owner protect the exact current target
+identity/bytes against the receipt through the effect. A RAM permit closes pending
+authority before timeout/cancel delivery or on subsequent lock/new unlock; claimed
+IO may finish and cannot be called cancelled or effect-free. No early wrapper
+result releases committed ownership or restores session secrets. Cleanup is off
+MainActor and outside owner. Direct secret/timer lock and interrupted completion
+do not wait on these locks, but already-claimed Keychain IO may delay other list
+consumers; no global UI or provider-latency guarantee is claimed. A stale callback cannot overwrite
+or delete newer items, including after same-epoch witness retirement and an
+in-place restore with unchanged inode; fresh authenticated restored-file reads
+remain allowed after retirement, without a permanent antirollback pin. Unknown callbacks lack that authority. Legacy reference
+cleanup stays outside owner flock and uses field CAS. A created session also
+receives its already-authenticated creation ciphertext in the single current RAM
+context, so draft export remains available before a first backup or after a failed
+first save; lock clears that context and export never clears the draft.
+
+Master-entry timestamps in shared defaults retain their existing dictionary key
+and representation. A security-owned process-local leaf mutex now serializes all
+date snapshots, conditional insert/replacement and per-reference deletion, including
+list removal/clear, so a local rekey worker cannot overwrite a concurrent cloud
+unlock date in that process. It holds no Keychain/list/owner calls or awaits, and
+expiry deletes Keychain items only after releasing it. Missing-date and interval
+policies are unchanged. Separate app/extension processes still do not share that
+mutex: shared-UserDefaults RMW remains nontransactional across processes, and no
+atomic Keychain/date update or persistence-after-power-loss guarantee is claimed.
+
+Local recovery export compares the complete canonical KDBX XML representation and its binary pool; an in-memory fractional timestamp alone is not evidence that an export lost data. A known installed local rekey receipt can preserve its originating unlocked session’s key/SHA/ciphertext and the same receipt’s nonsecret key-file association/date when registry publication is unavailable, while persistent key/association effects retain current-owner authorization and lock/new-session revocation. Healthy idle pending sources remain owned across a conflict Reload; only verified durable merge retirement permits publication of the corresponding merged shared copy. Removal checks for unresolved work under the owner lock before revocation, so refusing removal preserves recovery authority; a permitted removal still revokes late writes before the list changes.
+
+A local database-bookmark renewal can carry a nonpersistent, durable-CAS receipt through its originating read. The receipt binds exact reference observations, owner epoch and target identity; it does not replace authentication or source/admission/revocation checks. Final local read-key persistence rechecks the authenticated ciphertext under target/registry coordination in a bounded worker, uses immediate try-list then owner authority and executes only keychain-only effects. Pending cancellation prevents late effects; an already-claimed Keychain operation may finish after timeout or memory lock and cannot restore session state. Registry-dependent UI work can still wait on claimed IO, while memory lock/AutoFill cleanup remain independent. This adds no permanent antirollback promise after full settlement.
+
+Local commit receipts do not grant file access. Pending-source consumption and the
+subsequent shared-cache refresh/invalidation retain the actual resolved bookmark
+scope while continuing to validate the installed identity and ciphertext. Read-key
+workers separately report observed no-claim termination; a timeout, cancellation
+or claimed effect cannot be treated as that proof to reopen AutoFill actions.
+Session factors are applied before the unlock publication await, and later work
+requires the same action identity even when a concurrent rekey keeps the lock cycle.
+
+An early session update from a known local rekey receipt does not advance the
+registry observation used to remove legacy metadata. Cleanup uses the captured
+pre-save observation with the existing field CAS after the fenced Keychain effect;
+a later registry change can reject cleanup without undoing or repeating that effect.
+
+Auxiliary no-renew local resolution is also no-heal: it does not create ownership
+state, rebind Documents references or reseed caches. Valid moved locations remain
+readable; known Trash remains distinct from unavailable. The shipped default heal
+is retained without claiming a durable registry transaction or issuing a renewal
+receipt. Actual authenticated read renewal keeps its historical reference through
+the final fence and applies only the same action’s bookmark after authorization.
+
+A durable bookmark renewal cannot precede a source-restricted final publication:
+its owner admission requires no recorded or filesystem sources in addition to the
+existing idle/epoch/revocation checks. Deferral preserves valid file reading and
+leaves the reference unchanged; it neither authorizes stale keys nor releases
+source/admission barriers. Default heal remains the separately documented limit.
+
+A source can arrive after bookmark-renewal admission. Read-key publication still
+rejects that window. A bookmark-only reconciliation may preserve the same read’s
+durable transition after exact authenticated target/reference/epoch checks, accepting
+only verified eligible sources. Session action/cycle checks prevent late RAM promotion;
+merge obtains new ownership and a new installed receipt. Failed proof retains sources
+for explicit recovery and never adopts another actor’s current factors or epoch.
+
+A local merge keeps its actual bookmark grant through installed-target bookmark
+publication, exact source retirement and cache refresh. The field publisher is
+coordinated with the new target and owner admission; a receipt’s canonical path is
+never access authority. Its RAM-only completion prevents a late VM callback from
+repeating retirement. An explicit same-session mutation can reconcile only its
+own authenticated pending renewal after revoking the old read-key permission;
+current target/reference/epoch checks and session lifecycle guards still apply.
+
+Local-save recovery is exposed in iOS Database Details and native Mac Database Settings, including while locked. They share receipt-bound source export, confirmation wording, and explicit key-publication recovery. Mac export writes encrypted bytes directly to the chosen save-panel destination. A committed or unknown security-settings result replaces Save with Done; acknowledging it does not repeat encryption or replacement.
+
+Native Mac cloud-creation recovery remains reachable from the Databases window even when no reference has been registered. This opens the same phase-specific recovery surface used on iOS; reaching it does not grant retry, registration, overwrite or discard authority.

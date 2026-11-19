@@ -15,8 +15,22 @@ import XCTest
 /// `cloudCreationMessage(for:)`'s `.conflict` formatting — deterministically.
 @MainActor
 final class DatabaseCreationViewModelTests: XCTestCase {
+    private var creationJournalRoot: URL!
+
+    private func isolatedCreationQueue() -> PendingUploadQueue.Environment {
+        let root = creationJournalRoot!
+        var queue = PendingUploadQueue.Environment.live
+        queue.appGroupContainerURL = { root }
+        queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+        queue.postDarwinNotification = {}
+        return queue
+    }
+
     override func setUp() async throws {
         try await super.setUp()
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        creationJournalRoot = AppGroupContainer.url.appendingPathComponent("creation-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: creationJournalRoot, withIntermediateDirectories: true)
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
@@ -26,6 +40,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
+        if let creationJournalRoot { try? FileManager.default.removeItem(at: creationJournalRoot) }
         try await super.tearDown()
     }
 
@@ -109,7 +124,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
     func testChoosingAListedDatabaseFileIsRefusedBeforeAnythingIsWritten() async throws {
         let url = try makeTemporaryFileURL(name: "Listed.kdbx", contents: Data([42]))
         let listed = try TestDatabaseSupport.makeReference(for: url)
-        DatabaseListStore.update(listed)
+        DatabaseListStore.testUpsert(listed)
         let preparations = PreparationCount()
         let model = DatabaseCreationViewModel(preparationOperation: { request, environment in
             await preparations.increment()
@@ -337,11 +352,27 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         viewModel.confirmPassword = "export password"
         _ = await viewModel.prepareForExport()
         XCTAssertNotNil(viewModel.preparedDatabase)
+        let prepared = try XCTUnwrap(viewModel.preparedDatabase)
         let destinationURL = try makeTemporaryFileURL(name: "Exported.kdbx", contents: Data())
+        for foreignBytes in [Data(), Data("another exported file".utf8)] {
+            try CoordinatedFileReader.writeData(foreignBytes, to: destinationURL, options: .atomicProtected)
+            XCTAssertThrowsError(try viewModel.completeExport(to: destinationURL)) { error in
+                XCTAssertEqual(error as? PendingLocalSaveStore.OwnershipError, .targetChanged)
+            }
+            XCTAssertEqual(viewModel.preparedDatabase?.encryptedBytes, prepared.encryptedBytes)
+            XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+            XCTAssertEqual(try Data(contentsOf: destinationURL), foreignBytes)
+        }
+        let unregistered = try TestDatabaseSupport.makeReference(for: destinationURL, id: prepared.id)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: DatabaseListStore.cacheLocation(for: unregistered).path))
+        try CoordinatedFileReader.writeData(prepared.encryptedBytes, to: destinationURL, options: .atomicProtected)
 
         let created = try viewModel.completeExport(to: destinationURL)
 
         XCTAssertEqual(created.reference.filename, "Exported.kdbx")
+        XCTAssertEqual(try Data(contentsOf: destinationURL), prepared.encryptedBytes)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: created.reference)), prepared.encryptedBytes)
+        XCTAssertEqual(created.openTimeSHA512, FileDigest.sha512(prepared.encryptedBytes))
         XCTAssertNil(viewModel.preparedDatabase)
         XCTAssertEqual(DatabaseListStore.databases.map(\.id), [created.reference.id])
     }
@@ -359,7 +390,9 @@ final class DatabaseCreationViewModelTests: XCTestCase {
     // MARK: - createInCloud error surfacing / cloudCreationMessage(for:) formatting
 
     func testCreateInCloudSurfacesGenericErrorMessageWhenProviderIsUnavailable() async throws {
-        let viewModel = DatabaseCreationViewModel()
+        var environment = DatabaseCreationService.Environment.live
+        environment.creationQueue = isolatedCreationQueue()
+        let viewModel = DatabaseCreationViewModel(environment: environment)
         viewModel.databaseName = "Cloud Vault"
         viewModel.password = "cloud password"
         viewModel.confirmPassword = "cloud password"
@@ -374,9 +407,14 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertNil(created)
         XCTAssertFalse(viewModel.isCreating)
         XCTAssertEqual(viewModel.creationError, CloudProviderError.notAuthenticated.localizedDescription)
+        let records = try PendingUploadQueue.listCreations(environment: environment.creationQueue)
+        XCTAssertEqual(records.count, 1)
+        XCTAssertEqual(records.first?.intent.phase, .prepared)
+        let record = try XCTUnwrap(records.first)
+        XCTAssertEqual(FileDigest.sha512(try PendingUploadQueue.readCreationPayload(record, environment: environment.creationQueue)), record.intent.payloadSHA512)
     }
 
-    func testCreateInCloudFormatsConflictErrorAsFriendlyDuplicateMessage() async throws {
+    func testCreateInCloudReportsAmbiguousConflictForRecovery() async throws {
         let viewModel = DatabaseCreationViewModel(
             environment: cloudEnvironment { _, _, _, _, _ in
                 throw CloudProviderError.conflict(remoteRev: "rev-existing")
@@ -394,12 +432,9 @@ final class DatabaseCreationViewModelTests: XCTestCase {
 
         XCTAssertNil(created)
         XCTAssertFalse(viewModel.isCreating)
-        // cloudCreationMessage(for:) special-cases .conflict: during creation a
-        // remote-rev conflict means the name is already taken, so the save-flow
-        // "reload before saving" wording would mislead here.
         XCTAssertEqual(
             viewModel.creationError,
-            "A database with this name already exists in this cloud folder."
+            "Cloud creation may have succeeded. Open Cloud Recovery to keep or recover the encrypted copy."
         )
         // On failure secrets stay put so the user can retry without retyping.
         XCTAssertEqual(viewModel.password, "cloud password")
@@ -423,7 +458,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         )
 
         XCTAssertNil(created)
-        XCTAssertEqual(viewModel.creationError, CloudProviderError.insufficientSpace.localizedDescription)
+        XCTAssertEqual(viewModel.creationError, "Cloud creation may have succeeded. Open Cloud Recovery to keep or recover the encrypted copy.")
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
     }
 
@@ -584,8 +619,18 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isCreating)
         XCTAssertEqual(viewModel.password, "")
         XCTAssertEqual(viewModel.confirmPassword, "")
-        // Dismissal suppresses opening the result; it cannot undo a committed upload.
-        XCTAssertEqual(DatabaseListStore.databases.map(\.filename), ["Late Cloud Vault.kdbx"])
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        let queue = isolatedCreationQueue()
+        let confirmed = try? PendingUploadQueue.listCreations(environment: queue).first
+        XCTAssertEqual(confirmed?.intent.phase, .confirmed)
+        if let confirmed {
+            var environment = CloudFileCreationCoordinator.Environment.live
+            environment.queue = queue
+            environment.createFile = { _, _, _, _ in throw CloudProviderError.networkUnavailable }
+            let recovered = try? CloudFileCreationCoordinator.resumeKnownRegistration(operationID: confirmed.intent.operationID, environment: environment)
+            XCTAssertEqual(recovered?.filename, "Late Cloud Vault.kdbx")
+            XCTAssertEqual(try? PendingUploadQueue.listCreations(environment: queue).first?.intent.phase, .completed)
+        }
     }
 
     func testDismissedCloudCreationDropsLateError() async {
@@ -630,6 +675,7 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         environment.beginBackgroundTask = { _ in .invalid }
         environment.endBackgroundTask = { _ in }
         environment.createCloudFile = createCloudFile
+        environment.creationQueue = isolatedCreationQueue()
         return environment
     }
 

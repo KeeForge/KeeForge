@@ -398,8 +398,7 @@ struct UnlockView: View {
             isPresented: $showRemoveMissingConfirmation
         ) {
             Button("Remove", role: .destructive) {
-                viewModel.removeMissingDocumentsDatabase()
-                onBackToDatabaseList()
+                removeMissingDatabase()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -454,7 +453,7 @@ struct UnlockView: View {
     @ViewBuilder
     private var hardwareKeyMenuItems: some View {
         Button {
-            viewModel.setHardwareKey(nil)
+            changeHardwareKey(nil)
         } label: {
             if viewModel.hardwareKey == nil {
                 Label("None", systemImage: "checkmark")
@@ -465,7 +464,7 @@ struct UnlockView: View {
 
         ForEach(hardwareKeyOptions, id: \.self) { option in
             Button {
-                viewModel.setHardwareKey(option)
+                changeHardwareKey(option)
             } label: {
                 if viewModel.hardwareKey == option {
                     Label(hardwareKeyTitle(option), systemImage: "checkmark")
@@ -473,6 +472,27 @@ struct UnlockView: View {
                     Text(hardwareKeyTitle(option))
                 }
             }
+        }
+    }
+
+    private func changeHardwareKey(_ hardwareKey: HardwareKeyConfiguration?) {
+        Task {
+            let outcome = await viewModel.setHardwareKey(hardwareKey)
+            switch outcome {
+            case .saved, .unchanged: break
+            case .rejected, .notPublished:
+                selectionAlert = .init(title: String(localized: "Hardware Key"), message: SaveError.saveContextUnavailable.localizedDescription)
+            case .visibleUnconfirmed, .keyEffectUnconfirmed:
+                selectionAlert = .init(title: String(localized: "Hardware Key"), message: CocoaError(.fileWriteUnknown).localizedDescription)
+            }
+        }
+    }
+
+    private func removeMissingDatabase() {
+        Task {
+            guard let outcome = await viewModel.removeMissingDocumentsDatabase() else { return }
+            if outcome == .removed || outcome == .alreadyMissing { onBackToDatabaseList() }
+            else { selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: CocoaError(.fileWriteUnknown)) }
         }
     }
 

@@ -28,6 +28,10 @@
 - The read-only toggle is disabled for KDBX 3.1 and for a database with a hardware key configured, in both contexts; the savers reject both.
 - The master-key, encryption and import sheets register cancellation with their shell so teardown clears pending work synchronously.
 - `MasterKeyChangeView` is pushed inside the details sheet, never a nested sheet. Its back button is hidden so Cancel is the only way out and the edge-swipe cannot abort mid-edit. Cancel and `onDisappear` call `cancelPendingChange()`, so a dismissal during authentication aborts instead of rekeying with cleared fields.
+- A master-key save asks for a destructive confirmation and then device-owner authentication. An authentication failure other than a user cancel must surface as an error, not look like success.
+- `EncryptionSettingsView` has no confirmation or authentication on purpose: the key does not change and the save keeps a backup. Back and interactive dismissal are disabled while it saves.
+- `DatabaseCreationView` blocks dismissal while creating; on disappearance `cancelPendingCreation()` clears secrets and closes the creation lifetime. A late cloud receipt is retained without registering or opening the database.
+- `PasswordImportView` discards its preview on disappearance and on lock, and blocks leaving while importing.
 - A master-key save asks for a destructive confirmation and then device-owner authentication, which runs in `MasterKeyChangeViewModel.performConfirmedChange`, so nothing is written before both. An authentication failure other than a user cancel must surface as an error, not look like success.
 - On Mac, Cancel, Escape and the parent's Done are disabled while the key or encryption change runs; lock or close ends the sheets and clears the typed fields but never cancels the write. A key file created there is written only to the save-panel URL, its buffer wiped, then read back and bookmarked.
 - `EncryptionSettingsView` has no confirmation or authentication on purpose: the key does not change and the save keeps a backup. Back and interactive dismissal are disabled while it saves. The Mac sheet's Benchmark times one derivation off the main actor only when clicked; a selection change, Save or closing discards its result. One benchmark derivation runs at a time app-wide, none starts while that database saves, and Save waits for a running one to finish before re-encrypting.
@@ -37,6 +41,8 @@
 ### Save conflict
 
 - On iOS `SaveConflictAlertModifier` stacks four mutually exclusive alerts; on Mac the workspace's `MacWorkspaceAlerts` presents them as `NSAlert`s. Acknowledging a failed merge puts the conflict alert back up; a merge failure is never a dead end.
+
+- Database Details enumerates pending-local recovery independently of unlock and target SHA. Exports read a receipt-verified full encrypted source and need its original key when opened. Discard is a separate destructive confirmation over a captured snapshot; export failure never invokes or authorizes it. Process-local owner notifications and foreground refresh both reload source and backup lists independently of the database SHA. Foreground refresh is the cross-process visibility boundary; Foundation NotificationCenter is not an interprocess signal.
 
 ## Tests
 
@@ -49,3 +55,13 @@
 - `../AGENTS.md`, `../Cloud/AGENTS.md`, `../Components/AGENTS.md` (`SettingsSummaryRow`)
 - `../../ViewModels/AGENTS.md`: rekey and re-encryption preconditions, conflict and merge policy
 - `../../Services/AGENTS.md`: save paths, pending uploads, AutoFill allow-list
+
+- Master-key and encryption-settings warnings complete that invocation and replace Save with acknowledgement. Keep entered master-key material until acknowledgement/dismissal; field edits cannot re-enable a completed request. Local recovery distinguishes target-file durability from cleanup-record uncertainty. Its destructive action is independent of export and explicitly warns that abandoning key publication does not undo an installed key change.
+- An unlocked session can export its retained unsaved draft through the existing native exporter while recovering local publication. The exported full snapshot uses the unlocked session's key; locked source exports continue to use exact encrypted receipts without restoring secrets.
+
+- The draft-export capability is outside optional owner/witness rows and requires the same unlocked local dirty session. Active recovery replaces normal conflict Merge/Reload promises with actionable Details/export; durable settlement resumes the existing conflict actions.
+
+- Distinguish a known committed ordinary file from an unknown save outcome. Known output supports a new explicit save without destructive record discard; neither acknowledgement nor activation resends the previous operation. Keep file-durability and record warnings truthful.
+
+- Cloud Details links to Cloud Recovery independently of a session, including when removal refuses pending journal ownership. Local recovery and source semantics stay separate.
+- Local recovery content is shared with native Mac Database Settings; each platform owns its confirmation and encrypted export presenter. Confirmation copy belongs to `PendingLocalRecoveryViewModel` so a known commit is never described as an unknown write on another platform.

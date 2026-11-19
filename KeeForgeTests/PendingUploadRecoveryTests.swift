@@ -164,7 +164,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
     /// cloud copy and the AutoFill save survives only as a backup.
     func test_live_findsTheAutoFillSaveInTheBackupAfterTheCacheWasReplaced() throws {
         let reference = makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let payload = Data("autofill-payload".utf8)
 
         let liveCacheURL = DatabaseListStore.cacheLocation(for: reference)
@@ -190,16 +190,22 @@ final class PendingUploadRecoveryTests: XCTestCase {
         XCTAssertFalse(PendingUploadRecovery.conflictedPayloadSHA512s(for: reference).isEmpty)
         let payloads = try recoveredPayloads(PendingUploadRecovery.lookUpPayloads(for: reference))
         XCTAssertEqual(payloads.map(\.data), [payload])
-        guard payloads.count == 1,
-              case .backup(let recoveredBackupURL) = payloads[0].location else {
-            return XCTFail("Expected the AutoFill save to be recovered from its backup")
-        }
-        XCTAssertEqualFilePaths(
-            recoveredBackupURL,
-            backupDirectory.appendingPathComponent("20260924-100000-000000.kdbx")
-        )
+        let originalBackup = backupDirectory.appendingPathComponent("20260924-100000-000000.kdbx")
+        XCTAssertEqual(try Data(contentsOf: originalBackup), payload)
+        let promoted = try XCTUnwrap(payloads.first?.storedMarker)
+        XCTAssertEqual(payloads.first?.location, .cache)
+        XCTAssertEqual(promoted.marker.generation, storedMarker.marker.generation + 1)
+        XCTAssertEqual(promoted.marker.intendedPayloadSHA512, FileDigest.sha512(payload))
+        let path = try XCTUnwrap(promoted.marker.intendedPayloadPath)
+        let immutableURL = PendingUploadQueue.resolveAppGroupURL(for: path)
+        XCTAssertNotEqual(immutableURL.standardizedFileURL, liveCacheURL.standardizedFileURL)
+        XCTAssertEqual(try Data(contentsOf: immutableURL), payload)
+        XCTAssertEqual(try Data(contentsOf: liveCacheURL), Data("cloud-copy".utf8))
 
         PendingUploadRecovery.dropMarkers([storedMarker])
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).count, 1)
+        XCTAssertEqual(try Data(contentsOf: immutableURL), payload)
+        PendingUploadRecovery.dropMarkers([promoted])
 
         XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id).isEmpty)
         XCTAssertTrue(PendingUploadRecovery.conflictedPayloadSHA512s(for: reference).isEmpty)
@@ -212,7 +218,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
     /// the base backup, and the marker must survive for the user to act on.
     func test_live_interruptedV1_16TwoPhaseSave_isRefusedAndTheMarkerKept() throws {
         let reference = makeReference()
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let base = Data("pre-autofill-base".utf8)
         let autoFillSave = Data("autofill-payload".utf8)
 

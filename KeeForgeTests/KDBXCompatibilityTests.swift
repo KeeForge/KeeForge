@@ -66,6 +66,38 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(reopened.rootGroup.groups.first?.name, name)
     }
 
+    func test_rejectedCloudCreationRetainsReopenableEncryptedDatabase() async throws {
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        let root = AppGroupContainer.url.appendingPathComponent("compat-creation-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let prepared = try await DatabaseCreationService.prepare(request: DatabasePreparationRequest(
+            displayName: "Rejected cloud creation", password: "creation compatibility password",
+            keyFileData: nil, keyFileBookmarkData: nil, keyFileFilename: nil))
+        let reference = DatabaseReference(id: UUID(), nickname: nil, filename: prepared.filename, bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
+            addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+        var environment = CloudFileCreationCoordinator.Environment.live
+        environment.queue.appGroupContainerURL = { root }
+        environment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+        environment.queue.postDarwinNotification = {}
+        environment.createFile = { _, _, _, _ in
+            throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected)
+        }
+        let operation = UUID()
+        do {
+            _ = try await CloudFileCreationCoordinator.create(operationID: operation, provider: "ftp", accountID: "test",
+                target: "/vault.kdbx", bytes: prepared.encryptedBytes, referenceTemplate: reference, environment: environment)
+            XCTFail("Expected conflict")
+        } catch let error as CloudProviderError {
+            guard case .conflict = error else { return XCTFail("Expected conflict") }
+        }
+        let recovered = try CloudFileCreationCoordinator.export(operationID: operation, environment: environment)
+        XCTAssertEqual(recovered, prepared.encryptedBytes)
+        let parsed = try KDBXParser.parseWithMeta(data: recovered, compositeKey: prepared.compositeKey, sessionKey: prepared.sessionKey)
+        XCTAssertEqual(parsed.rootGroup.groups.first?.name, "Rejected cloud creation")
+    }
+
     #if os(macOS)
     @MainActor
     func test_nativeCreationWritesReopenableEncryptedDatabase() async throws {
@@ -342,11 +374,12 @@ final class KDBXCompatibilityTests: XCTestCase {
     /// composite key fails the header HMAC and that the tree survives
     /// unchanged; this method adds the header hygiene — cipher, KDF identity,
     /// and cost parameters preserved, master seed and KDF salt rotated.
-    func test_rekeyScenarios_reEncryptUnderNewKeyAndPreserveHeaderIdentity() throws {
+    @MainActor
+    func test_rekeyScenarios_reEncryptUnderNewKeyAndPreserveHeaderIdentity() async throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 
         let passwordOnly = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: bundle)
-        let passwordOnlyResult = try collector.run(
+        let passwordOnlyResult = try await collector.runLocalRekey(
             KDBXCompatibilitySupport.rekeyPasswordOnlyScenario(),
             on: passwordOnly
         )
@@ -999,6 +1032,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let databaseURL = directory.appendingPathComponent("editor-workflow.kdbx")
         try sourceBytes.write(to: databaseURL)
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL, autoFillEnabled: false)
+        DatabaseListStore.testUpsert(reference)
         defer {
             try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
             try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
@@ -1085,6 +1119,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let databaseURL = directory.appendingPathComponent("editor-create-retry.kdbx")
         try sourceBytes.write(to: databaseURL)
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL, autoFillEnabled: false)
+        DatabaseListStore.testUpsert(reference)
         defer {
             try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
             try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
@@ -1574,12 +1609,13 @@ final class KDBXCompatibilityTests: XCTestCase {
         let sourceBytes = try fixture.data(in: bundle)
         try sourceBytes.write(to: databaseURL)
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        DatabaseListStore.testUpsert(reference)
         let previousActiveDatabaseID = DatabaseListStore.activeAutoFillDatabaseID
         defer {
             DatabaseListStore.activeAutoFillDatabaseID = previousActiveDatabaseID
             try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
             try? FileManager.default.removeItem(at: DatabaseListStore.databaseBackupDirectoryURL(for: reference))
-            PendingLocalSaveStore.removeAll(for: reference.id)
+            if let snapshot = try? PendingLocalSaveStore.recovery(for: reference.id) { _ = try? PendingLocalSaveStore.discard(snapshot) }
         }
         // The Mac extension cannot open the bookmarked file: it reads the
         // shared copy and saves there, leaving the file to the app (#182).

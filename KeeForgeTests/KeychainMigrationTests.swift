@@ -17,6 +17,7 @@ final class KeychainMigrationTests: XCTestCase {
     func testMigratedReferenceKeepsLegacyKeychainFilenameUntilLazyMigrationCompletes() throws {
         let url = try makeTemporaryFileURL(name: "legacy-keychain.kdbx")
         try SharedVaultStore.saveBookmark(for: url)
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected migration") }
 
         let migratedReference = try XCTUnwrap(DatabaseListStore.databases.first)
 
@@ -26,13 +27,25 @@ final class KeychainMigrationTests: XCTestCase {
     func testClearLegacyKeychainFilenamePreservesDatabaseIdentity() throws {
         let url = try makeTemporaryFileURL(name: "clear-legacy.kdbx")
         try SharedVaultStore.saveBookmark(for: url)
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected migration") }
 
         let migratedReference = try XCTUnwrap(DatabaseListStore.databases.first)
-        DatabaseListStore.clearLegacyKeychainFilename(for: migratedReference.id)
+        DatabaseListStore.clearLegacyKeychainFilename(for: migratedReference)
 
         let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first)
         XCTAssertEqual(updatedReference.id, migratedReference.id)
         XCTAssertNil(updatedReference.legacyKeychainFilename)
+    }
+
+    func testUnconfirmedLegacyCleanupDoesNotReportSuccess() throws {
+        let url = try makeTemporaryFileURL(name: "legacy-uncertain.kdbx")
+        try SharedVaultStore.saveBookmark(for: url)
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected migration") }
+        let reference = try XCTUnwrap(DatabaseListStore.databases.first)
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        XCTAssertFalse(DatabaseListStore.clearLegacyKeychainFilename(for: reference, io: io))
+        XCTAssertNil(DatabaseListStore.databases.first?.legacyKeychainFilename)
     }
 
     private func makeTemporaryFileURL(name: String, contents: Data = Data("fixture".utf8)) throws -> URL {

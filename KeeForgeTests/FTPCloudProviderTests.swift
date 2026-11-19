@@ -283,6 +283,62 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertNotEqual(first.rev, second.rev)
     }
 
+    @MainActor
+    func testJournalFencesOnlyFTPPreflightAndRetainsLostInstallReply() async throws {
+        for preflightMismatch in [true, false] {
+            DatabaseListStore.clearAll()
+            defer { DatabaseListStore.clearAll() }
+            let server = FakeFTPServer()
+            let (provider, accountId) = try makeProvider(server: server)
+            let reference = try! DatabaseListStore.addCloud(provider: provider.id, accountId: accountId,
+                file: .init(id: "/journal.kdbx", name: "journal.kdbx", path: "/journal.kdbx", isFolder: false, modifiedDate: nil, size: nil))
+            let context = try CloudJournalTestContext(reference: reference)
+            server.setFile("journal.kdbx", data: context.base)
+            if preflightMismatch {
+                server.beforeNext("STOR") { server.setFile("journal.kdbx", data: Data("other remote".utf8)) }
+            } else { server.dropConnection(onNext: "RNTO", afterHandling: true) }
+            var environment = context.environment()
+            environment.getMetadata = { _ in try await provider.getMetadata(accountId: accountId, fileId: "/journal.kdbx") }
+            environment.upload = { _, bytes, rev, progress in
+                try await provider.upload(accountId: accountId, fileId: "/journal.kdbx", data: bytes, expectedRev: rev, progress: progress)
+            }
+            do {
+                _ = try await CloudDatabaseSaver.deliver(context.stored, reference: reference, environment: environment)
+                XCTFail("Expected transport phase fault")
+            } catch {
+                if preflightMismatch {
+                    XCTAssertEqual((error as? CloudUploadFailure)?.outcome, .notDispatched)
+                } else { XCTAssertNil(error as? CloudUploadFailure) }
+            }
+            let owner = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            XCTAssertEqual(CloudJournalDecision.state(of: owner.marker), preflightMismatch ? .ready : .attempting)
+            XCTAssertEqual(owner.marker.attemptIsFenced == true, preflightMismatch)
+            XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(owner), context.payload)
+            XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+            let installs = server.commandLog.filter { $0.hasPrefix("RNTO") }.count
+            XCTAssertEqual(installs, preflightMismatch ? 0 : 1)
+            if preflightMismatch {
+                XCTAssertEqual(server.file("journal.kdbx")?.data, Data("other remote".utf8))
+                server.setFile("journal.kdbx", data: context.base)
+                guard case .saved? = try await CloudDatabaseSaver.deliver(owner, reference: reference, environment: environment) else {
+                    return XCTFail("A new explicit delivery is permitted after affirmative preflight failure")
+                }
+                XCTAssertEqual(server.file("journal.kdbx")?.data, context.payload)
+                XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+            } else {
+                XCTAssertEqual(server.file("journal.kdbx")?.data, context.payload)
+                for _ in 0..<2 {
+                    guard case .retained? = try await CloudDatabaseSaver.deliver(owner, reference: reference, environment: environment) else {
+                        return XCTFail("Lost install reply remains uncertain")
+                    }
+                }
+                XCTAssertEqual(server.commandLog.filter { $0.hasPrefix("RNTO") }.count, installs)
+                XCTAssertFalse(CloudJournalDecision.permitsMutation([owner.marker], changingKey: true))
+                XCTAssertFalse(DatabaseListStore.remove(id: reference.id))
+            }
+        }
+    }
+
     func testUploadConflictsOnASameSecondSameSizeRemoteWrite() async throws {
         let server = FakeFTPServer()
         server.setFile("personal.kdbx", data: Data("first".utf8), modified: "20260918120000")
@@ -1000,6 +1056,59 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertFalse(server.commandLog.contains { $0.hasPrefix("STOR") })
     }
 
+    func testCreateConflictBeforeInstallRetainsRecoverablePayload() async throws {
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        for appearsDuringUpload in [false, true] {
+            let root = AppGroupContainer.url.appendingPathComponent("ftp-creation-" + UUID().uuidString)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let server = FakeFTPServer()
+            if appearsDuringUpload {
+                server.beforeNext("STOR") { server.setFile("taken.kdbx", data: Data("other".utf8)) }
+            } else { server.setFile("taken.kdbx", data: Data("other".utf8)) }
+            let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
+            let provider = FTPCloudProvider(client: server.makeClient(), credentialLoader: { _ in credential })
+            var environment = CloudFileCreationCoordinator.Environment.live
+            environment.queue.appGroupContainerURL = { root }
+            environment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+            environment.queue.postDarwinNotification = {}
+            environment.createFile = { _, account, path, data in
+                try await provider.createFile(accountId: account, path: path, data: data, progress: { _ in })
+            }
+            let reference = DatabaseReference(id: UUID(), nickname: nil, filename: "taken.kdbx", bookmarkData: nil,
+                keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
+                addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+            do {
+                _ = try await CloudFileCreationCoordinator.create(operationID: UUID(), provider: "ftp", accountID: "alex",
+                    target: "/taken.kdbx", bytes: Data("mine".utf8), referenceTemplate: reference, environment: environment)
+                XCTFail("Expected conflict")
+            } catch let error as CloudProviderError {
+                guard case .conflict = error else { return XCTFail("Expected conflict") }
+            }
+            XCTAssertEqual(server.file("taken.kdbx")?.data, Data("other".utf8))
+            XCTAssertFalse(server.commandLog.contains { $0.hasPrefix("RNTO") })
+            let stored = try XCTUnwrap(PendingUploadQueue.listCreations(environment: environment.queue).first)
+            XCTAssertEqual(stored.intent.phase, .prepared)
+            XCTAssertEqual(try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue), Data("mine".utf8))
+            try PendingUploadQueue.discardPreparedCreation(stored, environment: environment.queue)
+            XCTAssertTrue(try PendingUploadQueue.listCreations(environment: environment.queue).isEmpty)
+            do {
+                _ = try await CloudFileCreationCoordinator.create(operationID: UUID(), provider: "ftp", accountID: "alex",
+                    target: "/taken.kdbx", bytes: Data("mine".utf8), referenceTemplate: reference,
+                    isConflictCopy: true, environment: environment)
+                XCTFail("Expected conflict")
+            } catch let error as CloudProviderError {
+                guard case .conflict = error else { return XCTFail("Expected conflict") }
+            }
+            let retainedCopy = try XCTUnwrap(PendingUploadQueue.listCreations(environment: environment.queue).first)
+            XCTAssertEqual(retainedCopy.intent.phase, .prepared)
+            XCTAssertEqual(try PendingUploadQueue.readCreationPayload(retainedCopy, environment: environment.queue), Data("mine".utf8))
+            try PendingUploadQueue.discardPreparedCreation(retainedCopy, environment: environment.queue)
+            XCTAssertTrue(try PendingUploadQueue.listCreations(environment: environment.queue).isEmpty)
+            XCTAssertEqual(server.file("taken.kdbx")?.data, Data("other".utf8))
+        }
+    }
+
     func testCreateFileRefusesANameThatAppearsDuringTheUpload() async throws {
         let server = FakeFTPServer()
         let (provider, accountId) = try makeProvider(server: server)
@@ -1167,7 +1276,7 @@ final class FTPCloudProviderTests: XCTestCase {
             try await operation()
             XCTFail("Expected \(expected)", file: file, line: line)
         } catch {
-            XCTAssertEqual(error as? CloudProviderError, expected, file: file, line: line)
+            XCTAssertEqual((error as? CloudUploadFailure)?.underlying ?? error as? CloudProviderError, expected, file: file, line: line)
         }
     }
 }

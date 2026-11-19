@@ -23,13 +23,13 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 - Scene activation, iOS backgrounding, Mac system lock callbacks, and iOS foreground activity forward through `DatabaseSessionStore` to every stored session. Mac window activity resets only the registered database session; Mac activation evaluates existing deadlines without renewal. The app supplies that store to all Settings entry points through the environment; per-database AutoFill refresh looks up the toggled database's session by ID.
 - iOS observes touches across the main window (including sheets) and text-field/text-view edits through `IOSUserActivityObserver`. Only foreground activity resets the inactivity timer; its passive recognizer must never delay, cancel, or prevent normal controls and scrolling.
 - On the compact shell only a manual lock calls `VaultCloseTransition.coverCurrentFrame()`, immediately before the closing state change. An automatic lock can coincide with backgrounding, and a snapshot added then is what iOS would capture for the app switcher.
-- Pending AutoFill uploads drain on foreground activation (iOS scene phase, and `MacLockMonitor.onDidBecomeActive` on macOS) and on the extension's Darwin notification. Both go through `DatabaseListViewModel.drainPendingUploadsOnAppActive()`.
+- Pending AutoFill uploads drain on foreground activation (iOS scene phase, and `MacLockMonitor.onDidBecomeActive` on macOS) and on the extension's Darwin notification. Both go through `DatabaseListViewModel.drainPendingUploadsOnAppActive()`; application-installed hooks refresh the affected open sessions after a drain.
 - A change to background/foreground behaviour needs checking in both shells together with AutoFill cache refresh and pending-upload drain timing.
 
 ### Launch and presentation
 
 - Open cloud databases keep Sync Now below the iPad sidebar title and in the Mac status card (the detail toolbar while the Mac sidebar is hidden). On iPhone only a status badge sits beside the root title and scrolls away with it (a spinner while syncing, a warning whose popover offers Sync Now), and pulling a cloud list down syncs on every iOS layout. Skipped-check, last-sync, pending-upload, and result text lives in its status popover; choosing a future sync policy never claims the current open skipped a check. Sync enablement comes from `DatabaseViewModel.canSyncCloudNow`.
-- Unlock, unlocking, and unlocked are one selected-database flow. Compact presents unlock as a sheet over the list and swaps to the session once unlocked; regular renders all three states inline in the detail column.
+- Unlock, unlocking, and unlocked are one selected-database flow. Compact presents unlock as a sheet over the list and swaps to the session once unlocked; regular renders all three states inline in the detail column. After an automatic lock (`DatabaseViewModel.staysSelectedAfterLock`), compact presents the database's unlock page again so auto-unlock can run; a manual or system lock returns to the list.
 - Quick Launch waits until the What's New sheet (and the Mac transition notice) is dismissed, so two launch presentations never compete.
 - SwiftUI drops a presentation raised while another sheet is dismissing. That is why deferred presentations wait 450 ms and why the conflicted-upload notice is a banner, not an alert: it is due at unlock, while the compact unlock sheet is dismissing.
 - The iOS Settings sheet is attached above the root so it survives the lock/unlock root swap. It exists for the iPad app running on a Mac, where the sidebar gear is hidden and the system Settings item opens a compatibility window.
@@ -71,4 +71,3 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 - `../Services/AppSupport/AGENTS.md`: `MacLockMonitor`, `MacWindowCloseGuard`, quick access
 - `../../KeeForgeMac/AGENTS.md`: Mac windows, menus, quit, workspace controllers and their tests
 - `../../KeeForgeMac/README.md`, `../../KeeForgeMac/SECURITY.md`, `../../KeeForgeMacUITests/AGENTS.md`
-

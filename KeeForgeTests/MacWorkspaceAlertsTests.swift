@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+import KDBXKit
 import XCTest
 @testable import KeeForge
 
@@ -8,6 +9,28 @@ final class MacWorkspaceAlertsTests: XCTestCase {
     private static let fourthButton = NSApplication.ModalResponse(
         rawValue: NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + 3)
     private var shown: [(alert: NSAlert, answer: @MainActor (NSApplication.ModalResponse) -> Void)] = []
+
+    func testPendingLocalRecoveryOffersDetailsInsteadOfMergeOrReload() async throws {
+        let (alerts, session, presentation) = try await makeAlerts()
+        defer { alerts.invalidate(); PendingLocalSaveStore.clearAll() }
+        try await hitSaveConflict(session)
+        let bytes = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        _ = try PendingLocalSaveStore.prepareSource(bytes, for: session.databaseReference.id,
+            baseCacheSHA512: FileDigest.sha512(bytes))
+        await session.refreshLocalConflictRecovery()
+        await settle()
+        let alert = MacWorkspaceAlerts.makeAlert(.saveConflict, session: session)
+        XCTAssertEqual(alert.buttons.map { $0.accessibilityIdentifier() }, ["save-conflict.recovery", "save-conflict.cancel"])
+        XCTAssertTrue(session.saveConflict?.requiresLocalRecovery == true)
+        let draft = session.draft
+        presentation.requestSaveConflictPrompt()
+        await settle()
+        shown.last?.answer(.alertFirstButtonReturn)
+        await settle()
+        XCTAssertTrue(presentation.isShowingDatabaseDetails)
+        XCTAssertEqual(session.draft?.pendingEdits, draft?.pendingEdits)
+        XCTAssertNotNil(session.saveConflict)
+    }
 
     func testTheSaveConflictAlertHasCancelOnEscapeAndResolveBringsItBack() async throws {
         let (alerts, session, presentation) = try await makeAlerts()
@@ -262,7 +285,7 @@ final class MacWorkspaceAlertsTests: XCTestCase {
             await settle()
             let count = shown.count
             shown.last?.answer(retry ? .alertFirstButtonReturn : .alertThirdButtonReturn)
-            for _ in 0..<10 { await settle() }
+            try await waitUntil { !session.isLockPending && session.state == (retry ? .locked : .unlocked) }
             XCTAssertEqual(shown.count, count, "The chosen response owns the request until it settles")
             XCTAssertNil(alerts.presented)
             XCTAssertNil(session.pendingLockRequest)
@@ -384,6 +407,7 @@ final class MacWorkspaceAlertsTests: XCTestCase {
     ) async throws -> (MacWorkspaceAlerts, DatabaseViewModel, MacWorkspacePresentation) {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
         let reference = try TestDatabaseSupport.makeReference(for: url, autoFillEnabled: false)
+        DatabaseListStore.testUpsert(reference)
         let session = DatabaseViewModel(
             databaseReference: reference,
             localSaveOperation: save,
@@ -391,7 +415,7 @@ final class MacWorkspaceAlertsTests: XCTestCase {
                 await reloads.increment()
                 throw SaveError.saveContextUnavailable
             },
-            quickUnlockKeyPersistOperation: { _, _, _ in false },
+            localReadKeyPersistOperation: { _, _, _ in false },
             storedKeyPresenceCheck: { _ in false }
         )
         await session.unlock(password: "testpassword123")

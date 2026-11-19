@@ -26,6 +26,7 @@ final class MacAlertQueueTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
     }
 
@@ -33,6 +34,7 @@ final class MacAlertQueueTests: XCTestCase {
         windows.forEach { $0.close() }
         windows = []
         DatabaseListStore.clearAll()
+        await resetCredentialIdentityStoreState()
         try await super.tearDown()
     }
 
@@ -155,6 +157,7 @@ final class MacAlertQueueTests: XCTestCase {
         XCTAssertEqual(presenter.titles.last, String(localized: "Remove Database?"),
                        "A request cleared elsewhere withdraws its alert and the queue moves on")
         presenter.answer(4)
+        await waitUntil { !removed.isEmpty }
         XCTAssertEqual(removed, [reference.id])
         alerts.end()
     }
@@ -199,8 +202,15 @@ final class MacAlertQueueTests: XCTestCase {
         launcher.keyFileTarget = reference
         await settle()
         await settle()
+        await waitUntil { DatabaseListStore.databases.first?.keyFileFilename == keyFile.lastPathComponent }
         XCTAssertEqual(panelRequests, 1)
         XCTAssertNil(launcher.keyFileTarget)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while DatabaseListStore.databases.first?.keyFileFilename != keyFile.lastPathComponent,
+              launcher.selectionAlert == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertNil(launcher.selectionAlert)
         XCTAssertEqual(DatabaseListStore.databases.first?.keyFileFilename, keyFile.lastPathComponent)
         alerts.end()
     }
@@ -224,6 +234,7 @@ final class MacAlertQueueTests: XCTestCase {
         await settle()
         XCTAssertEqual(presenter.shown.count, 2, "The replacing request gets its own alert")
         presenter.answer(1)
+        await waitUntil { !removed.isEmpty }
         XCTAssertEqual(removed, [second.id])
         alerts.end()
     }
@@ -251,6 +262,14 @@ final class MacAlertQueueTests: XCTestCase {
 
     // MARK: - Helpers
 
+    private func waitUntil(_ condition: @MainActor () -> Bool) async {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !condition(), ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(condition(), "The native action did not complete before its deadline")
+    }
+
     private func alert(_ title: String) -> NSAlert {
         let alert = NSAlert()
         alert.messageText = title
@@ -270,7 +289,7 @@ final class MacAlertQueueTests: XCTestCase {
     private func register() throws -> DatabaseReference {
         let reference = try TestDatabaseSupport.makeReference(
             for: TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self)), autoFillEnabled: false)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 

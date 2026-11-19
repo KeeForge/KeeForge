@@ -63,7 +63,8 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         func settle() { for _ in 0..<3 { split.needsLayout = true; split.layoutSubtreeIfNeeded() } }
 
         split.setPosition(240, ofDividerAt: 0)
-        split.setPosition(240 + split.dividerThickness + 280, ofDividerAt: 1)
+        settle()
+        split.setPosition(split.arrangedSubviews[1].frame.minX + 280, ofDividerAt: 1)
         settle()
         XCTAssertEqual(list.frame.width, 280, accuracy: 1)
 
@@ -247,7 +248,11 @@ final class MacWorkspaceSplitViewControllerTests: XCTestCase {
         XCTAssertEqual(splitFrame.height, contentView.bounds.height, accuracy: 0.5)
         let sidebar = split.splitViewItems[0]
         let sidebarFrame = sidebar.viewController.view.convert(sidebar.viewController.view.bounds, to: contentView)
-        XCTAssertEqual(sidebarFrame.height, contentView.bounds.height, accuracy: 0.5, "The sidebar runs full height")
+        let sidebarColumn = split.splitView.arrangedSubviews[0]
+        let sidebarColumnFrame = sidebarColumn.convert(sidebarColumn.bounds, to: contentView)
+        XCTAssertEqual(sidebarColumnFrame.height, contentView.bounds.height, accuracy: 0.5, "The sidebar column runs full height")
+        XCTAssertGreaterThanOrEqual(sidebarFrame.minY, sidebarColumnFrame.minY - 0.5)
+        XCTAssertLessThanOrEqual(sidebarFrame.maxY, sidebarColumnFrame.maxY + 0.5)
         for item in split.splitViewItems {
             XCTAssertTrue(item.allowsFullHeightLayout)
         }

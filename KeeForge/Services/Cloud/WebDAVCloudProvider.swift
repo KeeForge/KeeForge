@@ -16,9 +16,15 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
     let iconName = CloudProviderKind.webDAV.iconName
 
     private let client: WebDAVClient
+    private let credentialLoader: @Sendable (String) -> WebDAVCredential?
 
-    init(client: WebDAVClient = WebDAVClient(transport: WebDAVClient.liveTransport())) {
+    init(client: WebDAVClient = WebDAVClient(transport: WebDAVClient.liveTransport()),
+         credentialLoader: @escaping @Sendable (String) -> WebDAVCredential? = { accountId in
+             guard let data = CloudTokenStore.tokenData(provider: CloudProviderKind.webDAV.rawValue, accountId: accountId) else { return nil }
+             return try? JSONDecoder().decode(WebDAVCredential.self, from: data)
+         }) {
         self.client = client
+        self.credentialLoader = credentialLoader
     }
 
     // MARK: - Authentication
@@ -166,6 +172,13 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
 
     // MARK: - Upload
 
+    func revisionIdentifiesContent(_ revision: String?) -> Bool { Self.strongIfMatchValue(from: revision).map { $0.hasPrefix("\"") && $0.hasSuffix("\"") } == true }
+
+    func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee {
+        guard let tag = Self.strongIfMatchValue(from: expectedRev), tag.hasPrefix("\""), tag.hasSuffix("\"") else { return .preflightOnly }
+        return .serverConditional
+    }
+
     func upload(
         accountId: String,
         fileId: String,
@@ -173,7 +186,11 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         expectedRev: String?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata {
-        let context = try resolveContext(accountId: accountId)
+        let context: AccountContext
+        do { context = try resolveContext(accountId: accountId) }
+        catch let error as CloudProviderError {
+            throw CloudUploadFailure(underlying: error, outcome: .notDispatched)
+        }
         let fileURL = Self.url(forFileId: fileId, base: context.baseURL)
 
         // Only send If-Match for strong ETags. Weak (W/"…") and lastmod-derived
@@ -190,8 +207,9 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         }
 
         if response.statusCode == 412 {
+            // URLSession may retry PUT after a lost response.
             let freshRev = try? await freshRev(fileURL: fileURL, credential: context.credential)
-            throw CloudProviderError.conflict(remoteRev: freshRev)
+            throw CloudUploadFailure(underlying: .conflict(remoteRev: freshRev), outcome: .uncertain)
         }
 
         if let error = CloudProviderError.webDAVStatus(response.statusCode) {
@@ -228,7 +246,10 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         data: Data,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile {
-        let context = try resolveContext(accountId: accountId)
+        let context: AccountContext
+        do { context = try resolveContext(accountId: accountId) }
+        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
+        catch { throw CloudCreationNotDispatched(underlying: error) }
         let fileURL = Self.url(forFileId: path, base: context.baseURL)
 
         let response = try await send {
@@ -311,10 +332,7 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
     }
 
     private func credential(for accountId: String) -> WebDAVCredential? {
-        guard let data = CloudTokenStore.tokenData(provider: id, accountId: accountId) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(WebDAVCredential.self, from: data)
+        credentialLoader(accountId)
     }
 
     private func normalizedBaseURL(

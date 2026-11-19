@@ -68,6 +68,8 @@ final class EncryptionSettingsViewModel {
     }
     var changeError: String?
     private(set) var isWorking = false
+    private(set) var completedWarning: String?
+    private(set) var hasCompleted = false
 
     /// Seconds one key derivation with the given parameters takes.
     typealias Benchmark = @Sendable (KDBXVariantMap) throws -> Double
@@ -183,7 +185,7 @@ final class EncryptionSettingsViewModel {
     }
 
     var canSave: Bool {
-        hasChanges && aesKDFRoundsError == nil
+        hasCompleted == false && hasChanges && aesKDFRoundsError == nil
     }
 
     var canBenchmark: Bool {
@@ -254,7 +256,7 @@ final class EncryptionSettingsViewModel {
     }
 
     func performChange() async -> Bool {
-        guard isWorking == false, canSave else { return false }
+        guard hasCompleted == false, isWorking == false, canSave else { return false }
 
         cancelBenchmark()
         isWorking = true
@@ -270,7 +272,32 @@ final class EncryptionSettingsViewModel {
                 selectedKeyDerivation != initialKeyDerivation ? selectedKeyDerivation : nil,
                 isCompressed != current.isCompressed ? isCompressed : nil
             )
+            hasCompleted = true
             return true
+        } catch let warning as CloudSaveRecoveryWarning {
+            hasCompleted = true
+            completedWarning = warning.localizedDescription
+            return false
+        } catch let warning as SaveDurabilityWarning {
+            hasCompleted = true
+            completedWarning = warning.localizedDescription
+            return false
+        } catch let warning as SaveAssociationWarning {
+            hasCompleted = true
+            completedWarning = warning.localizedDescription
+            return false
+        } catch let warning as SaveUnknownOutcomeWarning {
+            hasCompleted = true
+            completedWarning = warning.localizedDescription
+            return false
+        } catch let warning as SaveBookkeepingWarning {
+            hasCompleted = true
+            completedWarning = warning.localizedDescription
+            return false
+        } catch let failure as LocalSaveBeforeReplacementFailure where failure.underlying is SavePreReplacementRecoveryWarning {
+            hasCompleted = true
+            completedWarning = failure.localizedDescription
+            return false
         } catch {
             changeError = Self.message(for: error)
             return false

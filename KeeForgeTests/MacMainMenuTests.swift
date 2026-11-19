@@ -42,6 +42,7 @@ final class MacMainMenuTests: XCTestCase {
             ("New Database…", "n", option, "newDatabase:"),
             ("Open Database File…", "o", command, "openDatabase:"),
             ("Connect to Server…", "", [], "connectToServer:"),
+            ("Cloud Recovery", "", [], "showCloudRecovery:"),
             ("Close Window", "w", command, "performClose:"),
             ("Save", "s", command, "saveDatabase:"),
             ("Import Passwords…", "", [], "importPasswords:"),
@@ -87,7 +88,7 @@ final class MacMainMenuTests: XCTestCase {
             ("Bring All to Front", "", [], "arrangeInFront:"),
         ], [("KeeForge Help", "", [], "showHelp:"), ("Report a Bug", "", [], "reportBug:")]]
         let databaseActions: Set<String> = ["importPasswords:", "exportDatabase:", "newEntry:", "newGroup:", "saveDatabase:", "closeDatabase:", "copyUsername:", "copyPassword:", "copyURL:", "copyVerificationCode:", "editEntry:", "duplicateSelectedEntry:", "moveSelectedEntries:", "deleteSelection:", "findEntry:", "showAllEntries:", "showVerificationCodes:", "showPasskeys:", "chooseSortOrder:", "chooseSortDirection:", "expandAllGroups:", "collapseAllGroups:", "showInLargeType:", "lockDatabase:", "syncNow:", "discardPendingUpload:", "showDatabaseSettings:", "changeMasterKey:"]
-        let appActions: Set<String> = ["showAboutPanel:", "showSettings:", "newDatabase:", "openDatabase:", "showHelp:", "reportBug:", "checkForUpdates:", "showDatabasesWindow:", "connectToServer:", "lockAllDatabases:", "showPasswordGenerator:"]
+        let appActions: Set<String> = ["showAboutPanel:", "showSettings:", "newDatabase:", "openDatabase:", "showHelp:", "reportBug:", "checkForUpdates:", "showDatabasesWindow:", "connectToServer:", "showCloudRecovery:", "lockAllDatabases:", "showPasswordGenerator:"]
         for (top, contracts) in zip(menu.items, expected) {
             let submenu = try XCTUnwrap(top.submenu)
             let items = submenu.items.filter { $0.action != nil && $0.submenu == nil }
@@ -108,7 +109,7 @@ final class MacMainMenuTests: XCTestCase {
             }
         }
         XCTAssertEqual(separatedTitles(menu.items[1]), [
-            ["New Entry", "New Group"], ["New Database…", "Open Database File…", "Connect to Server…"],
+            ["New Entry", "New Group"], ["New Database…", "Open Database File…", "Connect to Server…", "Cloud Recovery"],
             ["Close Window", "Save"], ["Import Passwords…", "Export…"], ["Close Database"],
         ].map { $0.map(localized) })
         XCTAssertEqual(separatedTitles(menu.items[2]).suffix(3), [
@@ -154,6 +155,7 @@ final class MacMainMenuTests: XCTestCase {
             XCTAssertTrue(delegate.validateMenuItem(item(selector)), selector)
         }
         XCTAssertEqual(delegate.validateMenuItem(item("connectToServer:")), delegate.windowCoordinator.launcher.canConnect)
+        XCTAssertTrue(delegate.validateMenuItem(item("showCloudRecovery:")), "Recovery needs no database session")
         XCTAssertTrue(delegate.windowCoordinator.launcher.canConnect, "WebDAV and FTP are Mac servers")
         XCTAssertEqual(delegate.validateMenuItem(item("lockAllDatabases:")), delegate.windowCoordinator.canLockAllDatabases)
         XCTAssertEqual(delegate.validateMenuItem(item("showPasswordGenerator:")),

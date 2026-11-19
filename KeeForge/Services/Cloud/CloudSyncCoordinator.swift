@@ -1,6 +1,11 @@
 import Foundation
 import KDBXKit
 
+struct CloudPendingMergeRequired: Error, LocalizedError {
+    let remoteData: Data
+    var errorDescription: String? { String(localized: "Merge the pending changes before reloading this cloud database.") }
+}
+
 struct CloudSyncResolution: Sendable {
     enum Status: Equatable, Sendable {
         case current
@@ -18,6 +23,7 @@ struct CloudSyncResolution: Sendable {
     let localURL: URL
     let data: Data
     let status: Status
+    var pendingUploadSources: [PendingUploadQueue.StoredMarker] = []
 
     /// Shared with tests so banner assertions stay locale-agnostic.
     static let offlineCachedBannerMessage = String(localized: "Using the cached copy offline.")
@@ -48,6 +54,8 @@ enum CloudSyncCoordinator {
     /// `CloudProvider.metadataProbeTransfersContent`.
     static let openProbeDeadline: TimeInterval = 10
 
+    private static let cacheDownloadLock = CacheDownloadLock()
+
     /// The metadata probe did not answer within the open deadline. Treated as
     /// an unreachable server, so it wears the offline message.
     struct ProbeTimeout: LocalizedError, CloudSyncIssueConvertible {
@@ -69,13 +77,36 @@ enum CloudSyncCoordinator {
         providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:),
         progress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async throws -> CloudSyncResolution {
-        guard let metadata = reference.cloudSyncMetadata else {
-            throw CocoaError(.fileReadUnsupportedScheme)
-        }
-
+        guard reference.cloudSyncMetadata != nil else { throw CocoaError(.fileReadUnsupportedScheme) }
+        var reference = reference
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let cacheExists = FileManager.default.fileExists(atPath: cacheURL.path)
+        var pending: [PendingUploadQueue.StoredMarker] = []
+        do {
+            try PendingUploadQueue.withCommitLock(for: reference.id) {
+                try PendingUploadQueue.recoverLocalCommits(for: reference.id)
+                pending = try PendingUploadQueue.readJournal(for: reference.id)
+            }
+            guard let current = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else {
+                throw SaveError.saveContextUnavailable
+            }
+            reference = current
+            for journal in pending where journal.marker.confirmedAt != nil {
+                _ = try CloudDatabaseSaver.recoverConfirmed(journal, reference: reference)
+            }
+            pending = try PendingUploadQueue.readJournal(for: reference.id)
+        } catch {
+            return try fallbackResolutionIfPossible(reference: reference, cacheURL: cacheURL,
+                cacheExists: cacheExists, allowCachedFallback: allowCachedFallback,
+                status: .cachedWithError(error.localizedDescription), error: error)
+        }
+        guard let metadata = reference.cloudSyncMetadata else { throw CocoaError(.fileReadUnsupportedScheme) }
         var updatedReference = reference
+        if !pending.isEmpty && honorsManualSyncPolicy {
+            guard cacheExists else { throw SaveError.saveContextUnavailable }
+            return CloudSyncResolution(reference: reference, localURL: cacheURL,
+                data: try CoordinatedFileReader.readData(from: cacheURL), status: .refreshSkipped)
+        }
 
         // Without a cache there is nothing to open, so a manual database's
         // first open still downloads.
@@ -106,6 +137,20 @@ enum CloudSyncCoordinator {
             )
         }
 
+        if !pending.isEmpty {
+            let snapshot = try await CloudDatabaseSaver.downloadRemoteSnapshot(provider: provider, metadata: metadata, progress: progress)
+            updatedReference.updateCloudSyncMetadata { learned in
+                if let observed = snapshot.metadata {
+                    learned.remoteContentHash = observed.contentHash
+                    learned.remoteModifiedAt = observed.modifiedDate
+                    learned.remoteRev = observed.rev
+                }
+                learned.lastSyncedAt = nil
+            }
+            return CloudSyncResolution(reference: updatedReference, localURL: cacheURL, data: snapshot.data,
+                status: .downloaded, pendingUploadSources: pending)
+        }
+
         do {
             // Only race the probe when a cache can absorb a miss; with nothing
             // to fall back to, waiting out the transport is the right call.
@@ -129,28 +174,46 @@ enum CloudSyncCoordinator {
             // (see `CloudProvider.download`). nil means the provider cannot
             // say, so the pre-download reading stands.
             var syncedMetadata = remoteMetadata
+            var downloadedData: Data?
             if needsDownload {
-                let downloadedMetadata = try await downloadLatestCopy(
-                    provider: provider,
-                    metadata: metadata,
-                    reference: updatedReference,
-                    destinationURL: cacheURL,
-                    progress: progress
+                // Overlapping sync-downs would pin one inode and fail each other's publish.
+                let cacheKey = cacheURL.standardizedFileURL.path
+                let acceptedCacheIDs = try await cacheDownloadLock.acquire(
+                    cacheKey,
+                    cacheIDBeforeWait: fileID(at: cacheURL)
                 )
-                if let downloadedMetadata {
+                let copy: DownloadedCopy
+                do {
+                    // The key can be handed over just as the task is cancelled.
+                    try Task.checkCancellation()
+                    copy = try await downloadLatestCopy(
+                        provider: provider,
+                        metadata: metadata,
+                        reference: updatedReference,
+                        destinationURL: cacheURL,
+                        acceptedCacheIDs: acceptedCacheIDs,
+                        progress: progress
+                    )
+                } catch {
+                    await cacheDownloadLock.release(cacheKey, publishedCacheID: nil)
+                    throw error
+                }
+                await cacheDownloadLock.release(cacheKey, publishedCacheID: copy.cacheID)
+                if let downloadedMetadata = copy.metadata {
                     syncedMetadata = downloadedMetadata
                 }
+                downloadedData = copy.data
             }
 
             updatedReference.updateCloudSyncMetadata { cloudMetadata in
                 cloudMetadata.remoteContentHash = syncedMetadata.contentHash
                 cloudMetadata.remoteModifiedAt = syncedMetadata.modifiedDate
                 cloudMetadata.remoteRev = syncedMetadata.rev
-                cloudMetadata.lastSyncedAt = .now
+                cloudMetadata.lastSyncedAt = PendingUploadQueue.listMarkers(for: reference.id).isEmpty ? .now : nil
                 cloudMetadata.lastSyncIssue = nil
             }
 
-            let data = try CoordinatedFileReader.readData(from: cacheURL)
+            let data = try downloadedData ?? CoordinatedFileReader.readData(from: cacheURL)
             return CloudSyncResolution(
                 reference: updatedReference,
                 localURL: cacheURL,
@@ -220,13 +283,24 @@ enum CloudSyncCoordinator {
         return CloudSyncResolution(reference: updatedReference, localURL: cacheURL, data: data, status: status)
     }
 
+    /// What a sync-down published: the bytes it installed, the metadata
+    /// describing them, and the cache file's identity.
+    private struct DownloadedCopy {
+        let metadata: CloudFileMetadata?
+        let data: Data
+        let cacheID: UInt64?
+    }
+
+    /// `acceptedCacheIDs` is nil unless this sync waited for another one; it
+    /// then lists the only cache files it may pin (see `CacheDownloadLock`).
     private static func downloadLatestCopy(
         provider: CloudProvider,
         metadata: CloudSyncMetadata,
         reference: DatabaseReference,
         destinationURL: URL,
+        acceptedCacheIDs: Set<UInt64>?,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws -> CloudFileMetadata? {
+    ) async throws -> DownloadedCopy {
         let fileManager = FileManager.default
         let directory = destinationURL.deletingLastPathComponent()
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
@@ -238,7 +312,7 @@ enum CloudSyncCoordinator {
         }
 
         // Pin the cache BEFORE the transfer starts. A save that lands while
-        // the download is in flight (an app save's `applyUploadedBytesAfterSave`,
+        // the download is in flight (an app save,
         // an AutoFill save) writes bytes newer than the ones arriving, and the
         // pin is what makes the publish below refuse to revert them. Pinning
         // after the download would pin the save's bytes and replace them.
@@ -257,6 +331,12 @@ enum CloudSyncCoordinator {
                 try? fileManager.removeItem(at: pinnedURL)
             }
         }
+        // Anything else written while this sync waited is a save it must not revert.
+        if let acceptedCacheIDs, let pinnedURL {
+            guard let pinnedID = fileID(at: pinnedURL), acceptedCacheIDs.contains(pinnedID) else {
+                throw CocoaError(.fileWriteFileExists)
+            }
+        }
 
         let downloadedMetadata = try await provider.download(
             accountId: metadata.accountId,
@@ -268,14 +348,25 @@ enum CloudSyncCoordinator {
         // Stamped while the bytes are still staged, so the cache path is never
         // briefly unprotected once they land.
         try applyCacheFileProtection(at: tempURL)
+        // Read before the publish: once the next queued sync runs, the cache
+        // may already hold its download instead.
+        let downloadedCopy = DownloadedCopy(
+            metadata: downloadedMetadata,
+            data: try Data(contentsOf: tempURL),
+            cacheID: fileID(at: tempURL)
+        )
 
+        guard try PendingUploadQueue.readJournal(for: reference.id).isEmpty else { throw SaveError.saveContextUnavailable }
         guard let pinnedURL else {
             // Nothing was cached when the download started; a cache that
             // appeared since is a concurrent write, and the nil pin makes the
             // publish refuse it.
-            try replaceCacheItem(at: destinationURL, withItemAt: tempURL, pinnedFileID: nil)
+            try PendingUploadQueue.withCommitLock(for: reference.id) {
+                guard try PendingUploadQueue.readJournal(for: reference.id).isEmpty else { throw SaveError.saveContextUnavailable }
+                try replaceCacheItem(at: destinationURL, withItemAt: tempURL, pinnedFileID: nil, databaseID: reference.id)
+            }
             try applyCacheFileProtection(at: destinationURL)
-            return downloadedMetadata
+            return downloadedCopy
         }
 
         // The shared cache is the only home of an AutoFill save until its
@@ -295,13 +386,12 @@ enum CloudSyncCoordinator {
         // newer than the download, or whose marker this pass never examined,
         // so the sync-down fails rather than clobbering them (see
         // `replaceCacheItem`).
-        try replaceCacheItem(
-            at: destinationURL,
-            withItemAt: tempURL,
-            pinnedFileID: fileID(at: pinnedURL)
-        )
+        try PendingUploadQueue.withCommitLock(for: reference.id) {
+            guard try PendingUploadQueue.readJournal(for: reference.id).isEmpty else { throw SaveError.saveContextUnavailable }
+            try replaceCacheItem(at: destinationURL, withItemAt: tempURL, pinnedFileID: fileID(at: pinnedURL), databaseID: reference.id)
+        }
         try applyCacheFileProtection(at: destinationURL)
-        return downloadedMetadata
+        return downloadedCopy
     }
 
     /// iOS Data Protection for the shared cache. Applied to the staged copy
@@ -331,7 +421,7 @@ enum CloudSyncCoordinator {
     static func replaceCacheItem(
         at destinationURL: URL,
         withItemAt replacementURL: URL,
-        pinnedFileID: UInt64?
+        pinnedFileID: UInt64?, databaseID: UUID? = nil
     ) throws {
         let fileManager = FileManager.default
         var coordinatorError: NSError?
@@ -343,7 +433,7 @@ enum CloudSyncCoordinator {
             options: .forReplacing,
             error: &coordinatorError
         ) { coordinatedURL in
-            result = Result {
+            let replace: () throws -> Void = {
                 guard fileManager.fileExists(atPath: coordinatedURL.path) else {
                     guard pinnedFileID == nil else {
                         // The pinned cache vanished under us.
@@ -363,6 +453,12 @@ enum CloudSyncCoordinator {
                     backupItemName: nil,
                     options: []
                 )
+            }
+            result = Result {
+                if let databaseID {
+                    let sha = FileDigest.sha512(try Data(contentsOf: replacementURL))
+                    try PendingLocalSaveStore.withCachePublicationAuthorization(for: databaseID, sha512: sha, replace)
+                } else { try replace() }
             }
         }
 
@@ -436,14 +532,14 @@ enum CloudSyncCoordinator {
         let backupDirectory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
         try fileManager.createDirectory(at: backupDirectory, withIntermediateDirectories: true, attributes: nil)
 
-        let backupURL = backupDirectory.appendingPathComponent(
-            pendingOverwriteBackupFilename(for: .now),
-            isDirectory: false
-        )
+        let filename = pendingOverwriteBackupFilename(for: .now)
+        let retainsLegacyPayload = PendingUploadQueue.listMarkers(for: reference.id).contains { $0.marker.intendedPayloadPath == nil }
+        let retainedFilename = retainsLegacyPayload ? String(filename.dropLast(5)) + DatabaseListStore.retainedBackupSuffix + ".kdbx" : filename
+        let backupURL = backupDirectory.appendingPathComponent(retainedFilename, isDirectory: false)
         if fileManager.fileExists(atPath: backupURL.path) {
             try fileManager.removeItem(at: backupURL)
         }
-        try fileManager.copyItem(at: cacheURL, to: backupURL)
+        try writeAtomicallyAndDurably(try Data(contentsOf: cacheURL), to: backupURL)
     }
 
     /// Matches the `yyyyMMdd-HHmmss-uuuuuu.kdbx` shape used by the local and
@@ -468,119 +564,110 @@ enum CloudSyncCoordinator {
     }
 
     /// User-invoked resolution for a conflicted pending upload (the orange
-    /// badge in the database list): backs the marker's payload bytes up while
-    /// they are still the live cache, then discards the markers so the badge
-    /// clears. A cache that no longer hashes to the recorded SHA means the
-    /// payload is already gone — the overwrite path took its own backup.
-    /// Returns the number of markers discarded.
+    /// badge in the database list): retains the exact payload in a non-prunable
+    /// backup. An uncertain mutation keeps its marker and ciphertext as a fence.
+    /// Returns only markers actually removed, never unresolved discard requests.
     static func discardConflictedPendingUploads(for reference: DatabaseReference) async -> Int {
         await Task.detached(priority: .utility) {
             let conflictedMarkers = PendingUploadQueue.listMarkers(for: reference.id)
-                .filter(\.marker.isConflicted)
+                .filter { $0.marker.isConflicted && $0.marker.confirmedAt == nil }
             guard conflictedMarkers.isEmpty == false else { return 0 }
 
-            let cacheURL = DatabaseListStore.cacheLocation(for: reference)
-            let cacheSHA512 = (try? CoordinatedFileReader.readData(from: cacheURL))
-                .map(FileDigest.sha512)
-
             var discardedCount = 0
-            for storedMarker in conflictedMarkers {
-                if let cacheSHA512, cacheSHA512 == storedMarker.marker.openTimeSHA512 {
-                    // Keep the payload recoverable before dropping the marker
-                    // that protects it. A failed backup keeps the marker (and
-                    // the badge) instead of discarding blind.
-                    do {
-                        try backUpCacheBeforePendingOverwrite(at: cacheURL, reference: reference)
-                    } catch {
+            for var stored in conflictedMarkers {
+                let marker = stored.marker
+                let hasKnownIntendedPayload = marker.intendedPayloadSHA512 != nil && marker.intendedPayloadPath != nil
+                guard marker.isPayloadFinalized == true || (hasKnownIntendedPayload && (marker.requiresLocalRecovery == true || marker.keyChange != nil)) else { continue }
+                let payloadSHA = marker.intendedPayloadSHA512 ?? marker.openTimeSHA512
+                let candidates = [marker.intendedPayloadPath.map { PendingUploadQueue.resolveAppGroupURL(for: $0) },
+                    PendingUploadQueue.resolveAppGroupURL(for: marker.encryptedBytesCacheURL), DatabaseListStore.cacheLocation(for: reference)]
+                    .compactMap { $0 } + DatabaseListStore.recentBackups(for: reference)
+                guard let payload = candidates.lazy.compactMap({ try? CoordinatedFileReader.readData(from: $0) })
+                    .first(where: { FileDigest.sha512($0) == payloadSHA }) else { continue }
+                do {
+                    let directory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
+                    let filename = String(pendingOverwriteBackupFilename(for: .now).dropLast(5)) + DatabaseListStore.retainedBackupSuffix + ".kdbx"
+                    guard let anchor = AppGroupContainer.resolvedURL else { continue }
+                    try writeAtomicallyAndDurably(payload, to: directory.appendingPathComponent(filename), directoryAnchor: anchor)
+                    let unresolved = marker.uploadAttemptID != nil && marker.confirmedAt == nil && marker.attemptIsFenced != true
+                    if unresolved {
+                        stored.marker.discardRequested = true
+                        _ = try PendingUploadQueue.update(stored)
                         continue
                     }
-                }
-                if (try? PendingUploadQueue.dropIfUnchanged(storedMarker)) == true {
-                    discardedCount += 1
-                }
+                    if try PendingUploadQueue.dropIfUnchanged(stored) { discardedCount += 1 }
+                } catch { continue }
             }
             return discardedCount
         }.value
     }
 
-    static func pushAfterSave(
-        reference: DatabaseReference,
-        bytes: Data,
-        expectedRev: String?,
-        providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:),
-        progress: @escaping @Sendable (Double) -> Void = { _ in }
-    ) async throws -> DatabaseReference {
-        guard let metadata = reference.cloudSyncMetadata else {
-            throw CocoaError(.fileReadUnsupportedScheme)
-        }
+}
 
-        guard let provider = providerResolver(metadata.provider) else {
-            throw CloudProviderError.notAuthenticated
-        }
-
-        let uploadedMetadata = try await provider.upload(
-            accountId: metadata.accountId,
-            fileId: metadata.fileId,
-            data: bytes,
-            expectedRev: expectedRev,
-            progress: progress
-        )
-
-        return try applyUploadedBytesAfterSave(
-            reference: reference,
-            bytes: bytes,
-            remoteMetadata: uploadedMetadata
-        )
+/// One sync-down per cache file at a time within this process. Other writers
+/// (app saves, the AutoFill extension) stay outside it on purpose: the
+/// coordinator's pin is what keeps a download from reverting their bytes.
+///
+/// A sync that had to wait may pin only the cache it saw before waiting or
+/// the one the sync before it published; any other file was written by a
+/// save during the wait.
+private actor CacheDownloadLock {
+    private struct Waiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Void, Error>
     }
 
-    static func applyUploadedBytesAfterSave(
-        reference: DatabaseReference,
-        bytes: Data,
-        remoteMetadata: CloudFileMetadata
-    ) throws -> DatabaseReference {
-        // Same protection as `downloadLatestCopy`: an AutoFill save can land
-        // in the cache while this upload was in flight. A queued marker plus a
-        // cache differing from `bytes` means unuploaded bytes are about to be
-        // reverted, so back them up first. Equal bytes (every drain lands
-        // here, marker still queued) have nothing to lose.
-        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
-        if !PendingUploadQueue.listMarkers(for: reference.id).isEmpty,
-           let currentCacheBytes = try? CoordinatedFileReader.readData(from: cacheURL),
-           FileDigest.sha512(currentCacheBytes) != FileDigest.sha512(bytes) {
-            try backUpCacheBeforePendingOverwrite(at: cacheURL, reference: reference)
+    private var heldKeys: Set<String> = []
+    private var waiters: [String: [Waiter]] = [:]
+    private var publishedCacheIDs: [String: UInt64] = [:]
+
+    /// Returns nil when the key was free, else the cache identities the
+    /// caller may pin. A waiter whose task is cancelled leaves the queue at
+    /// once and throws `CancellationError`.
+    func acquire(_ key: String, cacheIDBeforeWait: UInt64?) async throws -> Set<UInt64>? {
+        guard heldKeys.contains(key) else {
+            heldKeys.insert(key)
+            return nil
         }
-
-        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
-
-        let applyRemoteMetadata: (inout CloudSyncMetadata) -> Void = { cloudMetadata in
-            // An upload response can omit rev/hash (OneDrive session
-            // completions). Nilling a good recorded value would send every
-            // later save into the nil-rev conflict fallback.
-            if let contentHash = remoteMetadata.contentHash {
-                cloudMetadata.remoteContentHash = contentHash
+        let id = UUID()
+        // `release` hands the key straight to this waiter.
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                enqueue(Waiter(id: id, continuation: continuation), for: key)
             }
-            cloudMetadata.remoteModifiedAt = remoteMetadata.modifiedDate
-            if let rev = remoteMetadata.rev {
-                cloudMetadata.remoteRev = rev
-            }
-            cloudMetadata.lastSyncedAt = .now
-            cloudMetadata.lastSyncIssue = nil
+        } onCancel: {
+            Task { await self.cancelWaiter(id, for: key) }
         }
+        return Set([cacheIDBeforeWait, publishedCacheIDs[key]].compactMap { $0 })
+    }
 
-        if let observedMetadata = reference.cloudSyncMetadata,
-           let updatedReference = DatabaseListStore.updateCloudSyncMetadata(
-               for: reference.id,
-               ifUnchangedFrom: observedMetadata,
-               mutate: applyRemoteMetadata
-           ) {
-            return updatedReference
+    func release(_ key: String, publishedCacheID: UInt64?) {
+        if let publishedCacheID {
+            publishedCacheIDs[key] = publishedCacheID
         }
+        guard var queue = waiters[key], queue.isEmpty == false else {
+            heldKeys.remove(key)
+            publishedCacheIDs[key] = nil
+            return
+        }
+        let next = queue.removeFirst()
+        waiters[key] = queue.isEmpty ? nil : queue
+        next.continuation.resume()
+    }
 
-        // The database can be removed from the list while its upload is in
-        // flight. Return the completed upload state to the caller without
-        // silently adding the removed database again.
-        var uploadedReference = reference
-        uploadedReference.updateCloudSyncMetadata(applyRemoteMetadata)
-        return uploadedReference
+    private func enqueue(_ waiter: Waiter, for key: String) {
+        // Cancelled before it was queued: the cancellation handler found nothing to remove.
+        guard Task.isCancelled == false else {
+            waiter.continuation.resume(throwing: CancellationError())
+            return
+        }
+        waiters[key, default: []].append(waiter)
+    }
+
+    private func cancelWaiter(_ id: UUID, for key: String) {
+        guard var queue = waiters[key], let index = queue.firstIndex(where: { $0.id == id }) else { return }
+        let waiter = queue.remove(at: index)
+        waiters[key] = queue.isEmpty ? nil : queue
+        waiter.continuation.resume(throwing: CancellationError())
     }
 }

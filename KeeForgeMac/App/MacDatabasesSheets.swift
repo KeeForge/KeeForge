@@ -12,6 +12,7 @@ final class MacDatabasesSheets: NSObject {
     private(set) var shell: MacFormSheetController?
     private(set) var connect: MacConnectServerModel?
     private(set) var creation: DatabaseCreationViewModel?
+    private(set) var recoveryLifetime: CloudCreationLifetime?
     private var browser: MacRemoteBrowserViewController?
     private var generation = UUID()
     private var activeRequest: MacDatabasesLauncherViewModel.Sheet?
@@ -35,6 +36,7 @@ final class MacDatabasesSheets: NSObject {
         busyObservation.cancel()
         connect?.clearSecrets(); connect = nil
         creation?.cancelPendingCreation(); creation = nil
+        recoveryLifetime?.cancel(); recoveryLifetime = nil
         browser?.end(); browser = nil
         let old = shell; shell = nil
         old?.end()
@@ -51,6 +53,16 @@ final class MacDatabasesSheets: NSObject {
         activeRequest = request
         switch request {
         case .newDatabase: showCreation()
+        case .cloudRecovery:
+            let lifetime = CloudCreationLifetime()
+            recoveryLifetime = lifetime
+            let host = NSHostingController(rootView: CloudRecoveryView(creationLifetime: lifetime).modifier(MacHostingAppearance()))
+            let child = MacFormSheetController(title: String(localized: "Cloud Recovery"), content: host,
+                size: NSSize(width: 610, height: MacSheetMetrics.maxHeight), defaultTitle: String(localized: "Done"))
+            child.cancellationScope.register { lifetime.cancel() }
+            child.cancelButton.isHidden = true
+            child.window?.setAccessibilityIdentifier("cloud-recovery.sheet")
+            present(child)
         case .connect(let kind): showConnect(kind: kind, forCreation: false)
         case .details: break
         }
@@ -136,9 +148,11 @@ final class MacDatabasesSheets: NSObject {
                     }
                 }
             } else if let selection = model.databaseSelection() {
-                let reference = self.list.addCloudDatabase(selection: selection)
-                self.end(); self.launcher.sheet = nil
-                self.launcher.open(reference)
+                do {
+                    let reference = try self.list.addCloudDatabase(selection: selection)
+                    self.end(); self.launcher.sheet = nil
+                    self.launcher.open(reference)
+                } catch { self.showError(error.localizedDescription) }
             }
         }
         present(sheet)

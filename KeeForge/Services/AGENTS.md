@@ -7,7 +7,7 @@
 - `Persistence/DatabaseListStore`: the persisted database list (`DatabaseReference`), cache and backup locations, and the AutoFill database selection. Nothing else writes `database-list.json`.
 - `Persistence/LocalDatabaseSaver`: every save whose target is a file on this device, including the AutoFill extension's save into a cloud database's cached copy.
 - `Cloud/CloudDatabaseSaver`: the app's save of a cloud-backed database. `Cloud/CloudSyncCoordinator`: download-before-open and every replacement of a cloud cache file.
-- `AutoFill/AutoFillSaveCoordinator`: the extension-safe save of a new entry, and the pending-upload marker that covers it.
+- `AutoFill/AutoFillSaveCoordinator`: the extension-safe save of a new entry; the local saver owns the cloud journal that covers its cache replacement.
 - `SSHAgent/MacSSHAgentController`: the macOS-only, opt-in SSH agent that signs with keys stored in the unlocked database (`SSHAgent/AGENTS.md`).
 - `BrowserBridge/`: the macOS-only, opt-in bridge a browser extension asks for credentials through (`BrowserBridge/AGENTS.md`); wire contract in `../../docs/browser-bridge-protocol.md`.
 - `Security/KeychainService`: the per-database quick-unlock key. `Cloud/CloudTokenStore`: provider credentials. They are separate items with different protection (see `Security/AGENTS.md`, `Cloud/AGENTS.md`).
@@ -31,8 +31,8 @@
 ### Save paths
 
 - Both savers share one sequence: read the stored bytes, gate on `SaveBaseline`, encrypt, write a timestamped backup of the bytes being replaced, replace, refresh the App Group cached copy, prune backups to the 5 newest (`DatabaseListStore.pruneBackups`). Keep the backup ahead of the replace.
-- `SaveBaseline` is the only overwrite gate: stored bytes must hash (SHA-512) to what the session opened, or to the diverged copy a merge already folded into the draft. Anything else returns `.conflict` with the stored bytes; never widen it. `LocalDatabaseSaver` checks the hash again inside its coordinated replace, so a coordinated write that landed while it encrypted conflicts too.
-- A local save checks the file itself. A cloud save checks the cached copy the same way, then also verifies the remote revision (`CloudDatabaseSaver.remoteHasDiverged`) before uploading; the provider's conditional write is the last gate. Details in `Cloud/AGENTS.md`.
+- `SaveBaseline` is the content overwrite gate: stored bytes must hash (SHA-512) to what the session opened, or to the diverged copy a merge already folded into the draft. Anything else returns `.conflict` with the stored bytes; never widen it. `LocalDatabaseSaver` checks the hash again inside its coordinated replace, so a coordinated write that landed while it encrypted conflicts too.
+- A local save checks the file itself. A cloud save checks the cached copy the same way, then retains a journal whose delivery verifies the remote baseline before uploading; the provider's conditional write is the last gate. Details in `Cloud/AGENTS.md`.
 - A rekey or encryption-settings change must reopen the produced bytes with the write key before anything is replaced or uploaded (`SaveError.reencryptionVerificationFailed`). After a rekey upload, a failed local apply is `SaveError.rekeyAppliedRemotely`, because the remote already needs the new key.
 - The extension never uploads. Its save of a cloud database goes through `LocalDatabaseSaver` into the cache and leaves a pending-upload marker for the app to drain. Until then the cache is the only copy of that save, so every path that replaces a cloud cache must back it up first when a marker is queued. Marker rules are in `Cloud/AGENTS.md`.
 - Mac AutoFill cannot open a bookmarked local file. It saves passkey registrations to the encrypted shared copy and `Persistence/PendingLocalSaveStore`; after the app unlocks the database, `DatabaseViewModel.mergePendingLocalSaves` merges and writes that change to the original file. Pending local saves are separate from cloud upload markers.
@@ -43,6 +43,8 @@
 
 - Network egress is limited to cloud sync, opt-in favicon fetching, the user-submitted feedback form, and the direct Mac build's update check (root `AGENTS.md`). The extensions make no network requests.
 - `AutoFill/AutoFillDiagnostics` (DEBUG builds only) logs event names, flags, and counts, never entry data, URLs, or secrets.
+
+- Pending-local ownership, provisional publication, durable admission, exact encrypted-source exports, key epochs and permanent write revocation belong to `Persistence/PendingLocalSaveStore`. A local coordinated accessor holds its owner lock across the last revocation/receipt check and replacement. Generic database removal does not authorize destroying unresolved AutoFill changes.
 
 ## Tests
 
@@ -57,3 +59,5 @@
 - `../../AutoFillExtension/AGENTS.md`: the extension target and its platform limits
 - `../ViewModels/AGENTS.md`: session-side save, conflict, merge, and rekey rules
 - `../../KeeForgeMac/SECURITY.md`, `../../docs/threat-model.md`
+
+- Local commit truth is observed inside the coordinated accessor. Apply known installed SHA/key state even after final sync or coordination errors; unknown effects cannot establish pre-replacement failure. Stop automatic resends and expose explicit local recovery without changing cloud upload semantics.

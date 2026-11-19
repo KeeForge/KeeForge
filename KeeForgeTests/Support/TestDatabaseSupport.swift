@@ -4,6 +4,79 @@ import XCTest
 @testable import KeeForge
 
 enum TestDatabaseSupport {
+    final class LocalPublicationTrace: @unchecked Sendable {
+        private let lock = NSLock()
+        private var observations: [String] = []
+        func record(_ phase: String, _ error: Error) {
+            let value = Self.describe(error, phase: phase)
+            lock.lock(); defer { lock.unlock() }
+            observations.append(value)
+        }
+        func recordObservation(_ observation: String) {
+            lock.lock(); defer { lock.unlock() }
+            observations.append(observation)
+        }
+        var summary: String { lock.lock(); defer { lock.unlock() }; return observations.joined(separator: ",") }
+        func failure(_ error: Error, at phase: String) -> String {
+            let escaped = Self.describe(error, phase: phase)
+            lock.lock()
+            let diagnostic = escaped + "; boundaries=" + observations.joined(separator: ",")
+            lock.unlock()
+            print(diagnostic)
+            return diagnostic
+        }
+        private static func describe(_ error: Error, phase: String) -> String {
+            if let failure = error as? LocalSaveBeforeReplacementFailure {
+                return phase + "=LocalSaveBeforeReplacementFailure; " + describe(failure.underlying, phase: "underlying")
+            }
+            let value = error as NSError
+            let cause = (error as? PendingLocalSaveStore.OwnershipError).map { String(describing: $0) }
+                ?? "\(value.domain):\(value.code)"
+            let nested = (value.userInfo[NSUnderlyingErrorKey] as? NSError).map { "; underlying=\($0.domain):\($0.code)" } ?? ""
+            return phase + "=" + cause + nested
+        }
+    }
+
+    static func cloudDiagnosticSnapshot(_ label: String, reference: DatabaseReference, savedSHA: Data?, openSHA: Data?) {
+        let cache = try? Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        let hash = cache.map { FileDigest.sha512($0) }
+        let current = DatabaseListStore.databases.first { $0.id == reference.id }
+        let expected = reference.cloudSyncMetadata
+        let observed = current?.cloudSyncMetadata
+        let tupleMatches = current != nil && expected != nil && observed != nil
+            && expected?.provider == observed?.provider && expected?.accountId == observed?.accountId
+            && expected?.fileId == observed?.fileId && expected?.keyEpoch == observed?.keyEpoch
+            && current?.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt
+            && current?.keyFileBookmarkData == reference.keyFileBookmarkData
+            && current?.keyFileFilename == reference.keyFileFilename
+            && current?.legacyKeychainFilename == reference.legacyKeychainFilename
+            && current?.hardwareKey == reference.hardwareKey
+        let journal = try? PendingUploadQueue.readJournal(for: reference.id)
+        let states = journal?.map { CloudJournalDecision.state(of: $0.marker) }
+        print("diagnostic \(label) cacheReadable=\(cache != nil) savedHashMatches=\(hash != nil && savedSHA != nil && hash == savedSHA) openHashMatches=\(hash != nil && openSHA != nil && hash == openSHA) tupleMatches=\(tupleMatches) journalReadable=\(journal != nil) journalCount=\(journal?.count ?? -1) ready=\(states?.contains(.ready) ?? false) attempted=\(states?.contains(.attempting) ?? false) confirmed=\(states?.contains(.confirmed) ?? false)")
+    }
+
+    static func reportLocalPublicationFailure(_ stage: String, _ error: Error, reference: DatabaseReference,
+        file: StaticString = #filePath, line: UInt = #line) {
+        if stage.hasPrefix("read-key") || stage.hasPrefix("rekey-") {
+            let cause = (error as? PendingLocalSaveStore.OwnershipError).map { String(describing: $0) }
+                ?? "\((error as NSError).domain):\((error as NSError).code)"
+            XCTFail("Local publication rejected stage=\(stage) cause=\(cause); registry observation omitted while another accessor may own it", file: file, line: line)
+            return
+        }
+        let current = DatabaseListStore.databases.first { $0.id == reference.id }
+        let cause = (error as? PendingLocalSaveStore.OwnershipError).map { String(describing: $0) }
+            ?? "\((error as NSError).domain):\((error as NSError).code)"
+        XCTFail("Local publication rejected stage=\(stage) cause=\(cause) registered=\(current != nil) bookmarkMatches=\(current?.bookmarkData == reference.bookmarkData) epochDateMatches=\(current?.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt) preferenceMatches=\(current.map { PendingLocalSaveStore.KeyFilePreference($0) == PendingLocalSaveStore.KeyFilePreference(reference) } == true)", file: file, line: line)
+    }
+
+    static func cacheLocalSnapshotDiagnosingFailure(_ data: Data, for reference: DatabaseReference,
+        file: StaticString = #filePath, line: UInt = #line) throws {
+        try LocalDatabaseSaver.cacheLocalSnapshot(data, for: reference, onFailure: { stage, error in
+            reportLocalPublicationFailure("save-cache-" + stage.rawValue, error, reference: reference, file: file, line: line)
+        })
+    }
+
     static func visibleRootGroupID(in rootGroup: KPGroup) -> UUID {
         if rootGroup.entries.isEmpty, rootGroup.groups.count == 1 {
             return rootGroup.groups[0].id

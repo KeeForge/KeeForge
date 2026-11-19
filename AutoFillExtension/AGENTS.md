@@ -14,6 +14,7 @@
 ### Request lifecycle
 
 - `cleanup()` is the extension's only lock: it drops the session key, composite key, parsed vault, and pending request state. Every completion path (success, cancel, error-alert dismissal, silent-request failure, extension configuration) must go through the completion helpers (`finishRequest`) so it runs before the shell touches the extension context. A path that completes the context directly leaves a decrypted vault in memory.
+- Identifier resolution reads a strict registry snapshot before deleting stale system identities; an unavailable registry skips that cleanup and does not revoke an already authenticated fill.
 - `CredentialProviderCoordinatorTests` pins a test per completion path and `CredentialProviderShellMacTests` the Mac shell's routing. This is the designated lifecycle regression gate, on iOS and macOS.
 - The Mac shell also routes `NSAlert` dismissal and window close (`viewDidDisappear` calls `cancelActiveRequestIfNeeded()`) through the coordinator; window close has no iOS analogue.
 - Mac `viewDidAppear` signals `presentationDidBecomeActive()` on a later main-loop turn, never synchronously: AppKit suppresses an `NSAlert.runModal()` started inside the window-ordering transaction, turning the unlock prompt into a silent cancel.
@@ -73,6 +74,8 @@
 - `ASSavePasswordRequest`, `ASGeneratePasswordsRequest`, `ASGeneratedPassword`, `completeSavePasswordRequest`, and `completeGeneratePasswordRequest` are `API_UNAVAILABLE(macos)` (rechecked against the 27.0 SDK headers). The coordinator's save and generate surface is `#if os(iOS)`, the Mac shell's equivalents are unreachable stubs, and `InfoMac.plist` omits the `Supports*PasswordCredentials*` keys.
 - Identity store: whether `ASCredentialIdentityStoreState.supportsIncrementalUpdates` is set depends on the macOS release. Where it is false (recorded for a real enabled provider on 26.5, not re-verified), `saveCredentialIdentities` means "pass all identities", `removeCredentialIdentities` is unsupported, and the system store holds one database's identities, the most recently unlocked AutoFill-enabled one, so Safari suggests from it alone. A tapped suggestion still unlocks its owning database; the switcher and `defaultAutoFillDatabase` keep the others reachable. macOS 27.0.1 reports the flag true for an enabled provider, yet enumeration returns private SafariFoundation objects (`SFPasswordCredentialIdentity`, `SFOneTimeCodeCredentialIdentity`) with no `ASCredentialIdentity` conformance and no `recordIdentifier`; iOS 27.0.1 on a physical iPhone does the same. `CredentialIdentityStoreManager` then publishes without enumerating (`../KeeForge/Services/AutoFill/AGENTS.md`), which on a physical iPhone was verified to reach Safari; the macOS 27.0.1 store was only read, not written, so additive saves there are unverified. It gates on the runtime flag, not `#if os(macOS)`.
 
+- Pending-local encrypted sources use exclusive immutable creation and the shared persistence owner. A revoked or unavailable owner refuses writes without changing already parsed credentials; source export/recovery is offered by the app without unlocking.
+
 ## Tests
 
 In `../KeeForgeTests/` (run on iOS, and on macOS through `KeeForgeMacTests`, which compiles that folder):
@@ -87,3 +90,13 @@ In `../KeeForgeTests/` (run on iOS, and on macOS through `KeeForgeMacTests`, whi
 - `../KeeForge/Services/AGENTS.md`: save paths, pending uploads, the shared-source allow-list rule
 - `../KeeForge/Services/AutoFill/AGENTS.md`, `../KeeForge/Services/Security/AGENTS.md`
 - `../KeeForge/AGENTS.md`: KDBX compatibility; `../KeeForgeMac/SECURITY.md`, `../docs/threat-model.md`
+
+- Password save, picker creation, website addition and passkey registration end committed/unknown save outcomes with a warning and cancellation. Known outcomes update installed tree/SHA without completing or republishing successful credentials; lock/request-identity guards still reject obsolete callbacks.
+
+- A local unlock binds encrypted bytes and source identity in one coordinated read and captures the owner epoch before IO. Final quick/express-key publication validates that proof and the current reference/revocation under list-lock then owner flock, held through keychain-only writes. Blocking publication does not discard valid parsed credentials or fail filling. Legacy registry cleanup occurs separately outside flock; cleanup clears the in-memory read proof.
+
+- Cloud unlock may read/fill a valid cached ciphertext when journal recovery is unavailable. Final key persistence validates the captured epoch/reference and exact parsed SHA under the shared cloud publication fence, with legacy metadata cleanup after release. A rejected key publication does not reject credential filling.
+
+- Local read-key effects run in the shared bounded publication worker with a Sendable keychain-only seam. Request cleanup cancels and invalidates the original read generation and closes pending permission; claimed IO may finish without restoring parsed/session state. A claimed timeout preserves filling from already-authenticated entries, while switcher/list metadata and mutation actions avoid the still-owned registry. The existing unlock task is observable read-only so tests can release and join the actual task. Cloud publication uses that same worker and original request permit, with strict journal and exact ciphertext authority.
+
+- A read-key worker that positively finishes before claiming an effect releases its matching active-request latch after a terminal rejection. Pending timeout, claimed uncertainty, cancellation and revocation keep their restrictions; authenticated filling remains independent.

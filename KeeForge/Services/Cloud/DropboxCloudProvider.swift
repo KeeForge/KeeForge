@@ -98,9 +98,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         var clients: [String: DropboxClient] = [:]
     }
 
-    /// A Dropbox failure the caller is expected to retry itself. `withRetry`
-    /// always either retries or rethrows `mapped`, so this never escapes the
-    /// provider; the `LocalizedError` conformance is a backstop.
+    /// Retry policy unwraps these failures; replacement uploads return uncertain requests without retry.
     struct TransientFailure: Error, LocalizedError {
         enum Kind: Equatable {
             case rateLimited(retryAfter: UInt64)
@@ -114,7 +112,11 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         var errorDescription: String? { mapped.errorDescription }
     }
 
-    private init() {}
+    private let clientForAccount: (@Sendable (String) throws -> DropboxClient)?
+
+    init(clientForAccount: (@Sendable (String) throws -> DropboxClient)? = nil) {
+        self.clientForAccount = clientForAccount
+    }
 
     @MainActor
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
@@ -224,6 +226,12 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
+    func revisionIdentifiesContent(_ revision: String?) -> Bool { revision?.isEmpty == false }
+
+    func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee {
+        expectedRev?.isEmpty == false ? .serverConditional : .preflightOnly
+    }
+
     func upload(
         accountId: String,
         fileId: String,
@@ -233,15 +241,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     ) async throws -> CloudFileMetadata {
         let client = try client(for: accountId)
 
-        return try await withRetry {
-            try await self.performUpload(
-                client: client,
-                fileId: fileId,
-                data: data,
-                expectedRev: expectedRev,
-                progress: progress
-            )
-        }
+        return try await performUpload(client: client, fileId: fileId, data: data, expectedRev: expectedRev, progress: progress)
     }
 
     func createFile(
@@ -250,7 +250,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         data: Data,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile {
-        let client = try client(for: accountId)
+        let client: DropboxClient
+        do { client = try self.client(for: accountId) }
+        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
+        catch { throw CloudCreationNotDispatched(underlying: error) }
 
         return try await withRetry {
             try await self.performCreateFile(client: client, path: path, data: data, progress: progress)
@@ -274,10 +277,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     // MARK: - Private
 
-    /// Repeats `operation` while Dropbox reports a transient failure. Every
-    /// route used here is safe to repeat: reads are idempotent and both writes
-    /// carry `strictConflict`, so a retried write either applies once or fails
-    /// as a conflict.
+    /// Replacement uploads never retry a lost response; shipped create-only retries stay separate.
     private func withRetry<T>(_ operation: () async throws -> T) async throws -> T {
         var attempt = 1
 
@@ -521,9 +521,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     /// access token, so building one per call leaked sessions and forced an
     /// OAuth round-trip per request.
     private func client(for accountId: String) throws -> DropboxClient {
+        if let clientForAccount { return try clientForAccount(accountId) }
         // `withLockUnchecked` because the SDK's client and OAuth manager are not
         // `Sendable`; the lock is what keeps them single-threaded here.
-        try state.withLockUnchecked { state in
+        return try state.withLockUnchecked { state in
             try Self.configure(&state)
 
             if let cached = state.clients[accountId] {

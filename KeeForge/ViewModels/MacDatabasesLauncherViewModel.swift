@@ -112,12 +112,14 @@ final class MacDatabasesLauncherViewModel {
     /// The window’s requested form; one at a time.
     enum Sheet: Identifiable, Equatable {
         case newDatabase
+        case cloudRecovery
         case connect(CloudProviderKind)
         case details(UUID)
 
         var id: String {
             switch self {
             case .newDatabase: "new-database"
+            case .cloudRecovery: "cloud-recovery"
             case .connect(let provider): "connect-\(provider.rawValue)"
             case .details(let databaseID): "details-\(databaseID.uuidString)"
             }
@@ -150,7 +152,7 @@ final class MacDatabasesLauncherViewModel {
     @ObservationIgnored var hasUnsavedWork: @MainActor (UUID) -> Bool = { _ in false }
     /// True while the window's sheet is creating or connecting; a new request must not replace it.
     @ObservationIgnored var isSheetBusy: @MainActor () -> Bool = { false }
-    @ObservationIgnored var removeDatabase: @MainActor (DatabaseReference) -> Void = { _ in }
+    @ObservationIgnored var removeDatabase: @MainActor (DatabaseReference) async -> Void = { _ in }
     @ObservationIgnored var chooseEnrollmentDestinationHandler: @MainActor (UUID) -> Void = { _ in }
     @ObservationIgnored var cancelEnrollmentDestinationHandler: @MainActor () -> Void = {}
     /// The list's mutations: quick launch, read-only, key file, nickname, pending uploads.
@@ -229,7 +231,11 @@ final class MacDatabasesLauncherViewModel {
         case .open: open(current)
         case .rename: renameTarget = current
         case .setKeyFile, .changeKeyFile: keyFileTarget = current
-        case .clearKeyFile: try? list?.setKeyFile(url: nil, for: current)
+        case .clearKeyFile:
+            Task {
+                do { try await list?.setKeyFile(url: nil, for: current) }
+                catch { selectionAlert = DocumentPickerService.fileAccessFailureAlert(for: error) }
+            }
         case .quickLaunch: list?.toggleQuickLaunch(for: current)
         case .pushPendingChanges:
             let list = list
@@ -307,17 +313,17 @@ final class MacDatabasesLauncherViewModel {
         beginRemoval(selectedDatabase)
     }
 
-    func confirmRemoval() {
+    func confirmRemoval() async {
         guard let pendingRemoval else { return }
         self.pendingRemoval = nil
-        remove(pendingRemoval)
+        await remove(pendingRemoval)
     }
 
     /// Checked again on confirmation: the window may have gained unsaved work meanwhile.
-    func remove(_ reference: DatabaseReference) {
+    func remove(_ reference: DatabaseReference) async {
         guard requestRemoval(reference) else { return }
         if selectedDatabaseID == reference.id { selectedDatabaseID = nil }
-        removeDatabase(reference)
+        await removeDatabase(reference)
     }
 
     // MARK: - Servers
@@ -328,6 +334,11 @@ final class MacDatabasesLauncherViewModel {
     /// The caption under Connect to Server…: the server types it offers.
     var connectCaption: String {
         connectProviders.map(\.displayName).joined(separator: ", ")
+    }
+
+    func requestCloudRecovery() {
+        guard !isSheetBusy() else { return }
+        sheet = .cloudRecovery
     }
 
     func requestConnect(_ provider: CloudProviderKind? = nil) {

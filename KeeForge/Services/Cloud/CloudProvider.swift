@@ -7,6 +7,20 @@ struct CloudDatabaseSelection: Hashable, Sendable {
     let file: CloudFile
 }
 
+struct CloudCreationNotDispatched: Error {
+    let underlying: any Error
+}
+
+/// Evidence applies only to this invocation; earlier unresolved attempts keep their fence.
+struct CloudUploadFailure: Error, LocalizedError, CloudSyncIssueConvertible {
+    enum Outcome: Sendable, Equatable { case notDispatched, rejected, uncertain }
+    let underlying: CloudProviderError
+    let outcome: Outcome
+    var syncIssue: CloudSyncIssue { underlying.syncIssue }
+    var errorDescription: String? { underlying.errorDescription }
+    var provesNoCommit: Bool { outcome != .uncertain }
+}
+
 protocol CloudProvider: AnyObject, Sendable {
     var id: String { get }
     var displayName: String { get }
@@ -43,6 +57,8 @@ protocol CloudProvider: AnyObject, Sendable {
     /// size cannot be held to a fixed deadline; see
     /// `CloudSyncCoordinator.openProbeDeadline`.
     var metadataProbeTransfersContent: Bool { get }
+    func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee
+    func revisionIdentifiesContent(_ revision: String?) -> Bool
     func upload(
         accountId: String,
         fileId: String,
@@ -59,6 +75,10 @@ protocol CloudProvider: AnyObject, Sendable {
 }
 
 extension CloudProvider {
+    func revisionIdentifiesContent(_ revision: String?) -> Bool { false }
+
+    func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee { .preflightOnly }
+
     @MainActor
     func cancelPendingAuthentication() {}
 

@@ -26,8 +26,11 @@ final class DatabaseSessionStore {
         list.autoFillEnabledRefreshHandler = { [weak self] id in
             self?.session(for: id)?.populateCredentialStoreIfUnlocked()
         }
-        retireSessionsMissingFromDatabaseList(list.databases.map(\.id))
-        reconcileReferences(list.databases)
+        list.pendingUploadsDidChange = { [weak self] ids in self?.refreshPendingUploads(for: ids) }
+        if list.registryReadError == nil {
+            retireSessionsMissingFromDatabaseList(list.databases.map(\.id))
+            reconcileReferences(list.databases)
+        }
     }
 
     func reconcileReferences(_ references: [DatabaseReference]) {
@@ -61,6 +64,12 @@ final class DatabaseSessionStore {
             session.handleSceneDidBecomeActive()
             #endif
             session.refreshSharedDatabaseCacheIfPossible()
+        }
+    }
+
+    func refreshPendingUploads(for databaseIDs: Set<UUID>) {
+        for id in databaseIDs {
+            sessionsByID[id]?.refreshPendingUploadState()
         }
     }
 

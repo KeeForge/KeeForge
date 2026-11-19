@@ -5,6 +5,34 @@ import XCTest
 
 @MainActor
 final class MacDatabasesSheetsTests: XCTestCase {
+    func testCloudRecoveryCanOpenWithoutAnyRegisteredDatabase() async throws {
+        let launcher = MacDatabasesLauncherViewModel(references: { [] })
+        let window = NSWindow()
+        let presenter = MacDatabasesSheets(window: window, launcher: launcher, list: DatabaseListViewModel(), present: { shell, parent, completion in
+            shell.presentWindow = { _, _, _ in }
+            shell.begin(on: parent, completion: completion)
+        })
+        launcher.requestCloudRecovery()
+        await settle()
+        let shell = try XCTUnwrap(presenter.shell)
+        XCTAssertEqual(launcher.sheet, .cloudRecovery)
+        XCTAssertEqual(shell.window?.accessibilityIdentifier(), "cloud-recovery.sheet")
+        XCTAssertEqual(shell.defaultButton.title, String(localized: "Done"))
+        XCTAssertTrue(shell.cancelButton.isHidden)
+        let lifetime = try XCTUnwrap(presenter.recoveryLifetime)
+        XCTAssertNoThrow(try lifetime.claim())
+        shell.performDefault()
+        XCTAssertThrowsError(try lifetime.claim()) { XCTAssertTrue($0 is CancellationError) }
+        XCTAssertNil(launcher.sheet)
+        XCTAssertNil(presenter.shell)
+        launcher.requestConnect()
+        await settle()
+        presenter.shell?.setBusy(true, label: "")
+        launcher.requestCloudRecovery()
+        XCTAssertEqual(launcher.sheet, .connect(.webDAV))
+        presenter.end()
+    }
+
     func testCancelAndWindowEndClearCreationAndBothServerPasswords() async throws {
         let launcher = MacDatabasesLauncherViewModel(references: { [] })
         let window = NSWindow()

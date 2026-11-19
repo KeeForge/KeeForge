@@ -284,7 +284,7 @@ final class MacWindowCoordinatorTests: XCTestCase {
 
         for controller in [dirty, editing] {
             let reference = try XCTUnwrap(references.first { $0.id == controller.databaseID })
-            coordinator.launcher.remove(reference)
+            await coordinator.launcher.remove(reference)
             await Task { @MainActor in }.value
             XCTAssertEqual(coordinator.launcher.refusedRemoval?.id, controller.databaseID)
             XCTAssertTrue(coordinator.databaseWindows[controller.databaseID] === controller)
@@ -296,11 +296,19 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertTrue(dirty.session.isDirty)
 
         editing.workspacePresentation.closeEntryEditor()
-        coordinator.launcher.remove(references[1])
-        await Task { @MainActor in }.value
+        await coordinator.launcher.remove(references[1])
+        try await waitForRemoval(references[1].id)
         XCTAssertNil(coordinator.launcher.refusedRemoval)
         XCTAssertNil(coordinator.databaseWindows[references[1].id], "A clean database is removed with its window")
         XCTAssertFalse(list.databases.contains { $0.id == references[1].id })
+    }
+
+    private func waitForRemoval(_ id: UUID) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while coordinator.databaseWindows[id] != nil || list.databases.contains(where: { $0.id == id }) {
+            guard ContinuousClock.now < deadline else { return XCTFail("Removal did not finish") }
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     /// A locked window's recovery page removes through the Databases window's rule and cleanup.
@@ -321,8 +329,7 @@ final class MacWindowCoordinatorTests: XCTestCase {
 
         removals.answers = [true]
         removeFromList()
-        await Task { @MainActor in }.value
-        await Task { @MainActor in }.value
+        try await waitForRemoval(references[0].id)
         XCTAssertFalse(list.databases.contains { $0.id == references[0].id })
         XCTAssertNil(store.session(for: references[0].id), "Removal retires the session")
         XCTAssertNil(coordinator.databaseWindows[references[0].id], "and closes its window")
@@ -416,7 +423,7 @@ final class MacWindowCoordinatorTests: XCTestCase {
         start()
         coordinator.open(references[0])
         coordinator.open(references[1])
-        list.removeDatabase(references[0])
+        await list.removeDatabase(references[0])
         await Task { @MainActor in }.value
         XCTAssertNil(coordinator.databaseWindows[references[0].id])
         XCTAssertNotNil(coordinator.databaseWindows[references[1].id])
@@ -829,7 +836,7 @@ final class MacWindowCoordinatorTests: XCTestCase {
         let otherKey = "NSSplitView Subview Frames \(MacWindowRestorationStore.splitViewAutosaveName(for: references[1].id))"
         restorationDefaults.set(["geometry"], forKey: geometryKey)
         restorationDefaults.set(["other"], forKey: otherKey)
-        list.removeDatabase(references[0])
+        await list.removeDatabase(references[0])
         await Task { @MainActor in }.value
         await Task { @MainActor in }.value
         XCTAssertNil(restorationDefaults.object(forKey: geometryKey))
@@ -1145,10 +1152,17 @@ final class MacWindowCoordinatorTests: XCTestCase {
     }
 
     func testANewDatabaseWindowCascadesFromTheFrontmostOne() throws {
+        makeRestoringCoordinator(restoresWindows: false, databaseWindowContentSize: DatabaseWindow.minimumContentSize)
         start()
         coordinator.open(references[0])
         let first = try XCTUnwrap(coordinator.databaseWindows[references[0].id]?.window)
         let firstFrame = first.frame
+        // AppKit shrinks a cascaded window to the screen, as on a hosted runner's 1024 x 768 display.
+        let visible = try XCTUnwrap(first.screen ?? NSScreen.main).visibleFrame
+        try XCTSkipIf(
+            visible.width < firstFrame.width + 60 || visible.height < firstFrame.height + 60,
+            "The screen is too small to cascade a full-size database window."
+        )
         coordinator.open(references[1])
         let second = try XCTUnwrap(coordinator.databaseWindows[references[1].id]?.window)
         XCTAssertEqual(first.frame, firstFrame, "Opening another window never moves this one")

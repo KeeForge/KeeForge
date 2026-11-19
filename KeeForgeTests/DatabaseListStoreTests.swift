@@ -33,6 +33,201 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(storedReferences.first?.filename, "personal.kdbx")
     }
 
+    func testInitializationCreatesMissingRegistryAndPreservesExistingRegistry() throws {
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected initialization") }
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "initialized.kdbx"))
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let before = try Data(contentsOf: url)
+        guard case .alreadyPresent = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected existing registry") }
+        XCTAssertEqual(try Data(contentsOf: url), before)
+        XCTAssertEqual(DatabaseListStore.databases.first?.id, reference.id)
+    }
+
+    func testInitializationRejectsCorruptRegistryWithoutReplacingIt() throws {
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let corrupt = Data("{broken".utf8)
+        try corrupt.write(to: url)
+        guard case .notPublished = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected rejection") }
+        XCTAssertFalse(DatabaseListStore.setNickname("changed", for: UUID()))
+        XCTAssertThrowsError(try DatabaseListStore.add(url: makeTemporaryFileURL(name: "corrupt-add.kdbx")))
+        XCTAssertEqual(try Data(contentsOf: url), corrupt)
+    }
+
+    func testInitializationMigratesLegacyReference() throws {
+        let original = try makeTemporaryFileURL(name: "legacy-init.kdbx")
+        try SharedVaultStore.saveBookmark(for: original)
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected migration") }
+        let migrated = try XCTUnwrap(DatabaseListStore.databases.first)
+        XCTAssertEqual(migrated.filename, original.lastPathComponent)
+        XCTAssertEqual(migrated.legacyKeychainFilename, original.lastPathComponent)
+        XCTAssertEqual(migrated.bookmarkData, SharedVaultStore.legacyBookmarkData)
+    }
+
+    func testInitializationRejectsUnreadableRegistryWithoutReplacingIt() throws {
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: url) }
+        guard case .notPublished = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected rejection") }
+        var isDirectory: ObjCBool = false
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory))
+        XCTAssertTrue(isDirectory.boolValue)
+    }
+
+    func testReadOnlyRejectsReferenceObservedBeforeRelink() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "before.kdbx"))
+        let replacement = try makeTemporaryFileURL(name: "after.kdbx")
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement))
+
+        XCTAssertFalse(DatabaseListStore.setReadOnly(true, for: original))
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == original.id }))
+        XCTAssertEqual(stored.bookmarkData, relinked.bookmarkData)
+        XCTAssertFalse(stored.isReadOnly)
+        XCTAssertTrue(stored.hasUnverifiedRelink)
+    }
+
+    func testHardwarePreferenceRejectsStaleTargetWithoutKeyDeletion() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "hardware-old.kdbx"))
+        let replacement = try makeTemporaryFileURL(name: "hardware-new.kdbx")
+        _ = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement))
+        var deletes = 0
+        let desired = HardwareKeyConfiguration(transport: .nfc, slot: .one)
+        XCTAssertEqual(DatabaseListStore.setHardwareKey(desired, for: original, deleteKeys: { _, _ in deletes += 1 }), .rejected)
+        XCTAssertEqual(deletes, 0)
+        XCTAssertTrue(DatabaseListStore.remove(id: original.id))
+        XCTAssertEqual(DatabaseListStore.setHardwareKey(desired, for: original, deleteKeys: { _, _ in deletes += 1 }), .rejected)
+        XCTAssertEqual(deletes, 0)
+    }
+
+    func testHardwarePreferenceReportsKeyEffectWhenRegistryWriteFails() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "hardware-fault.kdbx"))
+        var io = DurableFileWriteIO()
+        io.synchronizeFile = { _ in throw POSIXError(.EIO) }
+        var deletes = 0
+        let desired = HardwareKeyConfiguration(transport: .nfc, slot: .one)
+        XCTAssertEqual(DatabaseListStore.setHardwareKey(desired, for: reference, io: io, deleteKeys: { _, _ in deletes += 1 }), .keyEffectUnconfirmed)
+        XCTAssertEqual(deletes, 1)
+        XCTAssertNil(DatabaseListStore.databases.first?.hardwareKey)
+    }
+
+    func testHardwarePreferenceReportsVisibleUnconfirmed() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "hardware-visible.kdbx"))
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        var deletes = 0
+        let desired = HardwareKeyConfiguration(transport: .nfc, slot: .one)
+        XCTAssertEqual(DatabaseListStore.setHardwareKey(desired, for: reference, io: io, deleteKeys: { _, _ in deletes += 1 }), .visibleUnconfirmed)
+        XCTAssertEqual(deletes, 1)
+        XCTAssertEqual(DatabaseListStore.databases.first?.hardwareKey, desired)
+    }
+
+    func testAutoFillRejectionAndUnconfirmedWriteDoNotQueueRemoval() async throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "autofill-old.kdbx"))
+        let replacement = try makeTemporaryFileURL(name: "autofill-new.kdbx")
+        let current = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement))
+        let removal = expectation(description: "No identity removal")
+        removal.isInverted = true
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in removal.fulfill() }
+        XCTAssertEqual(DatabaseListStore.setAutoFillEnabled(false, for: original), .rejected)
+        var beforeWriteIO = DurableFileWriteIO()
+        beforeWriteIO.synchronizeFile = { _ in throw POSIXError(.EIO) }
+        XCTAssertEqual(DatabaseListStore.setAutoFillEnabled(false, for: current, io: beforeWriteIO), .notPublished)
+        XCTAssertTrue(try XCTUnwrap(DatabaseListStore.databases.first).autoFillEnabled)
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        XCTAssertEqual(DatabaseListStore.setAutoFillEnabled(false, for: current, io: io), .visibleUnconfirmed)
+        await fulfillment(of: [removal], timeout: 0.2)
+        XCTAssertFalse(try XCTUnwrap(DatabaseListStore.databases.first).autoFillEnabled)
+    }
+
+    func testKeyAssociationRejectsStaleObservationAndMissingRow() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "association-old.kdbx"))
+        let replacement = try makeTemporaryFileURL(name: "association-new.kdbx")
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement))
+        XCTAssertEqual(DatabaseListStore.setKeyFileAssociation(for: original, bookmarkData: Data("key".utf8), filename: "key", masterKeyChangedAt: .now), .rejected)
+        XCTAssertEqual(DatabaseListStore.databases.first?.bookmarkData, relinked.bookmarkData)
+        XCTAssertTrue(DatabaseListStore.remove(id: original.id))
+        XCTAssertNotEqual(DatabaseListStore.setKeyFileAssociation(for: original, bookmarkData: nil, filename: nil, masterKeyChangedAt: .now), .saved)
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
+    func testKeyAssociationReportsUnconfirmedPublication() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "association-uncertain.kdbx"))
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        XCTAssertEqual(DatabaseListStore.setKeyFileAssociation(for: reference, bookmarkData: nil, filename: "key", masterKeyChangedAt: date, io: io), .publishedWithoutConfirmedDurability)
+        XCTAssertEqual(DatabaseListStore.databases.first?.lastMasterKeyChangeAt, date)
+    }
+
+    func testDocumentsIdentityRejectsStaleObservationAndMissingRow() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "before-identity.kdbx"))
+        let replacement = try makeTemporaryFileURL(name: "after-identity.kdbx")
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement))
+        XCTAssertFalse(DatabaseListStore.rederiveDocumentsIdentity(for: original, filename: "stale.kdbx", isDocumentsResident: true))
+        XCTAssertFalse(DatabaseListStore.rebindBookmarkData(Data("stale".utf8), for: original, toFileAt: replacement))
+        XCTAssertEqual(DatabaseListStore.databases.first?.filename, relinked.filename)
+        XCTAssertTrue(DatabaseListStore.remove(id: original.id))
+        XCTAssertFalse(DatabaseListStore.rederiveDocumentsIdentity(for: original, filename: "stale.kdbx", isDocumentsResident: true))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
+    func testAddCreatedCloudRejectsCorruptRegistry() throws {
+        let reference = makeStoredCloudReference(remoteRev: "rev", remoteContentHash: "hash")
+        let url = AppGroupContainer.url.appendingPathComponent("database-list.json")
+        let corrupt = Data("{broken".utf8)
+        try corrupt.write(to: url)
+        XCTAssertThrowsError(try DatabaseListStore.addCreatedCloud(reference))
+        let file = CloudFile(id: "new", name: "new.kdbx", path: "/new.kdbx", isFolder: false, modifiedDate: nil, size: nil)
+        XCTAssertThrowsError(try DatabaseListStore.addCloud(provider: "test", accountId: "account", file: file))
+        XCTAssertEqual(try Data(contentsOf: url), corrupt)
+    }
+
+    func testAddCloudReportsVisibleUnconfirmedWithoutSelectingSuccess() throws {
+        guard case .initialized = DatabaseListStore.initializeRegistry() else { return XCTFail("Expected initialization") }
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        let file = CloudFile(id: "uncertain", name: "uncertain.kdbx", path: "/uncertain.kdbx", isFolder: false, modifiedDate: nil, size: nil)
+        XCTAssertThrowsError(try DatabaseListStore.addCloud(provider: "test", accountId: "account", file: file, io: io)) { error in
+            guard case DatabaseListStore.RegistryWriteError.visibleUnconfirmed = error else { return XCTFail("Expected unconfirmed effect: \(error)") }
+        }
+        XCTAssertEqual(DatabaseListStore.databases.first?.cloudSyncMetadata?.fileId, file.id)
+    }
+
+    func testCloudMetadataCASRejectsRevisionCollisionAndStaleFactors() throws {
+        var original = makeStoredCloudReference(remoteRev: "a\u{1F}b", remoteContentHash: "c")
+        let observed = try XCTUnwrap(original.cloudSyncMetadata)
+        var current = original
+        current.updateCloudSyncMetadata { $0.remoteRev = "a"; $0.remoteContentHash = "b\u{1F}c" }
+        DatabaseListStore.testUpsert(current)
+        if case .mismatch = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: original.id, ifUnchangedFrom: observed, observedReference: original, mutate: { $0.lastSyncedAt = .now }) {} else { XCTFail("Expected revision mismatch") }
+        original = current
+        let metadata = try XCTUnwrap(original.cloudSyncMetadata)
+        current.keyFileFilename = "new-key"
+        DatabaseListStore.testUpsert(current)
+        if case .mismatch = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: original.id, ifUnchangedFrom: metadata, observedReference: original, mutate: { $0.lastSyncedAt = .now }) {} else { XCTFail("Expected factor mismatch") }
+        XCTAssertNil(DatabaseListStore.databases.first?.cloudSyncMetadata?.lastSyncedAt)
+    }
+
+    func testCloudMetadataReportsVisibleUnconfirmedPublication() throws {
+        let reference = makeStoredCloudReference(remoteRev: "rev", remoteContentHash: "hash")
+        let observed = try XCTUnwrap(reference.cloudSyncMetadata)
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        if case .visibleUnconfirmed = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed, observedReference: reference, io: io, mutate: { $0.lastSyncedAt = Date(timeIntervalSince1970: 123) }) {} else { XCTFail("Expected visible-unconfirmed publication") }
+        XCTAssertEqual(DatabaseListStore.databases.first?.cloudSyncMetadata?.lastSyncedAt, Date(timeIntervalSince1970: 123))
+    }
+
+    func testCloudMetadataNoopDoesNotWriteAndExplicitConfirmationCanFail() throws {
+        let reference = makeStoredCloudReference(remoteRev: "rev", remoteContentHash: "hash")
+        let observed = try XCTUnwrap(reference.cloudSyncMetadata)
+        var io = DurableFileWriteIO()
+        io.write = { _, _, _ in XCTFail("No-op must not write"); return -1 }
+        if case .published = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed, observedReference: reference, io: io, mutate: { _ in }) {} else { XCTFail("Expected no-op") }
+        io.synchronizeFile = { _ in throw POSIXError(.EIO) }
+        if case .writeFailed = DatabaseListStore.compareAndUpdateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed, observedReference: reference, confirmUnchanged: true, io: io, mutate: { _ in }) {} else { XCTFail("Expected failed durability confirmation") }
+        XCTAssertEqual(DatabaseListStore.databases.first?.cloudSyncMetadata, observed)
+    }
+
     func testAddRejectsSameLocalFileTwice() throws {
         let url = try makeTemporaryFileURL(name: "duplicate.kdbx")
         let firstReference = try DatabaseListStore.add(url: url)
@@ -72,7 +267,7 @@ final class DatabaseListStoreTests: XCTestCase {
         let contents = Data("fixture".utf8)
         let url = try makeTemporaryFileURL(name: "transition.kdbx", contents: contents)
         let original = try DatabaseListStore.add(url: url)
-        try DatabaseListStore.cacheDatabaseCopy(Data("cached".utf8), for: original.id)
+        try writeAtomicallyAndDurably(Data("cached".utf8), to: DatabaseListStore.cacheLocation(for: original), directoryAnchor: AppGroupContainer.url)
 
         DatabaseListStore.remove(id: original.id)
 
@@ -94,15 +289,20 @@ final class DatabaseListStoreTests: XCTestCase {
         let identityStore = FakeCredentialIdentityStore()
         identityStore.onMutation = { XCTFail("Empty identities should need no mutation") }
         CredentialIdentityStoreManager.storeProviderOverride = identityStore
-        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "A.kdbx"))
-        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "B.kdbx"))
+        let firstSource = try makeTemporaryFileURL(name: "A.kdbx")
+        let first = try DatabaseListStore.add(url: firstSource)
+        let secondSource = try makeTemporaryFileURL(name: "B.kdbx")
+        let second = try DatabaseListStore.add(url: secondSource)
         let firstBytes = Data("encrypted A".utf8)
         let secondBytes = Data("encrypted B".utf8)
+        try firstBytes.write(to: firstSource)
+        try secondBytes.write(to: secondSource)
         try DatabaseListStore.cacheDatabaseCopy(firstBytes, for: first.id)
         try DatabaseListStore.cacheDatabaseCopy(secondBytes, for: second.id)
         let secondURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: second.id))
 
         let refreshed = Data("refreshed encrypted A".utf8)
+        try refreshed.write(to: firstSource)
         try DatabaseListStore.cacheDatabaseCopy(refreshed, for: first.id)
 
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: first.id))), refreshed)
@@ -115,11 +315,25 @@ final class DatabaseListStoreTests: XCTestCase {
         await CredentialIdentityStoreManager.waitForPendingMutations()
     }
 
+    func testCacheRejectsBytesThatDoNotBelongToTheCurrentSource() throws {
+        let bytes = Data("current encrypted source".utf8)
+        let url = try makeTemporaryFileURL(name: "exact-source.kdbx", contents: bytes)
+        let reference = try DatabaseListStore.add(url: url)
+        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
+        XCTAssertThrowsError(try DatabaseListStore.cacheDatabaseCopy(Data("foreign ciphertext".utf8), for: reference)) { error in
+            XCTAssertEqual(error as? PendingLocalSaveStore.OwnershipError, .targetChanged)
+        }
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+        XCTAssertEqual(DatabaseListStore.databases.first?.id, reference.id)
+    }
+
     func testCacheDatabaseCopyUsesPerDatabaseUUIDPath() throws {
         let url = try makeTemporaryFileURL(name: "work.kdbx", contents: Data("fixture".utf8))
         let reference = try DatabaseListStore.add(url: url)
         let cachedData = Data("cached".utf8)
 
+        try cachedData.write(to: url)
         try DatabaseListStore.cacheDatabaseCopy(cachedData, for: reference.id)
 
         let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference.id))
@@ -140,7 +354,7 @@ final class DatabaseListStoreTests: XCTestCase {
             relativeTo: nil
         )
         reference.keyFileFilename = keyFileURL.lastPathComponent
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let storedReference = try XCTUnwrap(DatabaseListStore.databases.first)
         XCTAssertEqual(storedReference.displayName, "Shared Family")
@@ -150,7 +364,7 @@ final class DatabaseListStoreTests: XCTestCase {
     }
 
     #if os(macOS)
-    func testRefreshStaleLockedKeyFileBookmarkPreservesLegacyAssociation() throws {
+    func testRefreshStaleLockedKeyFileBookmarkPreservesLegacyAssociation() async throws {
         let url = try makeTemporaryFileURL(name: "original.keyx")
         let movedURL = url.deletingLastPathComponent().appendingPathComponent("moved.keyx")
         defer {
@@ -161,12 +375,15 @@ final class DatabaseListStoreTests: XCTestCase {
         let legacyBookmark = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
         reference.keyFileBookmarkData = legacyBookmark
         reference.keyFileFilename = url.lastPathComponent
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         try FileManager.default.moveItem(at: url, to: movedURL)
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: movedURL.path)
         XCTAssertTrue(try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: legacyBookmark)).isStale)
 
-        let resolved = try XCTUnwrap(DatabaseListStore.resolveKeyFileURL(for: reference))
+        var renewal: Task<DatabaseListStore.KeyFilePreferenceOutcome, Never>?
+        let resolved = try XCTUnwrap(DatabaseListStore.resolveKeyFileURL(for: reference, onRenewal: { renewal = $0 }))
+        let completion = try XCTUnwrap(renewal)
+        _ = await completion.value
         XCTAssertEqual(try Data(contentsOf: resolved), try Data(contentsOf: movedURL))
         let stored = try XCTUnwrap(DatabaseListStore.databases.first)
         let refreshed = try XCTUnwrap(stored.keyFileBookmarkData)
@@ -192,11 +409,11 @@ final class DatabaseListStoreTests: XCTestCase {
 
         var updatedFirst = first
         updatedFirst.isQuickLaunch = true
-        DatabaseListStore.update(updatedFirst)
+        DatabaseListStore.testUpsert(updatedFirst)
 
         var updatedSecond = second
         updatedSecond.isQuickLaunch = true
-        DatabaseListStore.update(updatedSecond)
+        DatabaseListStore.testUpsert(updatedSecond)
 
         let storedReferences = DatabaseListStore.databases
         XCTAssertTrue(storedReferences.first(where: { $0.id == first.id })?.isQuickLaunch ?? false)
@@ -206,7 +423,7 @@ final class DatabaseListStoreTests: XCTestCase {
 
     func testRemoveDeletesCachedCopy() throws {
         let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "remove-me.kdbx"))
-        try DatabaseListStore.cacheDatabaseCopy(Data("cached".utf8), for: reference.id)
+        try DatabaseListStore.cacheDatabaseCopy(Data(contentsOf: XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: reference))), for: reference.id)
         XCTAssertNotNil(DatabaseListStore.cachedDatabaseURL(for: reference.id))
 
         DatabaseListStore.remove(id: reference.id)
@@ -225,7 +442,7 @@ final class DatabaseListStoreTests: XCTestCase {
             size: 42
         )
 
-        let reference = DatabaseListStore.addCloud(
+        let reference = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: file
@@ -253,7 +470,7 @@ final class DatabaseListStoreTests: XCTestCase {
     func testSetCloudSyncPolicyPersistsWithoutTouchingOtherFields() throws {
         var reference = makeStoredCloudReference(remoteRev: "rev-A", remoteContentHash: "hash-A")
         reference.nickname = "Stored Name"
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         // A stale copy (no nickname) must not carry its other fields back.
         var staleCopy = reference
@@ -273,16 +490,18 @@ final class DatabaseListStoreTests: XCTestCase {
 
     func testUpdateCloudSyncMetadataMergesSyncFieldsWithoutTouchingOtherFields() throws {
         var reference = makeStoredCloudReference(remoteRev: "rev-A", remoteContentHash: "hash-A")
+        let observedReference = reference
         let observed = try XCTUnwrap(reference.cloudSyncMetadata)
 
         // A rename lands while the refresh is out on the network. The refresh
         // must not carry the pre-rename nickname back over it.
         reference.nickname = "Renamed While Syncing"
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let merged = DatabaseListStore.updateCloudSyncMetadata(
             for: reference.id,
-            ifUnchangedFrom: observed
+            ifUnchangedFrom: observed,
+            observedReference: observedReference
         ) { metadata in
             metadata.remoteRev = "rev-B"
             metadata.remoteContentHash = "hash-B"
@@ -298,6 +517,7 @@ final class DatabaseListStoreTests: XCTestCase {
 
     func testUpdateCloudSyncMetadataSkipsWhenStoredRevisionMovedOnUnderneath() throws {
         var reference = makeStoredCloudReference(remoteRev: "rev-A", remoteContentHash: "hash-A")
+        let observedReference = reference
         let observed = try XCTUnwrap(reference.cloudSyncMetadata)
 
         // A save (or a pending-upload drain) completes while the refresh is in
@@ -306,11 +526,12 @@ final class DatabaseListStoreTests: XCTestCase {
             metadata.remoteRev = "rev-B"
             metadata.remoteContentHash = "hash-B"
         }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         let merged = DatabaseListStore.updateCloudSyncMetadata(
             for: reference.id,
-            ifUnchangedFrom: observed
+            ifUnchangedFrom: observed,
+            observedReference: observedReference
         ) { metadata in
             metadata.remoteRev = "rev-A"
             metadata.remoteContentHash = "hash-A"
@@ -334,16 +555,18 @@ final class DatabaseListStoreTests: XCTestCase {
     /// hash alone has to be able to block a stale merge.
     func testUpdateCloudSyncMetadataSkipsWhenOnlyContentHashMovedOn() throws {
         var reference = makeStoredCloudReference(remoteRev: nil, remoteContentHash: "hash-A")
+        let observedReference = reference
         let observed = try XCTUnwrap(reference.cloudSyncMetadata)
 
         reference.updateCloudSyncMetadata { metadata in
             metadata.remoteContentHash = "hash-B"
         }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         DatabaseListStore.updateCloudSyncMetadata(
             for: reference.id,
-            ifUnchangedFrom: observed
+            ifUnchangedFrom: observed,
+            observedReference: observedReference
         ) { metadata in
             metadata.remoteContentHash = "hash-A"
         }
@@ -359,7 +582,7 @@ final class DatabaseListStoreTests: XCTestCase {
         DatabaseListStore.remove(id: reference.id)
 
         let merged = observed.flatMap { observed in
-            DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed) { metadata in
+            DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed, observedReference: reference) { metadata in
                 metadata.remoteRev = "rev-B"
             }
         }
@@ -371,7 +594,7 @@ final class DatabaseListStoreTests: XCTestCase {
         remoteRev: String?,
         remoteContentHash: String?
     ) -> DatabaseReference {
-        var reference = DatabaseListStore.addCloud(
+        var reference = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: CloudFile(
@@ -387,7 +610,7 @@ final class DatabaseListStoreTests: XCTestCase {
             metadata.remoteRev = remoteRev
             metadata.remoteContentHash = remoteContentHash
         }
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         return reference
     }
 
@@ -401,12 +624,12 @@ final class DatabaseListStoreTests: XCTestCase {
             size: nil
         )
 
-        let first = DatabaseListStore.addCloud(
+        let first = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: file
         )
-        let second = DatabaseListStore.addCloud(
+        let second = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: file
@@ -425,7 +648,7 @@ final class DatabaseListStoreTests: XCTestCase {
             modifiedDate: nil,
             size: nil
         )
-        let reference = DatabaseListStore.addCloud(
+        let reference = try! DatabaseListStore.addCloud(
             provider: CloudProviderKind.dropbox.rawValue,
             accountId: "acct-1",
             file: file
@@ -567,7 +790,7 @@ final class DatabaseListStoreTests: XCTestCase {
             for: makeTemporaryFileURL(name: "disabled.kdbx"),
             autoFillEnabled: false
         )
-        DatabaseListStore.update(disabled)
+        DatabaseListStore.testUpsert(disabled)
         DatabaseListStore.activeAutoFillDatabaseID = enabled.id
 
         DatabaseListStore.activeAutoFillDatabaseID = disabled.id
@@ -595,7 +818,7 @@ final class DatabaseListStoreTests: XCTestCase {
             for: makeTemporaryFileURL(name: "disabled.kdbx"),
             autoFillEnabled: false
         )
-        DatabaseListStore.update(disabled)
+        DatabaseListStore.testUpsert(disabled)
         let openedDate = Date(timeIntervalSince1970: 2_000)
 
         DatabaseListStore.markDatabaseOpened(id: disabled.id, at: openedDate)
@@ -701,7 +924,9 @@ final class DatabaseListStoreTests: XCTestCase {
             XCTFail("Enabling must not trigger targeted identity removal")
         }
 
-        DatabaseListStore.setAutoFillEnabled(true, for: disabled)
+        XCTAssertEqual(DatabaseListStore.setAutoFillEnabled(true, for: disabled), .rejected)
+        let currentDisabled = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == disabled.id })
+        XCTAssertEqual(DatabaseListStore.setAutoFillEnabled(true, for: currentDisabled), .saved)
 
         try? await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(DatabaseListStore.databases.first(where: { $0.id == disabled.id })?.autoFillEnabled, true)
@@ -714,7 +939,7 @@ final class DatabaseListStoreTests: XCTestCase {
             legacyKeychainFilename: "legacy.kdbx",
             autoFillEnabled: false
         )
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
 
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabase)
@@ -743,7 +968,7 @@ final class DatabaseListStoreTests: XCTestCase {
 
         var updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
         updatedReference.autoFillEnabled = false
-        DatabaseListStore.update(updatedReference)
+        DatabaseListStore.testUpsert(updatedReference)
 
         try? await Task.sleep(for: .milliseconds(100))
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
@@ -790,7 +1015,7 @@ final class DatabaseListStoreTests: XCTestCase {
             for: makeTemporaryFileURL(name: "legacy.kdbx"),
             legacyKeychainFilename: "legacy.kdbx"
         )
-        DatabaseListStore.update(legacyReference)
+        DatabaseListStore.testUpsert(legacyReference)
         let opened = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "opened.kdbx"))
         DatabaseListStore.markDatabaseOpened(id: opened.id, at: Date(timeIntervalSince1970: 2_000))
         DatabaseListStore.activeAutoFillDatabaseID = nil
@@ -906,7 +1131,7 @@ final class DatabaseListStoreTests: XCTestCase {
         // clobber one another's changes with a stale snapshot.
         let referenceCount = 32
         let references: [DatabaseReference] = (0..<referenceCount).map { index in
-            DatabaseListStore.addCloud(
+            try! DatabaseListStore.addCloud(
                 provider: CloudProviderKind.dropbox.rawValue,
                 accountId: "acct-1",
                 file: CloudFile(
@@ -925,7 +1150,7 @@ final class DatabaseListStoreTests: XCTestCase {
                 group.addTask {
                     var mutated = reference
                     mutated.nickname = "nick-\(reference.id.uuidString)"
-                    DatabaseListStore.update(mutated)
+                    DatabaseListStore.testUpsert(mutated)
                 }
             }
         }
@@ -939,6 +1164,93 @@ final class DatabaseListStoreTests: XCTestCase {
     }
 
     // MARK: - Documents-resident rebinding
+
+    func testNoRenewResolutionKeepsRegistryCacheAndOwnerUntouchedForBrokenTrashAndMovedBookmarks() throws {
+        for mode in ["broken", "trash", "moved"] {
+            let documents = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: documents, withIntermediateDirectories: true)
+            DatabaseListStore.documentsDirectoryOverride = documents
+            defer {
+                DatabaseListStore.documentsDirectoryOverride = nil
+                try? FileManager.default.removeItem(at: documents)
+            }
+            let originalURL = documents.appendingPathComponent("resident.kdbx")
+            let original = Self.kdbxMagic + Data("original".utf8)
+            let replacement = Self.kdbxMagic + Data("replacement".utf8)
+            try original.write(to: originalURL)
+            var reference = try TestDatabaseSupport.makeReference(for: originalURL)
+            reference.isDocumentsResident = true
+            let observedURL: URL
+            if mode == "trash" {
+                let trash = documents.appendingPathComponent(".Trash", isDirectory: true)
+                try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
+                observedURL = trash.appendingPathComponent("resident.kdbx")
+                try FileManager.default.moveItem(at: originalURL, to: observedURL)
+                try replacement.write(to: originalURL)
+                reference.bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: observedURL)
+            } else if mode == "moved" {
+                observedURL = documents.appendingPathComponent("moved.kdbx")
+                try FileManager.default.moveItem(at: originalURL, to: observedURL)
+            } else {
+                observedURL = originalURL
+                reference.bookmarkData = Data("broken-bookmark".utf8)
+            }
+            DatabaseListStore.testUpsert(reference)
+            let cache = DatabaseListStore.cacheLocation(for: reference)
+            try FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let oldCache = Data("unchanged encrypted-cache fixture".utf8)
+            try oldCache.write(to: cache, options: .atomicProtected)
+            let registry = AppGroupContainer.url.appendingPathComponent("database-list.json")
+            let owner = AppGroupContainer.url.appendingPathComponent("pending-local-save-owners/\(reference.id.uuidString)")
+            let registryBefore = try Data(contentsOf: registry)
+            func ownerSnapshot() throws -> [String: Data]? {
+                guard FileManager.default.fileExists(atPath: owner.path) else { return nil }
+                return try Dictionary(uniqueKeysWithValues: FileManager.default.contentsOfDirectory(at: owner, includingPropertiesForKeys: nil)
+                    .map { ($0.lastPathComponent, try Data(contentsOf: $0)) })
+            }
+            let ownerBefore = try ownerSnapshot()
+            var receipt: DatabaseListStore.DatabaseBookmarkRenewal?
+            let resolver: (Data) -> (url: URL, isStale: Bool)? = { _ in
+                mode == "broken" ? nil : (observedURL, true)
+            }
+            let result = DatabaseListStore.locateDatabaseFile(for: reference, resolveBookmark: resolver,
+                renewBookmark: false, onBookmarkRenewal: { receipt = $0 })
+            switch mode {
+            case "broken": XCTAssertNil(result)
+            case "trash":
+                guard case .inTrash(let url)? = result else { XCTFail("Known Trash must not become missing or trigger heal"); continue }
+                XCTAssertEqualFilePaths(url, observedURL)
+            default:
+                guard case .available(let url)? = result else { XCTFail("A resolvable moved target remains readable"); continue }
+                XCTAssertEqualFilePaths(url, observedURL)
+            }
+            XCTAssertNil(receipt)
+            XCTAssertEqual(try Data(contentsOf: registry), registryBefore)
+            XCTAssertEqual(try Data(contentsOf: cache), oldCache)
+            XCTAssertEqual(try ownerSnapshot(), ownerBefore,
+                           "No-renew resolution must not change owner locks or records")
+            XCTAssertEqual(try Data(contentsOf: observedURL), original)
+            if mode == "trash" { XCTAssertEqual(try Data(contentsOf: originalURL), replacement) }
+
+            let normal = DatabaseListStore.locateDatabaseFile(for: reference, resolveBookmark: resolver,
+                onBookmarkRenewal: { receipt = $0 })
+            guard case .available(let url)? = normal else { XCTFail("The normal path retains supported resolution/heal"); continue }
+            let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            XCTAssertEqual(stored.id, reference.id)
+            XCTAssertEqual(stored.lastMasterKeyChangeAt, reference.lastMasterKeyChangeAt)
+            XCTAssertEqual(stored.keyFileBookmarkData, reference.keyFileBookmarkData)
+            if mode == "moved" {
+                XCTAssertEqualFilePaths(url, observedURL)
+                XCTAssertNotNil(receipt, "Only the real durable renewal CAS provides a receipt")
+                XCTAssertEqual(try Data(contentsOf: cache), oldCache)
+            } else {
+                XCTAssertEqualFilePaths(url, originalURL)
+                XCTAssertNil(receipt, "Shipped heal does not claim a durable renewal receipt")
+                XCTAssertNotEqual(stored.bookmarkData, reference.bookmarkData)
+                XCTAssertEqual(try Data(contentsOf: cache), mode == "trash" ? replacement : original)
+            }
+        }
+    }
 
     func testLocateDatabaseFileRebindsDocumentsResidentReferenceWithBrokenBookmark() throws {
         let documentsDirectory = FileManager.default.temporaryDirectory
@@ -957,9 +1269,9 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertTrue(reference.isDocumentsResident)
 
         reference.bookmarkData = Data("stale-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         // Stale the cache so the heal's reseed is observable.
-        try DatabaseListStore.cacheDatabaseCopy(Data("stale-cache".utf8), for: reference.id)
+        try writeAtomicallyAndDurably(Data("stale-cache".utf8), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
 
         let location = DatabaseListStore.locateDatabaseFile(for: reference)
         guard case .available(let url) = location else {
@@ -993,7 +1305,7 @@ final class DatabaseListStoreTests: XCTestCase {
         var reference = try DatabaseListStore.add(url: fileURL)
 
         reference.bookmarkData = Data("stale-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         // A garbage (or mid-copy) file at the path must never be bound.
         try Data("not a database".utf8).write(to: fileURL)
 
@@ -1024,7 +1336,7 @@ final class DatabaseListStoreTests: XCTestCase {
         let replacement = Self.kdbxMagic + Data("replacement".utf8)
         try replacement.write(to: fileURL)
         reference.bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: trashedURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let resolvedBeforeLocate = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: try XCTUnwrap(reference.bookmarkData)))
         XCTAssertEqualFilePaths(resolvedBeforeLocate.url, trashedURL)
 
@@ -1064,7 +1376,7 @@ final class DatabaseListStoreTests: XCTestCase {
         // follow either the moved inode or the path, so aim the bookmark at
         // the trashed copy explicitly.
         reference.bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: trashedURL)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         // The magic-less file at the path must not be bound; the trashed
         // classification (and the stored bookmark) stay exactly as they were.
@@ -1106,7 +1418,7 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertFalse(reference.isDocumentsResident)
 
         reference.bookmarkData = Data("stale-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
 
         XCTAssertNil(DatabaseListStore.locateDatabaseFile(for: reference))
     }
@@ -1126,14 +1438,14 @@ final class DatabaseListStoreTests: XCTestCase {
             autoFillEnabled: false
         )
         reference.bookmarkData = Data("unresolvable-bookmark".utf8)
-        DatabaseListStore.update(reference)
-        try DatabaseListStore.cacheDatabaseCopy(Data("stale cache".utf8), for: reference.id)
+        DatabaseListStore.testUpsert(reference)
+        try writeAtomicallyAndDurably(Data("stale cache".utf8), to: DatabaseListStore.cacheLocation(for: reference), directoryAnchor: AppGroupContainer.url)
         XCTAssertNil(DatabaseListStore.locateDatabaseFile(for: reference))
 
         let currentBytes = Data("current provider copy".utf8)
         let currentURL = try makeTemporaryFileURL(name: "vault (synced).kdbx", contents: currentBytes)
 
-        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: reference.id, to: currentURL))
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: reference, to: currentURL))
 
         let stored = try XCTUnwrap(DatabaseListStore.databases.first)
         XCTAssertEqual(DatabaseListStore.databases.count, 1)
@@ -1153,22 +1465,25 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertFalse(reference.hasUnverifiedRelink)
 
         try DatabaseListStore.relinkLocalDatabase(
-            id: reference.id,
+            observed: reference,
             to: makeTemporaryFileURL(name: "picked.kdbx")
         )
         XCTAssertEqual(DatabaseListStore.databases.first?.hasUnverifiedRelink, true)
 
-        DatabaseListStore.markDatabaseOpened(id: reference.id)
+        DatabaseListStore.markDatabaseOpened(id: reference.id, observed: reference)
+        XCTAssertEqual(DatabaseListStore.databases.first?.hasUnverifiedRelink, true)
+        let relinked = try XCTUnwrap(DatabaseListStore.databases.first)
+        DatabaseListStore.markDatabaseOpened(id: reference.id, observed: relinked)
         XCTAssertEqual(DatabaseListStore.databases.first?.hasUnverifiedRelink, false)
     }
 
     func testRelinkLocalDatabaseRefusesFileInRecentlyDeleted() throws {
         var reference = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "vault.kdbx"))
         reference.bookmarkData = Data("unresolvable-bookmark".utf8)
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         let trashedURL = try makeTemporaryFileURL(name: ".Trash/vault.kdbx")
 
-        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(id: reference.id, to: trashedURL)) { error in
+        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(observed: reference, to: trashedURL)) { error in
             XCTAssertEqual(error as? DatabaseListStore.LocalDatabaseFileError, .databaseInTrash)
         }
         XCTAssertEqual(DatabaseListStore.databases.first?.bookmarkData, reference.bookmarkData)
@@ -1179,7 +1494,7 @@ final class DatabaseListStoreTests: XCTestCase {
         let other = try DatabaseListStore.add(url: otherURL)
         let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "vault.kdbx"))
 
-        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(id: reference.id, to: otherURL)) { error in
+        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(observed: reference, to: otherURL)) { error in
             guard case DatabaseListStore.AddDatabaseError.duplicateFile(let existingReferenceID, _) = error else {
                 XCTFail("Expected duplicateFile, got \(error)")
                 return
@@ -1194,10 +1509,33 @@ final class DatabaseListStoreTests: XCTestCase {
         let url = try makeTemporaryFileURL(name: "vault.kdbx")
         let reference = try DatabaseListStore.add(url: url)
 
-        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: reference.id, to: url))
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: reference, to: url))
 
         XCTAssertEqual(relinked.id, reference.id)
         XCTAssertEqualFilePaths(DatabaseListStore.resolveDatabaseURL(for: relinked), url)
+    }
+
+    func testRelinkRejectsStaleObservedReference() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "relink-stale.kdbx"))
+        let firstURL = try makeTemporaryFileURL(name: "relink-first.kdbx")
+        let first = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(observed: original, to: firstURL))
+        let secondURL = try makeTemporaryFileURL(name: "relink-second.kdbx")
+        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(observed: original, to: secondURL))
+        XCTAssertEqual(DatabaseListStore.databases.first?.bookmarkData, first.bookmarkData)
+    }
+
+    func testRelinkReportsVisibleUnconfirmedWithoutCacheReseed() throws {
+        let original = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "relink-uncertain.kdbx", contents: Data("old".utf8)))
+        let cache = DatabaseListStore.cacheLocation(for: original)
+        let before = try Data(contentsOf: cache)
+        let replacement = try makeTemporaryFileURL(name: "relink-new.kdbx", contents: Data("new".utf8))
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(observed: original, to: replacement, io: io)) { error in
+            guard case DatabaseListStore.RegistryWriteError.visibleUnconfirmed = error else { return XCTFail("Expected unconfirmed registry: \(error)") }
+        }
+        XCTAssertEqual(try Data(contentsOf: cache), before)
+        XCTAssertTrue(DatabaseListStore.databases.first?.hasUnverifiedRelink == true)
     }
 
     func testRelinkLocalDatabaseLeavesKeeForgeOnlyDatabaseAndItsCacheAlone() throws {
@@ -1209,7 +1547,7 @@ final class DatabaseListStoreTests: XCTestCase {
         try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: appOnlyBytes)
         let pickedURL = try makeTemporaryFileURL(name: "picked.kdbx", contents: Data("picked".utf8))
 
-        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(id: reference.id, to: pickedURL))
+        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(observed: reference, to: pickedURL))
 
         let stored = try XCTUnwrap(DatabaseListStore.databases.first)
         XCTAssertNil(stored.bookmarkData)
@@ -1218,10 +1556,65 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cacheURL), appOnlyBytes)
     }
 
+    func testRegisterExistingBookmarkDoesNotRequireAvailableFile() throws {
+        let url = try makeTemporaryFileURL(name: "unavailable-bookmark.kdbx")
+        let reference = try TestDatabaseSupport.makeReference(for: url)
+        try FileManager.default.removeItem(at: url)
+        try DatabaseListStore.addCreatedLocal(reference)
+        XCTAssertEqual(DatabaseListStore.databases.first?.id, reference.id)
+    }
+
+    func testAppOnlyRegistryPrepublicationFailureRetainsCacheAndRefusesRetry() throws {
+        var reference = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "app-only-fault.kdbx"))
+        reference.bookmarkData = nil
+        let bytes = Data("encrypted fixture".utf8)
+        var io = DurableFileWriteIO()
+        io.synchronizeFile = { _ in throw POSIXError(.EIO) }
+        XCTAssertThrowsError(try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: bytes, registryIO: io)) { error in
+            guard case DatabaseListStore.RegistryWriteError.appOnlyCacheInstalled(let id, let sha, _) = error else { return XCTFail("Expected installed cache: \(error)") }
+            XCTAssertEqual(id, reference.id)
+            XCTAssertEqual(sha, FileDigest.sha512(bytes))
+        }
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+        XCTAssertThrowsError(try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: bytes))
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+    }
+
+    func testAppOnlyDuplicateDoesNotPublishCache() throws {
+        var first = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "app-only-duplicate.kdbx"))
+        first.bookmarkData = nil
+        try DatabaseListStore.addAppOnlyCreatedLocal(first, encryptedBytes: Data("first".utf8))
+        var second = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: first.filename))
+        second.bookmarkData = nil
+        XCTAssertThrowsError(try DatabaseListStore.addAppOnlyCreatedLocal(second, encryptedBytes: Data("second".utf8)))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: DatabaseListStore.cacheLocation(for: second).path))
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: first)), Data("first".utf8))
+    }
+
+    func testAppOnlyRegistryVisibleUnconfirmedKeepsCacheAndIdentity() throws {
+        var reference = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "app-only-visible.kdbx"))
+        reference.bookmarkData = nil
+        let bytes = Data("encrypted fixture".utf8)
+        var io = DurableFileWriteIO()
+        io.afterPublication = { _ in throw POSIXError(.EIO) }
+        XCTAssertThrowsError(try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: bytes, registryIO: io)) { error in
+            guard case DatabaseListStore.RegistryWriteError.appOnlyRegistryUnconfirmed(let id, let sha, _) = error else { return XCTFail("Expected visible registry: \(error)") }
+            XCTAssertEqual(id, reference.id)
+            XCTAssertEqual(sha, FileDigest.sha512(bytes))
+        }
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+        XCTAssertTrue(DatabaseListStore.databases.contains { $0.id == reference.id })
+        XCTAssertThrowsError(try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: bytes))
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), bytes)
+    }
+
     func testRelinkLocalDatabaseIgnoresUnlistedID() throws {
         let pickedURL = try makeTemporaryFileURL(name: "picked.kdbx")
 
-        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(id: UUID(), to: pickedURL))
+        let absent = try TestDatabaseSupport.makeReference(for: pickedURL)
+        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(observed: absent, to: pickedURL))
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
     }
 

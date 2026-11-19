@@ -20,15 +20,21 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     private let client: FTPClient
     private let now: @Sendable () -> Date
     private let makeScratchToken: @Sendable () -> String
+    private let credentialLoader: @Sendable (String) -> FTPCredential?
 
     init(
         client: FTPClient = FTPClient(),
         now: @escaping @Sendable () -> Date = { Date() },
-        makeScratchToken: @escaping @Sendable () -> String = { String(UUID().uuidString.prefix(8)) }
+        makeScratchToken: @escaping @Sendable () -> String = { String(UUID().uuidString.prefix(8)) },
+        credentialLoader: @escaping @Sendable (String) -> FTPCredential? = { accountId in
+            guard let data = CloudTokenStore.tokenData(provider: CloudProviderKind.ftp.rawValue, accountId: accountId) else { return nil }
+            return try? JSONDecoder().decode(FTPCredential.self, from: data)
+        }
     ) {
         self.client = client
         self.now = now
         self.makeScratchToken = makeScratchToken
+        self.credentialLoader = credentialLoader
     }
 
     // MARK: - Authentication
@@ -181,6 +187,12 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     /// conditional write: `expectedRev` is checked against a fresh download
     /// after the transfer, immediately before the move, which is as close to
     /// the write as the protocol allows.
+    func revisionIdentifiesContent(_ revision: String?) -> Bool { revision?.hasPrefix("sha256:") == true }
+
+    func writeGuarantee(expectedRev: String?, byteCount: Int) -> CloudWriteGuarantee {
+        .preflightOnly
+    }
+
     func upload(
         accountId: String,
         fileId: String,
@@ -188,7 +200,12 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         expectedRev: String?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata {
-        let (location, credential) = try resolveContext(accountId: accountId)
+        let location: FTPServerLocation
+        let credential: FTPCredential
+        do { (location, credential) = try resolveContext(accountId: accountId) }
+        catch let error as CloudProviderError {
+            throw CloudUploadFailure(underlying: error, outcome: .notDispatched)
+        }
         let path = Self.remotePath(base: location.basePath, fileId: fileId)
         let temporaryPath = scratchPath(beside: path, kind: .upload)
         let backupPath = scratchPath(beside: path, kind: .backup)
@@ -200,11 +217,11 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
                 try await session.store(temporaryPath, data: data)
                 if let expectedRev {
                     guard let current = try await session.stat(path), !current.isFolder else {
-                        throw CloudProviderError.conflict(remoteRev: nil)
+                        throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .notDispatched)
                     }
                     let currentRev = Self.rev(of: try await Self.retrieveExisting(path, in: session))
                     guard currentRev == expectedRev else {
-                        throw CloudProviderError.conflict(remoteRev: currentRev)
+                        throw CloudUploadFailure(underlying: .conflict(remoteRev: currentRev), outcome: .notDispatched)
                     }
                 }
                 try await install(
@@ -239,19 +256,23 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         data: Data,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile {
-        let (location, credential) = try resolveContext(accountId: accountId)
+        let location: FTPServerLocation
+        let credential: FTPCredential
+        do { (location, credential) = try resolveContext(accountId: accountId) }
+        catch let error as CloudProviderError { throw CloudUploadFailure(underlying: error, outcome: .notDispatched) }
+        catch { throw CloudCreationNotDispatched(underlying: error) }
         let normalizedId = Self.serverRelativePath(from: fileId)
         let path = Self.remotePath(base: location.basePath, fileId: normalizedId)
         let temporaryPath = scratchPath(beside: path, kind: .upload)
 
         let metadata = try await perform(context: .write, location: location, credential: credential) { session in
             guard try await session.stat(path) == nil else {
-                throw CloudProviderError.conflict(remoteRev: nil)
+                throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected)
             }
             do {
                 try await session.store(temporaryPath, data: data)
                 guard try await session.stat(path) == nil else {
-                    throw CloudProviderError.conflict(remoteRev: nil)
+                    throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected)
                 }
                 try await session.rename(temporaryPath, to: path)
             } catch {
@@ -473,17 +494,14 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     }
 
     private func credential(for accountId: String) -> FTPCredential? {
-        guard let data = CloudTokenStore.tokenData(provider: id, accountId: accountId) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(FTPCredential.self, from: data)
+        credentialLoader(accountId)
     }
 
     // MARK: - Error mapping
 
     private static func mapError(_ error: Error, context: OperationContext) -> Error {
         switch error {
-        case is CancellationError, is CloudProviderError, is FTPURLError:
+        case is CancellationError, is CloudProviderError, is CloudUploadFailure, is FTPURLError:
             return error
         case FTPClientError.unexpectedReply(let reply), FTPClientError.renameRefused(let reply):
             return mapReply(reply, context: context)

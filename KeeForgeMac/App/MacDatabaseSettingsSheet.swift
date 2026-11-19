@@ -8,6 +8,7 @@ final class MacDatabaseSettingsSheet {
     let tabs: MacSheetTabBar
     private(set) var masterKeySheet: MacMasterKeySheet?
     private(set) var encryptionSheet: MacEncryptionSettingsSheet?
+    private(set) var recoverySheet: MacFormSheetController?
     var presentChild: @MainActor (MacFormSheetController, NSWindow, @escaping @MainActor (Bool) -> Void) -> Void = {
         $0.begin(on: $1, completion: $2)
     }
@@ -18,7 +19,9 @@ final class MacDatabaseSettingsSheet {
         let scope = MacSheetCancellationScope()
         let owner = MacDatabaseSettingsWindow()
         let host = NSHostingController(rootView: MacDatabaseSettingsContent(model: model, window: { owner.window },
-            changeMasterKey: { owner.sheet?.showMasterKey() }, changeEncryption: { owner.sheet?.showEncryptionSettings() })
+            changeMasterKey: { owner.sheet?.showMasterKey() }, changeEncryption: { owner.sheet?.showEncryptionSettings() },
+            discardRecovery: { snapshot, abandon in owner.sheet?.confirmDiscard(snapshot, abandonKeyRecord: abandon) },
+            showCloudRecovery: { owner.sheet?.showCloudRecovery() })
             .environment(\.macSheetCancellationScope, scope).modifier(MacHostingAppearance()))
         host.sizingOptions = []
         shell = MacFormSheetController(title: String(localized: "\(model.current.displayName) — Database Settings"),
@@ -33,6 +36,7 @@ final class MacDatabaseSettingsSheet {
         scope.register { [weak self] in
             self?.masterKeySheet?.shell.end()
             self?.encryptionSheet?.shell.end()
+            self?.recoverySheet?.end()
         }
     }
 
@@ -68,8 +72,44 @@ final class MacDatabaseSettingsSheet {
         }
     }
 
+    func confirmDiscard(_ snapshot: PendingLocalSaveStore.RecoverySnapshot, abandonKeyRecord: Bool) {
+        guard let parent = childParent() else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = String(localized: "Discard Local Recovery?")
+        alert.informativeText = PendingLocalRecoveryViewModel.discardMessage(for: snapshot, abandonKeyRecord: abandonKeyRecord)
+        let discard = alert.addButton(withTitle: String(localized: "Discard Local Recovery"))
+        discard.hasDestructiveAction = true
+        discard.keyEquivalent = ""
+        discard.setAccessibilityIdentifier("database-details.local-recovery.confirm-discard")
+        let cancel = alert.addButton(withTitle: String(localized: "Cancel"))
+        cancel.keyEquivalent = "\r"
+        MacAlertEscapeKey.install(in: alert, clicking: cancel)
+        Task { [weak self] in
+            let response = await alert.beginSheetModal(for: parent)
+            guard let self, shell.isPresented, response == .alertFirstButtonReturn else { return }
+            await model.localRecovery.discard(snapshot, abandonKeyRecord: abandonKeyRecord)
+            await model.reloadFacts()
+        }
+    }
+
+    func showCloudRecovery() {
+        guard let parent = childParent() else { return }
+        let lifetime = CloudCreationLifetime()
+        let host = NSHostingController(rootView: CloudRecoveryView(creationLifetime: lifetime).modifier(MacHostingAppearance()))
+        let child = MacFormSheetController(title: String(localized: "Cloud Recovery"), content: host,
+            size: NSSize(width: 610, height: MacSheetMetrics.maxHeight), defaultTitle: String(localized: "Done"))
+        child.cancelButton.isHidden = true
+        child.window?.setAccessibilityIdentifier("cloud-recovery.sheet")
+        child.cancellationScope.register { lifetime.cancel() }
+        recoverySheet = child
+        presentChild(child, parent) { [weak self, weak child] _ in
+            if self?.recoverySheet === child { self?.recoverySheet = nil }
+        }
+    }
+
     private func childParent() -> NSWindow? {
-        guard shell.isPresented, masterKeySheet == nil, encryptionSheet == nil,
+        guard shell.isPresented, masterKeySheet == nil, encryptionSheet == nil, recoverySheet == nil,
               let window = shell.window, window.attachedSheet == nil else { return nil }
         return window
     }
@@ -86,12 +126,42 @@ private struct MacDatabaseSettingsContent: View {
     let window: @MainActor () -> NSWindow?
     let changeMasterKey: @MainActor () -> Void
     let changeEncryption: @MainActor () -> Void
+    let discardRecovery: (PendingLocalSaveStore.RecoverySnapshot, Bool) -> Void
+    let showCloudRecovery: () -> Void
     @State private var icons = false
     @State private var exportRequest: DatabaseExportRequest?
+    @State private var exportTask: Task<Void, Never>?
 
     var body: some View {
         ScrollView {
-            Group {
+            VStack(alignment: .leading, spacing: 20) {
+                if model.current.isCloudBacked {
+                    Button("Cloud Recovery", action: showCloudRecovery)
+                        .accessibilityIdentifier("database-details.cloud-recovery")
+                }
+                if !model.current.isCloudBacked && (model.showsLocalDraftExport || recoveryContents.hasContent) {
+                    Form {
+                        if model.showsLocalDraftExport, let session = model.session {
+                            Section {
+                                Text("Export a full encrypted copy of your unsaved changes before closing this session. Open it with the master key used by this unlocked session. Exporting keeps your edits here.")
+                                Button("Export Unsaved Changes…") {
+                                    exportTask?.cancel()
+                                    exportTask = Task {
+                                        do {
+                                            let payload = try await session.makeLocalRecoveryExport()
+                                            guard !Task.isCancelled else { return }
+                                            exportRequest = .localRecovery(UUID(), payload.data, payload.suggestedFilename)
+                                        } catch {
+                                            guard !Task.isCancelled, let window = window() else { return }
+                                            MacDatabaseExporter.showError(error.localizedDescription, on: window)
+                                        }
+                                    }
+                                }.accessibilityIdentifier("database-details.local-recovery.export-draft")
+                            }
+                        }
+                        recoveryContents
+                    }.formStyle(.columns)
+                }
                 switch model.selection {
                 case .general: MacDatabaseGeneralTab(model: model, showIcons: { icons = true })
                 case .security: MacDatabaseSecurityTab(model: model, changeMasterKey: changeMasterKey, changeEncryption: changeEncryption)
@@ -107,13 +177,31 @@ private struct MacDatabaseSettingsContent: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .task(id: model.session?.openTimeSHA512) { await model.refreshFactsIfNeeded() }
-        .onDisappear { model.commitNickname() }
+        .task { await refreshRecovery() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await refreshRecovery() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: PendingLocalSaveStore.didChange)) { _ in
+            Task { await refreshRecovery() }
+        }
+        .onDisappear { exportTask?.cancel(); exportTask = nil; model.commitNickname() }
         .sheet(isPresented: $icons) {
             if let session = model.session {
                 NavigationStack { CustomIconsView(viewModel: session) }.macSheetFrame()
             }
         }
         .databaseExporter(request: $exportRequest)
+    }
+
+    private var recoveryContents: LocalSaveRecoveryContents {
+        LocalSaveRecoveryContents(recovery: model.localRecovery, reference: model.current,
+            export: exportDatabaseCopy, requestDiscard: discardRecovery, refresh: { await refreshRecovery() })
+    }
+
+    private func refreshRecovery() async {
+        guard !model.current.isCloudBacked else { return }
+        model.list.reload()
+        await model.localRecovery.refresh(reference: model.current)
     }
 
     private func exportDatabaseCopy(_ request: DatabaseExportRequest) { exportRequest = request }
@@ -141,7 +229,7 @@ private struct MacDatabaseGeneralTab: View {
             }
             MacSettingsSeparator()
             MacSettingsRow("Editing:") {
-                Toggle("Read-Only", isOn: Binding(get: { model.isReadOnly }, set: model.setReadOnly))
+                Toggle("Read-Only", isOn: Binding(get: { model.isReadOnly }, set: { model.setReadOnly($0) }))
                     .disabled(model.fixedReadOnly || model.isLoading)
                     .accessibilityIdentifier("database-row.read-only-toggle")
                 noteCaption(model.readOnlyCaption, indented: true)
@@ -232,9 +320,9 @@ private struct MacDatabaseSyncTab: View {
                 MacSettingsSeparator()
                 MacSettingsRow("When opening:") {
                     MacSettingsHelpRow(help: MacSettingsHelpButton(label: "Sync When Opening Help",
-                        text: "Saving still checks the server's copy first and stops if it changed. AutoFill uses the cached copy only.",
+                        text: "Cloud uploads check the server's copy first and stop if it changed. AutoFill uses the cached copy only.",
                         identifier: "database-details.sync-policy.help")) {
-                        Toggle("Sync When Opening", isOn: Binding(get: { model.current.cloudSyncPolicy == .onOpen }, set: model.setSyncOnOpen))
+                        Toggle("Sync When Opening", isOn: Binding(get: { model.current.cloudSyncPolicy == .onOpen }, set: { model.setSyncOnOpen($0) }))
                             .accessibilityIdentifier("database-details.sync-on-open-toggle")
                     }
                     if !state.isConnected {
@@ -280,7 +368,7 @@ private struct MacDatabaseAutoFillTab: View {
     var body: some View {
         MacSettingsForm {
             MacSettingsRow("AutoFill:") {
-                Toggle("Include in AutoFill", isOn: Binding(get: { model.current.autoFillEnabled }, set: model.setAutoFillEnabled))
+                Toggle("Include in AutoFill", isOn: Binding(get: { model.current.autoFillEnabled }, set: { enabled in Task { await model.setAutoFillEnabled(enabled) } }))
                     .accessibilityIdentifier("database-details.autofill-toggle")
                 settingsCaption("When off, AutoFill offers nothing from this database; turned back on, it suggests again after the next unlock.", indented: true)
             }

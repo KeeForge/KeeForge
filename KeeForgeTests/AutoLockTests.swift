@@ -499,6 +499,29 @@ final class AutoLockTests: XCTestCase {
         XCTAssertEqual(vm.lastLockCause, .system)
     }
 
+    func testOnlyAutomaticLocksKeepTheDatabaseSelected() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        SettingsService.lockOnBackground = true
+        let vm = try await makeUnlockedViewModel()
+        XCTAssertFalse(vm.staysSelectedAfterLock)
+
+        try await fireInactivityTimer(of: vm)
+        XCTAssertTrue(vm.staysSelectedAfterLock, "An inactivity lock keeps the unlock page for auto-unlock")
+
+        await vm.unlock(password: fixturePassword)
+        vm.handleSceneDidEnterBackground()
+        XCTAssertEqual(vm.state, .locked)
+        XCTAssertTrue(vm.staysSelectedAfterLock, "A background lock keeps the unlock page for auto-unlock")
+
+        await vm.unlock(password: fixturePassword)
+        DatabaseCommands(session: vm).lock()
+        XCTAssertFalse(vm.staysSelectedAfterLock, "A manual lock closes the database to the list")
+
+        await vm.unlock(password: fixturePassword)
+        vm.lock()
+        XCTAssertFalse(vm.staysSelectedAfterLock, "A system lock closes the database to the list")
+    }
+
     func testDeferredInactivityLockKeepsItsCauseThroughSaveAndLock() async throws {
         SettingsService.autoLockTimeout = .oneMinute
         let vm = try await makeUnlockedViewModel(localSaveOperation: { _, _, _, _, _, _, _ in

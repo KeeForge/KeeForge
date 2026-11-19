@@ -144,7 +144,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
             for: makeTemporaryFileURL(name: "readonly.kdbx")
         )
         reference.isReadOnly = true
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
         presenter.isPresentationActive = false
 
@@ -381,6 +381,45 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         XCTAssertTrue(presenter.cancelledErrorCodes.isEmpty)
     }
 
+    func test_save_committedWarningRetainsInstalledStateWithoutCompletingRegistration() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let reference = try TestDatabaseSupport.makeReference(
+            for: makeTemporaryFileURL(name: "target.kdbx")
+        )
+        seedUnlockedVaultState(coordinator)
+        coordinator.activeDatabaseReference = reference
+        let recorder = Recorder()
+        coordinator.saveEnvironment = makeRecordingEnvironment(
+            recorder,
+            saveDraft: { [recorder] draft, _, _, _ in
+                recorder.events.append("saveDraft")
+                return .committedWithoutConfirmedDurability(.init(savedRootGroup: draft.rootGroup,
+                    newSHA512: Data("installed-warning-sha".utf8), enqueuedPendingUpload: false))
+            }
+        )
+        coordinator.pendingPasskeyRegistrationRequest = makeRegistrationRequest()
+
+        XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
+        let creator = try XCTUnwrap(presenter.passkeyCreator)
+
+        let outcome = await creator.onSave("My Passkey")
+
+        guard case .showWarningAndCancel(let message) = outcome else {
+            return XCTFail("Expected the committed warning, got \(outcome)")
+        }
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertNil(presenter.completedRegistration, "A warning must not complete the registration")
+        XCTAssertTrue(recorder.populatedEntryTitles.isEmpty)
+        XCTAssertEqual(coordinator.openTimeSHA512, Data("installed-warning-sha".utf8))
+        XCTAssertNotNil(coordinator.parsedRootGroup?.allEntries.first { $0.title == "My Passkey" })
+
+        // The creator's warning alert cancels on dismissal.
+        creator.onCancel()
+
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+        assertCleanedUp(coordinator)
+    }
+
     func test_save_conflict_returnsWarningAndCancelOutcome() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let reference = try TestDatabaseSupport.makeReference(
@@ -613,7 +652,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         let reference = try TestDatabaseSupport.makeReference(
             for: makeTemporaryFileURL(name: "default.kdbx")
         )
-        DatabaseListStore.update(reference)
+        DatabaseListStore.testUpsert(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
         return reference
     }
@@ -705,24 +744,10 @@ final class CredentialProviderRegistrationTests: XCTestCase {
                     )
                 )
             },
-            relativePathForURL: { _ in "unused" },
-            enqueuePendingUpload: { marker in
-                PendingUploadQueue.StoredMarker(
-                    id: UUID(),
-                    fileURL: URL(fileURLWithPath: "/tmp/unused.json"),
-                    marker: marker
-                )
-            },
-            finalizePendingUpload: { _ in },
-            dropPendingUpload: { _ in },
-            dropSupersededPendingUploads: { _, _, _ in },
-            notifyPendingUploadEnqueued: {},
-            resolveReference: { _ in nil },
             populateCredentialStore: { [recorder] _, entries in
                 recorder.events.append("populate")
                 recorder.populatedEntryTitles.append(entries.map(\.title))
-            },
-            now: { .now }
+            }
         )
     }
 }

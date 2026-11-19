@@ -8,37 +8,22 @@ enum AutoFillSaveCoordinator {
         let savedRootGroup: KPGroup
         let newSHA512: Data
         let enqueuedPendingUpload: Bool
+        var warningScope: SaveEffectScope = .databaseFile
     }
 
     enum SaveResult: Sendable {
         case saved(SaveOutcome)
+        case committedWithoutConfirmedDurability(SaveOutcome)
+        case indeterminate(SaveEffectScope)
         case conflict
     }
 
     struct Environment: Sendable {
         var generatePassword: @Sendable () -> String
         var saveDraft: @Sendable (DatabaseDraft, DatabaseReference, SymmetricKey, Data) async throws -> SaveResult
-        var relativePathForURL: @Sendable (URL) throws -> String
-        /// Writes the marker durably WITHOUT posting the Darwin drain
-        /// notification — the provisional marker precedes its payload, so
-        /// waking the drainer here would only race the save.
-        var enqueuePendingUpload: @Sendable (PendingUploadQueue.Marker) throws -> PendingUploadQueue.StoredMarker
-        /// CAS-updates the provisional marker with the saved payload's SHA-512.
-        /// Throws `markerNoLongerExists` if a concurrent drain dropped it.
-        var finalizePendingUpload: @Sendable (PendingUploadQueue.StoredMarker) throws -> Void
-        /// Best-effort removal of a provisional marker whose save never
-        /// rewrote the cache (conflict or thrown error).
-        var dropPendingUpload: @Sendable (PendingUploadQueue.StoredMarker) -> Void
-        /// Drops markers whose recorded payload SHA-512 equals the given base
-        /// SHA — provably superseded by the save being enqueued. The excluded
-        /// id is the just-enqueued marker itself.
-        var dropSupersededPendingUploads: @Sendable (_ databaseId: UUID, _ payloadSHA512: Data, _ excludedMarkerID: UUID) -> Void
-        var notifyPendingUploadEnqueued: @Sendable () -> Void
-        var resolveReference: @Sendable (UUID) -> DatabaseReference?
         /// Publishes the given entries as credential identities owned by the
         /// database with the given `DatabaseReference.id`.
         var populateCredentialStore: @Sendable (UUID, [KPEntry]) -> Void
-        var now: @Sendable () -> Date
 
         static let live = Environment(
             generatePassword: {
@@ -54,7 +39,7 @@ enum AutoFillSaveCoordinator {
                     environment: .autoFillExtension
                 )
                 switch result {
-                case .saved(let newSHA512, _):
+                case .saved(let newSHA512, _, _):
                     return .saved(
                         SaveOutcome(
                             savedRootGroup: draft.rootGroup,
@@ -62,39 +47,19 @@ enum AutoFillSaveCoordinator {
                             enqueuedPendingUpload: false
                         )
                     )
+                case .committedWithoutConfirmedDurability(let newSHA512, _, _, let scope):
+                    return .committedWithoutConfirmedDurability(SaveOutcome(
+                        savedRootGroup: draft.rootGroup, newSHA512: newSHA512,
+                        enqueuedPendingUpload: false, warningScope: scope
+                    ))
+                case .indeterminate(let scope): return .indeterminate(scope)
                 case .conflict:
                     return .conflict
                 }
             },
-            relativePathForURL: { url in
-                try PendingUploadQueue.makeRelativeAppGroupPath(for: url)
-            },
-            enqueuePendingUpload: { marker in
-                try PendingUploadQueue.enqueue(marker, notifying: false)
-            },
-            finalizePendingUpload: { storedMarker in
-                _ = try PendingUploadQueue.finalize(storedMarker)
-            },
-            dropPendingUpload: { storedMarker in
-                try? PendingUploadQueue.drop(storedMarker)
-            },
-            dropSupersededPendingUploads: { databaseId, payloadSHA512, excludedMarkerID in
-                PendingUploadQueue.dropMarkers(
-                    withPayloadSHA512: payloadSHA512,
-                    for: databaseId,
-                    excluding: excludedMarkerID
-                )
-            },
-            notifyPendingUploadEnqueued: {
-                PendingUploadQueue.postEnqueuedNotification()
-            },
-            resolveReference: { databaseId in
-                DatabaseListStore.databases.first(where: { $0.id == databaseId })
-            },
             populateCredentialStore: { databaseID, entries in
                 CredentialIdentityStoreManager.populate(with: entries, for: databaseID)
-            },
-            now: { .now }
+            }
         )
     }
 
@@ -154,79 +119,24 @@ enum AutoFillSaveCoordinator {
             )
         )
 
-        // Two-phase marker so unuploaded cache bytes always have a covering
-        // durable marker. Order is load-bearing:
-        //   1. enqueue provisional marker recording the BASE bytes' SHA-512
-        //   2. saveDraft: SHA-check, backup, atomic cache replace
-        //   3. finalize: write the payload SHA onto the marker as it is on
-        //      disk (a drain may have touched it meanwhile)
-        //   4. once a marker covers the saved bytes, drop older markers for the
-        //      base bytes, which this save contains, then wake the drainer,
-        //      which would flag them as conflicted
-        // A crash before replacement leaves the provisional marker deferred
-        // and any older marker still uploading the base bytes; after
-        // replacement, the SHA mismatch surfaces a visible conflict.
-        var provisionalMarker: PendingUploadQueue.StoredMarker?
-        if reference.isCloudBacked {
-            let cacheURL = DatabaseListStore.cacheLocation(for: reference)
-            let relativePath = try environment.relativePathForURL(cacheURL)
-            provisionalMarker = try await Task.detached(priority: .utility) {
-                try environment.enqueuePendingUpload(
-                    PendingUploadQueue.Marker(
-                        databaseId: reference.id,
-                        encryptedBytesCacheURL: relativePath,
-                        openTimeSHA512: openTimeSHA512,
-                        expectedRev: reference.expectedCloudRevision,
-                        createdAt: environment.now(),
-                        baseRev: reference.expectedCloudRevision,
-                        isPayloadFinalized: false
-                    )
-                )
-            }.value
-        }
-
-        let saveResult: SaveResult
-        do {
-            saveResult = try await environment.saveDraft(
-                workingDraft,
-                reference,
-                compositeKey,
-                openTimeSHA512
-            )
-        } catch {
-            // The saver replaces the cache atomically as its last fallible
-            // step, so a throw means the cache still holds the base bytes;
-            // the provisional marker is stale.
-            if let provisionalMarker {
-                await Task.detached(priority: .utility) {
-                    environment.dropPendingUpload(provisionalMarker)
-                }.value
-            }
-            throw error
-        }
+        let saveResult = try await environment.saveDraft(
+            workingDraft, reference, compositeKey, openTimeSHA512
+        )
 
         switch saveResult {
-        case .saved(let outcome):
-            if var storedMarker = provisionalMarker {
-                storedMarker.marker.openTimeSHA512 = outcome.newSHA512
-                storedMarker.marker.isPayloadFinalized = true
-                await Task.detached(priority: .utility) {
-                    let isCovered = finalizeOrReplacePendingUpload(
-                        storedMarker,
-                        reference: reference,
-                        environment: environment
-                    )
-                    if isCovered {
-                        environment.dropSupersededPendingUploads(reference.id, openTimeSHA512, storedMarker.id)
-                        environment.notifyPendingUploadEnqueued()
-                    }
-                }.value
-            }
-
+        case .saved(let outcome), .committedWithoutConfirmedDurability(let outcome):
             // Defensive: a database with AutoFill disabled must neither become
             // the active AutoFill database nor publish identities, even if the
             // extension somehow saved into it (slice 03 of the selectable-
             // AutoFill epic makes disabled databases unreachable there).
+            let unconfirmed: Bool
+            if case .committedWithoutConfirmedDurability = saveResult { unconfirmed = true } else { unconfirmed = false }
+            if unconfirmed {
+                return .committedWithoutConfirmedDurability(SaveOutcome(
+                    savedRootGroup: outcome.savedRootGroup, newSHA512: outcome.newSHA512,
+                    enqueuedPendingUpload: reference.isCloudBacked, warningScope: outcome.warningScope
+                ))
+            }
             if reference.autoFillEnabled {
                 DatabaseListStore.activeAutoFillDatabaseID = reference.id
                 environment.populateCredentialStore(reference.id, credentialStoreEntries(from: outcome.savedRootGroup))
@@ -239,44 +149,10 @@ enum AutoFillSaveCoordinator {
                     enqueuedPendingUpload: reference.isCloudBacked
                 )
             )
+        case .indeterminate(let scope):
+            return .indeterminate(scope)
         case .conflict:
-            // The saver's open-time SHA gate refused to touch the cache, so
-            // the provisional marker never had a payload to cover.
-            if let provisionalMarker {
-                await Task.detached(priority: .utility) {
-                    environment.dropPendingUpload(provisionalMarker)
-                }.value
-            }
             return .conflict
-        }
-    }
-
-    /// Phase 3 of the two-phase marker. A failed finalize means something else
-    /// dropped the provisional marker while the saved bytes are still
-    /// unuploaded, so a replacement is enqueued unless the database is gone.
-    /// The replacement keeps the ORIGINAL `expectedRev` and a nil `baseRev`:
-    /// this path cannot prove what the remote head holds, so its push must
-    /// CAS-fail into a visible conflict rather than silently overwrite an app
-    /// save that completed mid-flight. Returns whether a marker now covers
-    /// the saved bytes.
-    private static func finalizeOrReplacePendingUpload(
-        _ storedMarker: PendingUploadQueue.StoredMarker,
-        reference: DatabaseReference,
-        environment: Environment
-    ) -> Bool {
-        do {
-            try environment.finalizePendingUpload(storedMarker)
-            return true
-        } catch {
-            guard let refreshedReference = environment.resolveReference(reference.id),
-                  refreshedReference.isCloudBacked else {
-                return false
-            }
-
-            var replacementMarker = storedMarker.marker
-            replacementMarker.baseRev = nil
-            replacementMarker.isConflicted = false
-            return (try? environment.enqueuePendingUpload(replacementMarker)) != nil
         }
     }
 

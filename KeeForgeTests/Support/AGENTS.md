@@ -24,6 +24,8 @@
 
 ### Seams
 
+- Cloud journal fixtures obtain ownership through production preparation, finalization and durable publication. Script provider effects and filesystem faults; never synthesize a settled journal or reference as test authority.
+
 - `KDFPolicyTestSupport.swift` gives parser, writer, and saver calls a `.mainApp` KDF policy when `kdfPolicy:` is omitted. A test about policy selection passes the policy explicitly.
 - Drive reveal/copy authentication through `SecretAccessGateHarness` (pass `harness.gate` as the `secretAccess:` argument of `DatabaseViewModel.init`). Assigning `gracePeriod` announces the change to live gates as Settings does; set `announcesSettingChanges = false` to model a bare write.
 - `YubiKeyEmulator.fixtureSecret` must match `HMAC_SECRET` in `../../TestFixtures/generators/challenge_response.py`.
@@ -33,3 +35,7 @@
 
 - [../AGENTS.md](../AGENTS.md): layering, the compatibility matrix, platform rules
 - [../../TestFixtures/README.md](../../TestFixtures/README.md): bundled databases, passwords, key files
+
+- The password-only rekey compatibility artifact runs through the production local saver, records only the installed ciphertext, rejects its old key and checks the full semantic/binary-pool snapshot under the new key. Artifact collection must not encrypt the scenario again.
+
+- Failure breadcrumbs belong to the current test operation and snapshot phase, typed cause and NSError/underlying domain-code before session cleanup. They never retain or print passwords, bookmark data, ciphertext, decrypted content or error userInfo paths, and they do not authorize IO or replace effect assertions.

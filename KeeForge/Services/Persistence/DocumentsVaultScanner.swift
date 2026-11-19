@@ -8,7 +8,8 @@ import Foundation
 /// reference through `DatabaseListStore.locateDatabaseFile(for:)` — the single
 /// heal implementation, which rebinds stranded references to
 /// `Documents/<filename>` (same id, nickname, key file, settings) and reseeds
-/// the AutoFill cache — then registers files no reference claims. Only files
+/// the AutoFill cache — then registers files no reference claims, except one
+/// the user removed from the list that has not changed since. Only files
 /// carrying the 8-byte KDBX magic are touched; anything else the user dropped
 /// (key files, notes) is left alone.
 enum DocumentsVaultScanner {
@@ -22,10 +23,12 @@ enum DocumentsVaultScanner {
 
         let residentSnapshot = DatabaseListStore.databases.filter(\.isDocumentsResident)
         for reference in residentSnapshot {
-            switch DatabaseListStore.locateDatabaseFile(for: reference) {
+            var observed = reference
+            switch DatabaseListStore.locateDatabaseFile(for: reference, onBookmarkRenewal: { observed = $0.after },
+                                                        onDocumentsRebind: { observed = $0 }) {
             case .available(let url):
-                rederiveIdentityIfNeeded(for: reference, at: url)
-                reconcileSharedCache(for: reference, with: url)
+                rederiveIdentityIfNeeded(for: observed, at: url)
+                reconcileSharedCache(for: observed, with: url)
             case .inTrash, nil:
                 // Never auto-remove: absence is ambiguous during a Finder
                 // delete+recopy window, and keeping the entry preserves the
@@ -48,9 +51,9 @@ enum DocumentsVaultScanner {
         }
 
         for url in candidates {
-            // `add(url:)` throws `duplicateFile` for paths an existing
-            // reference (including one just rebound) already resolves to.
-            if (try? DatabaseListStore.add(url: url)) != nil {
+            // Throws `duplicateFile` for paths an existing reference
+            // (including one just rebound) already resolves to.
+            if (try? DatabaseListStore.addDiscoveredDocumentsFile(url: url)) != nil {
                 didChange = true
             }
         }
@@ -87,7 +90,7 @@ enum DocumentsVaultScanner {
         let isTopLevel = DatabaseListStore.isTopLevelDocumentsFile(url)
         guard filename != reference.filename || isTopLevel == false else { return }
         DatabaseListStore.rederiveDocumentsIdentity(
-            for: reference.id,
+            for: reference,
             filename: filename,
             isDocumentsResident: isTopLevel
         )
@@ -123,19 +126,13 @@ enum DocumentsVaultScanner {
         let previous = fingerprintLock.withLock { reconciledFingerprints[reference.id] }
         guard fingerprint != previous else { return }
 
-        guard let onDiskData = try? CoordinatedFileReader.readData(from: url),
+        guard let lease = try? PendingLocalSaveStore.captureCacheReadLease(for: reference),
+              let onDiskData = try? CoordinatedFileReader.readData(from: url),
               DocumentPickerService.hasKDBXHeader(onDiskData) else {
             return
         }
 
-        if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: reference.id),
-           let cachedData = try? Data(contentsOf: cachedURL),
-           cachedData == onDiskData {
-            fingerprintLock.withLock { reconciledFingerprints[reference.id] = fingerprint }
-            return
-        }
-
-        guard (try? DatabaseListStore.cacheDatabaseCopy(onDiskData, for: reference.id)) != nil else { return }
+        guard (try? LocalDatabaseSaver.cacheLocalSnapshot(onDiskData, for: reference, lease: lease)) != nil else { return }
         fingerprintLock.withLock { reconciledFingerprints[reference.id] = fingerprint }
     }
 
