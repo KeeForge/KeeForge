@@ -29,6 +29,9 @@
   "unlock": {
     "message": "KeeForge でロック解除"
   },
+  "locked": {
+    "message": "KeeForge はロックされています。"
+  },
   "confirm": {
     "message": "KeeForge で確認してください"
   },

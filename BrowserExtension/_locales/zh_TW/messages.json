@@ -29,6 +29,9 @@
   "unlock": {
     "message": "在 KeeForge 中解鎖"
   },
+  "locked": {
+    "message": "KeeForge 已鎖定。"
+  },
   "confirm": {
     "message": "請在 KeeForge 中確認"
   },

@@ -63,21 +63,23 @@ test('retry clears stale target and rows; repeated lost pins leave no actionable
 test('popup renders localized Try Again and its click reruns selection before showing rows', async () => {
   const { until } = await import('./fakes.js');
   class Node {
-    constructor() { this.children = []; this.listeners = {}; this.dataset = {}; }
+    constructor(tag = '') { this.tag = tag; this.children = []; this.listeners = {}; this.dataset = {}; this.attributes = {}; }
+    querySelectorAll(selector) { return this.children.flatMap(child => [...(selector === '.kf-row' && child.className === 'kf-row' ? [child] : []), ...child.querySelectorAll(selector)]); }
     append(...children) { this.children.push(...children); }
     replaceChildren() { this.children = []; }
     addEventListener(type, listener) { this.listeners[type] = listener; }
-    setAttribute() {}
+    setAttribute(name, value) { this.attributes[name] = value; }
   }
-  const nodes = Object.fromEntries(['#status', '#content', '#site'].map(id => [id, new Node()]));
+  const nodes = Object.fromEntries(['#status', '#content', '#site', '#secure', '#frame', '#state', '#state-icon'].map(id => [id, new Node()]));
   const calls = []; let retry = false;
   const old = { document: globalThis.document, chrome: globalThis.chrome, window: globalThis.window };
-  globalThis.document = { documentElement: {}, querySelectorAll: () => [], querySelector: id => nodes[id], createElement: () => new Node(), addEventListener() {} };
+  globalThis.document = { documentElement: {}, querySelectorAll: () => [], querySelector: id => nodes[id], createElement: tag => new Node(tag), addEventListener() {} };
   globalThis.window = { close: () => assert.fail('retry must not close popup') };
   globalThis.chrome = { i18n: { getMessage: key => `localized:${key}`, getUILanguage: () => 'en' }, runtime: { sendMessage: async request => {
     calls.push(request);
     if (request.type === 'getState') return retry ? { state: 'ready' } : { state: 'error', reason: 'disconnected' };
     if (request.type === 'getTarget') return { tabId: 1, frameId: 0, origin: 'https://example.com', token: 'fresh' };
+    if (request.type === 'fill') return { ok: false, error: 'denied' };
     return { entries: [entry('fresh')], locked: 0 };
   } } };
   try {
@@ -89,7 +91,27 @@ test('popup renders localized Try Again and its click reruns selection before sh
     assert.deepEqual(calls.map(c => c.type), ['getState', 'getState', 'getTarget', 'getMatches']);
     assert.equal(calls.at(-1).token, 'fresh');
     await new Promise(resolve => setImmediate(resolve));
-    assert.ok(nodes['#content'].children.length > 0);
+    const row = nodes['#content'].querySelectorAll('.kf-row')[0];
+    assert.equal(row.dataset.selected, 'true');
+    const [login, code, reveal] = row.children;
+    assert.equal(login.attributes['aria-label'], 'localized:fillLogin');
+    assert.equal(login.children[1].children[0].textContent, 'fresh');
+    assert.equal(login.children[1].children[1].textContent, 'user');
+    assert.equal(login.children[2].attributes['aria-label'], 'localized:verificationCode');
+    assert.equal(code.attributes['aria-label'], 'localized:fillCode');
+    assert.equal(code.title, 'localized:fillCode');
+    assert.equal(code.className, 'kf-icon-button');
+    assert.equal(code.textContent, '');
+    assert.equal(code.children[0].className, 'kf-icon glyph-code');
+    assert.equal(reveal.attributes['aria-label'], 'localized:reveal');
+    assert.equal(reveal.title, 'localized:reveal');
+    assert.equal(reveal.textContent, '');
+    code.listeners.click();
+    assert.equal(nodes['#status'].textContent, 'localized:confirm');
+    assert.equal(nodes['#state-icon'].className, 'kf-waiting');
+    await until(() => nodes['#status'].textContent === 'localized:denied');
+    assert.deepEqual(calls.at(-1), { type: 'fill', tabId: 1, frameId: 0, token: 'fresh', entry: 'fresh', db: 'a', totp: true });
+    assert.equal(nodes['#content'].querySelectorAll('.kf-row').length, 0);
   } finally { Object.assign(globalThis, old); }
 });
 

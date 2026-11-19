@@ -29,6 +29,9 @@
   "unlock": {
     "message": "Разблокировать в KeeForge"
   },
+  "locked": {
+    "message": "KeeForge заблокирован."
+  },
   "confirm": {
     "message": "Подтвердите в KeeForge"
   },

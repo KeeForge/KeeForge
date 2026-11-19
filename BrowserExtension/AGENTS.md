@@ -14,6 +14,9 @@ Owns the Manifest V3 extension, browser-side protocol/crypto/storage, native por
 - Keep the client private key non-extractable in IndexedDB; close and discard session state on protocol errors. Serialize inbound and outbound crypto independently.
 - Change docs/browser-bridge-protocol.md in the same commit whenever the wire contract changes.
 
+- `theme.css` owns shared light/dark tokens and row, section, button and status primitives; popup and pairing styles own only their layout. Render untrusted entry metadata through textContent and preserve native button keyboard behavior. Monochrome glyphs use CSS masks so light/dark color is inherited.
+- Toolbar PNGs derive from `images/icon.svg` and `images/icon-16.svg` through `tools/render-icons.mjs`; re-render and commit them with any artwork change. `tools/screenshot-ui.mjs` checks the shipped page renderers using stubbed runtime replies in a temporary headless Chrome profile; screenshots require visual review and do not establish native-host or Touch ID integration.
+
 Run `cd BrowserExtension && env -u NODE_USE_SYSTEM_CA node --test`; no dependencies or Xcode required. `tools/build.sh` produces deterministic Chrome/Firefox archives and unpacked copies under ignored `build/`.
 
 Tests cover protocol/connection lifecycle and native framing, real Swift interoperability vectors (missing or incompatible fixtures fail), popup state/grouping/keyboard requests and retry-button wiring, frame selection and lost-pin recovery, fake-DOM filling and native input events, document-token replacement with and without documentId, a shared clipping/masking visibility table, nested open shadow roots, browser labels, and locale completeness. Real Chrome/Firefox validation remains manual; follow README.md with the disposable mock host.

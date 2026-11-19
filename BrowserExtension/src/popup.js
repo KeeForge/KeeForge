@@ -5,8 +5,14 @@ const send = request => chrome.runtime.sendMessage(request);
 const model = new PopupState(send);
 const status = document.querySelector('#status'), content = document.querySelector('#content'), site = document.querySelector('#site');
 function button(label, action) {
-  const node = document.createElement('button'); node.type = 'button'; node.textContent = label;
+  const node = document.createElement('button'); node.className = 'kf-primary'; node.type = 'button'; node.textContent = label;
   node.addEventListener('click', () => void action()); return node;
+}
+function iconButton(key, glyph, action) {
+  const node = button('', action); node.className = 'kf-icon-button';
+  node.title = message(key); node.setAttribute('aria-label', message(key));
+  const icon = document.createElement('span'); icon.className = `kf-icon glyph-${glyph}`; icon.setAttribute('aria-hidden', 'true'); node.append(icon);
+  return node;
 }
 async function action(type, fields = {}) {
   try {
@@ -22,33 +28,46 @@ async function fill(index, totp = false) {
 }
 function render() {
   content.replaceChildren(); status.textContent = '';
-  site.textContent = model.target ? `${model.target.origin}${model.target.frameId === 0 ? '' : ' — ' + message('inFrame')}` : '';
+  const host = model.target ? new URL(model.target.origin).host : '';
+  site.textContent = host; site.title = host;
+  document.querySelector('#secure').hidden = !model.target?.origin.startsWith('https:');
+  document.querySelector('#frame').hidden = !model.target || model.target.frameId === 0;
   const state = model.state;
-  status.textContent = message({ loading: 'loading', 'host-missing': 'hostMissing', 'app-unavailable': 'appUnavailable', unpaired: 'notPaired', pairing: 'pairBusy', locked: 'unlock', confirm: 'confirm', empty: 'noLogins', done: 'filled' }[state] || 'loading', state === 'empty' && model.target ? new URL(model.target.origin).host : undefined);
+  status.textContent = message({ loading: 'loading', 'host-missing': 'hostMissing', 'app-unavailable': 'appUnavailable', unpaired: 'notPaired', pairing: 'pairBusy', locked: 'locked', confirm: 'confirm', empty: 'noLogins', done: 'filled' }[state] || 'loading', state === 'empty' && model.target ? new URL(model.target.origin).host : undefined);
   if (state === 'error') status.textContent = reason(model.error);
+  document.querySelector('#state').hidden = state === 'matches';
+  const glyph = document.querySelector('#state-icon');
+  const glyphs = { locked: 'lock', empty: 'key', done: 'check', 'app-unavailable': 'power', unpaired: 'link', pairing: 'link' };
+  glyph.className = ['loading', 'confirm'].includes(state) ? 'kf-waiting' : `kf-icon kf-state-icon glyph-${glyphs[state] || (state === 'error' && ['bad-origin', 'no-fields'].includes(model.error) ? 'page' : 'alert')}`;
   if (['app-unavailable', 'empty'].includes(state)) content.append(button(message('openApp'), () => action('launchApp')));
   if (state === 'unpaired') content.append(button(message('pair'), async () => { await chrome.tabs.create({ url: chrome.runtime.getURL('pair.html') }); window.close(); }));
   if (state === 'locked') content.append(button(message('unlock'), () => action('unlock')));
-  if (['error', 'host-missing', 'app-unavailable'].includes(state)) content.append(button(message('tryAgain'), load));
+  if (['error', 'host-missing'].includes(state)) content.append(button(message('tryAgain'), load));
   if (state !== 'matches') return;
   status.textContent = '';
   let index = 0, otherHeading = false;
   for (const group of groupsFor(model.entries)) {
-    if (!group.exact && !otherHeading) { const heading = document.createElement('h2'); heading.textContent = message('otherLogins'); content.append(heading); otherHeading = true; }
-    if (group.name !== null) { const heading = document.createElement('h3'); heading.textContent = group.name; content.append(heading); }
+    if (!group.exact && !otherHeading) { const heading = document.createElement('h2'); heading.className = 'kf-section'; heading.textContent = message('otherLogins'); content.append(heading); otherHeading = true; }
+    if (group.name !== null) { const heading = document.createElement('h3'); heading.className = 'kf-section'; heading.textContent = group.name; content.append(heading); }
     const list = document.createElement('ul');
     for (const entry of group.entries) {
       const current = index++;
-      const row = document.createElement('li');
-      const primary = button('', () => fill(current)); primary.className = 'login'; primary.dataset.index = current;
+      const row = document.createElement('li'); row.className = 'kf-row'; row.dataset.selected = String(current === model.selected);
+      const primary = button('', () => fill(current)); primary.className = 'login kf-login'; primary.dataset.index = current;
       primary.setAttribute('aria-label', message('fillLogin', [entry.title, entry.username]));
-      primary.addEventListener('focus', () => { model.selected = current; });
-      if (entry.hasTotp) { const icon = document.createElement('img'); icon.src = 'images/key.svg'; icon.alt = message('verificationCode'); primary.append(icon); }
-      const title = document.createElement('strong'); title.textContent = entry.title;
-      const username = document.createElement('span'); username.textContent = entry.username;
-      primary.append(title, username); row.append(primary);
-      if (entry.hasTotp) row.append(button(message('fillCode'), () => fill(current, true)));
-      row.append(button(message('reveal'), () => action('reveal', { entry: entry.entry, db: entry.db })));
+      primary.addEventListener('focus', () => {
+        model.selected = current;
+        for (const item of content.querySelectorAll('.kf-row')) item.dataset.selected = String(item === row);
+      });
+      const avatar = document.createElement('span'); avatar.className = 'kf-avatar'; avatar.setAttribute('aria-hidden', 'true'); avatar.textContent = entry.title.trim().slice(0, 1).toLocaleUpperCase() || '·';
+      const label = document.createElement('span'); label.className = 'kf-label';
+      const title = document.createElement('strong'); title.className = 'kf-title'; title.textContent = entry.title; title.title = entry.title; title.dir = 'auto';
+      const username = document.createElement('span'); username.className = 'kf-username'; username.textContent = entry.username; username.title = entry.username; username.dir = 'auto';
+      label.append(title, username); primary.append(avatar, label);
+      if (entry.hasTotp) { const badge = document.createElement('span'); badge.className = 'kf-icon kf-code'; badge.setAttribute('role', 'img'); badge.setAttribute('aria-label', message('verificationCode')); badge.title = message('verificationCode'); primary.append(badge); }
+      row.append(primary);
+      if (entry.hasTotp) row.append(iconButton('fillCode', 'code', () => fill(current, true)));
+      row.append(iconButton('reveal', 'reveal', () => action('reveal', { entry: entry.entry, db: entry.db })));
       list.append(row);
     }
     content.append(list);

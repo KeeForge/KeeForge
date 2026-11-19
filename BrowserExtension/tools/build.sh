@@ -9,10 +9,13 @@ if len(versions) != 1:
     raise SystemExit('Expected exactly one marketing version in project.yml')
 manifest = json.loads((root / 'manifest.json').read_text())
 manifest['version'] = versions.pop()
+for artwork in sorted(set(manifest.get('icons', {}).values()) | set(manifest.get('action', {}).get('default_icon', {}).values())):
+    if not (root / artwork).is_file():
+        raise SystemExit(f'Missing {artwork}; run node tools/render-icons.mjs before packaging')
 # The key only gives an unpacked development copy a stable ID; stores assign their own.
 manifest.pop('key', None)
 files = {'manifest.json': (json.dumps(manifest, indent=2) + '\n').encode()}
-for path in sorted([*(root / 'src').rglob('*'), *(root / '_locales').rglob('*'), *(root / 'images').rglob('*'), root / 'popup.html', root / 'pair.html', root / 'popup.css']):
+for path in sorted([*(root / 'src').rglob('*'), *(root / '_locales').rglob('*'), *(root / 'images').rglob('*'), root / 'popup.html', root / 'pair.html', root / 'popup.css', root / 'theme.css', root / 'pair.css']):
     if path.is_file():
         files[path.relative_to(root).as_posix()] = path.read_bytes()
 out = root / 'build'
