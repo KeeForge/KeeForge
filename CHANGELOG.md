@@ -18,7 +18,6 @@
 - Preserve encrypted cloud creation data when the outcome is uncertain instead of automatically creating another remote copy.
 - Refusing to remove a database with pending AutoFill changes no longer permanently blocks its recovery.
 - Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
-- A cloud database no longer reports "The file couldn't be saved because a file with that name already exists" when two syncs overlap, for example Sync Now while the app refreshes after you return to it.
 - On iPhone, and on iPad in a narrow window, a database that locks by itself, after the Auto-Lock timeout or when you leave the app, now stays on its unlock page instead of going back to the database list, so Auto-Unlock with Face ID or Touch ID opens it again right away (#312). Locking with the Lock button still returns to the list.
 - On iPhone and iPad, a database in KeeForge's own folder in the Files app (On My iPhone or On My iPad ▸ KeeForge) that you remove from the list stays removed. Before, it came back the next time KeeForge opened. The file itself stays in the folder. It is listed again if you copy a changed version there or import it again.
 
@@ -67,6 +66,7 @@
 - An AutoFill suggestion for a website no longer fills an entry whose URL has since changed to another site; the picker opens instead.
 - Password import skips rows that contain a KeePass field reference (`{REF:…}`) and lists them with the other skipped rows. A verification-code setup link no longer prefills a title or user name that contains one.
 - A database whose groups or data nest more than 256 levels deep now reports that it can't be opened instead of closing KeeForge or AutoFill, and a save that would nest that deeply is refused with the group or entry named.
+- A cloud database no longer reports "The file couldn't be saved because a file with that name already exists" when two syncs overlap, for example Sync Now while the app refreshes after you return to it.
 
 ### Changes
 
