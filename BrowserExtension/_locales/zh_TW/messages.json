@@ -118,5 +118,11 @@
   },
   "fillCodeFor": {
     "message": "填寫 $1 的驗證碼"
+  },
+  "inlineFrameTitle": {
+    "message": "KeeForge 登入資訊"
+  },
+  "confirmFill": {
+    "message": "填寫"
   }
 }

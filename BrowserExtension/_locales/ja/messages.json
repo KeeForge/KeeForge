@@ -118,5 +118,11 @@
   },
   "fillCodeFor": {
     "message": "$1 の確認コードを入力"
+  },
+  "inlineFrameTitle": {
+    "message": "KeeForge のログイン情報"
+  },
+  "confirmFill": {
+    "message": "入力"
   }
 }

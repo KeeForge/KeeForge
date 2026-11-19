@@ -70,19 +70,14 @@
         "src/content.js"
       ],
       "all_frames": true,
-      "run_at": "document_idle",
+      "run_at": "document_start",
       "world": "ISOLATED"
     }
   ],
   "web_accessible_resources": [
     {
       "resources": [
-        "inline.html",
-        "src/inline.js",
-        "src/i18n.js",
-        "src/popup-state.js",
-        "inline.css",
-        "theme.css"
+        "inline.html"
       ],
       "matches": [
         "https://*/*",

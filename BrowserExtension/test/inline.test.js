@@ -46,7 +46,7 @@ test('inline refuses opaque/insecure/mismatched or nonextension content senders'
 test('token replacement revokes the old menu, closes only its recorded frame, rejects wrong senders', async () => {
   const s = setup(), first = await s.open(), second = await s.open();
   assert.notEqual(first.token, second.token);
-  assert.deepEqual(s.closed[0], [7, { type: 'closeInlineMenu', token: first.token }, { frameId: 3, documentId: 'doc' }]);
+  assert.deepEqual(s.closed[0], [7, { type: 'closeInlineMenu', token: first.token, refocus: false }, { frameId: 3, documentId: 'doc' }]);
   await assert.rejects(s.call(first.token, 'state'));
   for (const patch of [{ id: 'other' }, { frameId: 0 }, { tab: { id: 8 } }, { tab: undefined }, { url: 'chrome-extension://self/popup.html' }, { url: 'chrome-extension://self/inline.html.evil' }, { url: 'https://example.com/inline.html' }]) await assert.rejects(s.call(second.token, 'state', {}, { ...s.menuSender, ...patch }));
   assert.deepEqual(s.requests, []);
@@ -80,151 +80,277 @@ test('Firefox frame targeting without documentId still refuses stale pins', asyn
   const s = setup('login', null), { token } = await s.open();
   s.navigate(); await assert.rejects(s.call(token, 'state')); assert.equal(s.requests.length, 0);
 });
-test('classic content script contains the exact shared fill function and never messages on discovery', async () => {
-  const source = await readFile(new URL('../src/content.js', import.meta.url), 'utf8');
-  assert.equal(source.split('// BEGIN shared fillDocument\n')[1].split('\n// END shared fillDocument')[0], fillDocument.toString());
-  const requests = [], frames = [], listeners = {};
-  const node = () => ({ style: {}, append() {}, attachShadow: node });
-  const document = { documentElement: node(), body: {}, createElement: node, createTreeWalker: () => ({ nextNode: () => null }), hasFocus: () => true };
-  const context = { document, location: { href: 'https://example.com' }, chrome: { runtime: { id: 'self', getURL: path => 'chrome-extension://self/' + path, onMessage: { addListener() {} }, sendMessage: request => { requests.push(request); return Promise.resolve({}); } } }, MutationObserver: class { observe() {} disconnect() {} }, setInterval: callback => frames.push(callback), setTimeout() {}, addEventListener: (name, callback) => { listeners[name] = callback; }, requestAnimationFrame: callback => frames.push(callback), performance: { now: () => 1000 }, NodeFilter: { SHOW_ELEMENT: 1 }, HTMLInputElement: class {} };
-  vm.runInNewContext(source, context);
-  frames.shift()(); frames.shift()();
-  listeners.resize(); listeners.scroll();
-  assert.deepEqual(requests, []);
-  assert.ok(!/^import /m.test(source));
-});
-test('inline page gates trusted actions on the delay, complete intersection and visibility-v2 signal', async () => {
-  const { groupsFor } = await import('../src/popup-state.js');
-  const source = (await readFile(new URL('../src/inline.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
-  for (const supported of [true, false]) {
-    class Node {
-      constructor() { this.children = []; this.listeners = {}; this.classList = { add() {}, remove() {} }; }
-      append(...nodes) { this.children.push(...nodes); }
-      replaceChildren() { this.children = []; }
-      addEventListener(type, fn) { this.listeners[type] = fn; }
-      setAttribute() {}
-      getBoundingClientRect() { return { height: 30 }; }
-      querySelectorAll() { return this.children.flatMap(n => [...(n.listeners.click ? [n] : []), ...n.querySelectorAll()]); }
-    }
-    const status = new Node(), content = new Node(), site = new Node(), main = new Node(); main.children = [status, content];
-    let callback, now = 0; const requests = [];
-    const window = { top: {}, addEventListener() {} };
-    class Entry {}
-    if (supported) Entry.prototype.isVisible = false;
-    const context = {
-      message: key => key, reason: key => key, localizePage() {}, groupsFor,
-      location: { hash: '#token' }, window, parent: { postMessage() {} }, URL,
-      document: { visibilityState: 'visible', querySelector: selector => ({ '#status': status, '#content': content, '#site': site, '#viewport': main, '#sizer': main })[selector], createElement: () => new Node(), createElementNS: () => new Node(), addEventListener() {} },
-      performance: { now: () => now }, IntersectionObserverEntry: Entry,
-      IntersectionObserver: class { constructor(fn) { callback = fn; } observe() {} }, setInterval() {},
-      chrome: { runtime: { sendMessage: async request => { requests.push(request); return request.action === 'state' ? { ok: true, origin: 'https://example.com', entries: [{ entry: 'e', db: 'd', title: 'title', username: 'user', exact: true, hasTotp: false }], locked: 0 } : { ok: false, error: 'denied' }; } } }
-    };
-    vm.runInNewContext(source, context);
-    assert.equal(requests.length, 0);
-    callback([{ isIntersecting: true, boundingClientRect: { width: 300, height: 30 }, intersectionRect: { width: 300, height: 30 }, isVisible: true }]);
-    await new Promise(resolve => setImmediate(resolve));
-    const login = content.children[0].children[0];
-    await login.listeners.click({ isTrusted: true }); assert.equal(requests.filter(r => r.action === 'fill').length, 0);
-    now = 400;
-    await login.listeners.click({ isTrusted: false }); assert.equal(requests.filter(r => r.action === 'fill').length, 0);
-    callback([{ isIntersecting: true, boundingClientRect: { width: 300, height: 30 }, intersectionRect: { width: 300, height: 27 }, isVisible: true }]);
-    await login.listeners.click({ isTrusted: true }); assert.equal(requests.filter(r => r.action === 'fill').length, 0);
-    callback([{ isIntersecting: true, boundingClientRect: { width: 300, height: 30 }, intersectionRect: { width: 300, height: 30 }, isVisible: false }]);
-    await new Promise(resolve => setImmediate(resolve));
-    if (supported) { await login.listeners.click({ isTrusted: true }); assert.equal(requests.filter(r => r.action === 'fill').length, 0); }
-    callback([{ isIntersecting: true, boundingClientRect: { width: 300, height: 30 }, intersectionRect: { width: 300, height: 30 }, isVisible: true }]);
-    await new Promise(resolve => setImmediate(resolve));
-    // Becoming visible again restarts the continuous-visibility window.
-    now = 600; await login.listeners.click({ isTrusted: true }); assert.equal(requests.filter(r => r.action === 'fill').length, 0);
-    now = 1000; await login.listeners.click({ isTrusted: true }); assert.equal(requests.filter(r => r.action === 'fill').length, 1);
-    // A top-level document must not even ask for state with a forged token.
-    context.window.top = context.window; requests.length = 0;
-    vm.runInNewContext(source, { ...context });
-    assert.equal(requests.length, 0);
+test('openMenu refuses a document whose inspection disagrees with the prepared field (origin, document or pin)', async () => {
+  for (const change of [{ origin: 'https://other.example', href: 'https://other.example/' }, { token: 'replaced' }]) {
+    const s = setup(); let calls = 0;
+    const execute = s.api.scripting.executeScript;
+    s.api.scripting.executeScript = async options => { const results = await execute(options); if (++calls === 2) results[0].result = { ...results[0].result, ...change }; return results; };
+    await assert.rejects(s.open()); assert.equal(s.b.menus.size, 0);
   }
 });
-test('content buttons reject synthetic clicks, disclose only a token, and validate iframe size messages', async () => {
+test('the first inline document owns the session; another document with the token is refused and closes it', async () => {
+  const s = setup(), { token } = await s.open();
+  await s.call(token, 'state', {}, { ...s.menuSender, documentId: 'menu-1' });
+  await assert.rejects(s.call(token, 'state', {}, { ...s.menuSender, documentId: 'menu-2' }));
+  assert.equal(s.b.menus.size, 0); assert.equal(s.closed.length, 1);
+});
+test('menu close and fill reach only the recorded content frame, through the browser, with refocus', async () => {
+  let s = setup(), { token } = await s.open();
+  assert.deepEqual(await s.call(token, 'close', { refocus: true }), { ok: true });
+  assert.deepEqual(s.closed, [[7, { type: 'closeInlineMenu', token, refocus: true }, { frameId: 3, documentId: 'doc' }]]);
+  s = setup(); ({ token } = await s.open());
+  await s.call(token, 'fill', { entry: 'without-code', db: 'db' });
+  assert.deepEqual(s.closed, [[7, { type: 'closeInlineMenu', token, refocus: true }, { frameId: 3, documentId: 'doc' }]]);
+});
+test('a user-name step session injects the user name only', async () => {
+  const s = setup('username'), { token } = await s.open();
+  assert.deepEqual(await s.call(token, 'fill', { entry: 'without-code', db: 'db' }), { ok: true });
+  assert.equal(s.fills[0].target.kind, 'username');
+  const { injectCredential } = await import('../src/fill.js');
+  let args;
+  await injectCredential({ scripting: { executeScript: async options => { args = options.args; return [{ frameId: 3, result: { username: true } }]; } } }, s.fills[0].target, { username: 'demo', password: 'secret' });
+  assert.deepEqual(args[1], { username: 'demo' });
+});
+test('popup selection closes an open inline menu for that tab before replacing the pin', async () => {
+  const s = setup(), { token } = await s.open();
+  s.api.scripting.executeScript = async ({ func }) => [{ frameId: 0, documentId: 'doc', result: func.name === 'inspectDocument' ? { token: 'p', origin: 'https://top.example', href: 'https://top.example/' } : { fillable: true, focused: true, token: 'p' } }];
+  await s.b.handle({ type: 'getTarget', tabId: 7 });
+  assert.equal(s.b.menus.size, 0); assert.deepEqual(s.closed[0][1], { type: 'closeInlineMenu', token, refocus: false });
+});
+test('manifest exposes only inline.html and registers the content script at document_start', async () => {
+  const manifest = JSON.parse(await readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
+  assert.deepEqual(manifest.web_accessible_resources.map(r => r.resources), [['inline.html']]);
+  assert.equal(manifest.content_scripts[0].run_at, 'document_start');
+});
+test('the in-field key glyph is the path of images/key.svg', async () => {
+  const svg = await readFile(new URL('../images/key.svg', import.meta.url), 'utf8');
   const source = await readFile(new URL('../src/content.js', import.meta.url), 'utf8');
-  const callbacks = [], events = {}, requests = [], rootChildren = [];
+  assert.equal(source.match(/const KEY_PATH = '([^']+)'/)[1], svg.match(/ d="([^"]+)"/)[1]);
+  assert.doesNotMatch(await readFile(new URL('../inline.html', import.meta.url), 'utf8'), /<svg/);
+});
+
+// A minimal DOM for running src/content.js in a vm context.
+function contentPage({ origin = 'https://example.com', readyState = 'complete', withInput = true } = {}) {
+  const callbacks = [], events = {}, requests = [], created = [], observers = [];
   class Node {
-    constructor(tag) { this.tag = tag; this.style = {}; this.listeners = {}; this.children = []; this.isConnected = true; }
-    append(...nodes) { this.children.push(...nodes); }
+    constructor(tag) { this.tag = tag; this.style = { cssText: '' }; this.listeners = {}; this.children = []; this.isConnected = true; this.dataset = {}; this.attributes = {}; }
+    append(...nodes) { for (const node of nodes) { node.parentNode = this; node.isConnected = true; } this.children.push(...nodes); }
     attachShadow() { return this.root = new Node('shadow'); }
-    setAttribute() {}
-    addEventListener(type, fn) { this.listeners[type] = fn; }
+    setAttribute(name, value) { this.attributes[name] = value; }
+    getAttribute(name) { return this.attributes[name] ?? null; }
+    addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
+    dispatch(type, event = {}) { for (const fn of this.listeners[type] || []) fn(event); }
     remove() { this.isConnected = false; }
-  }
-  class Input extends Node {
-    type = 'text'; autocomplete = 'username';
-    getBoundingClientRect() { return { left: 10, right: 250, top: 30, bottom: 70, width: 240, height: 40 }; }
-    getClientRects() { return [this.getBoundingClientRect()]; }
+    querySelectorAll() { return []; }
     matches() { return false; }
     focus() { document.activeElement = this; }
+    getBoundingClientRect() {
+      if (this.rect) return this.rect;
+      const [left, top, width, height] = ['left', 'top', 'width', 'height'].map(key => parseFloat(this.style[key]) || 0);
+      return { left, top, width, height, right: left + width, bottom: top + height };
+    }
+  }
+  class Input extends Node {
+    type = 'text'; autocomplete = 'username'; form = null; rect = { left: 10, right: 250, top: 30, bottom: 70, width: 240, height: 40 };
+    getClientRects() { return [this.rect]; }
   }
   const input = new Input('input');
-  const document = { documentElement: new Node('html'), body: new Node('body'), activeElement: null, hasFocus: () => true, createElement: tag => { const node = new Node(tag); if (tag === 'iframe') node.contentWindow = {}; rootChildren.push(node); return node; }, querySelectorAll: () => [input], createTreeWalker: () => { const nodes = [input]; return { nextNode: () => nodes.shift() }; } };
+  const styles = new Map();
+  const html = new Node('html');
+  const document = { documentElement: html, body: new Node('body'), readyState, activeElement: null, hasFocus: () => true, fullscreenElement: null,
+    createElement: tag => { const node = new Node(tag); if (tag === 'iframe') node.contentDocument = null; created.push(node); return node; },
+    createElementNS: (ns, tag) => new Node(tag), querySelector: () => null,
+    querySelectorAll: selector => withInput && selector === 'input' ? [input] : [], getElementsByTagName: () => (withInput ? [input] : []) };
   input.ownerDocument = document;
   let runtimeListener;
-  const context = { document, HTMLInputElement: Input, NodeFilter: { SHOW_ELEMENT: 1 }, innerWidth: 800, innerHeight: 600, getComputedStyle: () => ({ display: 'block', visibility: 'visible', opacity: '1', direction: 'ltr' }), crypto,
-    location: { href: 'https://example.com' }, origin: 'https://example.com', performance: { now: () => 1000 }, MutationObserver: class { observe() {} disconnect() {} }, setInterval() {}, clearInterval() {}, setTimeout() {}, clearTimeout() {}, requestAnimationFrame: callback => callbacks.push(callback), addEventListener: (type, fn) => { events[type] = fn; }, chrome: { i18n: { getMessage: () => 'localized button name' }, runtime: { id: 'self', getURL: path => 'chrome-extension://self/' + path, onMessage: { addListener: fn => { runtimeListener = fn; } }, sendMessage: async request => { requests.push(request); return { token: 'menu-token' }; } } } };
-  vm.runInNewContext(source, context); callbacks.shift()();
-  const button = rootChildren.find(node => node.tag === 'button'); assert.ok(button);
-  assert.deepEqual(requests, []);
-  button.listeners.click({ isTrusted: false, preventDefault() {} });
-  await new Promise(resolve => setImmediate(resolve)); assert.deepEqual(requests, []);
-  button.listeners.click({ isTrusted: true, preventDefault() {} });
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(requests.length, 1); assert.deepEqual(JSON.parse(JSON.stringify(requests[0])), { type: 'openInlineMenu' });
-  const frame = rootChildren.find(node => node.tag === 'iframe'); assert.equal(frame.src, 'chrome-extension://self/inline.html#menu-token');
-  const before = frame.style.height;
-  for (const event of [
-    { source: {}, origin: 'chrome-extension://self', data: { type: 'inlineSize', height: 100 } },
-    { source: frame.contentWindow, origin: 'https://evil.example', data: { type: 'inlineSize', height: 100 } },
-    { source: frame.contentWindow, origin: 'chrome-extension://self', data: { type: 'inlineSize', height: 900 } }
-  ]) events.message(event);
-  assert.equal(frame.style.height, before);
-  events.message({ source: frame.contentWindow, origin: 'chrome-extension://self', data: { type: 'inlineSize', height: 100 } });
-  assert.equal(frame.style.height, '100px');
-  runtimeListener({ type: 'closeInlineMenu', token: 'wrong' }); assert.equal(frame.isConnected, true);
-  runtimeListener({ type: 'closeInlineMenu', token: 'menu-token' }); assert.equal(frame.isConnected, false);
-  assert.equal(requests.length, 1);
-  // A viewport-sized host would occlude child frames' menus for visibility tracking.
-  const host = document.documentElement.children[0];
-  assert.match(host.style.cssText, /width:0!important;height:0!important/); assert.doesNotMatch(host.style.cssText, /inset/);
+  const context = { document, HTMLInputElement: Input, innerWidth: 800, innerHeight: 600, crypto, origin, location: { href: 'https://example.com/', origin },
+    getComputedStyle: node => ({ display: 'block', visibility: 'visible', opacity: '1', direction: 'ltr', backgroundColor: 'rgb(255, 255, 255)', colorScheme: 'normal', color: 'rgba(0, 0, 0, 0)', ...styles.get(node) }),
+    performance: { now: () => 1000 }, MutationObserver: class { constructor(fn) { this.fn = fn; observers.push(this); } observe(target, options) { this.options = options; } disconnect() { this.off = true; } },
+    setTimeout: () => 1, clearTimeout() {}, setInterval: () => assert.fail('no interval'), requestAnimationFrame: callback => callbacks.push(callback),
+    addEventListener: (type, fn, capture) => { assert.equal(capture, true, type); (events[type] ??= []).push(fn); },
+    chrome: { i18n: { getMessage: key => key }, runtime: { id: 'self', getURL: path => 'chrome-extension://self/' + path, onMessage: { addListener: fn => { runtimeListener = fn; } }, sendMessage: async request => { requests.push(request); return { token: 'menu-token' }; } } } };
+  const fire = (type, event = {}) => { for (const fn of events[type] || []) fn(event); };
+  // Runs one frame: callbacks queued meanwhile (the open menu's watcher) wait for the next.
+  const frames = () => { for (const callback of callbacks.splice(0)) callback(); };
+  return { context, document, input, html, events, fire, frames, requests, created, observers, styles, runtime: message => runtimeListener(message), Node };
+}
+const contentSource = () => readFile(new URL('../src/content.js', import.meta.url), 'utf8');
+const settle = () => new Promise(resolve => setImmediate(resolve));
+test('classic content script contains the exact shared fill function, registers listeners at start and never messages on discovery', async () => {
+  const source = await contentSource();
+  assert.equal(source.split('// BEGIN shared fillDocument\n')[1].split('\n// END shared fillDocument')[0], fillDocument.toString());
+  assert.ok(!/^import /m.test(source));
+  const page = contentPage({ readyState: 'loading' });
+  vm.runInNewContext(source, page.context);
+  // Listeners exist before any page script could add its own; nothing else happens until the DOM is ready.
+  for (const type of ['pointerdown', 'keydown', 'DOMContentLoaded', 'focusin']) assert.ok(page.events[type], type);
+  assert.equal(page.events.message, undefined);
+  assert.equal(page.html.children.length, 0); assert.equal(page.observers.length, 0);
+  page.fire('DOMContentLoaded'); page.frames();
+  assert.equal(page.html.children.length, 1);
+  page.fire('resize'); page.fire('scroll'); page.frames();
+  assert.deepEqual(page.requests, []);
+  assert.ok(page.observers[0].options.attributeFilter.includes('style'));
+});
+test('a document without inputs gets no host, observer or timer until an input appears', async () => {
+  const page = contentPage({ withInput: false });
+  vm.runInNewContext(await contentSource(), page.context);
+  page.frames();
+  assert.equal(page.html.children.length, 0);
+  assert.equal(page.observers.length, 1); assert.equal(JSON.stringify(page.observers[0].options), '{"childList":true,"subtree":true}');
+  page.observers[0].fn([]); assert.equal(page.html.children.length, 0);
+});
+test('sandboxed (opaque-origin) frames get nothing at all', async () => {
+  const page = contentPage({ origin: 'null' });
+  vm.runInNewContext(await contentSource(), page.context);
+  page.frames();
+  assert.equal(page.html.children.length, 0); assert.deepEqual(page.events, {});
+});
+async function openContentMenu() {
+  const page = contentPage();
+  vm.runInNewContext(await contentSource(), page.context); page.frames();
+  const host = page.html.children[0], button = host.root.children.find(node => node.tag === 'button');
+  button.dispatch('click', { isTrusted: true, preventDefault() {} }); await settle();
+  const frame = host.root.children.find(node => node.tag === 'iframe');
+  return { page, host, button, frame };
+}
+test('content buttons reject synthetic clicks, use their own colour, and disclose only a token', async () => {
+  const page = contentPage();
+  vm.runInNewContext(await contentSource(), page.context); page.frames();
+  const host = page.html.children[0], button = host.root.children.find(node => node.tag === 'button'); assert.ok(button);
+  // The field's text is transparent (computed colour above); the button's colour comes from our stylesheet, keyed by background.
+  assert.equal(button.style.color, undefined); assert.equal(button.dataset.tone, 'light');
+  assert.match(host.root.children[0].textContent, /button\{[^}]*color:#6b6b70/);
+  page.styles.set(page.input, { backgroundColor: 'rgb(20, 20, 24)' }); page.fire('toggle'); page.frames();
+  assert.equal(button.dataset.tone, 'dark');
+  button.dispatch('click', { isTrusted: false, preventDefault() {} }); await settle(); assert.deepEqual(page.requests, []);
+  button.dispatch('click', { isTrusted: true, preventDefault() {} }); await settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(page.requests)), [{ type: 'openInlineMenu' }]);
+  const frame = host.root.children.find(node => node.tag === 'iframe');
+  assert.equal(frame.src, 'chrome-extension://self/inline.html#menu-token'); assert.equal(frame.title, 'inlineFrameTitle');
+  assert.deepEqual([frame.style.width, frame.style.height], ['320px', '264px']);
+  page.runtime({ type: 'closeInlineMenu', token: 'wrong' }); assert.equal(frame.isConnected, true);
+  page.runtime({ type: 'closeInlineMenu', token: 'menu-token', refocus: true }); assert.equal(frame.isConnected, false);
+  assert.equal(page.document.activeElement, page.input); assert.equal(page.requests.length, 1);
+  assert.match(host.style.cssText, /width:0!important;height:0!important/);
   // An orphaned copy (extension updated or removed) removes its UI and never messages.
-  context.chrome.runtime.id = undefined;
-  events.scroll({}); callbacks.shift()();
+  page.context.chrome.runtime.id = undefined;
+  page.fire('scroll'); page.frames();
   assert.equal(host.isConnected, false);
-  button.listeners.click({ isTrusted: true, preventDefault() {} });
-  await new Promise(resolve => setImmediate(resolve)); assert.equal(requests.length, 1);
+  button.dispatch('click', { isTrusted: true, preventDefault() {} }); await settle(); assert.equal(page.requests.length, 1);
+});
+test('the menu closes when its field or frame moves, its host is restyled, or its frame loads a second document', async () => {
+  for (const [label, act] of [
+    ['field moved', ({ page }) => { page.input.rect = { ...page.input.rect, top: 32, bottom: 72 }; }],
+    ['frame moved', ({ frame }) => { frame.style.left = '40px'; }],
+    ['host restyled', ({ host }) => { host.style.cssText += 'opacity:0'; }],
+    ['second load', ({ frame }) => { frame.dispatch('load'); frame.dispatch('load'); }],
+    ['replaced document', ({ frame }) => { frame.dispatch('load'); frame.contentDocument = { URL: 'about:blank' }; }]
+  ]) {
+    const opened = await openContentMenu();
+    opened.page.frames(); assert.equal(opened.frame.isConnected, true, label);
+    act(opened); opened.page.frames();
+    assert.equal(opened.frame.isConnected, false, label);
+    assert.deepEqual(JSON.parse(JSON.stringify(opened.page.requests.at(-1))), { type: 'closeInlineMenu', token: 'menu-token' }, label);
+  }
+});
+test('outside pointerdown and Escape close the menu; Alt+Down opens it from the field', async () => {
+  const { page, host, frame } = await openContentMenu();
+  page.fire('pointerdown', { isTrusted: true, composedPath: () => [host] }); assert.equal(frame.isConnected, true);
+  page.fire('pointerdown', { isTrusted: true, composedPath: () => [page.document.body] }); assert.equal(frame.isConnected, false);
+  page.fire('keydown', { isTrusted: true, key: 'ArrowDown', altKey: true, composedPath: () => [page.input], preventDefault() {} }); await settle();
+  const second = host.root.children.filter(node => node.tag === 'iframe').at(-1);
+  assert.notEqual(second, frame); assert.equal(second.isConnected, true);
+  page.document.activeElement = null;
+  page.fire('keydown', { isTrusted: true, key: 'Escape', composedPath: () => [] });
+  assert.equal(second.isConnected, false); assert.equal(page.document.activeElement, page.input);
+});
+
+// A minimal DOM for running src/inline.js in a vm context.
+class MenuNode {
+  constructor(tag = 'div') { this.tag = tag; this.children = []; this.listeners = {}; this.dataset = {}; this.attributes = {}; this.style = {}; this.className = ''; this.hidden = false; }
+  append(...nodes) { for (const node of nodes) node.parent = this; this.children.push(...nodes); }
+  replaceChildren() { this.children = []; }
+  remove() { if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this); }
+  addEventListener(type, fn) { this.listeners[type] = fn; }
+  setAttribute(name, value) { this.attributes[name] = value; }
+  focus() {}
+  all() { return this.children.flatMap(node => [node, ...node.all()]); }
+  querySelectorAll(selector) { return this.all().filter(node => node.className.split(' ').includes(selector.slice(1))); }
+}
+async function menuPage({ supported = true, top = false } = {}) {
+  const source = (await readFile(new URL('../src/inline.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
+  const rows = await import('../src/rows.js'), { groupsFor } = await import('../src/popup-state.js');
+  const nodes = Object.fromEntries(['#status', '#content', '#site', '#viewport', '#state', '#state-icon', '#secure'].map(id => [id, new MenuNode()]));
+  const content = nodes['#content'];
+  const state = { callback: null, now: 0, requests: [], posted: [], listeners: {} };
+  class Entry {}
+  if (supported) Entry.prototype.isVisible = false;
+  const window = { addEventListener() {} }; window.top = top ? window : {};
+  const document = { visibilityState: 'visible', querySelector: selector => nodes[selector], createElement: tag => new MenuNode(tag), addEventListener: (type, fn) => { state.listeners[type] = fn; } };
+  // rows.js runs in this module's realm; give it the same fake document and messages.
+  globalThis.document = document; globalThis.chrome = { i18n: { getMessage: key => key } };
+  const context = {
+    message: key => key, reason: key => key, localizePage() {}, loginRow: rows.loginRow, renderGroups: rows.renderGroups, groupsFor,
+    location: { hash: '#token' }, window, parent: { postMessage: (...args) => state.posted.push(args) }, URL, crypto,
+    document, performance: { now: () => state.now }, IntersectionObserverEntry: Entry,
+    IntersectionObserver: class { constructor(fn) { state.callback = fn; } observe() {} }, setInterval() {},
+    chrome: { runtime: { sendMessage: async request => { state.requests.push(request); return request.action === 'state' ? { ok: true, origin: 'https://example.com', entries: [{ entry: 'e', db: 'd', title: 'title', username: 'user', exact: true, hasTotp: false }], locked: 0 } : { ok: true }; } } }
+  };
+  vm.runInNewContext(source, context);
+  const visible = (fields = {}) => state.callback([{ isIntersecting: true, boundingClientRect: { width: 300, height: 160 }, intersectionRect: { width: 300, height: 160 }, isVisible: true, ...fields }]);
+  const fills = () => state.requests.filter(r => r.action === 'fill').length;
+  const login = () => content.querySelectorAll('.kf-login')[0];
+  return { state, content, visible, fills, login, context };
+}
+test('inline page gates trusted actions on the delay, complete intersection and visibility-v2 signal', async () => {
+  const m = await menuPage();
+  assert.equal(m.state.requests.length, 0);
+  m.visible(); await settle();
+  await m.login().listeners.click({ isTrusted: true }); assert.equal(m.fills(), 0);
+  m.state.now = 400;
+  await m.login().listeners.click({ isTrusted: false }); assert.equal(m.fills(), 0);
+  m.state.now = 1000;
+  // Continuously visible since 0, settled and trusted: only the isVisible signal can refuse this click.
+  m.visible({ isVisible: false });
+  await m.login().listeners.click({ isTrusted: true }); assert.equal(m.fills(), 0);
+  m.visible({ intersectionRect: { width: 300, height: 157 } });
+  await m.login().listeners.click({ isTrusted: true }); assert.equal(m.fills(), 0);
+  m.visible(); await settle();
+  // Becoming visible again restarts the continuous-visibility window.
+  m.state.now = 1200; await m.login().listeners.click({ isTrusted: true }); assert.equal(m.fills(), 0);
+  m.state.now = 1400; await m.login().listeners.click({ isTrusted: true }); assert.equal(m.fills(), 1);
+  // Escape closes through the background; nothing is ever posted to the embedding page.
+  m.state.listeners.keydown({ isTrusted: true, key: 'Escape' });
+  assert.deepEqual(JSON.parse(JSON.stringify(m.state.requests.at(-1))), { type: 'inlineMenu', token: 'token', action: 'close', refocus: true });
+  assert.deepEqual(m.state.posted, []);
+  const top = await menuPage({ top: true });
+  assert.equal(top.state.requests.length, 0);
 });
 test('inline page treats a sub-pixel clip as fully visible but not a real one', async () => {
-  const { groupsFor } = await import('../src/popup-state.js');
-  const source = (await readFile(new URL('../src/inline.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
-  class Node {
-    constructor() { this.children = []; this.listeners = {}; this.classList = { add() {}, remove() {} }; }
-    append(...nodes) { this.children.push(...nodes); }
-    replaceChildren() { this.children = []; }
-    addEventListener(type, fn) { this.listeners[type] = fn; }
-    setAttribute() {}
-    getBoundingClientRect() { return { height: 30 }; }
-    querySelectorAll() { return this.children.flatMap(n => [...(n.listeners.click ? [n] : []), ...n.querySelectorAll()]); }
-  }
   for (const [shownHeight, expected] of [[159.5, 1], [150, 0]]) {
-    const content = new Node(), nodes = { '#status': new Node(), '#content': content, '#site': new Node(), '#viewport': new Node(), '#sizer': new Node() };
-    let callback, now = 0; const requests = [];
-    class Entry {} Entry.prototype.isVisible = false;
-    vm.runInNewContext(source, {
-      message: key => key, reason: key => key, localizePage() {}, groupsFor, location: { hash: '#token' }, window: { top: {}, addEventListener() {} }, parent: { postMessage() {} }, URL,
-      document: { visibilityState: 'visible', querySelector: selector => nodes[selector], createElement: () => new Node(), createElementNS: () => new Node(), addEventListener() {} },
-      performance: { now: () => now }, IntersectionObserverEntry: Entry, IntersectionObserver: class { constructor(fn) { callback = fn; } observe() {} }, setInterval() {},
-      chrome: { runtime: { sendMessage: async request => { requests.push(request); return request.action === 'state' ? { ok: true, origin: 'https://example.com', entries: [{ entry: 'e', db: 'd', title: 't', username: 'u', exact: true, hasTotp: false }], locked: 0 } : { ok: true }; } } }
-    });
-    callback([{ isIntersecting: true, boundingClientRect: { width: 320, height: 160 }, intersectionRect: { width: 320, height: shownHeight }, isVisible: true }]);
-    await new Promise(resolve => setImmediate(resolve));
-    now = 1000;
-    const login = content.children[0]?.children[0];
-    if (login) await login.listeners.click({ isTrusted: true });
-    assert.equal(requests.filter(r => r.action === 'fill').length, expected, `shown ${shownHeight}`);
+    const m = await menuPage();
+    m.visible({ intersectionRect: { width: 300, height: shownHeight } }); await settle();
+    m.state.now = 1000;
+    const login = m.login(); if (login) await login.listeners.click({ isTrusted: true });
+    assert.equal(m.fills(), expected, `shown ${shownHeight}`);
   }
+});
+test('without visibility tracking a fill needs a second, delayed click on a confirm button', async () => {
+  const m = await menuPage({ supported: false });
+  m.visible(); await settle(); m.state.now = 1000;
+  await m.login().listeners.click({ isTrusted: true });
+  assert.equal(m.fills(), 0);
+  const confirm = m.content.querySelectorAll('.kf-confirm')[0]?.children[0];
+  assert.ok(confirm); assert.match(confirm.style.marginInlineStart, /^calc\(\(100% - 76px\) \* [0-9.]+\)$/);
+  await confirm.listeners.click({ isTrusted: true }); assert.equal(m.fills(), 0);
+  m.state.now = 1400; await confirm.listeners.click({ isTrusted: false }); assert.equal(m.fills(), 0);
+  await confirm.listeners.click({ isTrusted: true }); assert.equal(m.fills(), 1);
+  assert.deepEqual(m.state.posted, []);
+});
+test('Chrome keeps the one-click fill', async () => {
+  const m = await menuPage();
+  m.visible(); await settle(); m.state.now = 1000;
+  await m.login().listeners.click({ isTrusted: true });
+  assert.equal(m.fills(), 1); assert.equal(m.content.querySelectorAll('.kf-confirm').length, 0);
 });

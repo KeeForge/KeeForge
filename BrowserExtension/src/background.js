@@ -62,6 +62,9 @@ export class Background {
           this.popupTarget = null;
           const tabId = message.tabId ?? (await this.api.tabs.query({ active: true, currentWindow: true }))[0]?.id;
           requireThat(integer(tabId), 'bad-origin');
+          // Selection replaces the document pin an open inline menu depends on; close it rather than leave it broken.
+          this.menuOpenings.delete(tabId);
+          if (this.menus.has(tabId)) await this.closeMenu(this.menus.get(tabId));
           // Browser pages and tabs without an activeTab grant reject injection outright.
           const probes = await this.api.scripting.executeScript({ target: { tabId, allFrames: true }, world: 'ISOLATED', func: probeFrame }).catch(() => { throw new ProtocolError('bad-origin'); });
           const frameId = chooseFrame(probes);
@@ -112,10 +115,10 @@ export class Background {
       credential = null;
     }
   }
-  async closeMenu(session) {
+  async closeMenu(session, refocus = false) {
     if (this.menus.get(session.tabId) !== session) return;
     this.menus.delete(session.tabId);
-    await this.api.tabs.sendMessage(session.tabId, { type: 'closeInlineMenu', token: session.menuToken }, { frameId: session.frameId, ...(session.documentId ? { documentId: session.documentId } : {}) }).catch(() => {});
+    await this.api.tabs.sendMessage(session.tabId, { type: 'closeInlineMenu', token: session.menuToken, refocus }, { frameId: session.frameId, ...(session.documentId ? { documentId: session.documentId } : {}) }).catch(() => {});
   }
   async openMenu(sender) {
     requireThat(sender.id === this.api.runtime.id && integer(sender.tab?.id) && integer(sender.frameId), 'bad-origin');
@@ -125,7 +128,7 @@ export class Background {
     const previous = this.menus.get(tabId);
     if (previous) await this.closeMenu(previous);
     const prepared = await this.api.scripting.executeScript({ target: sender.documentId ? { tabId, documentIds: [sender.documentId] } : { tabId, frameIds: [frameId] }, world: 'ISOLATED', func: prepareInlineDocument });
-    requireThat(prepared.length === 1 && prepared[0].frameId === frameId && prepared[0].documentId === sender.documentId && ['login', 'code'].includes(prepared[0].result?.kind), 'bad-origin');
+    requireThat(prepared.length === 1 && prepared[0].frameId === frameId && prepared[0].documentId === sender.documentId && ['login', 'code', 'username'].includes(prepared[0].result?.kind), 'bad-origin');
     const target = await targetDocument(this.api, tabId, frameId);
     requireThat(target.origin === senderOrigin && target.documentId === sender.documentId && typeof target.token === 'string' && target.token === prepared[0].result.token, 'bad-origin');
     requireThat(this.menuOpenings.get(tabId) === opening, 'target-required');
@@ -138,6 +141,9 @@ export class Background {
     const session = this.menus.get(sender.tab?.id);
     const inlineURLs = [this.api.runtime.getURL('inline.html'), this.api.runtime.getURL('') + 'inline.html'];
     requireThat(sender.id === this.api.runtime.id && integer(sender.frameId) && sender.frameId > 0 && inlineURLs.includes(sender.url?.split(/[?#]/)[0]) && session && message.token === session.menuToken, 'target-required');
+    // The first menu document to call owns the session; any other document with the token means the frame was reloaded or replaced.
+    session.menuFrame ??= { frameId: sender.frameId, documentId: sender.documentId };
+    if (session.menuFrame.frameId !== sender.frameId || session.menuFrame.documentId !== sender.documentId) { void this.closeMenu(session); throw new ProtocolError('target-required'); }
     return session;
   }
   async checkMenu(session) {
@@ -148,13 +154,15 @@ export class Background {
   }
   async handleMenu(message, sender) {
     const session = this.menuSession(message, sender);
+    // Closing needs no target check; the content script is told through the browser, never through the page.
+    if (message.action === 'close') { await this.closeMenu(session, message.refocus === true); return { ok: true }; }
     return this.use(async () => {
       await this.checkMenu(session);
       let reply;
       switch (message.action) {
         case 'state': {
           const state = await this.handle({ type: 'getState', reconnect: true });
-          if (state.state !== 'ready') { reply = state; break; }
+          if (state.state !== 'ready') { reply = { ...state, origin: session.origin }; break; }
           reply = await this.connection.request('matches', { origin: session.origin });
           if (session.kind === 'code' && reply.entries) reply = { ...reply, entries: reply.entries.filter(entry => entry.hasTotp) };
           reply = { ...reply, origin: session.origin, kind: session.kind };
@@ -166,7 +174,7 @@ export class Background {
         case 'reveal': reply = await this.handle({ type: 'reveal', entry: message.entry, db: message.db }); break;
         case 'fill':
           reply = await this.fillTarget(session, { ...message, totp: session.kind === 'code' || message.totp === true }, () => this.checkMenu(session));
-          if (reply.ok) { await this.closeMenu(session); return reply; }
+          if (reply.ok) { await this.closeMenu(session, true); return reply; }
           break;
         default: throw new ProtocolError();
       }

@@ -1,4 +1,5 @@
-import { PopupState, groupsFor } from './popup-state.js';
+import { PopupState } from './popup-state.js';
+import { loginRow, renderGroups } from './rows.js';
 import { message, reason, localizePage } from './i18n.js';
 localizePage();
 const send = request => chrome.runtime.sendMessage(request);
@@ -7,12 +8,6 @@ const status = document.querySelector('#status'), content = document.querySelect
 function button(label, action) {
   const node = document.createElement('button'); node.className = 'kf-primary'; node.type = 'button'; node.textContent = label;
   node.addEventListener('click', () => void action()); return node;
-}
-function iconButton(key, glyph, action) {
-  const node = button('', action); node.className = 'kf-icon-button';
-  node.title = message(key); node.setAttribute('aria-label', message(key));
-  const icon = document.createElement('span'); icon.className = `kf-icon glyph-${glyph}`; icon.setAttribute('aria-hidden', 'true'); node.append(icon);
-  return node;
 }
 async function action(type, fields = {}) {
   try {
@@ -45,33 +40,20 @@ function render() {
   if (['error', 'host-missing'].includes(state)) content.append(button(message('tryAgain'), load));
   if (state !== 'matches') return;
   status.textContent = '';
-  let index = 0, otherHeading = false;
-  for (const group of groupsFor(model.entries)) {
-    if (!group.exact && !otherHeading) { const heading = document.createElement('h2'); heading.className = 'kf-section'; heading.textContent = message('otherLogins'); content.append(heading); otherHeading = true; }
-    if (group.name !== null) { const heading = document.createElement('h3'); heading.className = 'kf-section'; heading.textContent = group.name; content.append(heading); }
-    const list = document.createElement('ul');
-    for (const entry of group.entries) {
-      const current = index++;
-      const row = document.createElement('li'); row.className = 'kf-row'; row.dataset.selected = String(current === model.selected);
-      const primary = button('', () => fill(current)); primary.className = 'login kf-login'; primary.dataset.index = current;
-      primary.setAttribute('aria-label', message('fillLogin', [entry.title, entry.username]));
-      primary.addEventListener('focus', () => {
-        model.selected = current;
-        for (const item of content.querySelectorAll('.kf-row')) item.dataset.selected = String(item === row);
-      });
-      const avatar = document.createElement('span'); avatar.className = 'kf-avatar'; avatar.setAttribute('aria-hidden', 'true'); avatar.textContent = entry.title.trim().slice(0, 1).toLocaleUpperCase() || '·';
-      const label = document.createElement('span'); label.className = 'kf-label';
-      const title = document.createElement('strong'); title.className = 'kf-title'; title.textContent = entry.title; title.title = entry.title; title.dir = 'auto';
-      const username = document.createElement('span'); username.className = 'kf-username'; username.textContent = entry.username; username.title = entry.username; username.dir = 'auto';
-      label.append(title, username); primary.append(avatar, label);
-      if (entry.hasTotp) { const badge = document.createElement('span'); badge.className = 'kf-icon kf-code'; badge.setAttribute('role', 'img'); badge.setAttribute('aria-label', message('verificationCode')); badge.title = message('verificationCode'); primary.append(badge); }
-      row.append(primary);
-      if (entry.hasTotp) row.append(iconButton('fillCode', 'code', () => fill(current, true)));
-      row.append(iconButton('reveal', 'reveal', () => action('reveal', { entry: entry.entry, db: entry.db })));
-      list.append(row);
-    }
-    content.append(list);
-  }
+  let index = 0;
+  renderGroups(content, model.entries, entry => {
+    const current = index++;
+    const { row, login, code, reveal } = loginRow(entry);
+    row.dataset.selected = String(current === model.selected); login.dataset.index = current;
+    login.addEventListener('click', () => void fill(current));
+    login.addEventListener('focus', () => {
+      model.selected = current;
+      for (const item of content.querySelectorAll('.kf-row')) item.dataset.selected = String(item === row);
+    });
+    code?.addEventListener('click', () => void fill(current, true));
+    reveal.addEventListener('click', () => void action('reveal', { entry: entry.entry, db: entry.db }));
+    return row;
+  });
 }
 document.addEventListener('keydown', event => {
   if (model.state !== 'matches') return;

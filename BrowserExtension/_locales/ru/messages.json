@@ -118,5 +118,11 @@
   },
   "fillCodeFor": {
     "message": "Заполнить код проверки для $1"
+  },
+  "inlineFrameTitle": {
+    "message": "Данные для входа KeeForge"
+  },
+  "confirmFill": {
+    "message": "Заполнить"
   }
 }

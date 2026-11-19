@@ -116,7 +116,7 @@ const text = session => evaluate(session, 'document.body.innerText');
 async function menuClick(page, menu, selector) {
   const [frame] = await ui(page.session, 'IFRAME');
   const point = await evaluate(menu, `(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
-  await click(page.session, frame.left + 1 + point[0], frame.top + 1 + point[1]);
+  await click(page.session, frame.left + point[0], frame.top + point[1]);
 }
 // Positive actions retry: a click inside the visibility window is refused by design, and is reported.
 async function menuAct(page, menu, selector, done, label) {
@@ -183,6 +183,7 @@ try {
   await waitFor(async () => (await text(menu)).includes(await evaluate(sw, `chrome.i18n.getMessage('notPaired')`)), 'unpaired state');
   check('trusted click embeds inline.html under the shipped CSP on an HTTPS page; not-paired state shown', true);
   check('first native traffic happens only after the click', (await log()).length > 0);
+  await sleep(300); await shot(page.session, 'menu-not-paired', await menuClip(page, '#u'), [menu]);
   await sleep(600);
   await menuAct(page, menu, '#content button', async () => (await send('Target.getTargets')).targetInfos.some(t => t.url === extension + 'pair.html'), 'Pair');
   const pairTarget = await waitFor(async () => (await send('Target.getTargets')).targetInfos.find(t => t.type === 'page' && t.url === extension + 'pair.html'), 'pairing tab');
@@ -194,7 +195,7 @@ try {
   check('pairing in its own tab, then the open menu shows locked by itself', true);
   await sleep(400);
   await shot(page.session, 'menu-locked', await menuClip(page, '#u'), [menu]);
-  await menuAct(page, menu, '#content .primary', async () => (await requests('unlock')).length >= 1, 'Unlock');
+  await menuAct(page, menu, '#content .kf-primary', async () => (await requests('unlock')).length >= 1, 'Unlock');
   await sleep(1500);
   check('unlock request sent once; menu still locked while the app is', (await requests('unlock')).length === 1 && (await text(menu)).includes(lockedText));
   await setMock({ scenario: 'mixed' });
@@ -239,14 +240,16 @@ try {
     ['transparent (host opacity 0)', `[...document.querySelectorAll('html > div')].at(-1).style.setProperty('opacity', '0', 'important')`],
     ['transparent (html opacity 0.1)', `document.documentElement.style.opacity = '0.1'`]
   ]) {
+    if (!(await menus()).length) { menu = await openMenu(page, '#p'); await waitFor(async () => (await text(menu)).includes('Example'), 'rows again'); }
     await evaluate(page.session, setup);
     await sleep(800);
-    await menuClick(page, menu, '.login');
-    await evaluate(menu, `document.querySelector('.login').focus()`); await key(menu, 'Enter');
+    // Restyling our host closes the menu outright; either way nothing may fill.
+    if ((await menus()).length) { await menuClick(page, menu, '.login'); await evaluate(menu, `document.querySelector('.login').focus()`).catch(() => {}); await key(menu, 'Enter').catch(() => {}); }
     await sleep(700);
-    check(`${mode} menu does not fill on trusted click or Enter`, (await values(page.session)).p === '' && (await menus()).length === 1);
+    check(`${mode} menu does not fill on trusted click or Enter`, (await values(page.session)).p === '');
     await evaluate(page.session, `document.getElementById('cover')?.remove(); for (const d of document.querySelectorAll('html > div')) d.style.removeProperty('opacity'); document.documentElement.style.opacity = ''`);
   }
+  if (!(await menus()).length) { menu = await openMenu(page, '#p'); await waitFor(async () => (await text(menu)).includes('Example'), 'rows again'); }
   await menuAct(page, menu, '.login', async () => (await values(page.session)).p === 'mock-password', 'fill once visible again');
   check('the same menu fills once it has been fully visible again', true);
 
@@ -273,7 +276,7 @@ try {
   await waitFor(async () => (await text(menu)).includes(notRunning), 'not-running state');
   await sleep(300);
   await shot(page.session, 'menu-not-running', await menuClip(page, '#u'), [menu]);
-  await menuAct(page, menu, '#content .primary', async () => (await log()).some(entry => entry.cmd === 'launch'), 'Open KeeForge');
+  await menuAct(page, menu, '#content .kf-primary', async () => (await log()).some(entry => entry.cmd === 'launch'), 'Open KeeForge');
   await setMock({ scenario: 'mixed', available: true });
   await waitFor(async () => (await text(menu)).includes('Example'), 'logins after launch', 60);
   check('app-not-running state; Open KeeForge sends launch and the menu shows logins once the app runs', true);
@@ -281,13 +284,84 @@ try {
 
   // Main world after a menu has been opened.
   menu = await openMenu(page, '#u'); await waitFor(async () => (await text(menu)).includes('Example'), 'rows');
-  check('page cannot read the token, menu text or shadow root while the menu is open', await evaluate(page.session, `(() => { const host = [...document.querySelectorAll('html > div')].at(-1); let href = 'unreadable'; try { href = frames[0].location.href; } catch {} return host.shadowRoot === null && host.childNodes.length === 0 && !document.querySelector('iframe') && !document.documentElement.innerHTML.includes('inline.html') && !document.body.innerText.includes('Example') && href === 'unreadable' && Object.keys(window).every(k => !k.startsWith('__keeforge')); })()`));
+  check('page cannot reach the menu window, token, text or shadow root while the menu is open', await evaluate(page.session, `(() => { const host = [...document.querySelectorAll('html > div')].at(-1); return window.length === 0 && frames[0] === undefined && host.shadowRoot === null && host.childNodes.length === 0 && !document.querySelector('iframe') && !document.documentElement.innerHTML.includes('inline.html') && !document.body.innerText.includes('Example') && Object.keys(window).every(k => !k.startsWith('__keeforge')) && performance.getEntries().every(e => !e.name.startsWith('chrome-extension:')); })()`));
   await key(menu, 'Escape'); await waitFor(async () => (await menus()).length === 0, 'close');
+
+  // A page listening for every message hears nothing; the frame size does not depend on the rows.
+  const spy = await tab(`${secure}/inline-spy.html`);
+  const rowsOf = async (session, label) => waitFor(async () => (await text(session)).includes('Example'), label);
+  menu = await openMenu(spy, '#u'); await rowsOf(menu, 'spy rows');
+  check('with only inline.html web accessible, its script, stylesheets, images and glyph masks still load', await evaluate(menu, `(async () => { const icon = document.querySelector('.brand'); await icon.decode(); const mask = getComputedStyle(document.querySelector('.kf-icon-button .kf-icon')).maskImage; return getComputedStyle(document.querySelector('#viewport')).borderTopLeftRadius === '10px' && getComputedStyle(document.querySelector('.kf-row')).borderTopLeftRadius === '6px' && icon.naturalWidth > 0 && mask.includes('images/') && await new Promise(done => { const image = new Image(); image.onload = () => done(true); image.onerror = () => done(false); image.src = mask.match(/url\\("?([^")]+)/)[1]; }); })()`));
+  const size = frame => [Math.round(frame.right - frame.left), Math.round(frame.bottom - frame.top)];
+  const withRows = size((await ui(spy.session, 'IFRAME'))[0]);
+  await setMock({ scenario: 'empty' }); await waitFor(async () => !(await text(menu)).includes('Example'), 'spy empty');
+  const withoutRows = size((await ui(spy.session, 'IFRAME'))[0]);
+  check('menu frame size does not depend on the rows', withRows.join() === withoutRows.join(), `${withRows} vs ${withoutRows}`);
+  await setMock({ scenario: 'locked' }); await waitFor(async () => (await text(menu)).includes(lockedText), 'spy locked');
+  await setMock({ scenario: 'mixed' }); await rowsOf(menu, 'spy rows again');
+  await key(menu, 'Escape'); await waitFor(async () => (await menus()).length === 0, 'spy Escape');
+  menu = await openMenu(spy, '#u'); await rowsOf(menu, 'spy rows for fill');
+  await menuAct(spy, menu, '.login', async () => (await values(spy.session)).p === 'mock-password', 'spy fill');
+  await waitFor(async () => (await menus()).length === 0, 'spy close on fill');
+  check('focus returns to the field after a fill', await evaluate(spy.session, `document.activeElement.id === 'u'`));
+  // Alt+Down from the focused field opens the menu without reaching the button.
+  await evaluate(spy.session, `document.querySelectorAll('input').forEach(i => i.value = ''); document.getElementById('p').focus()`);
+  const menusBefore = new Set((await menus()).map(t => t.targetId));
+  for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40, modifiers: 1 }, spy.session);
+  menu = await attach((await waitFor(async () => (await menus()).find(t => !menusBefore.has(t.targetId)), 'Alt+Down menu')).targetId);
+  await rowsOf(menu, 'Alt+Down rows');
+  check('Alt+Down in a decorated field opens the menu', true);
+  // A second load of the frame (navigated or replaced) closes the menu.
+  await evaluate(menu, `location.href = 'about:blank'`).catch(() => {});
+  await waitFor(async () => (await ui(spy.session, 'IFRAME')).length === 0, 'close on second load');
+  check('the menu closes when its frame loads a second document', true);
+  check('a page listening for every message receives nothing through open, state changes, Escape, fill and reload', (await evaluate(spy.session, 'window.__msgs.length')) === 0, JSON.stringify(await evaluate(spy.session, 'window.__msgs')));
+
+  // Moving the form or the whole page after the menu has been visible closes it before a click can land on a row.
+  for (const [label, move, undo] of [
+    ['form transform', `document.getElementById('f').style.transform = 'translate(60px, 40px)'`, `document.getElementById('f').style.transform = ''`],
+    ['page transform', `document.documentElement.style.transform = 'translate(0, 40px)'`, `document.documentElement.style.transform = ''`]
+  ]) {
+    await evaluate(spy.session, `document.querySelectorAll('input').forEach(i => i.value = '')`);
+    menu = await openMenu(spy, '#p'); await rowsOf(menu, 'rows before move'); await sleep(1200);
+    const credentialsBefore = (await requests('credential')).length;
+    const [frame] = await ui(spy.session, 'IFRAME');
+    const point = await evaluate(menu, `(() => { const r = document.querySelector('.login').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
+    await evaluate(spy.session, move); await sleep(80);
+    await click(spy.session, frame.left + point[0] + (label === 'form transform' ? 60 : 0), frame.top + point[1] + 40);
+    await sleep(1200);
+    check(`${label} under an open menu closes it; a click 80 ms later fills nothing`, (await requests('credential')).length === credentialsBefore && (await values(spy.session)).p === '' && (await menus()).length === 0);
+    await evaluate(spy.session, undo); await sleep(300);
+  }
+
+  // The page cannot hide the button by making the field's text transparent.
+  await evaluate(spy.session, `document.getElementById('u').style.color = 'transparent'`); await sleep(700);
+  const invisible = await buttonFor(spy.session, '#u');
+  const { object: keyButton } = await send('DOM.resolveNode', { backendNodeId: invisible.id }, spy.session);
+  const colour = (await send('Runtime.callFunctionOn', { objectId: keyButton.objectId, functionDeclaration: 'function(){ const s = getComputedStyle(this); return [s.color, s.opacity]; }', returnByValue: true }, spy.session)).result.value;
+  const [cr, cg, cb, ca = 1] = colour[0].match(/[\d.]+/g).map(Number);
+  check('key button keeps its own visible colour on a transparent-text field', ca === 1 && Number(colour[1]) === 1 && 0.2126 * cr + 0.7152 * cg + 0.0722 * cb < 140, colour.join(' '));
+  await shot(spy.session, 'button-transparent-text', await (async () => { const r = await rect(spy.session, '#u'); return { x: r.left - 30, y: r.top - 30, width: 400, height: 110 }; })());
+  await send('Target.closeTarget', { targetId: spy.targetId });
+
+  // A page that stops every capture listener it can still cannot keep the menu open.
+  const blocking = await tab(`${secure}/inline-block.html`);
+  menu = await openMenu(blocking, '#u'); await rowsOf(menu, 'blocking rows'); await sleep(300);
+  await click(blocking.session, 900, 600);
+  await waitFor(async () => (await menus()).length === 0, 'outside click on blocking page');
+  menu = await openMenu(blocking, '#u'); await rowsOf(menu, 'blocking rows again');
+  await key(menu, 'Escape');
+  await waitFor(async () => (await menus()).length === 0, 'Escape on blocking page');
+  check('a page stopping pointerdown/keydown/message/DOMContentLoaded listeners still gets buttons, and outside click and Escape close the menu', await evaluate(blocking.session, `document.activeElement.id === 'u'`));
+  await send('Target.closeTarget', { targetId: blocking.targetId });
 
   // Toolbar popup still works.
   await evaluate(page.session, `document.querySelectorAll('input').forEach(i => i.value = '')`);
+  menu = await openMenu(page, '#u'); await waitFor(async () => (await text(menu)).includes('Example'), 'menu before popup');
   await send('Target.activateTarget', { targetId: page.targetId });
   check('toolbar popup opens', (await evaluate(sw, `chrome.action.openPopup().then(() => true)`)) === true);
+  await waitFor(async () => (await menus()).length === 0, 'popup selection closes the inline menu');
+  check('opening the popup closes an open inline menu instead of leaving it broken', true);
   const popup = await attach((await waitFor(async () => (await send('Target.getTargets')).targetInfos.find(t => t.url === extension + 'popup.html'), 'popup')).targetId);
   await waitFor(async () => (await text(popup)).includes('Example'), 'popup rows');
   await evaluate(popup, `document.querySelector('.login').click()`);
@@ -339,11 +413,53 @@ try {
   const [crossFrame] = await ui(cross.session, 'IFRAME');
   const point = await evaluate(crossMenu, `(() => { const r = document.querySelector('.login').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
   for (let attempt = 0; attempt < 4 && (await values(cross.session)).p !== 'mock-password'; ++attempt) {
-    await click(framed.session, offset[0] + crossFrame.left + 1 + point[0], offset[1] + crossFrame.top + 1 + point[1]);
+    await click(framed.session, offset[0] + crossFrame.left + point[0], offset[1] + crossFrame.top + point[1]);
     await sleep(1200);
   }
   await waitFor(async () => (await values(cross.session)).p === 'mock-password', 'cross-frame fill');
   check('cross-origin frame fills only that frame', (await evaluate(framed.session, `document.getElementById('same').contentDocument.getElementById('p').value`)) === '');
+
+  // Top layer: fields in a modal dialog, a popover and a fullscreen element get working buttons (real clicks).
+  const dialog = await tab(`${secure}/inline-dialog.html`);
+  check('modal dialog: buttons only inside the dialog, not on the inert page behind it', !!(await buttonFor(dialog.session, '#u')) && !(await buttonFor(dialog.session, '#behind')));
+  await shot(dialog.session, 'button-dialog', await (async () => { const r = await rect(dialog.session, '#u'); return { x: r.left - 40, y: r.top - 40, width: 440, height: 170 }; })());
+  menu = await openMenu(dialog, '#p'); await waitFor(async () => (await text(menu)).includes('Example'), 'dialog rows');
+  await menuAct(dialog, menu, '.login', async () => (await values(dialog.session)).p === 'mock-password', 'dialog fill');
+  check('modal dialog: a real click opens the menu and fills', (await values(dialog.session)).u === 'demo');
+  await send('Target.closeTarget', { targetId: dialog.targetId });
+  const popover = await tab(`${secure}/inline-popover.html`);
+  menu = await openMenu(popover, '#u'); await waitFor(async () => (await text(menu)).includes('Example'), 'popover rows');
+  check('popover: a real click on the button opens the menu', true);
+  await send('Target.closeTarget', { targetId: popover.targetId });
+  const full = await tab(`${secure}/inline-fullscreen.html`);
+  const go = await rect(full.session, '#go'); await click(full.session, (go.left + go.right) / 2, (go.top + go.bottom) / 2);
+  await waitFor(() => evaluate(full.session, `document.fullscreenElement?.id === 'full'`), 'fullscreen');
+  await sleep(700);
+  menu = await openMenu(full, '#u'); await waitFor(async () => (await text(menu)).includes('Example'), 'fullscreen rows');
+  check('fullscreen element: a real click on the button opens the menu', true);
+  await send('Target.closeTarget', { targetId: full.targetId });
+
+  // Discovery is capped by inputs, not visited elements; first steps and readonly-until-focus passwords are decorated.
+  const big = await tab(`${secure}/inline-big.html`);
+  check('20,000 elements before the form still leave its fields decorated', !!(await buttonFor(big.session, '#u')) && !!(await buttonFor(big.session, '#p')));
+  await send('Target.closeTarget', { targetId: big.targetId });
+  const steps = await tab(`${secure}/inline-steps.html`);
+  const decorated = {};
+  for (const id of ['email', 'q', 'site-search', 'news', 'ru', 'rp']) decorated[id] = !!(await buttonFor(steps.session, '#' + id));
+  check('lone e-mail step and readonly-until-focus password decorated; search boxes and newsletter sign-up not', decorated.email && decorated.ru && decorated.rp && !decorated.q && !decorated['site-search'] && !decorated.news, JSON.stringify(decorated));
+  menu = await openMenu(steps, '#email'); await waitFor(async () => (await text(menu)).includes('Example'), 'step rows');
+  await menuAct(steps, menu, '.login', async () => (await values(steps.session)).email === 'demo', 'user-name step fill');
+  check('user-name step fills the user name only', Object.entries(await values(steps.session)).every(([id, value]) => id === 'email' ? value === 'demo' : value === ''));
+  menu = await openMenu(steps, '#ru'); await waitFor(async () => (await text(menu)).includes('Example'), 'readonly rows');
+  await menuAct(steps, menu, '.login', async () => (await values(steps.session)).rp === 'mock-password', 'readonly password fill');
+  check('a readonly-until-focus password is filled after focusing it', (await values(steps.session)).ru === 'demo');
+  await send('Target.closeTarget', { targetId: steps.targetId });
+  const small = await tab(`http://127.0.0.1:${port}/inline-frames.html`); await sleep(800);
+  const smallTargets = (await send('Target.getTargets')).targetInfos.filter(t => t.type === 'iframe' && t.parentFrameId === small.targetId);
+  let frameButtons = (await visibleButtons(small.session)).length;
+  for (const t of smallTargets) { const s = await attach(t.targetId); await send('DOM.enable', {}, s); frameButtons += (await visibleButtons(s)).length; }
+  check('no buttons in a frame too small for the menu or in a sandboxed (opaque-origin) frame', frameButtons === 0, `${frameButtons} buttons, ${smallTargets.length} out-of-process frames`);
+  await send('Target.closeTarget', { targetId: small.targetId });
 
   // Embedding: only the content-script iframe may load inline.html.
   const prober = await tab(`${secure}/login.html`);

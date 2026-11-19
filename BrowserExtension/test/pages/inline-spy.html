@@ -1,0 +1,5 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Listening page</title><style>:root{color-scheme:light dark;font:16px system-ui}body{margin:60px auto;width:460px}input{box-sizing:border-box;display:block;width:340px;height:40px;margin:12px 0;padding:8px;border:1px solid GrayText;border-radius:6px}</style><script>
+// Records every message and every load the page can see, from before the content script's UI exists.
+window.__msgs = []; window.__sources = [];
+addEventListener('message', e => { window.__msgs.push({ origin: e.origin, data: e.data }); window.__sources.push(e.source); }, true);
+</script></head><body><form id="f"><input id="u" autocomplete="username" placeholder="Username"><input id="p" type="password" autocomplete="current-password" placeholder="Password"></form><p id="below">Text below the form</p></body></html>

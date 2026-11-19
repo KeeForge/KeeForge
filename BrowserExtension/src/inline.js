@@ -1,12 +1,13 @@
 import { message, reason, localizePage } from './i18n.js';
-import { groupsFor } from './popup-state.js';
+import { loginRow, renderGroups } from './rows.js';
 localizePage();
 const token = location.hash.slice(1), embedded = window.top !== window;
-const status = document.querySelector('#status'), content = document.querySelector('#content'), site = document.querySelector('#site'), sizer = document.querySelector('#sizer');
+const status = document.querySelector('#status'), content = document.querySelector('#content'), site = document.querySelector('#site');
+const stateBlock = document.querySelector('#state'), stateIcon = document.querySelector('#state-icon'), secure = document.querySelector('#secure');
 const opened = performance.now();
 // Clickjacking: an action needs the menu fully visible for VISIBLE_MS without a break, and its rows unchanged for SETTLE_MS.
 const VISIBLE_MS = 300, SETTLE_MS = 300;
-let visibleSince = null, renderedAt = opened, busy = false, current = true, loading = false, last = '', kind = 'login';
+let visibleSince = null, renderedAt = opened, busy = false, current = true, loading = false, last = '', kind = 'login', failure = null;
 const visibilityV2 = 'isVisible' in IntersectionObserverEntry.prototype;
 const observer = new IntersectionObserver(entries => {
   const entry = entries.at(-1);
@@ -23,79 +24,77 @@ const allowed = event => {
   return embedded && current && event.isTrusted && !busy && document.visibilityState === 'visible' && visibleSince !== null
     && now - visibleSince >= VISIBLE_MS && now - opened >= SETTLE_MS && now - renderedAt >= SETTLE_MS;
 };
-const close = (refocus = false) => parent.postMessage({ type: 'inlineClose', refocus }, '*');
+// Nothing is ever posted to the embedding page: size is fixed and closing goes through the background.
+const close = refocus => { if (embedded && current && token) chrome.runtime.sendMessage({ type: 'inlineMenu', token, action: 'close', refocus }).catch(() => {}); };
 async function send(action, fields = {}) {
   if (!embedded || !current || !token) return { ok: false, error: 'target-required' };
   const reply = await chrome.runtime.sendMessage({ type: 'inlineMenu', token, action, ...fields });
-  if (reply.error === 'target-required' || reply.error === 'bad-origin') {
-    current = false; content.replaceChildren(); close();
-  }
+  if (reply.error === 'target-required' || reply.error === 'bad-origin') current = false;
   return reply;
 }
-function resize() {
-  const height = Math.ceil(sizer?.getBoundingClientRect().height ?? 0);
-  parent.postMessage({ type: 'inlineSize', height: Math.min(420, Math.max(80, height)) }, '*');
+const GLYPHS = { locked: 'lock', empty: 'key', 'app-unavailable': 'power', unpaired: 'link', pairing: 'link' };
+function showState(state, text) {
+  content.replaceChildren(); stateBlock.hidden = false; status.textContent = text;
+  stateIcon.className = ['loading', 'confirm'].includes(state) ? 'kf-waiting' : `kf-icon kf-state-icon glyph-${GLYPHS[state] || 'alert'}`;
 }
-const ICONS = { code: ['M8 5.5v3l2 1.2', 'M6.5 1.5h3', 'M13.5 8.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0'], reveal: ['M9 3h4v4', 'M13 3 7.5 8.5', 'M11 9.5V13H3V5h3.5'] };
-function icon(name) {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  for (const [key, value] of Object.entries({ width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' })) svg.setAttribute(key, value);
-  for (const d of ICONS[name]) { const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', d); svg.append(path); }
-  return svg;
+function primary(label, action, fields = {}) {
+  const node = document.createElement('button'); node.type = 'button'; node.className = 'kf-primary'; node.textContent = label;
+  node.addEventListener('click', event => void act(event, action, fields)); return node;
 }
-function notice(text, className = '') { status.textContent = text; status.className = className; }
-function button(label, action, fields = {}, className = 'primary') {
-  const node = document.createElement('button'); node.type = 'button'; node.className = className;
-  if (label) node.textContent = label;
-  node.addEventListener('click', async event => {
-    if (!allowed(event)) return;
-    busy = true;
-    if (action === 'fill') { notice(message('confirm'), 'confirm'); content.classList.add('busy'); for (const button of content.querySelectorAll('button')) button.disabled = true; resize(); }
-    try {
-      const reply = await send(action, fields);
-      if (reply.ok === false) { notice(reason(reply.error), 'error'); last = ''; }
-      else if (action === 'fill') close();
-    } catch { notice(reason('unavailable'), 'error'); last = ''; }
-    finally { busy = false; content.classList.remove('busy'); for (const button of content.querySelectorAll('button')) button.disabled = false; void refresh(); }
-  });
-  return node;
+async function act(event, action, fields = {}) {
+  if (!allowed(event)) return;
+  if (action === 'state') { failure = null; last = ''; void refresh(); return; }
+  busy = true;
+  if (action === 'fill') showState('confirm', message('confirm'));
+  try {
+    const reply = await send(action, fields);
+    if (reply.ok === false) failure = reply.error;
+  } catch { failure = 'unavailable'; }
+  finally { busy = false; last = ''; void refresh(); }
 }
-function iconButton(name, label, action, fields) {
-  const node = button('', action, fields, 'icon');
-  node.setAttribute('aria-label', label); node.title = label; node.append(icon(name));
-  return node;
+// Firefox has no visibility tracking, so an invisible overlay cannot be ruled out: the first click arms the row and the
+// fill needs a second click on a button whose position the page cannot predict.
+function arm(event, row, fields) {
+  if (!allowed(event)) return;
+  for (const other of content.querySelectorAll('.kf-confirm')) other.remove();
+  for (const item of content.querySelectorAll('.kf-row')) item.dataset.selected = String(item === row);
+  const strip = document.createElement('div'); strip.className = 'kf-confirm';
+  const confirm = primary(message('confirmFill'), 'fill', fields);
+  confirm.style.marginInlineStart = `calc((100% - 76px) * ${crypto.getRandomValues(new Uint16Array(1))[0] / 65535})`;
+  strip.append(confirm); row.append(strip); renderedAt = performance.now(); confirm.focus();
+}
+function fillButton(node, row, fields) {
+  node.addEventListener('click', event => visibilityV2 ? void act(event, 'fill', fields) : arm(event, row, fields));
 }
 function render(reply) {
-  content.replaceChildren(); notice('');
   renderedAt = performance.now();
-  site.textContent = reply.origin ? new URL(reply.origin).host : '';
+  if (reply.origin) { const url = new URL(reply.origin); site.textContent = url.host; site.title = url.host; secure.hidden = url.protocol !== 'https:'; }
   if (reply.kind) kind = reply.kind;
-  if (reply.ok === false) { notice(reason(reply.error), 'error'); content.append(button(message('tryAgain'), 'state')); }
-  else if (reply.state && reply.state !== 'ready') {
-    notice(message({ 'host-missing': 'hostMissing', 'app-unavailable': 'appUnavailable', unpaired: 'notPaired', pairing: 'pairBusy', error: 'unavailable' }[reply.state] || 'loading'));
-    if (reply.state === 'app-unavailable') content.append(button(message('openApp'), 'launchApp'));
-    if (reply.state === 'unpaired') content.append(button(message('pair'), 'pair'));
-  } else if (Array.isArray(reply.entries)) {
-    if (!reply.entries.length) notice(reply.locked ? message('locked') : message('noLogins', new URL(reply.origin).host), 'empty');
-    let other = false;
-    for (const group of groupsFor(reply.entries)) {
-      if (!group.exact && !other) { const h = document.createElement('h2'); h.textContent = message('otherLogins'); content.append(h); other = true; }
-      if (group.name) { const h = document.createElement('h3'); h.textContent = group.name; content.append(h); }
-      for (const entry of group.entries) {
-        const fields = { entry: entry.entry, db: entry.db };
-        const row = document.createElement('div'); row.className = 'row';
-        const login = button('', 'fill', fields, 'login');
-        login.setAttribute('aria-label', kind === 'code' ? message('fillCodeFor', [entry.title]) : message('fillLogin', [entry.title, entry.username]));
-        const title = document.createElement('span'); title.className = 'title'; title.textContent = entry.title;
-        const username = document.createElement('span'); username.className = 'username'; username.textContent = entry.username;
-        login.append(title, username); row.append(login);
-        if (kind !== 'code' && entry.hasTotp) row.append(iconButton('code', message('fillCodeFor', [entry.title]), 'fill', { ...fields, totp: true }));
-        row.append(iconButton('reveal', message('reveal'), 'reveal', fields)); content.append(row);
-      }
-    }
-    if (reply.locked) content.append(button(message('unlock'), 'unlock', {}, reply.entries.length ? 'secondary' : 'primary'));
+  if (failure) { showState('error', reason(failure)); content.append(primary(message('tryAgain'), 'state')); return; }
+  if (reply.ok === false) { showState('error', reason(reply.error)); content.append(primary(message('tryAgain'), 'state')); return; }
+  if (reply.state && reply.state !== 'ready') {
+    showState(reply.state, message({ 'host-missing': 'hostMissing', 'app-unavailable': 'appUnavailable', unpaired: 'notPaired', pairing: 'pairBusy', error: 'unavailable' }[reply.state] || 'loading'));
+    if (reply.state === 'app-unavailable') content.append(primary(message('openApp'), 'launchApp'));
+    if (reply.state === 'unpaired') content.append(primary(message('pair'), 'pair'));
+    if (reply.state === 'error') content.append(primary(message('tryAgain'), 'state'));
+    return;
   }
-  resize();
+  if (!Array.isArray(reply.entries)) { showState('error', reason('unavailable')); return; }
+  if (!reply.entries.length) {
+    if (reply.locked) { showState('locked', message('locked')); content.append(primary(message('unlock'), 'unlock')); }
+    else { showState('empty', message('noLogins', new URL(reply.origin).host)); content.append(primary(message('openApp'), 'launchApp')); }
+    return;
+  }
+  content.replaceChildren(); stateBlock.hidden = true; status.textContent = '';
+  renderGroups(content, reply.entries, entry => {
+    const fields = { entry: entry.entry, db: entry.db };
+    const { row, login, code, reveal } = loginRow(entry, { codeOnly: kind === 'code' });
+    fillButton(login, row, fields);
+    if (code) fillButton(code, row, { ...fields, totp: true });
+    reveal.addEventListener('click', event => void act(event, 'reveal', fields));
+    return row;
+  });
+  if (reply.locked) { const unlock = primary(message('unlock'), 'unlock'); unlock.className = 'kf-secondary'; content.append(unlock); }
 }
 async function refresh() {
   if (!embedded || !current || busy || loading || visibleSince === null || document.visibilityState !== 'visible') return;
@@ -103,15 +102,17 @@ async function refresh() {
   try {
     const reply = await send('state');
     delete reply.id;
-    if (current && !busy && JSON.stringify(reply) !== last) { last = JSON.stringify(reply); render(reply); }
-  } catch { notice(reason('unavailable'), 'error'); }
+    const key = JSON.stringify([reply, failure]);
+    if (current && !busy && key !== last) { last = key; render(reply); }
+    if (!current) { showState('error', reason('target-required')); }
+  } catch { showState('error', reason('unavailable')); }
   finally { loading = false; }
 }
 document.addEventListener('keydown', event => {
   if (!event.isTrusted) return;
   if (event.key === 'Escape') { close(true); return; }
   if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-  const rows = [...content.querySelectorAll('.login')];
+  const rows = [...content.querySelectorAll('.kf-login')];
   if (!rows.length) return;
   event.preventDefault();
   const index = rows.indexOf(document.activeElement), step = event.key === 'ArrowDown' ? 1 : -1;
@@ -119,5 +120,5 @@ document.addEventListener('keydown', event => {
 });
 window.addEventListener('focus', () => void refresh());
 document.addEventListener('visibilitychange', () => void refresh());
-if (embedded && token) { notice(message('loading')); void refresh(); setInterval(() => void refresh(), 1000); }
-else { current = false; notice(reason('target-required'), 'error'); }
+if (embedded && token) { showState('loading', message('loading')); void refresh(); setInterval(() => void refresh(), 1000); }
+else { current = false; showState('error', reason('target-required')); }

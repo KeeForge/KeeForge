@@ -9,6 +9,7 @@ class Input {
   getBoundingClientRect() { return this.box; }
   getClientRects() { return this.hidden ? [] : [this.box]; }
   matches() { return false; }
+  getAttribute(name) { return this.attrs?.[name] ?? null; }
   dispatchEvent(event) { this.events.push([event.type, event.bubbles]); this.onEvent?.(event); }
 }
 function page(fields, focused = null) {
@@ -195,4 +196,44 @@ test('form controls named like DOM members (hidden, inert) cannot hide the form 
     form._hidden = true; user.nativeValue = undefined; page([user, pass], user);
     assert.deepEqual(fill(), { username: false, password: false, totp: false });
   } finally { delete globalThis.HTMLElement; }
+});
+
+test('every write rechecks the pin and origin: a change during the user-name events stops the password', () => {
+  for (const change of [() => { globalThis.__keeforgeDocumentPin = 'replaced'; }, () => { location.origin = 'https://elsewhere.example'; }, () => { globalThis.origin = 'https://elsewhere.example'; }]) {
+    const form = {}, user = new Input({ form }), pass = new Input({ type: 'password', form });
+    page([user, pass], user);
+    const pin = globalThis.__keeforgeDocumentPin;
+    user.onEvent = event => { if (event.type === 'input') change(); };
+    assert.deepEqual(fillDocument('https://example.com', credential, false, pin), { username: false, password: false, totp: false });
+    assert.equal(pass.value, undefined);
+  }
+});
+test('a readonly-until-focus password is focused before writing, and refused if it stays readonly', () => {
+  for (const clears of [true, false]) {
+    const form = {}, user = new Input({ form }), pass = new Input({ type: 'password', form, readOnly: true });
+    pass.focus = () => { if (clears) pass.readOnly = false; };
+    page([user, pass], user);
+    assert.deepEqual(fill(), clears ? { username: true, password: true, totp: false } : { username: false, password: false, totp: false });
+    assert.equal(pass.value, clears ? 'secret' : undefined);
+  }
+});
+test('first sign-in steps: a lone e-mail or user-name field is decorated and kind username; search and newsletter fields are not', () => {
+  globalThis.NodeFilter = { SHOW_ELEMENT: 1 };
+  const fields = (...inputs) => { page(inputs); return fillDocument(undefined, undefined, false, undefined, 'fields'); };
+  const email = new Input({ type: 'email', form: {} });
+  assert.deepEqual(fields(email), [email]);
+  assert.equal(fillDocument(undefined, undefined, false, undefined, 'kind', undefined, email), 'username');
+  const login = new Input({ form: {}, attrs: { name: 'login' } });
+  assert.deepEqual(fields(login), [login]);
+  for (const input of [new Input({ type: 'search', form: {} }), new Input({ form: {}, attrs: { name: 'q' } }), new Input({ type: 'email', form: { getAttribute: name => name === 'class' ? 'newsletter-signup' : null } }), new Input({ form: {}, attrs: { name: 'search-user' } })]) assert.deepEqual(fields(input), []);
+  const shared = {}, emailWithName = new Input({ type: 'email', form: shared }), name = new Input({ form: shared });
+  assert.deepEqual(fields(emailWithName, name), []);
+  const pform = {}, user = new Input({ form: pform }), password = new Input({ type: 'password', form: pform });
+  assert.deepEqual(fields(user, password), [user, password]);
+  assert.equal(fillDocument(undefined, undefined, false, undefined, 'kind', undefined, user), 'login');
+});
+test('discovery examines at most 400 inputs, however many other elements the page has', () => {
+  const hidden = Array.from({ length: 400 }, () => new Input({ hidden: true })), password = new Input({ type: 'password' });
+  page([password]); assert.equal(probeFrame().fillable, true);
+  page([...hidden, password]); assert.equal(probeFrame().fillable, false);
 });

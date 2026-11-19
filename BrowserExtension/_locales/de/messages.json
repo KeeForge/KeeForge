@@ -118,5 +118,11 @@
   },
   "fillCodeFor": {
     "message": "Bestätigungscode für $1 ausfüllen"
+  },
+  "inlineFrameTitle": {
+    "message": "KeeForge-Anmeldedaten"
+  },
+  "confirmFill": {
+    "message": "Ausfüllen"
   }
 }

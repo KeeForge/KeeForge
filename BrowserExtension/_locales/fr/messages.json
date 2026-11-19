@@ -118,5 +118,11 @@
   },
   "fillCodeFor": {
     "message": "Remplir le code de vérification de $1"
+  },
+  "inlineFrameTitle": {
+    "message": "Identifiants KeeForge"
+  },
+  "confirmFill": {
+    "message": "Remplir"
   }
 }

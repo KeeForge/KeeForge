@@ -118,5 +118,11 @@
   },
   "fillCodeFor": {
     "message": "Inserisci codice di verifica per $1"
+  },
+  "inlineFrameTitle": {
+    "message": "Credenziali KeeForge"
+  },
+  "confirmFill": {
+    "message": "Inserisci"
   }
 }

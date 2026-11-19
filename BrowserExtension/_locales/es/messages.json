@@ -118,5 +118,11 @@
   },
   "fillCodeFor": {
     "message": "Rellenar código de verificación de $1"
+  },
+  "inlineFrameTitle": {
+    "message": "Inicios de sesión de KeeForge"
+  },
+  "confirmFill": {
+    "message": "Rellenar"
   }
 }

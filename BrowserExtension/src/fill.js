@@ -5,7 +5,7 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
   const pinKey = '__keeforgeDocumentPin';
   const probing = expectedOrigin === undefined;
   if (probing) {
-    if (!['fields', 'visible'].includes(mode)) globalThis[pinKey] = [...crypto.getRandomValues(new Uint8Array(32))].map(n => n.toString(16).padStart(2, '0')).join('');
+    if (!['fields', 'visible', 'kind'].includes(mode)) globalThis[pinKey] = [...crypto.getRandomValues(new Uint8Array(32))].map(n => n.toString(16).padStart(2, '0')).join('');
   } else if (!expectedToken || globalThis[pinKey] !== expectedToken) return result;
   // A form's named controls (e.g. <input name="hidden">) shadow its DOM members; read them from the prototypes.
   const prototypes = ['HTMLElement', 'Element', 'Node'].map(name => globalThis[name]?.prototype).filter(Boolean);
@@ -16,8 +16,8 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
   const root = document.documentElement, body = document.body;
   // Overflow on these elements moves to the viewport, which the initial bounds already intersect.
   const scrollsViewport = node => (node === root && getComputedStyle(root).contain === 'none') || (node === body && [root, body].every(element => getComputedStyle(element).contain === 'none') && ['overflowX', 'overflowY'].every(axis => getComputedStyle(root)[axis] === 'visible'));
-  const visible = input => {
-    if (!(input instanceof HTMLInputElement) || !input.isConnected || input.ownerDocument !== document || input.disabled || input.matches(':disabled') || input.readOnly || input.hidden) return false;
+  const visible = (input, allowReadOnly = false) => {
+    if (!(input instanceof HTMLInputElement) || !input.isConnected || input.ownerDocument !== document || input.disabled || input.matches(':disabled') || (input.readOnly && !allowReadOnly) || input.hidden) return false;
     let box = input.getBoundingClientRect();
     let left = Math.max(0, box.left), top = Math.max(0, box.top), right = Math.min(innerWidth, box.right), bottom = Math.min(innerHeight, box.bottom);
     if (!input.getClientRects().length || box.width <= 0 || box.height <= 0) return false;
@@ -40,40 +40,44 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
     }
     return right > left && bottom > top;
   };
-  if (mode === 'visible') return visible(candidate);
+  if (mode === 'visible') return visible(candidate, candidate?.type === 'password');
   const allowed = input => ['text', 'email', 'tel', 'password', 'number', 'search', 'url', ''].includes(input.type);
-  const fields = [];
-  let visited = 0;
+  // Cap the inputs examined, not the elements visited, so large pages still get their login fields.
+  const inputs = [], shadowGetter = member('shadowRoot')?.get;
   const collect = root => {
-    const nodes = mode === 'fields' ? { *[Symbol.iterator]() {
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
-      let node;
-      while (visited < 6000 && (node = walker.nextNode())) { ++visited; yield node; }
-    } } : root.querySelectorAll('*');
-    for (const node of nodes) {
-      if (node instanceof HTMLInputElement && allowed(node) && visible(node)) fields.push(node);
-      const shadow = prop(node, 'shadowRoot');
-      if (shadow) collect(shadow);
-    }
+    for (const input of root.querySelectorAll('input')) { if (inputs.length >= 400) return; inputs.push(input); }
+    for (const node of root.querySelectorAll('*')) { const shadow = shadowGetter ? shadowGetter.call(node) : node.shadowRoot; if (shadow) collect(shadow); }
   };
   collect(document);
+  // Readonly-until-focus password fields count; the write focuses them first and rechecks.
+  const fields = inputs.filter(input => input instanceof HTMLInputElement && allowed(input) && (visible(input) || (input.type === 'password' && input.readOnly && visible(input, true))));
   let active = document.activeElement;
   while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
-  if (probing && mode !== 'fields') return { focused: document.hasFocus() && fields.includes(active), fillable: fields.length > 0, token: globalThis[pinKey] };
-  const hintKind = input => (input.autocomplete || '').toLowerCase().split(/\s+/).includes('one-time-code') ? 'code' : 'login';
-  const preferred = mode === 'inline' ? globalThis.__keeforgeInlineField : null;
-  if (mode === 'inline' && (!fields.includes(preferred) || (expectedFieldKind && (hintKind(preferred) !== expectedFieldKind)))) return result;
-  const focused = fields.includes(preferred) ? preferred : fields.includes(active) ? active : null;
+  if (probing && !['fields', 'kind'].includes(mode)) return { focused: document.hasFocus() && fields.includes(active), fillable: fields.length > 0, token: globalThis[pinKey] };
   const hint = (input, token) => (input.autocomplete || '').toLowerCase().split(/\s+/).includes(token);
   const text = input => ['text', 'email', 'tel', ''].includes(input.type) && !hint(input, 'current-password') && !hint(input, 'new-password');
+  // A user-name field with no password in its form is the first step of a two-step sign-in: it gets the user name only.
+  const kindOf = input => hint(input, 'one-time-code') ? 'code' : input.type !== 'password' && !fields.some(other => other.type === 'password' && other.form === input.form) ? 'username' : 'login';
+  if (mode === 'kind') return fields.includes(candidate) ? kindOf(candidate) : null;
+  const preferred = mode === 'inline' ? globalThis.__keeforgeInlineField : null;
+  if (mode === 'inline' && (!fields.includes(preferred) || (expectedFieldKind && (kindOf(preferred) !== expectedFieldKind)))) return result;
+  const focused = fields.includes(preferred) ? preferred : fields.includes(active) ? active : null;
   if (mode === 'fields') {
-    const selected = new Set(fields.filter(input => input.type === 'password' || (text(input) && hint(input, 'username')) || (['text', 'tel', 'number', ''].includes(input.type) && hint(input, 'one-time-code'))));
+    // Attributes, not properties: a form's named controls shadow its id/name/action.
+    const getAttribute = member('getAttribute')?.value;
+    const attributes = node => node ? ['id', 'name', 'class', 'action'].map(name => (getAttribute ?? node.getAttribute)?.call(node, name) ?? '').join(' ') : '';
+    const closest = (node, selector) => (member('closest')?.value ?? node.closest)?.call(node, selector);
+    const words = input => `${attributes(input)} ${input.autocomplete || ''}`.toLowerCase();
+    const firstStep = input => text(input) && !hint(input, 'one-time-code') && (input.type === 'email' || /user|login|e-?mail|account|identifier/.test(words(input)))
+      && !/search|query|newsletter|subscri|coupon|promo/.test(`${words(input)} ${attributes(input.form).toLowerCase()}`) && !closest(input, '[role=search], search')
+      && !fields.some(other => other !== input && other.form === input.form && (other.type === 'password' || (text(other) && !hint(other, 'one-time-code'))));
+    const selected = new Set(fields.filter(input => input.type === 'password' || (text(input) && hint(input, 'username')) || (['text', 'tel', 'number', ''].includes(input.type) && hint(input, 'one-time-code')) || firstStep(input)));
     for (const password of fields.filter(input => input.type === 'password')) {
       const before = fields.slice(0, fields.indexOf(password)).filter(input => input.form === password.form && text(input) && !hint(input, 'one-time-code'));
       const username = before.find(input => hint(input, 'username')) || before.at(-1);
       if (username) selected.add(username);
     }
-    return [...selected].slice(0, 20);
+    return fields.filter(input => selected.has(input)).slice(0, 20);
   }
   const candidates = focused ? fields.filter(input => input.form === focused.form) : fields;
   const password = (focused?.type === 'password' ? focused : null) || candidates.find(input => input.type === 'password' && hint(input, 'current-password')) || candidates.find(input => input.type === 'password');
@@ -85,6 +89,7 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
   let stopped = false;
   const set = (input, value, types) => {
     if (stopped || !input || typeof value !== 'string') return false;
+    if (types.includes('password') && input.type === 'password' && input.readOnly) call(input, 'focus');
     if (!types.includes(input.type) || !visible(input) || globalThis[pinKey] !== expectedToken || location.origin !== expectedOrigin || globalThis.origin !== expectedOrigin) { stopped = true; return false; }
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
     if (!setter) return false;
@@ -102,7 +107,7 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
 }
 export async function injectCredential(api, target, credential, codeOnly = false) {
   const destination = target.documentId ? { tabId: target.tabId, documentIds: [target.documentId] } : { tabId: target.tabId, frameIds: [target.frameId] };
-  const results = await api.scripting.executeScript({ target: destination, world: 'ISOLATED', func: fillDocument, args: [target.origin, codeOnly ? { totp: credential.totp } : { username: credential.username, password: credential.password }, codeOnly, target.token, ...(target.inline ? ['inline', target.kind] : [])] });
+  const results = await api.scripting.executeScript({ target: destination, world: 'ISOLATED', func: fillDocument, args: [target.origin, codeOnly ? { totp: credential.totp } : target.kind === 'username' ? { username: credential.username } : { username: credential.username, password: credential.password }, codeOnly, target.token, ...(target.inline ? ['inline', target.kind] : [])] });
   const filled = results.length === 1 && results[0].frameId === target.frameId && !results[0].error && results[0].result;
   if (!filled || !(filled.username || filled.password || filled.totp)) throw new Error('no-fields');
 }

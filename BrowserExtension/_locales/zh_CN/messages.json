@@ -118,5 +118,11 @@
   },
   "fillCodeFor": {
     "message": "填充 $1 的验证码"
+  },
+  "inlineFrameTitle": {
+    "message": "KeeForge 登录信息"
+  },
+  "confirmFill": {
+    "message": "填充"
   }
 }

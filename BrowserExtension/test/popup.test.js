@@ -101,11 +101,11 @@ test('popup renders localized Try Again and its click reruns selection before sh
     assert.equal(code.attributes['aria-label'], 'localized:fillCode');
     assert.equal(code.title, 'localized:fillCode');
     assert.equal(code.className, 'kf-icon-button');
-    assert.equal(code.textContent, '');
+    assert.ok(!code.textContent);
     assert.equal(code.children[0].className, 'kf-icon glyph-code');
     assert.equal(reveal.attributes['aria-label'], 'localized:reveal');
     assert.equal(reveal.title, 'localized:reveal');
-    assert.equal(reveal.textContent, '');
+    assert.ok(!reveal.textContent);
     code.listeners.click();
     assert.equal(nodes['#status'].textContent, 'localized:confirm');
     assert.equal(nodes['#state-icon'].className, 'kf-waiting');
