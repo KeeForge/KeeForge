@@ -11,6 +11,10 @@ import XCTest
 /// Under `-ui-testing` the app's device-owner gate reports no authentication available, so credentials
 /// are released without Touch ID: this test does not cover the Touch ID prompt.
 final class MacBrowserExtensionUITests: MacUITestCase {
+    // Under -ui-testing no owner prompt can be answered, and the bridge refuses to release
+    // without one. A grace period makes each unlock the authentication, as it is for a user.
+    override var extraLaunchArguments: [String] { ["-KeeForge.authenticationGracePeriod", "fiveMinutes"] }
+
     private static let site = "alpha.example.com"
     private static let entryTitle = "Alpha Login"
     private static let entryUsername = "alpha-user"

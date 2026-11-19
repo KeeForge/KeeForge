@@ -6,6 +6,10 @@ import XCTest
 /// (`BrowserExtension/tools/e2e-client.mjs`). Unit tests cannot reach two signed sandboxed
 /// processes meeting in the app-group socket, the real pairing alert, or Settings.
 final class MacBrowserBridgeUITests: MacUITestCase {
+    // Under -ui-testing no owner prompt can be answered, and the bridge refuses to release
+    // without one. A grace period makes each unlock the authentication, as it is for a user.
+    override var extraLaunchArguments: [String] { ["-KeeForge.authenticationGracePeriod", "fiveMinutes"] }
+
     private static let browserName = "KeeForge E2E Browser"
     private static let origin = "https://alpha.example.com"
 
