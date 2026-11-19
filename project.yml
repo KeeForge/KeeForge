@@ -85,6 +85,11 @@ targetTemplates:
       - path: TestFixtures/Merge
         type: folder
         buildPhase: resources
+      # Folder reference: the bridge's conformance fixtures keep their
+      # `browser-bridge/` directory, and a new file needs no project change.
+      - path: TestFixtures/browser-bridge
+        type: folder
+        buildPhase: resources
 
   UITestFixtures:
     sources:

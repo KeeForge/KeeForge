@@ -28,6 +28,7 @@
 ## Tests
 
 - `MacBrowserBridgeControllerTests`: real Unix sockets, injected Keychain, manual bridge clock and device-owner gate; lifecycle, pairing slot, attempt limit, cooldown and deadlines, revocation, stalled peers and credential concurrency.
+- `BrowserBridgeFixtureTests`: the conformance fixtures in `../../../TestFixtures/browser-bridge/` (origin validation, site matching, eligibility, ordering, the 50 cap and display-field cuts) through the real `matches` path with real sessions. They are the contract another implementation is held to; a change in origin or matching behaviour changes the fixtures in the same commit.
 - `BrowserBridgeRequestHandlerTests`: real-session offers, matching, gates (including unavailable owner authentication and the prompt's reason), lock races, references, code-only replies and limits.
 - `BrowserBridgeProtocolTests` in `KeeForgeMacTests`: framing, strict decoding, pairing, handshake, rejection paths, authenticated counters and deterministic vectors. The reference client is shared test support.
 - `../../../BrowserExtension/test/vectors.json` is bundled by `UnitTestFixtures`; regeneration instructions are in the test header. The extension tests consume the same file.
