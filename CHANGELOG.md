@@ -47,6 +47,7 @@
 - An AutoFill suggestion for a website no longer fills an entry whose URL has since changed to another site; the picker opens instead.
 - Password import skips rows that contain a KeePass field reference (`{REF:…}`) and lists them with the other skipped rows. A verification-code setup link no longer prefills a title or user name that contains one.
 - A database whose groups or data nest more than 256 levels deep now reports that it can't be opened instead of closing KeeForge or AutoFill, and a save that would nest that deeply is refused with the group or entry named.
+- A cloud database no longer reports "The file couldn't be saved because a file with that name already exists" when two syncs overlap, for example Sync Now while the app refreshes after you return to it.
 
 ### Changes
 
