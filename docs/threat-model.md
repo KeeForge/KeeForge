@@ -368,4 +368,4 @@ Local-save recovery is exposed in iOS Database Details and native Mac Database S
 
 Native Mac cloud-creation recovery remains reachable from the Databases window even when no reference has been registered. This opens the same phase-specific recovery surface used on iOS; reaching it does not grant retry, registration, overwrite or discard authority.
 
-- An FTP creation failure before the target rename retains a prepared recovery record; rename failures remain uncertain because the target may have changed.
+An FTP creation failure before the target rename, including session setup, retains a prepared recovery record. Failures once rename starts remain uncertain because the target may have changed.

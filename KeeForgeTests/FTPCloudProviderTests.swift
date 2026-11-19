@@ -1059,25 +1059,38 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertFalse(server.commandLog.contains { $0.hasPrefix("STOR") })
     }
 
+    func testCreationSessionSetupFailureKeepsPreparedPayload() async throws {
+        for (verb, expectedError) in [("PASS", CloudProviderError.notAuthenticated), ("TYPE", .networkUnavailable)] {
+            let server = FakeFTPServer()
+            if verb == "PASS" {
+                server.overrideNextReply(to: verb, with: "530 Login incorrect")
+            } else {
+                server.dropConnection(onNext: verb)
+            }
+            let environment = try creationEnvironment(server: server)
+            let id = UUID()
+            let bytes = Data("mine".utf8)
+            do {
+                _ = try await CloudFileCreationCoordinator.create(operationID: id, provider: "ftp", accountID: "alex",
+                    target: "/vault.kdbx", bytes: bytes, referenceTemplate: creationReference(filename: "vault.kdbx"),
+                    environment: environment)
+                XCTFail("Expected session setup to fail at \(verb)")
+            } catch let error as CloudProviderError {
+                XCTAssertEqual(error, expectedError)
+            }
+            XCTAssertTrue(server.commandLog.contains { $0.hasPrefix(verb) })
+            XCTAssertTrue(writeCommands(in: server).isEmpty)
+            let stored = try PendingUploadQueue.readCreation(id, environment: environment.queue)
+            XCTAssertEqual(stored.intent.phase, .prepared)
+            XCTAssertEqual(try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue), bytes)
+        }
+    }
+
     func testCreationStoreFailureKeepsPreparedPayloadWithoutRenaming() async throws {
-        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
-        let root = AppGroupContainer.url.appendingPathComponent("ftp-store-failure-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
         let server = FakeFTPServer()
         server.overrideNextReply(to: "STOR", with: "552 Quota exceeded")
-        let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
-        let provider = FTPCloudProvider(client: server.makeClient(), credentialLoader: { _ in credential })
-        var environment = CloudFileCreationCoordinator.Environment.live
-        environment.queue.appGroupContainerURL = { root }
-        environment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
-        environment.queue.postDarwinNotification = {}
-        environment.createFile = { _, account, path, data in
-            try await provider.createFile(accountId: account, path: path, data: data, progress: { _ in })
-        }
-        let reference = DatabaseReference(id: UUID(), nickname: nil, filename: "vault.kdbx", bookmarkData: nil,
-            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
-            addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+        let environment = try creationEnvironment(server: server)
+        let reference = creationReference(filename: "vault.kdbx")
         let id = UUID()
         do {
             _ = try await CloudFileCreationCoordinator.create(operationID: id, provider: "ftp", accountID: "alex",
@@ -1092,24 +1105,10 @@ final class FTPCloudProviderTests: XCTestCase {
     }
 
     func testCreationRenameFailureRemainsUncertain() async throws {
-        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
-        let root = AppGroupContainer.url.appendingPathComponent("ftp-store-failure-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
         let server = FakeFTPServer()
         server.overrideNextReply(to: "RNTO", with: "550 Permission denied")
-        let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
-        let provider = FTPCloudProvider(client: server.makeClient(), credentialLoader: { _ in credential })
-        var environment = CloudFileCreationCoordinator.Environment.live
-        environment.queue.appGroupContainerURL = { root }
-        environment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
-        environment.queue.postDarwinNotification = {}
-        environment.createFile = { _, account, path, data in
-            try await provider.createFile(accountId: account, path: path, data: data, progress: { _ in })
-        }
-        let reference = DatabaseReference(id: UUID(), nickname: nil, filename: "vault.kdbx", bookmarkData: nil,
-            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
-            addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+        let environment = try creationEnvironment(server: server)
+        let reference = creationReference(filename: "vault.kdbx")
         let id = UUID()
         do {
             _ = try await CloudFileCreationCoordinator.create(operationID: id, provider: "ftp", accountID: "alex",
@@ -1123,25 +1122,29 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertEqual(try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue), Data("mine".utf8))
     }
 
+    func testCreationLostRenameReplyRetainsUncertainPayload() async throws {
+        let server = FakeFTPServer()
+        server.dropConnection(onNext: "RNTO", afterHandling: true)
+        let environment = try creationEnvironment(server: server)
+        let id = UUID()
+        let bytes = Data("mine".utf8)
+        do {
+            _ = try await CloudFileCreationCoordinator.create(operationID: id, provider: "ftp", accountID: "alex",
+                target: "/vault.kdbx", bytes: bytes, referenceTemplate: creationReference(filename: "vault.kdbx"),
+                environment: environment)
+            XCTFail("Expected an uncertain creation")
+        } catch is CloudFileCreationCoordinator.UncertainCreation {}
+        XCTAssertEqual(server.file("vault.kdbx")?.data, bytes)
+        let stored = try PendingUploadQueue.readCreation(id, environment: environment.queue)
+        XCTAssertEqual(stored.intent.phase, .attempting)
+        XCTAssertEqual(try PendingUploadQueue.readCreationPayload(stored, environment: environment.queue), bytes)
+    }
+
     func testCreationInitialStatFailureDoesNotDeleteScratchAndKeepsPayload() async throws {
-        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
-        let root = AppGroupContainer.url.appendingPathComponent("ftp-store-failure-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
         let server = FakeFTPServer()
         server.overrideNextReply(to: "MLST", with: "421 Service not available")
-        let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
-        let provider = FTPCloudProvider(client: server.makeClient(), credentialLoader: { _ in credential })
-        var environment = CloudFileCreationCoordinator.Environment.live
-        environment.queue.appGroupContainerURL = { root }
-        environment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
-        environment.queue.postDarwinNotification = {}
-        environment.createFile = { _, account, path, data in
-            try await provider.createFile(accountId: account, path: path, data: data, progress: { _ in })
-        }
-        let reference = DatabaseReference(id: UUID(), nickname: nil, filename: "vault.kdbx", bookmarkData: nil,
-            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
-            addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+        let environment = try creationEnvironment(server: server)
+        let reference = creationReference(filename: "vault.kdbx")
         let id = UUID()
         do {
             _ = try await CloudFileCreationCoordinator.create(operationID: id, provider: "ftp", accountID: "alex",
@@ -1157,27 +1160,13 @@ final class FTPCloudProviderTests: XCTestCase {
     }
 
     func testCreateConflictBeforeInstallRetainsRecoverablePayload() async throws {
-        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
         for appearsDuringUpload in [false, true] {
-            let root = AppGroupContainer.url.appendingPathComponent("ftp-creation-" + UUID().uuidString)
-            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-            defer { try? FileManager.default.removeItem(at: root) }
             let server = FakeFTPServer()
             if appearsDuringUpload {
                 server.beforeNext("STOR") { server.setFile("taken.kdbx", data: Data("other".utf8)) }
             } else { server.setFile("taken.kdbx", data: Data("other".utf8)) }
-            let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
-            let provider = FTPCloudProvider(client: server.makeClient(), credentialLoader: { _ in credential })
-            var environment = CloudFileCreationCoordinator.Environment.live
-            environment.queue.appGroupContainerURL = { root }
-            environment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
-            environment.queue.postDarwinNotification = {}
-            environment.createFile = { _, account, path, data in
-                try await provider.createFile(accountId: account, path: path, data: data, progress: { _ in })
-            }
-            let reference = DatabaseReference(id: UUID(), nickname: nil, filename: "taken.kdbx", bookmarkData: nil,
-                keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
-                addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
+            let environment = try creationEnvironment(server: server)
+            let reference = creationReference(filename: "taken.kdbx")
             do {
                 _ = try await CloudFileCreationCoordinator.create(operationID: UUID(), provider: "ftp", accountID: "alex",
                     target: "/taken.kdbx", bytes: Data("mine".utf8), referenceTemplate: reference, environment: environment)
@@ -1347,6 +1336,29 @@ final class FTPCloudProviderTests: XCTestCase {
             makeScratchToken: { "0000CAFE" }
         )
         return (provider, accountId)
+    }
+
+    private func creationEnvironment(server: FakeFTPServer) throws -> CloudFileCreationCoordinator.Environment {
+        guard AppGroupContainer.isRedirectedForTesting else { throw XCTSkip("Requires isolated test App Group") }
+        let root = AppGroupContainer.url.appendingPathComponent("ftp-creation-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { try FileManager.default.removeItem(at: root) }
+        let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
+        let provider = FTPCloudProvider(client: server.makeClient(), credentialLoader: { _ in credential })
+        var environment = CloudFileCreationCoordinator.Environment.live
+        environment.queue.appGroupContainerURL = { root }
+        environment.queue.createDirectory = { try createDurableDirectory(at: $0, anchor: root) }
+        environment.queue.postDarwinNotification = {}
+        environment.createFile = { _, account, path, data in
+            try await provider.createFile(accountId: account, path: path, data: data, progress: { _ in })
+        }
+        return environment
+    }
+
+    private func creationReference(filename: String) -> DatabaseReference {
+        DatabaseReference(id: UUID(), nickname: nil, filename: filename, bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false, lastOpenedAt: nil,
+            addedAt: .now, colorTag: nil, legacyKeychainFilename: nil)
     }
 
     private func rev(_ text: String) -> String {
