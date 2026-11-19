@@ -491,10 +491,13 @@ final class FTPCloudProviderTests: XCTestCase {
         server.overrideNextReply(to: "MLST", with: "550 Permission denied")
         server.overrideNextReply(to: "SIZE", with: "550 Permission denied")
         server.overrideNextReply(to: "MLSD", with: "550 Permission denied")
-        let (provider, accountId) = try makeProvider(server: server)
-
-        await assertThrows(CloudProviderError.permissionDenied) {
-            _ = try await provider.createFile(accountId: accountId, path: "/taken.kdbx", data: Data("new".utf8)) { _ in }
+        let credential = FTPCredential(serverURL: "ftp://nas.local/", username: "alex", password: "secret")
+        let provider = FTPCloudProvider(client: server.makeClient(), credentialLoader: { _ in credential })
+        do {
+            _ = try await provider.createFile(accountId: "isolated", path: "/taken.kdbx", data: Data("new".utf8)) { _ in }
+            XCTFail("Expected pre-dispatch permission failure")
+        } catch let failure as CloudCreationNotDispatched {
+            XCTAssertEqual(failure.underlying as? CloudProviderError, .permissionDenied)
         }
         XCTAssertEqual(server.file("taken.kdbx")?.data, Data("keep".utf8))
         XCTAssertFalse(server.commandLog.contains { $0.hasPrefix("STOR") })
