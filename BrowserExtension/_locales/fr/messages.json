@@ -112,5 +112,11 @@
   },
   "tryAgain": {
     "message": "Réessayer"
+  },
+  "inlineMenu": {
+    "message": "Ouvrir le menu de remplissage KeeForge"
+  },
+  "fillCodeFor": {
+    "message": "Remplir le code de vérification de $1"
   }
 }

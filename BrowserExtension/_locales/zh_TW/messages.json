@@ -112,5 +112,11 @@
   },
   "tryAgain": {
     "message": "再試一次"
+  },
+  "inlineMenu": {
+    "message": "開啟 KeeForge 自動填寫選單"
+  },
+  "fillCodeFor": {
+    "message": "填寫 $1 的驗證碼"
   }
 }

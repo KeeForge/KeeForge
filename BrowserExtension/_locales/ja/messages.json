@@ -112,5 +112,11 @@
   },
   "tryAgain": {
     "message": "再試行"
+  },
+  "inlineMenu": {
+    "message": "KeeForge の自動入力メニューを開く"
+  },
+  "fillCodeFor": {
+    "message": "$1 の確認コードを入力"
   }
 }

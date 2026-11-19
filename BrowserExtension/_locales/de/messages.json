@@ -112,5 +112,11 @@
   },
   "tryAgain": {
     "message": "Erneut versuchen"
+  },
+  "inlineMenu": {
+    "message": "KeeForge-Menü zum Ausfüllen öffnen"
+  },
+  "fillCodeFor": {
+    "message": "Bestätigungscode für $1 ausfüllen"
   }
 }

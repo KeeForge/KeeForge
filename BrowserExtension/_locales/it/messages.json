@@ -112,5 +112,11 @@
   },
   "tryAgain": {
     "message": "Riprova"
+  },
+  "inlineMenu": {
+    "message": "Apri il menu di inserimento automatico di KeeForge"
+  },
+  "fillCodeFor": {
+    "message": "Inserisci codice di verifica per $1"
   }
 }

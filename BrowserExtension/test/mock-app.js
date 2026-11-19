@@ -7,11 +7,17 @@ export class MockApp {
   constructor({ decision = 'allow', dropReplies = false, scenario = 'default', holdCredential = false } = {}) {
     this.decision = decision; this.dropReplies = dropReplies; this.holdCredential = holdCredential; this.scenario = scenario;
     const first = { entry: ENTRY, db: DB, dbName: 'Development', title: 'Example', username: 'demo', hasTotp: true, exact: true };
-    this.entries = ['locked', 'empty'].includes(scenario) ? [] : scenario === 'mixed' ? [
+    this.demoEntry = first;
+    this.mixed = [
       { ...first, entry: '33333333-3333-4333-8333-333333333333', title: 'Related host', exact: false },
       { ...first, entry: '44444444-4444-4444-8444-444444444444', db: '55555555-5555-4555-8555-555555555555', dbName: 'Work', title: 'Work login', hasTotp: false }, first
-    ] : [first]; this.clients = new Map();
+    ];
+    this.setScenario(scenario); this.clients = new Map();
     this.staticReady = keyPair().then(key => { this.static = key; });
+  }
+  setScenario(scenario) {
+    this.scenario = scenario;
+    this.entries = ['locked', 'empty'].includes(scenario) ? [] : scenario === 'mixed' ? this.mixed : [this.demoEntry];
   }
   connect(send) { return new MockSession(this, send); }
 }
@@ -50,7 +56,9 @@ export class MockSession {
     }
     requireThat(frame.t === 'msg' && this.phase === 'ready');
     const request = validateRequest(await this.cipher.open(frame));
+    this.app.onRequest?.(request);
     if (this.app.dropReplies || (this.app.holdCredential && request.type === 'credential')) return;
+    if (request.type === 'credential' && this.app.credentialDelay) await new Promise(resolve => setTimeout(resolve, this.app.credentialDelay));
     let reply = { id: request.id, ok: true };
     switch (request.type) {
       case 'status': Object.assign(reply, { app: 'mock', unlocked: this.app.scenario === 'locked' ? 0 : 1, locked: this.app.scenario === 'locked' ? 1 : 0 }); break;

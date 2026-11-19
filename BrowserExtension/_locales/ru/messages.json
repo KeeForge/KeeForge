@@ -112,5 +112,11 @@
   },
   "tryAgain": {
     "message": "Повторить"
+  },
+  "inlineMenu": {
+    "message": "Открыть меню автозаполнения KeeForge"
+  },
+  "fillCodeFor": {
+    "message": "Заполнить код проверки для $1"
   }
 }

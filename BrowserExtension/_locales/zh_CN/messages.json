@@ -112,5 +112,11 @@
   },
   "tryAgain": {
     "message": "重试"
+  },
+  "inlineMenu": {
+    "message": "打开 KeeForge 自动填充菜单"
+  },
+  "fillCodeFor": {
+    "message": "填充 $1 的验证码"
   }
 }

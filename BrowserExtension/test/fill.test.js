@@ -157,3 +157,42 @@ test('body and root overflow belongs to the viewport, so a short scroll-locked b
     assert.equal(probeFrame().fillable, false);
   }
 });
+test('inline fill retains the chosen field through iframe focus and refuses removal or kind changes', () => {
+  const formA = {}, formB = {};
+  const u1 = new Input({ form: formA, autocomplete: 'username' }), p1 = new Input({ form: formA, type: 'password' });
+  const u2 = new Input({ form: formB, autocomplete: 'username' }), p2 = new Input({ form: formB, type: 'password' });
+  page([u1, p1, u2, p2]); globalThis.__keeforgeInlineField = p2;
+  assert.deepEqual(fillDocument('https://example.com', credential, false, globalThis.__keeforgeDocumentPin, 'inline', 'login'), { username: true, password: true, totp: false });
+  assert.equal(u1.value, undefined); assert.equal(p1.value, undefined); assert.equal(u2.value, 'demo'); assert.equal(p2.value, 'secret');
+  p2.isConnected = false;
+  assert.deepEqual(fillDocument('https://example.com', credential, false, globalThis.__keeforgeDocumentPin, 'inline', 'login'), { username: false, password: false, totp: false });
+  p2.isConnected = true; p2.autocomplete = 'one-time-code';
+  assert.deepEqual(fillDocument('https://example.com', credential, false, globalThis.__keeforgeDocumentPin, 'inline', 'login'), { username: false, password: false, totp: false });
+  delete globalThis.__keeforgeInlineField;
+});
+test('icon discovery uses shared visibility/hints without creating or replacing a document pin', () => {
+  const u = new Input({ autocomplete: 'username' }), p = new Input({ type: 'password' }), code = new Input({ autocomplete: 'one-time-code' });
+  const decoy = new Input({ autocomplete: 'current-password' }), hidden = new Input({ type: 'password', hidden: true });
+  page([u, decoy, p, code, hidden]);
+  const pin = globalThis.__keeforgeDocumentPin;
+  document.createTreeWalker = () => { const nodes = [u, decoy, p, code, hidden]; return { nextNode: () => nodes.shift() }; };
+  globalThis.NodeFilter = { SHOW_ELEMENT: 1 };
+  assert.deepEqual(fillDocument(undefined, undefined, false, undefined, 'fields'), [u, p, code]);
+  assert.equal(globalThis.__keeforgeDocumentPin, pin);
+  delete globalThis.__keeforgeDocumentPin;
+  assert.deepEqual(fillDocument(undefined, undefined, false, undefined, 'fields'), [u, p, code]);
+  assert.equal(globalThis.__keeforgeDocumentPin, undefined);
+});
+
+test('form controls named like DOM members (hidden, inert) cannot hide the form fields', () => {
+  globalThis.HTMLElement = class {};
+  for (const name of ['hidden', 'inert']) Object.defineProperty(HTMLElement.prototype, name, { get() { return this[`_${name}`] === true; } });
+  try {
+    const form = { style: { display: 'block', visibility: 'visible', opacity: '1' }, hidden: new Input(), inert: new Input(), clientLeft: 0, clientTop: 0, clientWidth: 500, clientHeight: 100, getBoundingClientRect: () => ({ top: 0, left: 0, bottom: 100, right: 500, width: 500, height: 100 }) };
+    const user = new Input({ form, parentElement: form }), pass = new Input({ type: 'password', form, parentElement: form });
+    page([user, pass], user);
+    assert.deepEqual(fill(), { username: true, password: true, totp: false });
+    form._hidden = true; user.nativeValue = undefined; page([user, pass], user);
+    assert.deepEqual(fill(), { username: false, password: false, totp: false });
+  } finally { delete globalThis.HTMLElement; }
+});

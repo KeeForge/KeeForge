@@ -112,5 +112,11 @@
   },
   "tryAgain": {
     "message": "Try Again"
+  },
+  "inlineMenu": {
+    "message": "Open KeeForge fill menu"
+  },
+  "fillCodeFor": {
+    "message": "Fill verification code for $1"
   }
 }
