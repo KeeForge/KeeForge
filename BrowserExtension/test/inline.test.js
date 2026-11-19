@@ -278,7 +278,7 @@ class MenuNode {
   all() { return this.children.flatMap(node => [node, ...node.all()]); }
   querySelectorAll(selector) { return this.all().filter(node => node.className.split(' ').includes(selector.slice(1))); }
 }
-async function menuPage({ supported = true, top = false } = {}) {
+async function menuPage({ supported = true, top = false, stateReply } = {}) {
   const source = (await readFile(new URL('../src/inline.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
   const rows = await import('../src/rows.js'), { groupsFor } = await import('../src/popup-state.js');
   const nodes = Object.fromEntries(['#status', '#content', '#site', '#viewport', '#state', '#state-icon', '#secure'].map(id => [id, new MenuNode()]));
@@ -295,7 +295,7 @@ async function menuPage({ supported = true, top = false } = {}) {
     location: { hash: '#token' }, window, parent: { postMessage: (...args) => state.posted.push(args) }, URL, crypto,
     document, performance: { now: () => state.now }, IntersectionObserverEntry: Entry,
     IntersectionObserver: class { constructor(fn) { state.callback = fn; } observe() {} }, setInterval() {},
-    chrome: { runtime: { sendMessage: async request => { state.requests.push(request); return request.action === 'state' ? { ok: true, origin: 'https://example.com', entries: [{ entry: 'e', db: 'd', title: 'title', username: 'user', exact: true, hasTotp: false }], locked: 0 } : { ok: true }; } } }
+    chrome: { runtime: { sendMessage: async request => { state.requests.push(request); return request.action === 'state' ? stateReply ?? { ok: true, origin: 'https://example.com', entries: [{ entry: 'e', db: 'd', title: 'title', username: 'user', exact: true, hasTotp: false }], locked: 0 } : { ok: true }; } } }
   };
   vm.runInNewContext(source, context);
   const visible = (fields = {}) => state.callback([{ isIntersecting: true, boundingClientRect: { width: 300, height: 160 }, intersectionRect: { width: 300, height: 160 }, isVisible: true, ...fields }]);
@@ -326,6 +326,17 @@ test('inline page gates trusted actions on the delay, complete intersection and 
   assert.deepEqual(m.state.posted, []);
   const top = await menuPage({ top: true });
   assert.equal(top.state.requests.length, 0);
+});
+test('inline page shows Unlock when the app answers locked, as it does with no database unlocked', async () => {
+  const m = await menuPage({ stateReply: { ok: false, error: 'locked', origin: 'https://example.com' } });
+  m.visible(); await settle();
+  assert.equal(m.context.document.querySelector('#status').textContent, 'locked');
+  assert.match(m.context.document.querySelector('#state-icon').className, /glyph-lock/);
+  const unlock = m.content.querySelectorAll('.kf-primary')[0];
+  assert.equal(unlock.textContent, 'unlock');
+  m.state.now = 1000;
+  await unlock.listeners.click({ isTrusted: true });
+  assert.equal(m.state.requests.filter(r => r.action === 'unlock').length, 1);
 });
 test('inline page treats a sub-pixel clip as fully visible but not a real one', async () => {
   for (const [shownHeight, expected] of [[159.5, 1], [150, 0]]) {

@@ -71,6 +71,8 @@ function render(reply) {
   if (reply.origin) { const url = new URL(reply.origin); site.textContent = url.host; site.title = url.host; secure.hidden = url.protocol !== 'https:'; }
   if (reply.kind) kind = reply.kind;
   if (failure) { showState('error', reason(failure)); content.append(primary(message('tryAgain'), 'state')); return; }
+  // The app answers matches with `locked` when no database is unlocked.
+  if (reply.ok === false && reply.error === 'locked') { showState('locked', message('locked')); content.append(primary(message('unlock'), 'unlock')); return; }
   if (reply.ok === false) { showState('error', reason(reply.error)); content.append(primary(message('tryAgain'), 'state')); return; }
   if (reply.state && reply.state !== 'ready') {
     showState(reply.state, message({ 'host-missing': 'hostMissing', 'app-unavailable': 'appUnavailable', unpaired: 'notPaired', pairing: 'pairBusy', error: 'unavailable' }[reply.state] || 'loading'));

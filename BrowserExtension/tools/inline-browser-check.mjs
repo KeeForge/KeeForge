@@ -1,132 +1,33 @@
 #!/usr/bin/env node
 // Development only: loads the shipped manifest into a disposable headless Chrome with a disposable mock native host,
 // drives test/pages over loopback HTTP and HTTPS with trusted CDP input, and saves screenshots to $SHOTS.
-import { spawn, execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { mkdtemp, mkdir, readFile, writeFile, chmod, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve, basename } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
-const root = fileURLToPath(new URL('..', import.meta.url));
+import { root, sleep, defaultChrome, makeCertificate, pagesHandler as handler, listen, chromeArgs, startChrome, pageTools } from './chrome-cdp.mjs';
 const shots = process.env.SHOTS;
 if (!shots) throw Error('Set SHOTS to a screenshot output directory (the main checkout scratch directory)');
-const sleep = ms => new Promise(done => setTimeout(done, ms));
 const profile = await mkdtemp(join(tmpdir(), 'keeforge-inline-'));
 const control = join(profile, 'control');
 await mkdir(control); await mkdir(shots, { recursive: true });
-execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', join(profile, 'key.pem'), '-out', join(profile, 'cert.pem'), '-days', '1', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1'], { stdio: 'ignore' });
-const handler = async (request, response) => {
-  try {
-    const body = await readFile(join(root, 'test/pages', basename(new URL(request.url, 'http://localhost').pathname)));
-    response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' }); response.end(body);
-  } catch { response.writeHead(404); response.end(); }
-};
-const listen = (server, host, port = 0) => new Promise(done => { server.once('error', done); server.listen(port, host, done); });
-const servers = [createServer(handler), createHttpsServer({ key: await readFile(join(profile, 'key.pem')), cert: await readFile(join(profile, 'cert.pem')) }, handler)];
+const tls = await makeCertificate(profile, ['localhost']);
+const servers = [createServer(handler), createHttpsServer(tls, handler)];
 await listen(servers[0], '127.0.0.1'); await listen(servers[1], '127.0.0.1');
 const port = servers[0].address().port, httpsPort = servers[1].address().port;
 // Chrome may resolve localhost to ::1 first.
-for (const [i, p] of [[0, port], [1, httpsPort]]) { const v6 = i ? createHttpsServer({ key: await readFile(join(profile, 'key.pem')), cert: await readFile(join(profile, 'cert.pem')) }, handler) : createServer(handler); await listen(v6, '::1', p); servers.push(v6); }
+for (const [i, p] of [[0, port], [1, httpsPort]]) { const v6 = i ? createHttpsServer(tls, handler) : createServer(handler); await listen(v6, '::1', p); servers.push(v6); }
 const secure = `https://localhost:${httpsPort}`;
-const chrome = spawn(process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
-  '--headless=new', `--user-data-dir=${profile}`, '--remote-debugging-pipe', '--enable-unsafe-extension-debugging', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-default-apps', '--use-mock-keychain', '--password-store=basic',
-  '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1', '--ignore-certificate-errors', '--force-device-scale-factor=2', '--window-size=1100,760', 'about:blank'
-], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
-let stderr = ''; chrome.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-8000); });
-const pending = new Map(); let nextId = 0, buffer = '';
-chrome.stdio[4].on('data', chunk => {
-  buffer += chunk;
-  for (let end; (end = buffer.indexOf('\0')) >= 0;) {
-    const message = JSON.parse(buffer.slice(0, end)); buffer = buffer.slice(end + 1);
-    const waiter = message.id && pending.get(message.id);
-    if (waiter) { clearTimeout(waiter.timer); pending.delete(message.id); message.error ? waiter.reject(Error(waiter.method + ': ' + message.error.message)) : waiter.resolve(message.result); }
-  }
-});
-chrome.once('exit', (code, signal) => { for (const waiter of pending.values()) { clearTimeout(waiter.timer); waiter.reject(Error(`Chrome exited (${signal || code})`)); } pending.clear(); });
-const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
-  const id = ++nextId, timer = setTimeout(() => { pending.delete(id); reject(Error('timeout: ' + method)); }, 15000);
-  pending.set(id, { resolve, reject, method, timer });
-  chrome.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0');
-});
+const chrome = startChrome(process.env.CHROME || defaultChrome, [...chromeArgs(profile),
+  '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1', '--ignore-certificate-errors', '--force-device-scale-factor=2', '--window-size=1100,760']);
+const { send } = chrome;
 const results = [];
 function check(name, value, detail = '') { assert.ok(value, name + (detail ? ': ' + detail : '')); results.push(name); console.log('PASS ' + name + (detail ? ` (${detail})` : '')); }
-async function evaluate(session, expression) {
-  const r = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, session);
-  if (r.exceptionDetails) throw Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
-  return r.result.value;
-}
-async function waitFor(fn, label, tries = 80) {
-  let value;
-  for (let i = 0; i < tries; i++) { try { value = await fn(); if (value) return value; } catch (error) { value = error.message; } await sleep(100); }
-  throw Error('timeout waiting for ' + label + ': ' + JSON.stringify(value));
-}
 let theme = 'light';
 async function applyTheme(session) { await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] }, session).catch(() => {}); }
-async function attach(targetId) {
-  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
-  await send('Runtime.enable', {}, sessionId); await applyTheme(sessionId);
-  return sessionId;
-}
-async function tab(url) {
-  const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
-  const session = await attach(targetId);
-  await send('Page.enable', {}, session); await send('DOM.enable', {}, session);
-  await send('Emulation.setFocusEmulationEnabled', { enabled: true }, session);
-  await send('Page.navigate', { url }, session);
-  await waitFor(() => evaluate(session, `document.readyState === 'complete' && location.href === ${JSON.stringify(url)}`), url);
-  await sleep(700);
-  return { session, targetId };
-}
-async function click(session, x, y) {
-  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, session);
-  for (const type of ['mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 }, session);
-}
-async function key(session, keyName, code = keyName) {
-  for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: keyName, code, windowsVirtualKeyCode: { Enter: 13, Escape: 27 }[keyName] }, session);
-}
-async function nodes(session) {
-  const tree = await send('DOM.getDocument', { depth: -1, pierce: true }, session);
-  const found = [];
-  (function walk(node, shadow) { found.push({ ...node, shadow }); for (const child of node.children || []) walk(child, shadow); for (const root of node.shadowRoots || []) walk(root, root.shadowRootType); })(tree.root, null);
-  return found;
-}
-// Our UI is the only closed shadow root on these fixtures; boxes are in viewport CSS pixels.
-async function ui(session, name) {
-  const boxes = [];
-  for (const node of (await nodes(session)).filter(n => n.nodeName === name && n.shadow === 'closed')) {
-    try { const q = (await send('DOM.getBoxModel', { backendNodeId: node.backendNodeId }, session)).model.border; boxes.push({ id: node.backendNodeId, left: q[0], top: q[1], right: q[2], bottom: q[5] }); }
-    catch { boxes.push({ id: node.backendNodeId, hidden: true }); }
-  }
-  return boxes;
-}
-const visibleButtons = async session => (await ui(session, 'BUTTON')).filter(b => !b.hidden);
-const rect = (session, selector) => evaluate(session, `(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; })()`);
-const buttonFor = async (session, selector) => { const r = await rect(session, selector); return (await visibleButtons(session)).find(b => b.top >= r.top && b.bottom <= r.bottom && b.left >= r.left && b.right <= r.right); };
-const menus = async () => (await send('Target.getTargets')).targetInfos.filter(t => t.type === 'iframe' && t.url.includes('/inline.html'));
-async function openMenu(page, selector) {
-  const before = new Set((await menus()).map(t => t.targetId));
-  const b = await waitFor(() => buttonFor(page.session, selector), 'button for ' + selector);
-  await click(page.session, (b.left + b.right) / 2, (b.top + b.bottom) / 2);
-  const target = await waitFor(async () => (await menus()).find(t => !before.has(t.targetId)), 'menu for ' + selector);
-  return attach(target.targetId);
-}
-const text = session => evaluate(session, 'document.body.innerText');
-async function menuClick(page, menu, selector) {
-  const [frame] = await ui(page.session, 'IFRAME');
-  const point = await evaluate(menu, `(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
-  await click(page.session, frame.left + point[0], frame.top + point[1]);
-}
-// Positive actions retry: a click inside the visibility window is refused by design, and is reported.
-async function menuAct(page, menu, selector, done, label) {
-  for (let attempt = 1; attempt <= 4; ++attempt) {
-    await menuClick(page, menu, selector);
-    for (let i = 0; i < 15; ++i) { if (await done().catch(() => false)) { if (attempt > 1) console.log(`  note: ${label} needed ${attempt} clicks`); return; } await sleep(100); }
-  }
-  throw Error('menu action had no effect: ' + label);
-}
-const values = session => evaluate(session, `Object.fromEntries([...document.querySelectorAll('input')].map(i => [i.id, i.value]))`);
+const { evaluate, waitFor, attach, tab, click, key, nodes, ui, visibleButtons, rect, buttonFor, menus, openMenu, text, menuClick, menuAct, values } = pageTools(send, { onAttach: applyTheme });
 const log = async () => (await readFile(join(control, 'log.jsonl'), 'utf8').catch(() => '')).split('\n').filter(Boolean).map(line => JSON.parse(line));
 const requests = async type => (await log()).filter(entry => entry.request === type);
 const setMock = state => writeFile(join(control, 'state.json'), JSON.stringify(state));
@@ -474,8 +375,7 @@ try {
 } catch (error) {
   console.error(error); console.error('mock log tail', JSON.stringify((await log()).slice(-12))); process.exitCode = 1;
 } finally {
-  chrome.kill('SIGTERM');
-  await Promise.race([new Promise(done => chrome.once('exit', done)), sleep(3000).then(() => chrome.kill('SIGKILL'))]);
+  await chrome.stop();
   for (const pid of new Set((await log()).map(entry => entry.pid))) { try { process.kill(pid); } catch {} }
   for (const server of servers) server.close();
   await rm(profile, { recursive: true, force: true });

@@ -17,11 +17,11 @@ final class MacBrowserBridgeUITests: MacUITestCase {
         app.launchArguments += ["-KeeForge.blockScreenCapture", "NO"]
     }
 
-    private var client: BridgeClient?
+    private var client: E2EDriverProcess?
 
     override func tearDown() async throws {
         if let client {
-            if testRun?.hasSucceeded == false { attachText(client.transcript, named: "client-transcript-on-failure") }
+            if (testRun?.totalFailureCount ?? 0) > 0 { attachText(client.transcript, named: "client-transcript-on-failure") }
             client.stop()
         }
         client = nil
@@ -32,7 +32,7 @@ final class MacBrowserBridgeUITests: MacUITestCase {
         try failIfSystemAlertIsShown()
         // The client starts first, so a missing launcher costs seconds, not the whole run.
         let hostURL = try embeddedHostURL()
-        let client = try BridgeClient(script: try clientScriptURL(), host: hostURL)
+        let client = try E2EDriverProcess(script: try browserToolURL("e2e-client.mjs"), arguments: ["--host", hostURL.path])
         self.client = client
         let ready = try XCTUnwrap(client.waitForEvent("client-ready", after: 0, timeout: 10) { _ in true },
                                   "The client did not start through NSUserUnixTask:\n\(client.transcript)")
@@ -71,7 +71,7 @@ final class MacBrowserBridgeUITests: MacUITestCase {
         XCTAssertTrue(alertCode.waitForExistence(timeout: 10), "No pairing alert appeared")
         XCTAssertEqual(alertCode.value as? String, MacBrowserBridgeUITests.grouped(firstCode),
                        "The alert's code differs from the client's")
-        XCTAssertTrue(pairingTitle().waitForExistence(timeout: 5), "The alert does not name the browser")
+        XCTAssertTrue(pairingTitle(browser: Self.browserName).waitForExistence(timeout: 5), "The alert does not name the browser")
         let allowAtFirstSight = app.buttons["browser-pairing.allow"].firstMatch.isEnabled
         snap("04-pairing-alert")
         app.typeKey(.return, modifierFlags: [])
@@ -160,11 +160,7 @@ final class MacBrowserBridgeUITests: MacUITestCase {
         let onAgain = try XCTUnwrap(client.call(["cmd": "open"], timeout: 20))
         XCTAssertEqual(onAgain["state"] as? String, "ready", "The paired client did not reconnect: \(onAgain)")
         // The host's launch fronted the Databases window; Lock needs the database window key.
-        app.menuBars.menuBarItems["Window"].firstMatch.click()
-        let windowItem = app.menuBars.menuBarItems["Window"].menuItems.matching(
-            NSPredicate(format: "title == %@ OR title BEGINSWITH %@", "kitchen-sink", "kitchen-sink (")).firstMatch
-        XCTAssertTrue(windowItem.waitForExistence(timeout: 5), "No Window-menu item for the database")
-        windowItem.click()
+        frontDatabaseWindow(named: "kitchen-sink")
         typeCommandShortcut("l")
         XCTAssertTrue(waitForLockedState(in: databaseWindow), "⌘L did not lock the database")
         let lockedMatches = try request(client, "matches", ["origin": Self.origin])
@@ -189,36 +185,9 @@ final class MacBrowserBridgeUITests: MacUITestCase {
         attachText("host: \(hostURL.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))", named: "host-path")
     }
 
-    // MARK: - Start-up state
-
-    /// System agents whose alerts float above every app and take its clicks.
-    private static let alertAgents = ["com.apple.UserNotificationCenter", "com.apple.coreservices.uiagent",
-                                      "com.apple.accessibility.universalAccessAuthWarn", "com.apple.SecurityAgent"]
-
-    /// A system alert left on screen (a consent or privacy prompt) makes every later step fail
-    /// in ways that look like product failures, so it fails the test first, naming the alert.
-    private func failIfSystemAlertIsShown() throws {
-        var shown: [String] = []
-        for identifier in Self.alertAgents {
-            let agent = XCUIApplication(bundleIdentifier: identifier)
-            guard agent.state != .notRunning else { continue }
-            let windows = agent.windows.allElementsBoundByIndex + agent.dialogs.allElementsBoundByIndex
-            for window in windows where window.exists && window.frame.width > 1 {
-                let texts = window.staticTexts.allElementsBoundByIndex.prefix(3).map(displayText(of:))
-                shown.append("\(identifier): \(texts.joined(separator: " / "))")
-            }
-        }
-        guard shown.isEmpty else {
-            snap("00-system-alert")
-            throw NSError(domain: "MacBrowserBridgeUITests", code: 4, userInfo: [NSLocalizedDescriptionKey:
-                "A system alert covers the app, so this run cannot test KeeForge; the owner must dismiss it: "
-                + shown.joined(separator: "; ")])
-        }
-    }
-
     // MARK: - Client
 
-    private func request(_ client: BridgeClient, _ type: String, _ fields: [String: Any] = [:],
+    private func request(_ client: E2EDriverProcess, _ type: String, _ fields: [String: Any] = [:],
                          file: StaticString = #filePath, line: UInt = #line) throws -> [String: Any] {
         let reply = client.send(["cmd": "request", "type": type, "fields": fields])
         let result = try XCTUnwrap(client.waitForResult(reply, timeout: 20, any: true),
@@ -228,241 +197,5 @@ final class MacBrowserBridgeUITests: MacUITestCase {
             return [:]
         }
         return result["result"] as? [String: Any] ?? [:]
-    }
-
-    private func embeddedHostURL() throws -> URL {
-        // The runner sits beside the app under test in the build products folder.
-        let products = Bundle(for: Self.self).bundleURL
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let host = products.appendingPathComponent("KeeForge.app/Contents/MacOS/keeforge-browser-host")
-        guard FileManager.default.isExecutableFile(atPath: host.path) else {
-            throw NSError(domain: "MacBrowserBridgeUITests", code: 1,
-                          userInfo: [NSLocalizedDescriptionKey: "No embedded host at \(host.path)"])
-        }
-        return host
-    }
-
-    private func clientScriptURL() throws -> URL {
-        let script = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("BrowserExtension/tools/e2e-client.mjs")
-        guard FileManager.default.fileExists(atPath: script.path) else {
-            throw NSError(domain: "MacBrowserBridgeUITests", code: 2,
-                          userInfo: [NSLocalizedDescriptionKey: "No client script at \(script.path)"])
-        }
-        return script
-    }
-
-    // MARK: - Settings ▸ Browsers
-
-    private func openBrowsersSettings() {
-        // Also fronts a Settings window left behind another window.
-        typeCommandShortcut(",")
-        XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15), "⌘, did not open Settings")
-        selectSettingsTab(named: "Browsers")
-        XCTAssertTrue(bridgeSwitchQuery.firstMatch.waitForExistence(timeout: 10), "Browsers tab has no switch")
-    }
-
-    private var bridgeSwitchQuery: XCUIElementQuery {
-        settingsWindow.descendants(matching: .any).matching(identifier: "settings.browsers.toggle")
-    }
-
-    private func bridgeSwitch() -> XCUIElement {
-        bridgeSwitchQuery.allElementsBoundByIndex.first {
-            $0.isHittable && ($0.elementType == .switch || $0.elementType == .checkBox)
-        } ?? bridgeSwitchQuery.firstMatch
-    }
-
-    private func bridgeSwitchValue() -> Int? {
-        bridgeSwitch().value as? Int
-    }
-
-    private func waitForSwitch(_ value: Int) -> Bool {
-        waitFor { self.bridgeSwitchValue() == value }
-    }
-
-    private func unavailabilityText() -> String? {
-        let texts = settingsWindow.staticTexts.matching(NSPredicate(
-            format: "value CONTAINS %@ OR value CONTAINS %@ OR label CONTAINS %@ OR label CONTAINS %@",
-            "can’t connect", "isn’t signed", "can’t connect", "isn’t signed"))
-        guard texts.firstMatch.exists else { return nil }
-        return displayText(of: texts.firstMatch)
-    }
-
-    private func pairedListShows(_ name: String) -> Bool {
-        settingsWindow.staticTexts.matching(NSPredicate(format: "value == %@ OR label == %@", name, name)).firstMatch.exists
-    }
-
-    private func pairedRemoveButtons() -> XCUIElementQuery {
-        settingsWindow.buttons.matching(NSPredicate(
-            format: "identifier BEGINSWITH 'settings.browsers.paired.' AND identifier ENDSWITH '.remove'"))
-    }
-
-    private func removeAllPairings() {
-        let removeAll = settingsWindow.buttons["settings.browsers.remove-all"].firstMatch
-        guard removeAll.waitForExistence(timeout: 2) else { return }
-        removeAll.click()
-        confirmRemoval()
-        XCTAssertTrue(removeAll.waitForNonExistence(timeout: 10), "Remove All did not empty the list")
-    }
-
-    private func confirmRemoval() {
-        let confirm = app.buttons["settings.browsers.remove.confirm"].firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "No removal confirmation")
-        confirm.click()
-    }
-
-    // MARK: - Pairing alert
-
-    private func pairingCodeElement() -> XCUIElement {
-        app.descendants(matching: .any).matching(identifier: "browser-pairing.code").firstMatch
-    }
-
-    private func pairingTitle() -> XCUIElement {
-        let title = "Pair with “\(Self.browserName)”?"
-        return app.staticTexts.matching(NSPredicate(format: "value == %@ OR label == %@", title, title)).firstMatch
-    }
-
-    static func grouped(_ code: String) -> String {
-        "\(code.prefix(3)) \(code.suffix(3))"
-    }
-
-    // MARK: - Evidence
-
-    private func waitFor(timeout: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        repeat {
-            if condition() { return true }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
-        } while Date() < deadline
-        return false
-    }
-
-    private func snap(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
-    private func attachText(_ text: String, named name: String) {
-        let attachment = XCTAttachment(string: text)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-}
-
-/// `e2e-client.mjs`, started outside the runner's sandbox: JSON commands in, JSON lines out.
-///
-/// The runner is App Sandboxed, so a child it spawns stays in its sandbox and cannot give the host
-/// a sandbox of its own. `NSUserUnixTask` runs a script from the runner's Application Scripts
-/// folder outside that sandbox, as a browser would start the host.
-private final class BridgeClient: @unchecked Sendable {
-    static let runnerScriptName = "keeforge-e2e-client"
-    private let input = Pipe()
-    // Held for the client's lifetime: releasing a pipe closes the end the client writes to.
-    private let output = Pipe()
-    private let errors = Pipe()
-    private let lock = NSLock()
-    private var buffer = Data()
-    private var lines: [[String: Any]] = []
-    private var raw = ""
-    private var nextID = 1
-    private var finished = false
-
-    init(script: URL, host: URL) throws {
-        let scripts = try? FileManager.default.url(for: .applicationScriptsDirectory, in: .userDomainMask,
-                                                   appropriateFor: nil, create: false)
-        let launcher = scripts?.appendingPathComponent(Self.runnerScriptName)
-        guard let launcher, FileManager.default.isExecutableFile(atPath: launcher.path) else {
-            throw NSError(domain: "MacBrowserBridgeUITests", code: 3, userInfo: [NSLocalizedDescriptionKey:
-                "No executable \(launcher?.path ?? "Application Scripts folder (is the runner sandboxed?)"). "
-                + "Install BrowserExtension/tools/e2e-client-launcher.sh there as \(Self.runnerScriptName)."])
-        }
-        let task = try NSUserUnixTask(url: launcher)
-        task.standardInput = input.fileHandleForReading
-        task.standardOutput = output.fileHandleForWriting
-        task.standardError = errors.fileHandleForWriting
-        output.fileHandleForReading.readabilityHandler = { [weak self] handle in self?.receive(handle.availableData) }
-        errors.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let text = String(decoding: handle.availableData, as: UTF8.self)
-            guard let self, !text.isEmpty else { return }
-            self.lock.withLock { self.raw += "[stderr] " + text }
-        }
-        task.execute(withArguments: [script.path, "--host", host.path]) { [weak self] error in
-            guard let self else { return }
-            self.lock.withLock {
-                self.finished = true
-                self.raw += "[client finished\(error.map { ": \($0.localizedDescription)" } ?? "")]\n"
-            }
-        }
-    }
-
-    var transcript: String { lock.withLock { raw } }
-    var lineCount: Int { lock.withLock { lines.count } }
-
-    private func receive(_ data: Data) {
-        lock.withLock {
-            buffer.append(data)
-            while let newline = buffer.firstIndex(of: 0x0A) {
-                let line = buffer[buffer.startIndex..<newline]
-                buffer.removeSubrange(buffer.startIndex...newline)
-                raw += String(decoding: line, as: UTF8.self) + "\n"
-                if let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] { lines.append(object) }
-            }
-        }
-    }
-
-    @discardableResult
-    func send(_ command: [String: Any]) -> Int {
-        let id = lock.withLock { () -> Int in defer { nextID += 1 }; return nextID }
-        var command = command
-        command["id"] = id
-        guard var data = try? JSONSerialization.data(withJSONObject: command) else { return id }
-        data.append(0x0A)
-        lock.withLock { raw += "> " + String(decoding: data, as: UTF8.self) }
-        input.fileHandleForWriting.write(data)
-        return id
-    }
-
-    /// The `result` of a command that succeeded in the client.
-    func call(_ command: [String: Any], timeout: TimeInterval = 20) -> [String: Any]? {
-        waitForResult(send(command), timeout: timeout)
-    }
-
-    /// The command's `result`, or with `any` the whole reply line, including a failure.
-    func waitForResult(_ id: Int, timeout: TimeInterval, any: Bool = false) -> [String: Any]? {
-        guard let line = waitFor(after: 0, timeout: timeout, { $0["id"] as? Int == id && $0["done"] != nil }) else { return nil }
-        if any { return line }
-        if line["done"] as? Bool == true { return line["result"] as? [String: Any] }
-        return ["error": line["error"] ?? "unknown"]
-    }
-
-    func waitForEvent(_ name: String, id: Int, timeout: TimeInterval) -> [String: Any]? {
-        waitFor(after: 0, timeout: timeout) { $0["event"] as? String == name && $0["id"] as? Int == id }
-    }
-
-    func waitForEvent(_ name: String, after start: Int, timeout: TimeInterval,
-                      _ predicate: @escaping ([String: Any]) -> Bool) -> [String: Any]? {
-        waitFor(after: start, timeout: timeout) { $0["event"] as? String == name && predicate($0) }
-    }
-
-    private func waitFor(after start: Int, timeout: TimeInterval, _ predicate: ([String: Any]) -> Bool) -> [String: Any]? {
-        let deadline = Date().addingTimeInterval(timeout)
-        repeat {
-            let snapshot = lock.withLock { lines }
-            if start < snapshot.count, let match = snapshot[start...].first(where: predicate) { return match }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        } while Date() < deadline
-        return nil
-    }
-
-    func stop() {
-        if !lock.withLock({ finished }) {
-            send(["cmd": "quit"])
-            let deadline = Date().addingTimeInterval(3)
-            while !lock.withLock({ finished }), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
-        }
-        try? input.fileHandleForWriting.close()
     }
 }
