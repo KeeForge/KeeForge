@@ -105,5 +105,5 @@ Error codes: `bad-request`, `bad-origin`, `locked` (no unlocked database, or tha
 
 - Nothing is logged that names an origin, a title, a user name or a secret.
 - The extension takes `origin` from the browser's own tab or frame data, never from page script.
-- The extension keeps no credential after filling and caches no `matches` reply across popup openings.
+- The extension keeps no credential after filling and caches no `matches` reply across openings of its popup or in-field menu.
 - The app releases nothing while the bridge is switched off; switching it off closes every connection.

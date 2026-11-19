@@ -40,7 +40,7 @@ Design docs written before or during a feature's implementation. Multi-slice fea
 | 2026-07-26 | `specs/2026-07-26-kdbx-format-hardening/` | ChaCha20 implementation consolidation + unknown KDBX4 inner-header preservation (epic + slices 01–02; from the 2026-07-25 test-suite audit) |
 | 2026-10-21 | `specs/2026-10-21-cloudkit-sync.md` | Proposed opt-in app-managed iCloud vault sync through a private CloudKit database (design only; not implemented) |
 | 2026-11-08 | `specs/2026-11-08-iphone-duo-support.md` | iPhone Duo (foldable) support: layout-switch continuity on open/close, lifecycle and lock checks, AutoFill, test lanes |
-| 2026-11-15 | `specs/2026-11-15-browser-extension.md` | Mac browser extension: native-messaging host, opt-in bridge socket, pairing, design decisions and alternatives (#299) |
+| 2026-11-15 | `specs/2026-11-15-browser-extension.md` | Mac browser extension: native-messaging host, opt-in bridge socket, pairing, design decisions and alternatives, with the 2026-11-18 amendment for filling from the field (#299) |
 
 ## `audits/` — Security Audits
 

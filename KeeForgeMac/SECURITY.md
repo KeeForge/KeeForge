@@ -651,7 +651,8 @@ The browser bridge
 ([MacBrowserBridgeController](../KeeForge/Services/BrowserBridge/MacBrowserBridgeController.swift))
 lets the KeeForge extension for Chrome-family browsers and Firefox
 ([BrowserExtension](../BrowserExtension/README.md)) fill one login at a time from
-an unlocked database. It is off by default (Settings ▸ Browsers). The wire
+an unlocked database, from a key button in a login field or from the
+extension's toolbar popup. It is off by default (Settings ▸ Browsers). The wire
 contract is [browser-bridge-protocol.md](../docs/browser-bridge-protocol.md).
 
 The browser starts the native-messaging host `keeforge-browser-host`, which ships
@@ -742,6 +743,61 @@ or without a prompt inside the grace period. The extension keeps its key
 non-extractable in IndexedDB, which binds WebCrypto callers only; assume a
 process that can read the browser profile can recover it.
 
+The extension holds host access to every `https` page and to `http` on
+`localhost`, `127.0.0.1` and `[::1]`, and runs an isolated-world content script
+in every such frame from `document_start`. It draws a key button, in its own
+colours, at the end of user-name, password and verification-code fields and of
+a lone e-mail or user-name step; documents without inputs get nothing, and
+sandboxed frames and frames smaller than 256×196 px get no buttons (the toolbar
+popup still works there). `activeTab` is kept so the popup works where the user
+limits site access to "on click" or, in Firefox, has not granted host access. A
+compromised extension can read and change all of those pages, not only the ones
+the user fills. Until the user clicks a key button with a real (trusted) click
+or presses Option+Down in the field, the content script sends nothing to the
+extension's background or to the app, and the button looks the same on every
+site whatever the vault holds. The click opens a menu: `inline.html`, the
+extension's only web-accessible page, in an iframe inside a closed shadow root.
+The background builds the menu's session for that tab from the browser's own
+sender data (tab, frame, document, origin) with an unpredictable token and a
+new per-document pin, and asks the app for `matches` only then, for that
+frame's own origin. It accepts menu requests only from its own `inline.html` in
+the same tab while the session is current; the first menu document owns the
+session, and a second load of the menu frame closes it. Opening the toolbar
+popup closes an open menu in that tab.
+
+The menu frame sends the page nothing. It is a fixed 320×264 px card, smaller
+only when the viewport is, and it closes through the background to the
+recorded frame, so the page learns neither the extension's origin nor a handle
+to the frame. The page can see, remove or restyle the button's host element;
+it can find the buttons and the card by hit-testing, though the card's box
+depends only on the field's position and the viewport; it can tell from focus
+when the menu opens and closes; and it can read what is filled. It cannot read
+the closed root, the menu's URL or token, or the logins. A lone user-name step
+gets only the user name, but the app still releases the password to the
+extension, because the protocol has no user-name-only request.
+
+Against clickjacking, every control in the menu acts only on a trusted event
+once the menu has been fully visible without a break for 300 ms, 300 ms after
+it opened and 300 ms after its rows last changed. In Chrome it also requires
+IntersectionObserver v2's `isVisible`, so an overlay or opacity on the button
+host or the page makes it refuse; a site with full-viewport overlays can make
+it unusable. Firefox has no such detection, so there a fill needs a second
+click, at least 300 ms later, on a Fill button at a random horizontal offset in
+the row. The menu closes if it or its field moves more than 1 px (scrolling
+included), its host is restyled, or the viewport or URL changes. What remains
+is a page script moving the menu in the same animation frame as the user's
+click; the page gets no mouse-down for clicks inside the menu, so it must guess
+the timing. To let the menu load, the extension's pages allow `https` and
+loopback framing; `popup.html` and `pair.html` are not web accessible, so pages
+cannot frame or fetch them, and Chrome gives pages no usable URL for
+`inline.html`. Whatever the page does, a fill still needs an entry the app
+offered for that origin and the device-owner check above. An adversarial
+review of this surface found no way to have a credential requested for one
+origin and injected into another; the issues it did find (state leaking
+through frame messages, frame replacement, clickjacking by moving the menu, an
+invisible button, a close a page could block, and tests that passed with checks
+removed) are fixed.
+
 Setting up a browser writes `com.keevault.browser.json`, naming the host's
 absolute path and the allowed extension IDs, into that browser's
 `NativeMessagingHosts` folder after the user grants it in an open panel
@@ -759,13 +815,24 @@ builds only. The manifest's allowed-extension list is a filter the browser
 applies, not a security boundary: any same-user process can rewrite the file or
 connect to the socket directly, and nothing verifies the browser binary.
 
-Not yet verified: a signed, sandboxed build end to end (whether the host reaches
-the group container, and whether macOS container protection prompts for or
-refuses an unsandboxed process that connects to the socket), a real Chrome or
-Firefox, the Chromium store extension ID (none is configured, so release builds
-refuse to set up Chromium browsers), and the pairing alert's keyboard behavior
-and activation over a browser. The code has unit tests only. The same-user peer
-check has no test with a peer of another user.
+`MacBrowserBridgeUITests` passes on a development-signed, sandboxed build with
+the real embedded host, started outside the test runner's sandbox: the
+Browsers switch, the pairing alert with a matching code, Return declining and
+Allow pairing, status, matches and a credential with real fixture values,
+Remove, switching off, a locked database and its unlock, and Remove All. The
+extension has run in real headless Chrome 158 against the development mock
+host with trusted input, and in Firefox 160 for the key button and the menu
+frame only (no native host could be registered there). Not yet verified: a real
+browser talking to the real app, Touch ID (skipped under UI testing) including
+through the in-field menu, pairing, filling and the two-click confirm in
+Firefox, headed Chrome, right-to-left layouts, the menu inside a modal dialog
+as drawn, the back/forward cache and a background restart while Touch ID
+waits, store-signed extensions and a distribution-signed app (including
+whether macOS container protection prompts for or refuses an unsandboxed
+process that connects to the socket), the Chromium store extension ID (none is
+configured, so release builds refuse to set up Chromium browsers), and whether
+the pairing alert comes forward over a browser. The same-user peer check has no
+test with a peer of another user.
 
 ## Plaintext attachment files and disk encryption
 

@@ -366,10 +366,15 @@ Setup: turn the bridge on, click Set Up… for each installed browser and grant 
 folder KeeForge suggests in the open panel with Grant Access (KeeForge writes
 `com.keevault.browser.json` there), install the extension, and choose Pair in it.
 Allow the pairing only when the code in the alert matches the one in the
-browser's pairing tab. Release builds can set up Firefox only until the Chromium
-store extension ID is added to `BrowserBridgeIdentifiers.swift`; debug builds
-also allow the development ID. None of this has run in a signed build or a real
-browser yet.
+browser's pairing tab. Then click the key button the extension draws in a login
+or verification-code field (or press Option-Down there), or its toolbar button,
+and choose a login. Release
+builds can set up Firefox only until the Chromium store extension ID is added to
+`BrowserBridgeIdentifiers.swift`; debug builds also allow the development ID.
+`MacBrowserBridgeUITests` passes against a development-signed build and its
+embedded host, without a browser; the extension has run in real Chrome and
+Firefox only against the development mock host, so filling from a real browser
+through the app, and Touch ID, are not yet verified.
 
 ## Build contracts
 
