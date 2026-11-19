@@ -180,7 +180,7 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
             Task { @MainActor in Self.observe(predicate, done: done) }
         }
     }
-    private func start(gate: @escaping BrowserBridgeRequestHandler.DeviceOwnerAuthenticator = { _ in true }) async {
+    private func start(gate: @escaping BrowserBridgeRequestHandler.DeviceOwnerAuthenticator = { _, _ in true }) async {
         controller = MacBrowserBridgeController(defaults: defaults, store: store, socketPath: path,
             appVersion: "test", sessionsProvider: { [weak self] in self?.sessions ?? [] },
             clock: clock.bridgeClock, authenticateDeviceOwner: gate)
@@ -282,7 +282,7 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
         let (session, entry) = try await makeSession()
         let entered = expectation(description: "Device owner gate entered")
         var release: CheckedContinuation<Bool, Never>?
-        await start(gate: { _ in
+        await start(gate: { _, _ in
             await withCheckedContinuation { release = $0; entered.fulfill() }
         })
         var client = client(); let socket = try connect()

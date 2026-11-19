@@ -34,6 +34,7 @@ final class MacBrowserBridgeSettingsModel {
     @ObservationIgnored private let installer: any BrowserHostInstalling
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let locale: Locale
+    @ObservationIgnored private let canAuthenticateDeviceOwner: () -> Bool
 
     private(set) var hostRows: [HostRow] = []
     private(set) var hostErrors: [HostBrowser: BrowserHostInstallerError] = [:]
@@ -42,11 +43,13 @@ final class MacBrowserBridgeSettingsModel {
     private(set) var removalFailed = false
 
     init(controller: MacBrowserBridgeController, installer: any BrowserHostInstalling,
-         now: @escaping () -> Date = { Date() }, locale: Locale = .autoupdatingCurrent) {
+         now: @escaping () -> Date = { Date() }, locale: Locale = .autoupdatingCurrent,
+         canAuthenticateDeviceOwner: @escaping () -> Bool = { BiometricService.canAuthenticateDeviceOwner }) {
         self.controller = controller
         self.installer = installer
         self.now = now
         self.locale = locale
+        self.canAuthenticateDeviceOwner = canAuthenticateDeviceOwner
         refreshHosts()
     }
 
@@ -68,6 +71,12 @@ final class MacBrowserBridgeSettingsModel {
         case nil:
             nil
         }
+    }
+
+    /// The bridge releases nothing without device-owner authentication or its grace period.
+    var authenticationUnavailableMessage: String? {
+        canAuthenticateDeviceOwner() ? nil
+            : String(localized: "This Mac can’t ask for your login password or Touch ID, so browser extensions can fill only during the authentication grace period after you unlock a database.")
     }
 
     var pairedRows: [PairedRow] {

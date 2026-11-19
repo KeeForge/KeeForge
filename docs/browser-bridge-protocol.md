@@ -14,7 +14,7 @@ extension  <-- native messaging (stdio) -->  host  <-- Unix socket -->  Mac app 
 - **Limits:** the JSON of a frame sent toward the app is at most 65,536 bytes; toward the extension, at most 1,048,576 bytes. The 4-byte length is not counted. A longer frame is a protocol error: the receiver closes the connection.
 - **Socket:** `b.sock` in the container of the app group `<TeamID>.com.keevault.browser`, mode 0600. The app accepts only peers whose effective user is its own (`getpeereid`), and at most 64 connections.
 - **Deadlines:** the app closes a connection that has not sent `hello` or `pair-commit` within 10 seconds of connecting, and one whose peer stops reading: a write that waits 5 seconds, or too much work queued behind a stalled write, closes it.
-- **Native host name:** `com.keevault.browser`. Firefox extension id: `browser-extension@keeforge.com`.
+- **Native host name:** `com.keevault.browser`. Firefox extension id: `browser-extension@keeforge.com`. Chromium-family browsers: only debug builds carry an extension ID (the unpacked development key's); release builds have none until the Chrome Web Store assigns one, so setting up a Chromium-family browser fails in a release build. This is an open release blocker for Chromium-family browsers.
 - The host forwards every frame unchanged, in both directions, except the host control frames in section 2. It never parses or logs any other frame.
 
 ## 2. Host control frames
@@ -92,14 +92,15 @@ Requests come from the extension and carry an integer `id` chosen by it (0 to 2^
 | `{"type":"reveal"}` | `"entry"`, `"db"` | none |
 | `{"type":"unlock"}` | optional `"db"` | none |
 
-- `origin` is a serialized web origin: `https://host` or `https://host:port`. `http://` is accepted only for `localhost`, `127.0.0.1` and `[::1]`. Anything else is `bad-origin`.
+- `origin` is a serialized web origin, as the browser serializes it: `https://host` or `https://host:port`, printable ASCII only (an internationalized host in punycode). `http://` is accepted only for `localhost`, `127.0.0.1` and `[::1]`. Anything else is `bad-origin`.
 - `entry` and `db` are UUID strings. `username` is already resolved (field references included); `matches` never contains a password, a code, or any other field.
-- `matches` returns the entries the app's site matcher offers for that origin from every database that is unlocked and has no lock pending, at most 50. `title`, `username` and `dbName` are cut to 256 characters, and rows are dropped from the end until the reply fits the frame limit; only the rows returned are offered. `"exact": true` marks an entry that lists this host itself; the others are possible matches on a related host of the same site, listed after the exact ones, and the extension shows them apart.
+- `matches` allows a burst of 10 per connection, then 5 a second; more is `rate-limited`, whatever the origin. It returns the entries the app's site matcher offers for that origin from every database that is unlocked and has no lock pending, at most 50. `title`, `username` and `dbName` are cut to 256 characters, and rows are dropped from the end until the reply fits the frame limit; only the rows returned are offered. `"exact": true` marks an entry that lists this host itself; the others are possible matches on a related host of the same site, listed after the exact ones, and the extension shows them apart.
 - `credential` is answered only for an `entry`/`db` pair that a `matches` reply on this connection returned for the same `origin`; otherwise `not-offered`. The app matches again (the entry must still be an exact or possible match for the origin) and checks the lock state again before answering. The reply can take as long as a device-owner prompt; the extension waits up to 120 seconds.
+- The app releases a `credential` only inside the database's grace period (which a successful unlock or device-owner authentication starts) or after the user passes a device-owner prompt that names the entry's title and the origin's host (in punycode, without its port or a leading `www.`). On a Mac that cannot authenticate its owner, a request outside the grace period is `denied` without a prompt.
 - A `credential` request with `"totp": true` asks for the code alone: its reply never contains `username` or `password`, and an entry without a code is `unavailable`. A request without `"totp"` is never answered with a code. The extension rejects a reply that carries the other kind's fields as `bad-request`.
 - `reveal` fronts that database's window and selects the entry. `unlock` fronts the named database's locked window, or the Databases window. Together they allow a burst of 3 per connection, then one per second; more is `rate-limited`.
 
-Error codes: `bad-request`, `bad-origin`, `locked` (no unlocked database, or that one locked since), `not-offered`, `no-match` (the entry no longer matches the site), `denied` (the device-owner check failed or was cancelled), `unavailable` (the entry or database is gone, or a code-only request names an entry without a code), `rate-limited`.
+Error codes: `bad-request`, `bad-origin`, `locked` (no unlocked database, or that one locked since), `not-offered`, `no-match` (the entry no longer matches the site), `denied` (the device-owner check failed, was cancelled, or is unavailable outside the grace period), `unavailable` (the entry or database is gone, or a code-only request names an entry without a code), `rate-limited`.
 
 ## 8. Rules both sides keep
 

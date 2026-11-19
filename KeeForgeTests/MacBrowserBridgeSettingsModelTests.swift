@@ -152,6 +152,16 @@ final class MacBrowserBridgeSettingsModelTests: XCTestCase {
         XCTAssertNil(model.unavailabilityMessage)
     }
 
+    func testAuthenticationUnavailableTextFollowsTheDevice() {
+        var available = true
+        let model = MacBrowserBridgeSettingsModel(controller: controller, installer: installer,
+                                                  canAuthenticateDeviceOwner: { available })
+        XCTAssertNil(model.authenticationUnavailableMessage)
+        available = false
+        XCTAssertEqual(model.authenticationUnavailableMessage,
+                       String(localized: "This Mac can’t ask for your login password or Touch ID, so browser extensions can fill only during the authentication grace period after you unlock a database."))
+    }
+
     func testBridgeKeyUnavailabilityText() async throws {
         keychain.fails = true
         let path = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("bs-\(UUID().uuidString.prefix(6))").path

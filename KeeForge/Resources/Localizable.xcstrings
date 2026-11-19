@@ -33063,54 +33063,112 @@
         }
       }
     },
-    "Fill a login in your browser" : {
+    "Fill “%@” on %@ in your browser" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anmeldedaten im Browser ausfüllen"
+            "value" : "„%1$@“ auf %2$@ im Browser ausfüllen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Fill “%1$@” on %2$@ in your browser"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rellenar un inicio de sesión en tu navegador"
+            "value" : "Rellenar «%1$@» en %2$@ en tu navegador"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Remplir des identifiants dans votre navigateur"
+            "value" : "Remplir « %1$@ » sur %2$@ dans votre navigateur"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inserisci credenziali nel browser"
+            "value" : "Inserisci “%1$@” su %2$@ nel browser"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ブラウザでログイン情報を入力"
+            "value" : "ブラウザで %2$@ に「%1$@」を入力"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Заполнить данные для входа в браузере"
+            "value" : "Заполнить «%1$@» на %2$@ в браузере"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在浏览器中填充登录信息"
+            "value" : "在浏览器中为 %2$@ 填充“%1$@”"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在瀏覽器中填寫登入資訊"
+            "value" : "在瀏覽器中為 %2$@ 填寫「%1$@」"
+          }
+        }
+      }
+    },
+    "Fill a login on %@ in your browser" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anmeldedaten auf %@ im Browser ausfüllen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rellenar un inicio de sesión en %@ en tu navegador"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remplir des identifiants sur %@ dans votre navigateur"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci credenziali su %@ nel browser"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザで %@ にログイン情報を入力"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заполнить данные для входа на %@ в браузере"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在浏览器中为 %@ 填充登录信息"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在瀏覽器中為 %@ 填寫登入資訊"
           }
         }
       }
@@ -77331,6 +77389,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此位置沒有子資料夾。"
+          }
+        }
+      }
+    },
+    "This Mac can’t ask for your login password or Touch ID, so browser extensions can fill only during the authentication grace period after you unlock a database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Mac kann nicht nach deinem Anmeldepasswort oder Touch ID fragen. Browsererweiterungen können daher nur während der Karenzzeit für die Authentifizierung nach dem Entsperren einer Datenbank ausfüllen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este Mac no puede pedir tu contraseña de inicio de sesión ni Touch ID, así que las extensiones del navegador solo pueden rellenar durante el periodo de gracia de autenticación después de desbloquear una base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce Mac ne peut pas demander votre mot de passe de session ni Touch ID : les extensions de navigateur ne peuvent donc remplir que pendant le délai de grâce d'authentification après le déverrouillage d'une base de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo Mac non può chiedere la password di login o Touch ID, quindi le estensioni del browser possono compilare solo durante il periodo di tolleranza dell'autenticazione dopo lo sblocco di un database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この Mac ではログインパスワードや Touch ID を求めることができないため、ブラウザ機能拡張はデータベースのロック解除後、認証の猶予時間内にのみ入力できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот Mac не может запросить пароль для входа или Touch ID, поэтому расширения браузера могут заполнять данные только в течение периода без повторной аутентификации после разблокировки базы данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 Mac 无法要求输入登录密码或使用触控 ID，因此浏览器扩展只能在解锁数据库后的身份验证宽限期内填充。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台 Mac 無法要求輸入登入密碼或使用觸控 ID，因此瀏覽器延伸功能只能在解鎖資料庫後的身分驗證寬限期內填寫。"
           }
         }
       }

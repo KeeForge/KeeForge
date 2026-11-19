@@ -17,6 +17,10 @@ struct MacBrowsersSettingsTab: View {
                 if let message = model.unavailabilityMessage {
                     Text(message).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
                 }
+                if let message = model.authenticationUnavailableMessage {
+                    Text(message).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings.browsers.authentication-unavailable")
+                }
                 settingsCaption("When on, a paired browser can see which logins match a site and fill one after you confirm, while a database is unlocked.", indented: true)
             }
             MacSettingsSeparator()

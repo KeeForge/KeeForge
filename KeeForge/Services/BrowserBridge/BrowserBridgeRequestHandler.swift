@@ -9,17 +9,43 @@ import SiteMatching
 @MainActor
 final class BrowserBridgeRequestHandler {
     typealias SessionsProvider = @MainActor () -> [DatabaseViewModel]
-    typealias DeviceOwnerAuthenticator = @MainActor (SecretAccessGate) async -> Bool
+    /// Takes the session's gate and the prompt's reason; true only for a release the owner authorized.
+    typealias DeviceOwnerAuthenticator = @MainActor (SecretAccessGate, _ reason: String) async -> Bool
 
     /// `matches` fields the extension only displays are cut to this many characters.
     static let displayFieldLimit = 256
     /// `reveal` and `unlock` together: a burst of 3, then one per second.
     static let frontBurst = 3
     static let frontInterval: Duration = .seconds(1)
+    /// `matches`: a burst of 10, then 5 per second.
+    static let matchesBurst = 10
+    static let matchesInterval: Duration = .milliseconds(200)
+    /// Longer titles and hosts are cut in the device-owner prompt.
+    static let promptFieldLimit = 64
 
     private struct Pair: Hashable {
         let entry: UUID
         let db: UUID
+    }
+
+    /// A GCRA allowance: `burst` requests at once, then one per `interval`.
+    private struct Allowance {
+        let burst: Int
+        let interval: Duration
+        /// When the allowance is next fully spent (GCRA's theoretical arrival time).
+        private var due: ContinuousClock.Instant?
+
+        init(burst: Int, interval: Duration) {
+            self.burst = burst
+            self.interval = interval
+        }
+
+        mutating func admit(at instant: ContinuousClock.Instant) -> Bool {
+            let next = max(due ?? instant, instant)
+            guard next - instant <= interval * (burst - 1) else { return false }
+            due = next + interval
+            return true
+        }
     }
 
     private let sessionsProvider: SessionsProvider
@@ -33,8 +59,8 @@ final class BrowserBridgeRequestHandler {
     private var activeIDs = Set<Int>()
     private var credentialInFlight = false
     private var credentialTimes: [ContinuousClock.Instant] = []
-    /// When the front allowance is next fully spent (GCRA's theoretical arrival time).
-    private var frontsDue: ContinuousClock.Instant?
+    private var fronts = Allowance(burst: frontBurst, interval: frontInterval)
+    private var matchScans = Allowance(burst: matchesBurst, interval: matchesInterval)
 
     init(
         sessionsProvider: @escaping SessionsProvider,
@@ -52,12 +78,34 @@ final class BrowserBridgeRequestHandler {
         self.now = now
     }
 
-    static func deviceOwnerGate(_ gate: SecretAccessGate) async -> Bool {
-        guard gate.requiresAuthentication else { return true }
+    /// Unlike Copy Password, a Mac that cannot authenticate its owner releases
+    /// nothing outside the grace period: only a grant or a prompt authorizes.
+    static func deviceOwnerGate(_ gate: SecretAccessGate, reason: String) async -> Bool {
+        if gate.isWithinGracePeriod { return true }
+        guard gate.canAuthenticateDeviceOwner else { return false }
         do {
-            try await gate.authenticate(reason: String(localized: "Fill a login in your browser"))
+            try await gate.authenticate(reason: reason)
             return true
         } catch { return false }
+    }
+
+    /// The device-owner prompt's reason for releasing `title` to `origin`, a
+    /// valid origin. Both are sanitized like browser names and capped.
+    static func fillReason(title: String, origin: String) -> String {
+        let host = promptHost(origin)
+        let title = String(BrowserPairingStore.sanitizedName(title).prefix(promptFieldLimit))
+        return title.isEmpty
+            ? String(localized: "Fill a login on \(host) in your browser")
+            : String(localized: "Fill “\(title)” on \(host) in your browser")
+    }
+
+    /// The host as the site matcher compares it: lowercased, IDNs in punycode
+    /// (`URLComponents` would decode them), no port, no leading `www.`. A long
+    /// host keeps its end, where the registrable domain is.
+    private static func promptHost(_ origin: String) -> String {
+        let host = SiteHost(origin)?.name ?? origin
+        guard host.count > promptFieldLimit else { return host }
+        return "…" + host.suffix(promptFieldLimit - 1)
     }
 
     /// Malformed bodies without a usable request ID receive ID zero.
@@ -77,7 +125,8 @@ final class BrowserBridgeRequestHandler {
         }
         guard activeIDs.count < 16 else { return reply(.failure(.rateLimited)) }
         switch request.operation {
-        case .reveal, .unlock: guard admitFront() else { return reply(.failure(.rateLimited)) }
+        case .reveal, .unlock: guard fronts.admit(at: now()) else { return reply(.failure(.rateLimited)) }
+        case .matches: guard matchScans.admit(at: now()) else { return reply(.failure(.rateLimited)) }
         default: break
         }
         let isCredential: Bool
@@ -97,14 +146,6 @@ final class BrowserBridgeRequestHandler {
         await Task.yield()
         guard !Task.isCancelled else { return reply(.failure(.badRequest)) }
         return reply(await perform(request.operation))
-    }
-
-    private func admitFront() -> Bool {
-        let instant = now()
-        let due = max(frontsDue ?? instant, instant)
-        guard due - instant <= Self.frontInterval * (Self.frontBurst - 1) else { return false }
-        frontsDue = due + Self.frontInterval
-        return true
     }
 
     private func perform(_ operation: BrowserBridgeRequest.Operation) async -> BrowserBridgeReply.Result {
@@ -153,7 +194,7 @@ final class BrowserBridgeRequestHandler {
             let codeOnly = totp == true
             guard !codeOnly || offered.hasTOTP else { return .failure(.unavailable) }
             let cycle = source.lockCycleID
-            let authorized = await authenticate(source.secretAccess)
+            let authorized = await authenticate(source.secretAccess, Self.fillReason(title: offered.title, origin: origin))
             guard session(db) === source, Self.isUnlocked(source), source.lockCycleID == cycle else { return .failure(.locked) }
             guard authorized, !Task.isCancelled else { return .failure(.denied) }
             guard let entry = matchingEntry(entryID, in: source, origin: origin) else { return .failure(.noMatch) }
@@ -238,7 +279,8 @@ final class BrowserBridgeRequestHandler {
     }
 
     static func validOrigin(_ origin: String) -> Bool {
-        guard !origin.isEmpty, !origin.contains(where: { $0.isWhitespace || $0.isNewline }),
+        // Browsers serialize origins in ASCII, IDNs in punycode.
+        guard !origin.isEmpty, origin.unicodeScalars.allSatisfy({ (0x21..<0x7F).contains($0.value) }),
               !origin.contains("\\"), !origin.contains("%"),
               let components = URLComponents(string: origin),
               let scheme = components.scheme, ["https", "http"].contains(scheme),

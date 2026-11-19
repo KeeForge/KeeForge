@@ -52,7 +52,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
     }
 
     private func handler(
-        gate: @escaping BrowserBridgeRequestHandler.DeviceOwnerAuthenticator = { _ in true },
+        gate: @escaping BrowserBridgeRequestHandler.DeviceOwnerAuthenticator = { _, _ in true },
         now: @escaping @MainActor () -> ContinuousClock.Instant = { .now }
     ) -> BrowserBridgeRequestHandler {
         BrowserBridgeRequestHandler(sessionsProvider: { [weak self] in self?.sessions ?? [] }, appVersion: "test", authenticateDeviceOwner: gate, now: now)
@@ -74,9 +74,12 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
     }
 
     func testOriginValidation() async {
-        let accepted = ["https://example.com", "https://EXAMPLE.COM", "https://192.168.1.1", "https://example.com:8443", "https://example.com:0", "http://localhost:3000", "http://127.0.0.1", "http://[::1]:3000", "https://[2001:db8::1]"]
-        let rejected = ["", "https://example.com/", "https://example.com/path", "https://a@example.com", "https://a:b@example.com", "https://example.com?x", "https://example.com#x", "http://example.com", "file://example.com", "example.com", "https://", "https://example.com:", "https://example.com:65536", "https://example.com\\@evil.com", " https://example.com", "https://example.com/%2F", "https://example.com?", "https://example.com#", "https://[google.com]", "https://[invalid::address]"]
-        let handler = handler()
+        let accepted = ["https://example.com", "https://EXAMPLE.COM", "https://192.168.1.1", "https://example.com:8443", "https://example.com:0", "http://localhost:3000", "http://127.0.0.1", "http://[::1]:3000", "https://[2001:db8::1]", "https://xn--bcher-kva.de"]
+        let rejected = ["", "https://example.com/", "https://example.com/path", "https://a@example.com", "https://a:b@example.com", "https://example.com?x", "https://example.com#x", "http://example.com", "file://example.com", "example.com", "https://", "https://example.com:", "https://example.com:65536", "https://example.com\\@evil.com", " https://example.com", "https://example.com/%2F", "https://example.com?", "https://example.com#", "https://[google.com]", "https://[invalid::address]",
+                        "https://bücher.de", "https://\u{0430}pple.com", "https://example.com\u{202E}", "https://exa\u{200B}mple.com", "https://example.com\u{7F}"]
+        var instant = ContinuousClock.now
+        // A second apart, under the matches rate limit.
+        let handler = handler(now: { instant += .seconds(1); return instant })
         for value in accepted {
             XCTAssertTrue(BrowserBridgeRequestHandler.validOrigin(value), value)
             let reply = await send(.matches(origin: value), to: handler)
@@ -220,7 +223,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
                 if cancelled { throw CancellationError() }
                 throw NSError(domain: "TestDenied", code: 1)
             })
-            let handler = handler(gate: { _ in await BrowserBridgeRequestHandler.deviceOwnerGate(gate) })
+            let handler = handler(gate: { _, reason in await BrowserBridgeRequestHandler.deviceOwnerGate(gate, reason: reason) })
             _ = try await matches(handler)
             let result = await send(credential(corrupt, session), to: handler)
             XCTAssertEqual(result, .failure(.denied))
@@ -231,7 +234,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         for change in 0..<4 {
             let entry = try entry()
             let session = try await makeSession([entry])
-            let handler = handler(gate: { [self] _ in
+            let handler = handler(gate: { [self] _, _ in
                 switch change {
                 case 0: session.lockRequest(force: true)
                 case 1:
@@ -255,7 +258,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
     func testURLChangedDuringGateIsNoMatch() async throws {
         let entry = try entry()
         let session = try await makeSession([entry])
-        let handler = handler(gate: { _ in
+        let handler = handler(gate: { _, _ in
             try? session.applyEntryEdit(.updateEntry(entryID: entry.id, draft: EntryDraftPayload(title: entry.title, password: "password-Login", url: "https://other.net")))
             return true
         })
@@ -279,10 +282,101 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
             XCTAssertEqual(result, .credential(username: "user", password: "password-Login"))
         }
         XCTAssertEqual(prompts, 1)
-        XCTAssertEqual(reasons, [String(localized: "Fill a login in your browser")])
+        XCTAssertEqual(reasons, [String(localized: "Fill “\("Login")” on \("example.com") in your browser")])
         instant += .seconds(30)
         _ = await send(credential(entry, session), to: handler)
         XCTAssertEqual(prompts, 2)
+    }
+
+    func testUnavailableOwnerAuthenticationReleasesOnlyInsideTheGracePeriod() async throws {
+        var corrupt = KPEntry(title: "Corrupt", password: EncryptedValue(sealedData: Data([1]), hasValue: true), url: origin)
+        corrupt.totpConfig = TOTPConfig(secret: try .encrypt("JBSWY3DPEHPK3PXP", using: key))
+        var prompts = 0
+        let alwaysAsk = SecretAccessGate(gracePeriod: { .alwaysAsk }, isAuthenticationAvailable: { false }, prompt: { _ in prompts += 1 })
+        let session = try await makeSession([corrupt], gate: alwaysAsk)
+        let handler = handler(gate: BrowserBridgeRequestHandler.deviceOwnerGate)
+        _ = try await matches(handler)
+        // Decrypting the corrupt password would answer bad-request; denied means nothing was decrypted.
+        let password = await send(credential(corrupt, session), to: handler)
+        XCTAssertEqual(password, .failure(.denied))
+        let code = await send(credential(corrupt, session, totp: true), to: handler)
+        XCTAssertEqual(code, .failure(.denied))
+        XCTAssertEqual(prompts, 0)
+
+        var instant = ContinuousClock.now
+        let grace = SecretAccessGate(gracePeriod: { .thirtySeconds }, now: { instant }, isAuthenticationAvailable: { false }, prompt: { _ in prompts += 1 })
+        let entry = try entry()
+        let unlocked = try await makeSession([entry], gate: grace)
+        _ = try await matches(handler)
+        let inGrace = await send(credential(entry, unlocked), to: handler)
+        XCTAssertEqual(inGrace, .credential(username: "user", password: "password-Login"), "The unlock's grace period still releases")
+        instant += .seconds(30)
+        let expired = await send(credential(entry, unlocked), to: handler)
+        XCTAssertEqual(expired, .failure(.denied))
+        XCTAssertEqual(prompts, 0)
+    }
+
+    func testFillReasonNamesSanitizedTitleAndHost() {
+        func reason(_ title: String, _ host: String) -> String {
+            String(localized: "Fill “\(title)” on \(host) in your browser")
+        }
+        XCTAssertEqual(BrowserBridgeRequestHandler.fillReason(title: "Bank", origin: "https://example.com"), reason("Bank", "example.com"))
+        XCTAssertEqual(BrowserBridgeRequestHandler.fillReason(title: "Bank", origin: "https://Login.EXAMPLE.com:8443"), reason("Bank", "login.example.com"))
+        XCTAssertEqual(BrowserBridgeRequestHandler.fillReason(title: "Bank", origin: "https://www.example.com"), reason("Bank", "example.com"))
+        XCTAssertEqual(BrowserBridgeRequestHandler.fillReason(title: "Bücher", origin: "https://xn--bcher-kva.de"), reason("Bücher", "xn--bcher-kva.de"),
+                       "An IDN stays in punycode")
+        XCTAssertEqual(BrowserBridgeRequestHandler.fillReason(title: "Dev", origin: "http://[::1]:3000"), reason("Dev", "::1"))
+        for title in ["", " \n\t ", "\u{202E}\u{200B}"] {
+            XCTAssertEqual(BrowserBridgeRequestHandler.fillReason(title: title, origin: "https://example.com"),
+                           String(localized: "Fill a login on \("example.com") in your browser"))
+        }
+
+        let hostile = BrowserBridgeRequestHandler.fillReason(title: "Bank\u{202E}moc.live\n\u{200B}Evil\t\tX\u{2066}", origin: "https://example.com")
+        XCTAssertEqual(hostile, reason("Bankmoc.live Evil X", "example.com"))
+        let forbidden: Set<Unicode.GeneralCategory> = [.control, .format, .lineSeparator, .paragraphSeparator]
+        XCTAssertFalse(hostile.unicodeScalars.contains { forbidden.contains($0.properties.generalCategory) })
+
+        let longTitle = BrowserBridgeRequestHandler.fillReason(title: String(repeating: "x", count: 300), origin: "https://example.com")
+        XCTAssertEqual(longTitle, reason(String(repeating: "x", count: BrowserBridgeRequestHandler.promptFieldLimit), "example.com"))
+
+        let longHost = String(repeating: "a.", count: 100) + "bank.example.com"
+        let shownHost = "…" + longHost.suffix(BrowserBridgeRequestHandler.promptFieldLimit - 1)
+        XCTAssertEqual(BrowserBridgeRequestHandler.fillReason(title: "Bank", origin: "https://\(longHost)"), reason("Bank", shownHost))
+        XCTAssertTrue(shownHost.hasSuffix("bank.example.com"), "The registrable end of the host stays visible")
+        XCTAssertEqual(shownHost.count, BrowserBridgeRequestHandler.promptFieldLimit)
+    }
+
+    func testMatchesAllowABurstOfTenThenFivePerSecondPerConnection() async throws {
+        var instant = ContinuousClock.now
+        let handler = handler(now: { instant })
+        var results: [BrowserBridgeReply.Result] = []
+        for _ in 0..<11 { results.append(await send(.matches(origin: origin), to: handler)) }
+        XCTAssertEqual(results, Array(repeating: .failure(.locked), count: 10) + [.failure(.rateLimited)])
+        let invalid = await send(.matches(origin: "https://example.com/"), to: handler)
+        XCTAssertEqual(invalid, .failure(.rateLimited), "Every matches request spends the allowance")
+
+        let other = await send(.matches(origin: origin), to: self.handler(now: { instant }))
+        XCTAssertEqual(other, .failure(.locked), "Each connection has its own allowance")
+        let status = await send(.status, to: handler)
+        XCTAssertEqual(status, .status(app: "test", unlocked: 0, locked: 0), "Other requests are not limited")
+        let credential = await send(.credential(entry: UUID(), db: UUID(), origin: origin, totp: nil), to: handler)
+        XCTAssertEqual(credential, .failure(.notOffered))
+        let unlock = await send(.unlock(db: nil), to: handler)
+        XCTAssertEqual(unlock, .empty)
+
+        instant += .milliseconds(199)
+        let early = await send(.matches(origin: origin), to: handler)
+        XCTAssertEqual(early, .failure(.rateLimited))
+        instant += .milliseconds(1)
+        let refilled = await send(.matches(origin: origin), to: handler)
+        XCTAssertEqual(refilled, .failure(.locked))
+        let again = await send(.matches(origin: origin), to: handler)
+        XCTAssertEqual(again, .failure(.rateLimited), "Five per second after the burst")
+
+        instant += .seconds(60)
+        results = []
+        for _ in 0..<11 { results.append(await send(.matches(origin: origin), to: handler)) }
+        XCTAssertEqual(results, Array(repeating: .failure(.locked), count: 10) + [.failure(.rateLimited)], "Idling refills the burst, never beyond 10")
     }
 
     func testProtectedUsernameAndPasswordReferences() async throws {
@@ -312,7 +406,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         let plain = try entry("NoCode")
         let session = try await makeSession([withCode, plain])
         var prompts = 0
-        let handler = handler(gate: { _ in prompts += 1; return true })
+        let handler = handler(gate: { _, _ in prompts += 1; return true })
         _ = try await matches(handler)
         let result = await send(credential(withCode, session, totp: true), to: handler)
         guard case .totp(let code) = result else { return XCTFail("Expected a code: \(result)") }
@@ -447,7 +541,7 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         let entry = try entry()
         let session = try await makeSession([entry])
         var continuation: CheckedContinuation<Bool, Never>?
-        let handler = handler(gate: { _ in await withCheckedContinuation { continuation = $0 } })
+        let handler = handler(gate: { _, _ in await withCheckedContinuation { continuation = $0 } })
         _ = try await matches(handler)
         let op = credential(entry, session)
         let first = Task { await self.send(op, to: handler) }

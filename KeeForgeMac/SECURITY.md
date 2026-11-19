@@ -719,9 +719,17 @@ then applies these rules:
   code or other field is in the reply.
 - `credential` is answered only for an entry and database that a `matches` reply
   on the same connection offered for the same origin. It takes that session's
-  device-owner gate, the same rule as Copy Password: a prompt ("Fill a login in
-  your browser") unless the session is inside its grace period, which a successful
-  unlock also starts and which defaults to Always Ask. Before and after the
+  device-owner gate: it releases inside the session's grace period, which a
+  successful unlock or device-owner authentication starts and which defaults to
+  Always Ask, or after the user passes a prompt that names the entry and the
+  site (Fill “Title” on example.com in your browser). The title is sanitized
+  like a browser name and cut to 64 characters; the host is the site matcher's
+  (lowercased, without port or a leading `www.`), in punycode because the origin
+  must be printable ASCII, and a host longer than 64 characters keeps its end.
+  Unlike Copy Password, the bridge fails closed: on a Mac that cannot
+  authenticate its owner (no login password, Touch ID or Apple Watch), a request
+  outside the grace period is `denied` without a prompt, and Settings ▸ Browsers
+  says that filling works only within the grace period. Before and after the
   prompt, and again after decrypting off the main actor, the handler checks that
   the session is the same one, unlocked, in the same lock cycle, unchanged, and
   that the entry still matches the origin. The reply holds the user name and
@@ -731,15 +739,17 @@ then applies these rules:
   and `reveal` selects an entry this connection was offered. Neither unlocks a
   database or shows a secret, and a window brought forward this way does not
   count as the user's deliberate focus on a window restored at launch.
-- Per connection: 16 requests in flight, one credential in flight and 30 a
-  minute, and one `reveal` or `unlock` a second with a burst of 3; more is
-  `rate-limited`.
+- Per connection: 16 requests in flight, `matches` a burst of 10 then 5 a
+  second, one credential in flight and 30 a minute, and one `reveal` or
+  `unlock` a second with a burst of 3; more is `rate-limited`. The in-field
+  menu polls `matches` once a second while it is visible.
 
 Nothing the bridge does is logged. The app cannot see the browser's page, so it
 trusts the origin the extension names. A compromised paired browser or extension,
 or a same-user process holding that browser's key, can list the offered logins
 for any site it names and obtain a password after the user confirms the prompt,
-or without a prompt inside the grace period. The extension keeps its key
+or without a prompt inside the grace period. The prompt names the entry and the
+host so the user can refuse a request for a site they are not filling. The extension keeps its key
 non-extractable in IndexedDB, which binds WebCrypto callers only; assume a
 process that can read the browser profile can recover it.
 
@@ -830,7 +840,8 @@ as drawn, the back/forward cache and a background restart while Touch ID
 waits, store-signed extensions and a distribution-signed app (including
 whether macOS container protection prompts for or refuses an unsandboxed
 process that connects to the socket), the Chromium store extension ID (none is
-configured, so release builds refuse to set up Chromium browsers), and whether
+configured, so release builds refuse to set up Chromium browsers: an open
+release blocker for Chromium-family browsers until the store assigns an ID), and whether
 the pairing alert comes forward over a browser. The same-user peer check has no
 test with a peer of another user.
 
