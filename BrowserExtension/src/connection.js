@@ -88,7 +88,7 @@ export class Connection {
   }
   async hostCommand(cmd) {
     if (cmd === 'launch' && this.phase === 'ready') {
-      // LaunchServices can front a running app; use a fresh socket with no prior hello.
+      // Launching can front a running app; use a fresh local channel with no prior hello.
       this.close();
       await this.open({ pairing: true });
       this.suppressHello = false;
@@ -143,7 +143,7 @@ export class Connection {
       if (frame.event === 'unavailable') {
         const opening = this.opening; this.opening = null;
         this.close('app-unavailable', frame.reason, true);
-        // A closed socket discards session keys while the relay remains available for launch.
+        // A closed local channel discards session keys while the relay remains available for launch.
         opening?.resolve(this.getState());
         return;
       }

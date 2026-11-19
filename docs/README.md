@@ -8,7 +8,7 @@ Archived files and folders are prefixed with the date the doc was written. Do no
 
 **[threat-model.md](threat-model.md) is a living document and must be kept up to date with major product or architecture changes.** Review it as part of every major change and update it in the same change whenever the architecture, data flows, protected assets, trust boundaries, security controls, assumptions, or limitations change. This includes changes to unlock factors, storage and sync, AutoFill capabilities, network integrations, plaintext disclosure, platform permissions, and release/update distribution. Keep its source references accurate. It remains maintained after features ship and is exempt from the archive rules below.
 
-[browser-bridge-protocol.md](browser-bridge-protocol.md) is **living** too: the wire contract between the browser extension, its native-messaging host and the Mac app, changed in the same commit as either side.
+[browser-bridge-protocol.md](browser-bridge-protocol.md) is **living** too: the wire contract between the browser extension, its native-messaging host and the app: a shared contract plus a transport section per platform (macOS today), changed in the same commit as any side.
 
 The threat model, the browser bridge protocol and the `i18n/` folder have no date prefix. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
 

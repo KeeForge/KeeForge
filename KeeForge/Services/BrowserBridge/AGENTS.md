@@ -23,7 +23,7 @@
 - Never log origins, titles, user names or secrets.
 - Pairing records never go in the App Group. The bridge key is stored with the signed app's application-identifier access group, never the default shared group the AutoFill extension reads, as `WhenUnlockedThisDeviceOnly`. A missing signing identity or a Keychain error fails; it never replaces an existing key. Removing a browser keeps the key; reset deletes the key and every record.
 - Folder grants never go in the App Group. The installer opens the granted folder itself (the sandbox does not allow the directories above it), refuses a symlinked folder or manifest, never replaces a manifest with another `name`, and removes one only when its `path` is inside a `KeeForge.app`. With no Chromium extension ID configured, set-up fails instead of writing a manifest that allows nothing.
-- Keep `../../../docs/browser-bridge-protocol.md` in the same commit as wire changes. Flag ambiguities for the protocol owner instead of silently changing the contract.
+- Keep `../../../docs/browser-bridge-protocol.md` in the same commit as wire changes. It separates the shared contract (sections 1–8) from per-platform transport sections (section 9 is macOS: socket, peer check, connection cap, native-host manifest, Keychain, LaunchServices); a transport change here updates section 9. Flag ambiguities for the protocol owner instead of silently changing the contract.
 
 ## Tests
 
