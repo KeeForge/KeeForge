@@ -829,13 +829,19 @@ connect to the socket directly, and nothing verifies the browser binary.
 the real embedded host, started outside the test runner's sandbox: the
 Browsers switch, the pairing alert with a matching code, Return declining and
 Allow pairing, status, matches and a credential with real fixture values,
-Remove, switching off, a locked database and its unlock, and Remove All. The
-extension has run in real headless Chrome 158 against the development mock
-host with trusted input, and in Firefox 160 for the key button and the menu
-frame only (no native host could be registered there). Not yet verified: a real
-browser talking to the real app, Touch ID (skipped under UI testing) including
-through the in-field menu, pairing, filling and the two-click confirm in
-Firefox, headed Chrome, right-to-left layouts, the menu inside a modal dialog
+Remove, switching off, a locked database and its unlock, and Remove All.
+`MacBrowserExtensionUITests` passes with the shipped extension in real headless
+Chrome, which launches the embedded host itself: pairing, the key button's
+menu, a fill, the locked menu and Unlock, the toolbar popup and removal. Both
+classes run only on the owner's test Mac and launch with a five-minute
+authentication grace period, so they prove release inside it, not the prompt.
+The `browser-extension` CI job runs the extension in headless Chrome and
+Firefox against the development mock host only; in Firefox it covers the key
+button and the menu frame (no native host is registered there). Not yet
+verified: the owner prompt on screen (Touch ID or password), including through
+the in-field menu, a verification-code fill through the real app, pairing,
+filling and the two-click confirm in Firefox with a registered host, headed
+Chrome, right-to-left layouts, the menu inside a modal dialog
 as drawn, the back/forward cache and a background restart while Touch ID
 waits, store-signed extensions and a distribution-signed app (including
 whether macOS container protection prompts for or refuses an unsandboxed

@@ -2,7 +2,7 @@
 
 The canonical translation of KeeForge's recurring terms in every shipped locale. It was extracted from the String Catalogs, using the majority form where translations disagreed, aligned with Apple's own platform wording.
 
-- Use these forms in new and edited strings, in the app and the AutoFill extensions alike, so the same concept reads the same everywhere.
+- Use these forms in new and edited strings, in the app, the AutoFill extensions and the browser extension's `BrowserExtension/_locales/` alike, so the same concept reads the same everywhere.
 - For a term not listed, search the catalogs for the English word and follow the majority form. If it will recur, add it here in the same change.
 - The catalogs win over this file only for a deliberate, reviewed change. Then update this file in the same change.
 

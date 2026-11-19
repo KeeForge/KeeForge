@@ -87,7 +87,7 @@ Run this checklist in both real Chrome and Firefox with a disposable `tools/mock
 - [ ] Browser pages, file URLs, ordinary HTTP, and pages without editable fields show a one-line reason. Loopback HTTP remains allowed by the protocol.
 - [ ] Assign/test the shortcut in each browser. It opens a visible popup and never fills on its own.
 
-The mock uses disposable demo credentials only; do not point it at real databases. `KeeForgeMacUITests/MacBrowserExtensionUITests` checks the extension in real Chrome against the signed Debug app and its embedded host (pairing, fill, locked menu and Unlock, popup, removal); Touch ID, the browser's real per-user host registration through Settings, and Firefox still need the real app by hand.
+The mock uses disposable demo credentials only; do not point it at real databases. `KeeForgeMacUITests/MacBrowserExtensionUITests` checks the extension in real headless Chrome against the signed Debug app and its embedded host (pairing, fill, locked menu and Unlock, popup, removal), and `MacBrowserBridgeUITests` drives the same host with this directory's protocol code under Node; both run only on the owner's test Mac, inside a five-minute authentication grace period, so they prove release, not the owner prompt. Touch ID or the password prompt on screen, the browser's real per-user host registration through Settings, Firefox with a registered host, a verification-code fill through the app, and distribution-signed builds still need checking by hand.
 
 ## Development ID
 

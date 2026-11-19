@@ -216,6 +216,17 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
 - `KeeForgeMacUITests` cannot run on a headless runner — it needs an unlocked, active login session
   — so the Mac smoke suite stays a **local** pre-release step. The `macos-unit-tests` job of
   `.github/workflows/tests.yml` covers the Mac unit suite on each `rc/*` tag.
+- The browser extension (`BrowserExtension/`) is not a release channel yet. Its `tools/build.sh`
+  stamps the manifest with the single `MARKETING_VERSION` in `project.yml` and writes Chrome and
+  Firefox archives under the ignored `BrowserExtension/build/`. The `browser-extension` CI job is
+  not a candidate-manifest gate, and `MacBrowserBridgeUITests` and `MacBrowserExtensionUITests`
+  are available on the owner's test Mac but are not release gates; making any of them a gate is an
+  owner decision. No release step publishes the archives, and no Chrome Web Store or Firefox
+  Add-ons listing exists. Release builds of the Mac app allow no Chromium extension ID
+  (`BrowserHost/BrowserBridgeIdentifiers.swift`), so Settings ▸ Browsers cannot set up Chromium
+  browsers in a candidate, an open release blocker (`KeeForgeMac/SECURITY.md`).
+  Store publication and that ID are open owner decisions; raise them at the release-content review
+  before any copy announces the extension.
 - `ITSAppUsesNonExemptEncryption=false` is declared in both `KeeForge/Info.plist` and
   `KeeForgeMac/Info.plist`; ASC may resolve the build declaration from metadata, but the actual
   platform record must be verified. Any separate legal/documentation question remains independent

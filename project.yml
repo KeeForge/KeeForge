@@ -142,7 +142,8 @@ targets:
       # MacLockMonitor.swift (lock
       # lifecycle), MacWindowCloseGuard.swift (window close), the menu bar
       # quick access pair MacQuickAccessController.swift / MacGlobalHotKey.swift,
-      # and the SSH agent (Services/SSHAgent) are macOS-only: members of
+      # LocalSocketServer.swift, the SSH agent (Services/SSHAgent) and the
+      # browser bridge (Services/BrowserBridge) are macOS-only: members of
       # KeeForgeMac, excluded here.
       - path: KeeForge/App
         excludes: ["README.md", "AGENTS.md"]

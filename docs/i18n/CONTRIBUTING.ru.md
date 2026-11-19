@@ -9,6 +9,7 @@
 - Для существенного изменения сначала откройте issue, чтобы можно было обсудить объём и подход.
 - Прочитайте [`AGENTS.md`](../../AGENTS.md), затем `README.md` в папке, ближайшей к коду, который вы собираетесь изменить.
 - Держите изменения сфокусированными. Изменения в парсере, записи, криптографии, обработке секретов и путях сохранения, влияющие на безопасность, требуют целевых тестов.
+- Если вы меняете сообщения между расширением браузера, его хостом native messaging и приложением для Mac, обновите [`docs/browser-bridge-protocol.md`](../../docs/browser-bridge-protocol.md) в том же коммите. Если меняется, какие origin принимаются или какие записи подходят для сайта, обновите и тестовые данные соответствия в [`TestFixtures/browser-bridge/`](../../TestFixtures/browser-bridge/).
 
 ## Требования
 
@@ -17,6 +18,7 @@
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 со строгой проверкой параллелизма
 - Зависимости Swift Package: [argon2](https://github.com/P-H-C/phc-winner-argon2), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), [swift-psl](https://github.com/ameshkov/swift-psl), [YubiKit](https://github.com/Yubico/yubikit-ios) и встроенный пакет [KeeForgeTwofish](../../Vendor/KeeForgeTwofish)
+- Только для расширения браузера в `BrowserExtension/`: Node.js с X25519 в WebCrypto, Python 3 для упаковки, а также Chrome и Firefox для проверок в настоящих браузерах; без пакетов npm
 
 ## Сборка из исходного кода
 
@@ -41,6 +43,15 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
   -destination 'platform=macOS' \
   -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
+
+Расширение браузера для Mac в `BrowserExtension/` написано на чистом JavaScript без пакетов. `tools/ci.sh` запускает все его проверки, в том числе в настоящих Chrome и Firefox; одни только тесты Node — быстрая часть:
+
+```bash
+BrowserExtension/tools/ci.sh
+cd BrowserExtension && node --test
+```
+
+Как загрузить его в браузер и что покрывает каждая проверка, описано в [`BrowserExtension/README.md`](../../BrowserExtension/README.md).
 
 ## Процесс разработки
 
@@ -67,6 +78,8 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - **unit-tests** — запускает набор модульных тестов `KeeForgeTests` в симуляторе iOS.
 - **macos-unit-tests** — компилирует общие исходники модульных тестов с нативным приложением для Mac и запускает `KeeForgeMacTests` в macOS.
 - **DCO** — проверяет, что каждый коммит подписан (см. ниже).
+
+Pull request также проходят проверку **browser-extension** — `BrowserExtension/tools/ci.sh` с заменой приложения для Mac; она пока не обязательна.
 
 ## Developer Certificate of Origin
 

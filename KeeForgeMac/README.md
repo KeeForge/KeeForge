@@ -371,10 +371,12 @@ or verification-code field (or press Option-Down there), or its toolbar button,
 and choose a login. Release
 builds can set up Firefox only until the Chromium store extension ID is added to
 `BrowserBridgeIdentifiers.swift`; debug builds also allow the development ID.
-`MacBrowserBridgeUITests` passes against a development-signed build and its
-embedded host, without a browser; the extension has run in real Chrome and
-Firefox only against the development mock host, so filling from a real browser
-through the app, and Touch ID, are not yet verified.
+`MacBrowserBridgeUITests` (the embedded host without a browser) and
+`MacBrowserExtensionUITests` (the extension in real headless Chrome through
+that host) pass against a development-signed build on the owner's test Mac,
+inside a five-minute authentication grace period. The owner prompt on screen,
+Firefox with a registered host, a verification-code fill through the app and
+distribution-signed builds are not yet verified.
 
 ## Build contracts
 

@@ -26,7 +26,7 @@ Please include as much of the following as you can:
 
 - A description of the vulnerability and its impact
 - Steps to reproduce, or a proof of concept
-- Affected version(s) and platform (iOS or macOS version, device or hardware)
+- Affected version(s) and platform (iOS or macOS version, device or hardware, and for the browser extension the browser and its version)
 - Any suggested fix or mitigation
 
 ### What to expect
@@ -46,6 +46,7 @@ In scope:
 - KDBX parsing, writing, and cryptography
 - Keychain, App Group, and local storage handling
 - Cloud sync and network features
+- The Mac browser bridge: the KeeForge browser extension for Chrome-family browsers and Firefox, its native-messaging host embedded in the Mac app, and the app side of the bridge
 - macOS-specific security boundaries documented in [`KeeForgeMac/SECURITY.md`](KeeForgeMac/SECURITY.md)
 
 Out of scope:
