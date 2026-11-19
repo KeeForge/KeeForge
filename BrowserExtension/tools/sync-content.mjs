@@ -7,4 +7,5 @@ const source = await readFile(path, 'utf8');
 const updated = source.replace(/(?<=\/\/ BEGIN shared fillDocument\n)[\s\S]*?(?=\n\/\/ END shared fillDocument)/, fillDocument.toString());
 if (process.argv.includes('--check')) {
   if (updated !== source) throw Error('Run node tools/sync-content.mjs after changing fillDocument');
+  console.log('src/content.js holds the current fillDocument');
 } else await writeFile(path, updated);

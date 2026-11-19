@@ -4,9 +4,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { launchChrome, delay } from './ui-chrome.mjs';
+import { extensionDir } from './chrome-cdp.mjs';
+import { layoutProbe } from './layout-probe.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
-if (!process.argv[2]) throw Error('usage: screenshot-ui.mjs <output directory>');
-const out = resolve(process.argv[2]);
+const out = resolve(process.argv[2] || join(root, 'build/screenshots'));
 await mkdir(out, { recursive: true });
 const browser = await launchChrome();
 const records = [];
@@ -47,14 +48,16 @@ async function settle(tab, ready) {
   for (let i = 0; i < 100; ++i) { if (await tab.evaluate(`document.readyState === 'complete' && !!(${ready})`).catch(() => false)) return; await delay(30); }
   throw new Error(`Page never became ready: ${ready}`);
 }
-async function screenshot(name, tab, check) {
+const problems = [];
+async function screenshot(name, tab, check, layout = true) {
   await delay(70);
+  if (layout) for (const problem of await tab.evaluate(layoutProbe)) { problems.push(`${name}: ${problem}`); console.log(`FAIL ${name}: ${problem}`); }
   const { data } = await tab.call('Page.captureScreenshot', { format: 'png' });
   await writeFile(join(out, `${name}.png`), Buffer.from(data, 'base64'));
   records.push({ file: `${name}.png`, check });
 }
 try {
-  const { id } = await browser.send('Extensions.loadUnpacked', { path: root });
+  const { id } = await browser.send('Extensions.loadUnpacked', { path: extensionDir(root) });
   console.log(`Loaded extension ${id}`);
   for (const scheme of ['light', 'dark']) {
     for (const locale of ['en', 'de', 'ja', 'ru', 'fr', 'es', 'it', 'zh_CN', 'zh_TW']) {
@@ -111,7 +114,7 @@ try {
         const { styleSheetId } = await tab.call('CSS.createStyleSheet', { frameId: frameTree.frame.id });
         await tab.call('CSS.setStyleSheetText', { styleSheetId, text: `html,body{width:auto;height:100%;margin:0;background:${toolbar[0]}}body{display:block;padding:0}.bar{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;background:${toolbar[1]}}.omnibox{flex:1;height:28px;border-radius:14px;background:${toolbar[2]}}.sizes{display:flex;align-items:end;gap:16px;padding:14px 12px}img{display:block}` });
         await delay(100);
-        await screenshot(`icons-${scheme}-${scale}x`, tab, 'Toolbar-size icon beside an omnibox, then the 16/32/48/128 PNGs at native pixels; key legible, corners transparent.');
+        await screenshot(`icons-${scheme}-${scale}x`, tab, 'Toolbar-size icon beside an omnibox, then the 16/32/48/128 PNGs at native pixels; key legible, corners transparent.', false);
       }
     } finally { await tab.close(); }
   }
@@ -151,5 +154,6 @@ try {
     } finally { await tab.close(); }
   }
   await writeFile(join(out, 'screenshots.json'), JSON.stringify(records, null, 2) + '\n');
-  console.log(`${records.length} screenshots saved to ${out}`);
+  console.log(`${records.length} screenshots saved to ${out}; ${records.length - 4 - new Set(problems.map(p => p.split(':')[0])).size} of ${records.length - 4} page captures passed the layout and contrast checks`);
+  if (problems.length) process.exitCode = 1;
 } finally { await browser.close(); }

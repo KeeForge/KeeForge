@@ -6,9 +6,10 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, basename, resolve } from 'node:path';
+import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
+import { firefoxPath, extensionDir } from './chrome-cdp.mjs';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const sleep = ms => new Promise(done => setTimeout(done, ms));
 const profile = await mkdtemp(join(tmpdir(), 'keeforge-firefox-'));
@@ -19,20 +20,21 @@ const server = createServer(async (request, response) => {
 });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
 const port = server.address().port, debugPort = 9300 + Math.floor(Math.random() * 500);
-const firefox = spawn(process.env.FIREFOX || '/Applications/Firefox.app/Contents/MacOS/firefox', ['--headless', '--no-remote', '--profile', profile, '--remote-debugging-port', String(debugPort), '--remote-allow-system-access', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, MOZ_REMOTE_ALLOW_SYSTEM_ACCESS: '1' } });
+const firefox = spawn(firefoxPath(), ['--headless', '--no-remote', '--profile', profile, '--remote-debugging-port', String(debugPort), '--remote-allow-system-access', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, MOZ_REMOTE_ALLOW_SYSTEM_ACCESS: '1' } });
 firefox.stderr.resume();
 let socket;
 for (let i = 0; i < 60 && !socket; i++) { await sleep(500); try { socket = await new Promise((done, fail) => { const ws = new WebSocket(`ws://127.0.0.1:${debugPort}/session`); ws.onopen = () => done(ws); ws.onerror = fail; }); } catch {} }
+if (!socket) { firefox.kill('SIGKILL'); server.close(); await rm(profile, { recursive: true, force: true }); throw Error(`Firefox (${firefoxPath()}) did not open WebDriver BiDi`); }
 let nextId = 0; const pending = new Map();
 socket.onmessage = event => { const message = JSON.parse(event.data); const waiter = message.id && pending.get(message.id); if (waiter) { pending.delete(message.id); message.type === 'error' ? waiter.reject(Error(`${message.error}: ${message.message}`)) : waiter.resolve(message.result); } };
-const command = (method, params = {}) => new Promise((resolve, reject) => { const id = ++nextId; pending.set(id, { resolve, reject }); socket.send(JSON.stringify({ id, method, params })); });
+const command = (method, params = {}) => new Promise((resolve, reject) => { const id = ++nextId, timer = setTimeout(() => { pending.delete(id); reject(Error('timeout: ' + method)); }, 15000); pending.set(id, { resolve: v => { clearTimeout(timer); resolve(v); }, reject: e => { clearTimeout(timer); reject(e); } }); socket.send(JSON.stringify({ id, method, params })); });
 const evaluate = async (context, expression) => { const r = await command('script.evaluate', { expression, target: { context }, awaitPromise: true, resultOwnership: 'none' }); if (r.type === 'exception') throw Error(r.exceptionDetails.text); return r.result.value; };
 const results = [];
 const check = (name, value, detail = '') => { assert.ok(value, name + (detail ? ': ' + detail : '')); results.push(name); console.log('PASS ' + name + (detail ? ` (${detail})` : '')); };
 async function waitFor(fn, label) { for (let i = 0; i < 60; i++) { try { const value = await fn(); if (value) return value; } catch {} await sleep(100); } throw Error('timeout waiting for ' + label); }
 try {
   await command('session.new', { capabilities: {} });
-  const { extension } = await command('webExtension.install', { extensionData: { type: 'path', path: resolve(root, 'build/firefox') } });
+  const { extension } = await command('webExtension.install', { extensionData: { type: 'path', path: extensionDir(root, 'build/firefox') } });
   check('build/firefox installs as a temporary add-on', !!extension, extension);
   const context = (await command('browsingContext.getTree', {})).contexts[0].context;
   await command('browsingContext.navigate', { context, url: `http://localhost:${port}/inline-spy.html`, wait: 'complete' });

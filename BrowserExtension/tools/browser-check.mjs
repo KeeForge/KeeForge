@@ -5,10 +5,11 @@ import { createServer } from 'node:http';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, normalize } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { fillDocument } from '../src/fill.js';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { chromePath as findChrome, extensionDir } from './chrome-cdp.mjs';
+const { fillDocument } = await import(pathToFileURL(join(extensionDir(fileURLToPath(new URL('..', import.meta.url))), 'src/fill.js')));
 
-const chromePath = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const chromePath = findChrome();
 const pages = fileURLToPath(new URL('../test/pages/', import.meta.url));
 const source = fillDocument.toString();
 const credential = { username: 'alice', password: 's3cret-pw' };
@@ -276,7 +277,7 @@ async function main() {
     await cases(browser.cdp, server.port);
     const elapsed = Date.now() - started;
     const width = Math.max(...rows.map(r => r.name.length));
-    console.log(`${browser.version}; ${rows.length} checks in ${elapsed} ms\n`);
+    console.log(`${browser.version}; fillDocument from ${extensionDir(fileURLToPath(new URL('..', import.meta.url)))}/src/fill.js; ${rows.length} checks in ${elapsed} ms\n`);
     console.log(`${'RESULT'}  ${'CASE'.padEnd(width)}  EXPECTED / ACTUAL`);
     for (const row of rows) console.log(`${row.ok ? 'PASS  ' : 'FAIL  '}  ${row.name.padEnd(width)}  ${row.expected}${row.ok ? '' : `\n        ${' '.repeat(width)}  actual: ${row.actual}`}`);
     const failed = rows.filter(r => !r.ok).length;

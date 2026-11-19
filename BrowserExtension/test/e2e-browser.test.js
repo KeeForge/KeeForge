@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { once } from 'node:events';
-import { findBrowser } from '../tools/chrome-cdp.mjs';
+import { findBrowser, findFirefox } from '../tools/chrome-cdp.mjs';
 
 const home = '/Users/someone';
 const fakeFs = (executables, folders = {}) => ({ isExecutable: path => executables.includes(path), list: dir => folders[dir] ?? [] });
@@ -25,6 +25,15 @@ test('standard applications come before the Chrome for Testing cache, newest cac
   assert.equal(none.browser, null);
   assert.ok(none.searched.includes('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'));
   assert.ok(none.searched.some(path => path.startsWith(`${home}/Library/Caches/KeeForge-E2E/chrome/`)));
+});
+
+test('without a macOS browser the search ends with Chromium and Firefox commands on PATH; explicit Firefox never falls back', () => {
+  const path = ['/usr/local/bin', '/usr/bin'];
+  assert.equal(findBrowser({ home, fs: fakeFs(['/usr/bin/google-chrome', '/usr/bin/chromium']), path }).browser, '/usr/bin/google-chrome');
+  assert.equal(findBrowser({ home, fs: fakeFs(['/usr/bin/chromium']) }).browser, null);
+  assert.equal(findFirefox({ home, fs: fakeFs(['/usr/bin/firefox']), path }).browser, '/usr/bin/firefox');
+  assert.equal(findFirefox({ home, fs: fakeFs(['/Applications/Firefox.app/Contents/MacOS/firefox', '/usr/bin/firefox']), path }).browser, '/Applications/Firefox.app/Contents/MacOS/firefox');
+  assert.deepEqual(findFirefox({ explicit: '/missing/firefox', home, fs: fakeFs(['/usr/bin/firefox']), path }), { browser: null, searched: ['/missing/firefox'] });
 });
 
 test('the driver reports a missing browser at start-up and fails start with browser-missing', async t => {

@@ -15,9 +15,12 @@ export class MockApp {
     this.setScenario(scenario); this.clients = new Map();
     this.staticReady = keyPair().then(key => { this.static = key; });
   }
+  // Like the app: 'locked' has no unlocked database, so matches and credentials answer `locked`; 'partly-locked' has one
+  // unlocked database with rows and one locked database counted in `locked`.
   setScenario(scenario) {
     this.scenario = scenario;
     this.entries = ['locked', 'empty'].includes(scenario) ? [] : scenario === 'mixed' ? this.mixed : [this.demoEntry];
+    this.lockedCount = ['locked', 'partly-locked'].includes(scenario) ? 1 : 0;
   }
   connect(send) { return new MockSession(this, send); }
 }
@@ -61,12 +64,14 @@ export class MockSession {
     if (request.type === 'credential' && this.app.credentialDelay) await new Promise(resolve => setTimeout(resolve, this.app.credentialDelay));
     let reply = { id: request.id, ok: true };
     switch (request.type) {
-      case 'status': Object.assign(reply, { app: 'mock', unlocked: this.app.scenario === 'locked' ? 0 : 1, locked: this.app.scenario === 'locked' ? 1 : 0 }); break;
+      case 'status': Object.assign(reply, { app: 'mock', unlocked: this.app.scenario === 'locked' ? 0 : 1, locked: this.app.lockedCount }); break;
       case 'matches':
+        if (this.app.scenario === 'locked') { reply = { id: request.id, ok: false, error: 'locked' }; break; }
         this.offered.add(request.origin);
-        Object.assign(reply, { entries: this.app.entries, locked: this.app.scenario === 'locked' ? 1 : 0 }); break;
+        Object.assign(reply, { entries: this.app.entries, locked: this.app.lockedCount }); break;
       case 'credential':
-        if (!this.offered.has(request.origin) || !this.app.entries.some(entry => entry.entry === request.entry && entry.db === request.db)) reply = { id: request.id, ok: false, error: 'not-offered' };
+        if (this.app.scenario === 'locked') reply = { id: request.id, ok: false, error: 'locked' };
+        else if (!this.offered.has(request.origin) || !this.app.entries.some(entry => entry.entry === request.entry && entry.db === request.db)) reply = { id: request.id, ok: false, error: 'not-offered' };
         else if (request.totp) {
           if (this.app.entries.find(entry => entry.entry === request.entry && entry.db === request.db).hasTotp) reply.totp = '123456';
           else reply = { id: request.id, ok: false, error: 'unavailable' };

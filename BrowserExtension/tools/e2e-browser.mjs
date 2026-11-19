@@ -8,14 +8,14 @@
 // Passwords never leave the driver: `fields` reports a password input's length and SHA-256.
 // Exit codes: 0 after "quit" or stdin end, 2 bad arguments or host not executable.
 import { spawn } from 'node:child_process';
-import { accessSync, constants, readdirSync, statSync } from 'node:fs';
+import { accessSync, constants } from 'node:fs';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { createServer as createHttpsServer } from 'node:https';
 import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
 import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
-import { root, sleep, findBrowser, makeCertificate, pagesHandler, listen, chromeArgs, startChrome, pageTools } from './chrome-cdp.mjs';
+import { root, sleep, findBrowser, localFs, makeCertificate, pagesHandler, listen, chromeArgs, startChrome, pageTools } from './chrome-cdp.mjs';
 
 const args = process.argv.slice(2);
 const option = name => { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; };
@@ -30,9 +30,7 @@ const browserEnvironment = {
   PATH: '/usr/bin:/bin:/usr/sbin:/sbin', HOME: account.homedir, USER: account.username, LOGNAME: account.username,
   SHELL: account.shell ?? '/bin/zsh', LANG: process.env.LANG ?? 'en_US.UTF-8'
 };
-const isExecutable = path => { try { accessSync(path, constants.X_OK); return statSync(path).isFile(); } catch { return false; } };
-const list = dir => { try { return readdirSync(dir); } catch { return []; } };
-const discovery = findBrowser({ explicit: option('--browser') || process.env.KEEFORGE_E2E_BROWSER, home: account.homedir, fs: { isExecutable, list } });
+const discovery = findBrowser({ explicit: option('--browser') || process.env.KEEFORGE_E2E_BROWSER, home: account.homedir, fs: localFs });
 emit({ event: 'driver-ready', parentSandboxed: 'APP_SANDBOX_CONTAINER_ID' in process.env, browser: discovery.browser, searched: discovery.searched });
 
 const EXTENSION_ID = 'pihelgeaeflnpjjdajbdmfmcpgeoefbf';

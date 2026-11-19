@@ -4,7 +4,7 @@ import { envelope, validateEnvelope, object } from '../src/protocol.js';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const app = new MockApp({ decision: process.argv.includes('--decline') ? 'decline' : process.argv.includes('--busy') ? 'busy' : process.argv.includes('--pending') ? 'pending' : 'allow', scenario: process.argv.includes('--locked') ? 'locked' : process.argv.includes('--empty') ? 'empty' : process.argv.includes('--mixed') ? 'mixed' : 'default', holdCredential: process.argv.includes('--hold-credential') });
+const app = new MockApp({ decision: process.argv.includes('--decline') ? 'decline' : process.argv.includes('--busy') ? 'busy' : process.argv.includes('--pending') ? 'pending' : 'allow', scenario: process.argv.includes('--locked') ? 'locked' : process.argv.includes('--partly-locked') ? 'partly-locked' : process.argv.includes('--empty') ? 'empty' : process.argv.includes('--mixed') ? 'mixed' : 'default', holdCredential: process.argv.includes('--hold-credential') });
 let available = !process.argv.includes('--unavailable');
 // Development checks: <dir>/state.json switches availability and scenario live; <dir>/log.jsonl records what arrived.
 const control = process.argv.includes('--control') ? process.argv[process.argv.indexOf('--control') + 1] : null;

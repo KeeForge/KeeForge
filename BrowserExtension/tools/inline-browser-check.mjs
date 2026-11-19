@@ -5,9 +5,10 @@ import { createServer } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { mkdtemp, mkdir, readFile, writeFile, chmod, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import assert from 'node:assert/strict';
-import { root, sleep, defaultChrome, makeCertificate, pagesHandler as handler, listen, chromeArgs, startChrome, pageTools } from './chrome-cdp.mjs';
+import { root, sleep, chromePath, extensionDir, makeCertificate, pagesHandler as handler, listen, chromeArgs, startChrome, pageTools } from './chrome-cdp.mjs';
+import { layoutProbe } from './layout-probe.mjs';
 const shots = process.env.SHOTS;
 if (!shots) throw Error('Set SHOTS to a screenshot output directory (the main checkout scratch directory)');
 const profile = await mkdtemp(join(tmpdir(), 'keeforge-inline-'));
@@ -20,14 +21,46 @@ const port = servers[0].address().port, httpsPort = servers[1].address().port;
 // Chrome may resolve localhost to ::1 first.
 for (const [i, p] of [[0, port], [1, httpsPort]]) { const v6 = i ? createHttpsServer(tls, handler) : createServer(handler); await listen(v6, '::1', p); servers.push(v6); }
 const secure = `https://localhost:${httpsPort}`;
-const chrome = startChrome(process.env.CHROME || defaultChrome, [...chromeArgs(profile),
+const chrome = startChrome(chromePath(), [...chromeArgs(profile),
   '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1', '--ignore-certificate-errors', '--force-device-scale-factor=2', '--window-size=1100,760']);
 const { send } = chrome;
 const results = [];
 function check(name, value, detail = '') { assert.ok(value, name + (detail ? ': ' + detail : '')); results.push(name); console.log('PASS ' + name + (detail ? ` (${detail})` : '')); }
 let theme = 'light';
 async function applyTheme(session) { await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] }, session).catch(() => {}); }
-const { evaluate, waitFor, attach, tab, click, key, nodes, ui, visibleButtons, rect, buttonFor, menus, openMenu, text, menuClick, menuAct, values } = pageTools(send, { onAttach: applyTheme });
+const { evaluate, waitFor, attach, tab, click, key, nodes, ui, visibleButtons, rect, buttonFor, menus, openMenu, text, menuClick, values } = pageTools(send, { onAttach: applyTheme });
+// A click inside the 300 ms visibility window is refused by design, so actions first wait past it. A second click is
+// allowed only within a small per-run budget: a menu that systematically ignores a settled click fails the run.
+const settle = 700, retryBudget = 2;
+let retries = 0;
+async function retried(label) {
+  if (++retries > retryBudget) throw Error(`retry budget (${retryBudget}) exhausted at ${label}: settled clicks are being refused`);
+  console.log(`  note: ${label} needed a second click (${retries}/${retryBudget})`);
+}
+async function menuAct(page, menu, selector, done, label) {
+  await sleep(settle);
+  for (let attempt = 1; attempt <= 2; ++attempt) {
+    if (attempt > 1) await retried(label);
+    await menuClick(page, menu, selector);
+    for (let i = 0; i < 15; ++i) { if (await done().catch(() => false)) return; await sleep(100); }
+  }
+  throw Error('menu action had no effect: ' + label);
+}
+// The toolbar popup sizes its viewport from its content: 340 px wide, nothing past the right edge, no text clipped
+// except where it is ellipsized on purpose.
+async function popupLayout(session, state) {
+  const layout = await evaluate(session, `(() => {
+    const width = document.documentElement.clientWidth, past = [], clipped = [];
+    for (const e of document.querySelectorAll('body *')) {
+      const r = e.getBoundingClientRect(), s = getComputedStyle(e);
+      if (!r.width) continue;
+      if (r.right > width + 0.5 || r.left < -0.5) past.push(e.id || e.className || e.tagName);
+      if (e.scrollWidth > e.clientWidth + 1 && s.textOverflow !== 'ellipsis' && !['auto', 'scroll'].includes(s.overflowX) && e.clientWidth) clipped.push(e.id || e.className || e.tagName);
+    }
+    return { width, inner: innerWidth, innerHeight, scrollHeight: document.documentElement.scrollHeight, scroll: document.documentElement.scrollWidth, past, clipped };
+  })()`);
+  check(`real toolbar popup (${state}) is 340 px wide with nothing overflowing or clipped`, layout.width === 340 && layout.scroll <= 340 && !layout.past.length && !layout.clipped.length, JSON.stringify(layout));
+}
 const log = async () => (await readFile(join(control, 'log.jsonl'), 'utf8').catch(() => '')).split('\n').filter(Boolean).map(line => JSON.parse(line));
 const requests = async type => (await log()).filter(entry => entry.request === type);
 const setMock = state => writeFile(join(control, 'state.json'), JSON.stringify(state));
@@ -37,6 +70,7 @@ async function shot(session, name, clip, extra = []) {
     await sleep(350);
     const { data } = await send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { ...clip, scale: 1 } } : {}) }, session);
     await writeFile(join(shots, `${name}-${t}.png`), Buffer.from(data, 'base64'));
+    for (const s of extra) { const problems = await evaluate(s, layoutProbe); check(`${name} (${t}) menu: nothing overflows or is clipped, text contrast at least 4.5:1`, !problems.length, problems.join('; ')); }
   }
   theme = 'light'; for (const s of [session, ...extra]) await applyTheme(s);
 }
@@ -47,8 +81,9 @@ async function menuClip(page, field) {
 }
 try {
   console.log((await send('Browser.getVersion')).product);
-  const { id } = await send('Extensions.loadUnpacked', { path: resolve(root) });
-  check('shipped manifest loads through Extensions.loadUnpacked', !!id, id);
+  const loaded = extensionDir(root);
+  const { id } = await send('Extensions.loadUnpacked', { path: loaded });
+  check('shipped manifest loads through Extensions.loadUnpacked', !!id, `${id} from ${loaded}`);
   const extension = `chrome-extension://${id}/`;
   const wrapper = join(profile, 'mock-host'), quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
   await writeFile(wrapper, `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(join(root, 'tools/mock-host.mjs'))} --control ${quote(control)}\n`); await chmod(wrapper, 0o700);
@@ -265,9 +300,40 @@ try {
   check('opening the popup closes an open inline menu instead of leaving it broken', true);
   const popup = await attach((await waitFor(async () => (await send('Target.getTargets')).targetInfos.find(t => t.url === extension + 'popup.html'), 'popup')).targetId);
   await waitFor(async () => (await text(popup)).includes('Example'), 'popup rows');
+  await popupLayout(popup, 'logins');
   await evaluate(popup, `document.querySelector('.login').click()`);
   await waitFor(async () => (await values(page.session)).p === 'mock-password', 'popup fill');
   check('toolbar popup lists logins and fills the page', (await values(page.session)).u === 'demo');
+
+  // The real toolbar popup (not a 340 px tab) in each state the mock can drive.
+  const killHosts = async () => { for (const pid of new Set((await log()).map(entry => entry.pid))) { try { process.kill(pid); } catch {} } await sleep(500); };
+  async function popupIn(state, expected) {
+    await send('Target.activateTarget', { targetId: page.targetId });
+    await evaluate(sw, `chrome.action.openPopup()`);
+    const target = await waitFor(async () => (await send('Target.getTargets')).targetInfos.find(t => t.url === extension + 'popup.html'), 'popup ' + state);
+    const session = await attach(target.targetId);
+    const wanted = await evaluate(sw, `chrome.i18n.getMessage(${JSON.stringify(expected)})`);
+    await waitFor(async () => (await text(session)).includes(wanted), `popup ${state} state`);
+    await popupLayout(session, state);
+    return { session, targetId: target.targetId };
+  }
+  const closePopup = async p => { await send('Target.closeTarget', { targetId: p.targetId }); await waitFor(async () => !(await send('Target.getTargets')).targetInfos.some(t => t.url === extension + 'popup.html'), 'popup closed'); };
+  await setMock({ scenario: 'locked' }); await closePopup(await popupIn('locked', 'locked'));
+  await setMock({ scenario: 'empty' }); await closePopup(await popupIn('empty', 'noLogins'));
+  await setMock({ scenario: 'mixed', available: false }); await killHosts();
+  const stopped = await popupIn('app-unavailable', 'appUnavailable');
+  await evaluate(stopped.session, `document.querySelector('#content .kf-primary').click()`);
+  await waitFor(async () => (await log()).some(entry => entry.cmd === 'launch'), 'popup launch');
+  await setMock({ scenario: 'mixed', available: true });
+  await waitFor(async () => (await text(stopped.session)).includes('Example'), 'popup logins after launch', 60);
+  await closePopup(stopped);
+  const hostManifest = join(profile, 'NativeMessagingHosts/com.keevault.browser.json'), hostBytes = await readFile(hostManifest);
+  await rm(hostManifest); await killHosts();
+  const missing = await popupIn('host-missing', 'hostMissing');
+  await writeFile(hostManifest, hostBytes);
+  await evaluate(missing.session, `document.querySelector('#content .kf-primary').click()`);
+  await waitFor(async () => (await text(missing.session)).includes('Example'), 'popup logins after Try again', 60);
+  await closePopup(missing);
 
   // Show-password control and verification-code fixtures.
   const reveal = await tab(`${secure}/inline-reveal.html`);
@@ -313,7 +379,9 @@ try {
   check('cross-origin frame menu is matched with the frame origin', (await requests('matches')).at(-1).origin === `http://localhost:${port}`);
   const [crossFrame] = await ui(cross.session, 'IFRAME');
   const point = await evaluate(crossMenu, `(() => { const r = document.querySelector('.login').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
-  for (let attempt = 0; attempt < 4 && (await values(cross.session)).p !== 'mock-password'; ++attempt) {
+  await sleep(settle);
+  for (let attempt = 1; attempt <= 2 && (await values(cross.session)).p !== 'mock-password'; ++attempt) {
+    if (attempt > 1) await retried('cross-frame fill');
     await click(framed.session, offset[0] + crossFrame.left + point[0], offset[1] + crossFrame.top + point[1]);
     await sleep(1200);
   }
@@ -371,7 +439,7 @@ try {
   check('a web page cannot frame or fetch popup.html, pair.html or the static inline.html URL', probes.length === 3 && probes.every(url => url === 'chrome-extension://invalid/') && fetched.every(r => r === 'blocked'), probes.join(' '));
   const top = await tab(extension + 'inline.html#forged-token');
   check('top-level inline.html is inert', await evaluate(top.session, `document.querySelectorAll('button').length === 0`));
-  console.log(`${results.length} checks passed; screenshots in ${shots}`);
+  console.log(`${results.length} checks passed (${retries}/${retryBudget} click retries); screenshots in ${shots}`);
 } catch (error) {
   console.error(error); console.error('mock log tail', JSON.stringify((await log()).slice(-12))); process.exitCode = 1;
 } finally {

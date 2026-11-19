@@ -3,10 +3,11 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { chromePath } from './chrome-cdp.mjs';
 export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 export async function launchChrome() {
   const profile = await mkdtemp(join(tmpdir(), 'keeforge-ui-'));
-  const child = spawn(process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
+  const child = spawn(chromePath(), [
     '--headless=new', `--user-data-dir=${profile}`, '--remote-debugging-pipe', '--enable-unsafe-extension-debugging',
     '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update',
     '--disable-sync', '--disable-default-apps', '--use-mock-keychain', '--password-store=basic',

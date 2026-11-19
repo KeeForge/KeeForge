@@ -7,6 +7,7 @@
 | When | Where | What runs |
 | --- | --- | --- |
 | Every pull request, any base branch | `workflows/tests.yml` | Jobs `unit-tests` (`KeeForgeTests`, iOS simulator) and `macos-unit-tests` (each `Packages/*/scripts/coverage.sh` with its coverage floors, then `KeeForgeMacTests`). Both are required status checks. No UI tests. |
+| Every pull request, `rc/*` tag push, manual dispatch | `workflows/tests.yml` | Job `browser-extension`: `BrowserExtension/tools/ci.sh` on `macos-26` (Node tests with zero skips, deterministic build, the shipped archives, icons, real headless Chrome and Firefox against the built extension, with `mock-host.mjs` standing in for the app). Not yet a required check: add `browser-extension` to the `main` and `release branches` rulesets. Not a candidate-manifest release gate. |
 | `rc/*` tag push | `workflows/tests.yml` | `macos-unit-tests` (full `KeeForgeMacTests`), plus `ios-rc-tests` (a call to `workflows/ios-rc-tests.yml`): the three RC test schemes on GitHub's `xcode-27` runner on iPhone 18 Pro and iPhone SE (3rd generation) at the newest usable iOS runtime, the two regular-width UI classes plus `LayoutSwitchUITests` on an iPad (A16), and `LayoutSwitchUITests` with a compact-layout set on an iPhone Duo. Eight jobs. No archives. `macos-unit-tests`, the six iPhone 18 Pro and SE jobs, and the iPad job are release gates (`githubMac`, `githubIPhone`, `githubIPad` in the candidate manifest); the iPhone Duo job is not. |
 | `rc/*` tag push | Xcode Cloud **Tests (RC)** | The iOS and Mac App Store archives. No tests. |
 | Manual dispatch | `workflows/tests.yml` | The `rc/*` set against the `ref` input. |
@@ -16,7 +17,7 @@
 | Each release candidate, locally | `KeeForgeMacUITests/MacSmokeUITests` | Mac UI smoke. |
 
 - **Nothing triggers on `v*`.** That tag records which soaked build shipped; the App Store build is selected from TestFlight, never re-archived.
-- **`KeeForgeMacUITests` never runs in CI.** It drives real windows and needs an unlocked, active login session that no runner has (`../KeeForgeMacUITests/AGENTS.md`). Behavior covered only by a Mac UI test is uncovered in CI.
+- **`KeeForgeMacUITests` never runs in CI.** It drives real windows and needs an unlocked, active login session that no runner has (`../KeeForgeMacUITests/AGENTS.md`). Behavior covered only by a Mac UI test is uncovered in CI. That includes the browser bridge against the signed app: `MacBrowserBridgeUITests` and `MacBrowserExtensionUITests` (the extension in real Chrome through the embedded host) run on the owner's test Mac only; the `browser-extension` job covers the extension against `mock-host.mjs`, not the app.
 - **No CI runs the KDBX gate.** It needs `keepassxc-cli`, which neither GitHub runners nor Xcode Cloud install. See `../ci_scripts/AGENTS.md`.
 - **UI tests are release-gated, not PR-gated.** They first run on the `rc/*` tag.
 - The iPad lane in `ios-rc-tests` is the only CI place `DatabaseCreationRegularWidthUITests` and `RegularWidthWorkspaceUITests` execute; they `XCTSkip` on every compact-width device.
@@ -42,6 +43,7 @@ Three repository rulesets, all with admin bypass. They live in GitHub settings, 
 
 - Every workflow declares `permissions: contents: read` at the top. A job that needs more asks for it on the job itself, and a called workflow cannot exceed its caller.
 - Renaming the `unit-tests` or `macos-unit-tests` job breaks the rulesets, which match the check by job name.
+- `browser-extension` has no path filter on purpose: a job-level `if` cannot filter by path, a workflow-level `paths` filter would leave a required check pending, and a skipped required job counts as passing. It takes a few minutes. It runs on macOS because the extension only works with the Mac app; its tools also find Chrome and Firefox on Linux `PATH`, but no Linux run has been proven. It uses the runner's preinstalled Node, Chrome and Firefox (`ci.sh` prints their versions), and uploads `BrowserExtension/build/ci` (logs, screenshots) on failure.
 - Every `KeeForgeMac` job runs on `macos-26` and fails below Xcode 26.4: Xcode 26.3's `actool` crashes compiling `KeeForge.icon` for macOS. The PR `unit-tests` job also runs on `macos-26`.
 - Mac jobs sign ad hoc with entitlements stripped (`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_ENTITLEMENTS=`), because runners have no signing account.
 - `ios-rc-tests` is a reusable workflow that `tests.yml` calls, not an inline matrix job: a skipped matrix job shows its raw `${{ matrix.* }}` name on every pull request. Its jobs therefore report as `ios-rc-tests / <scheme> (<device>)`, for example `ios-rc-tests / KeeForge (iPad (A16))`, and still belong to the `tests.yml` run.

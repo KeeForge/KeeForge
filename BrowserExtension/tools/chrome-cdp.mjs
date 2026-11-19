@@ -1,15 +1,16 @@
-// Development only: shared pieces of the real-Chrome checks. A disposable headless Chrome over
-// --remote-debugging-pipe, a throwaway certificate, the test/pages server, and the trusted CDP
-// input and closed-shadow-root lookups that drive the in-field key button and its menu.
+// Development only: shared pieces of the real-browser checks. Browser discovery (the one place every tool finds
+// Chrome and Firefox), a disposable headless Chrome over --remote-debugging-pipe, a throwaway certificate, the
+// test/pages server, and the trusted CDP input and closed-shadow-root lookups that drive the key button and its menu.
 import { spawn, execFileSync } from 'node:child_process';
+import { accessSync, constants, readdirSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { join, basename } from 'node:path';
+import { homedir } from 'node:os';
+import { join, basename, delimiter, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 export const root = fileURLToPath(new URL('..', import.meta.url));
 export const sleep = ms => new Promise(done => setTimeout(done, ms));
-export const defaultChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 // Chromium-family browsers the real-browser end-to-end test may drive, in search order.
 const browserApps = [
@@ -19,9 +20,12 @@ const browserApps = [
 // Where `npx @puppeteer/browsers install chrome@stable --path <folder>` puts Chrome for Testing.
 export const browserCacheFolders = home => [join(home, 'Library/Caches/KeeForge-E2E'), join(home, '.cache/puppeteer')];
 
+// Searched last, in each `path` folder (Linux and other non-macOS systems).
+const browserCommands = ['google-chrome-stable', 'google-chrome', 'chromium', 'chromium-browser'];
+
 // An explicit choice is used as given and never falls back, so a wrong path fails instead of testing another browser.
-// `fs` supplies `isExecutable(path)` and `list(dir)` (names, empty when missing).
-export function findBrowser({ explicit, home, fs }) {
+// `fs` supplies `isExecutable(path)` and `list(dir)` (names, empty when missing); `path` lists command folders.
+export function findBrowser({ explicit, home, fs, path = [] }) {
   if (explicit) return { browser: fs.isExecutable(explicit) ? explicit : null, searched: [explicit] };
   const searched = [];
   const found = path => { searched.push(path); return fs.isExecutable(path); };
@@ -41,8 +45,31 @@ export function findBrowser({ explicit, home, fs }) {
       }
     }
   }
+  for (const folder of path) for (const command of browserCommands) if (found(join(folder, command))) return { browser: join(folder, command), searched };
   return { browser: null, searched };
 }
+
+// Firefox for firefox-check.mjs, with the same never-fall-back rule for an explicit path.
+export function findFirefox({ explicit, home, fs, path = [] }) {
+  const candidates = explicit ? [explicit] : [...['/Applications', join(home, 'Applications')].map(folder => join(folder, 'Firefox.app/Contents/MacOS/firefox')), ...path.map(folder => join(folder, 'firefox'))];
+  return { browser: candidates.find(candidate => fs.isExecutable(candidate)) ?? null, searched: candidates };
+}
+
+export const localFs = {
+  isExecutable: path => { try { accessSync(path, constants.X_OK); return statSync(path).isFile(); } catch { return false; } },
+  list: dir => { try { return readdirSync(dir); } catch { return []; } }
+};
+// The development checks: $CHROME / $FIREFOX when set (used as given), else the search above. The Mac UI test's
+// driver, e2e-browser.mjs, takes --browser or $KEEFORGE_E2E_BROWSER instead.
+const local = (find, explicit, name, variable) => {
+  const { browser, searched } = find({ explicit, home: homedir(), fs: localFs, path: (process.env.PATH || '').split(delimiter).filter(Boolean) });
+  if (!browser) throw Error(`${name} was not found (set ${variable}); searched ${searched.join(', ')}`);
+  return browser;
+};
+export const chromePath = () => local(findBrowser, process.env.CHROME, 'A Chromium-family browser', 'CHROME');
+export const firefoxPath = () => local(findFirefox, process.env.FIREFOX, 'Firefox', 'FIREFOX');
+// The checks load the source tree by default; CI points EXTENSION_DIR at build/chrome or build/firefox, the shipped files.
+export const extensionDir = (base, fallback = '.') => resolve(process.env.EXTENSION_DIR || resolve(base, fallback));
 
 // Self-signed, one day, for the given DNS names and 127.0.0.1. `spki` is the base64 SHA-256 of the
 // public key, the form --ignore-certificate-errors-spki-list takes.

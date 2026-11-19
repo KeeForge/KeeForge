@@ -145,11 +145,17 @@ test('pairing while paired uses a new connection; concurrent starts cannot repla
   s.connection.close(); await assert.rejects(p.result);
 });
 test('mock UI scenarios return real protocol matches including mixed exactness and databases', async () => {
-  for (const scenario of ['locked', 'empty', 'mixed']) {
+  for (const scenario of ['locked', 'partly-locked', 'empty', 'mixed']) {
     const s = await paired({ scenario });
     const reply = await s.connection.request('matches', { origin: 'https://example.com' });
-    assert.equal(reply.locked, scenario === 'locked' ? 1 : 0);
-    assert.equal(reply.entries.length, scenario === 'mixed' ? 3 : 0);
+    if (scenario === 'locked') {
+      // With no database unlocked the app answers `locked`, not an empty list.
+      assert.deepEqual([reply.ok, reply.error, reply.entries], [false, 'locked', undefined]);
+      assert.equal((await s.connection.request('status', {})).unlocked, 0);
+      s.connection.close(); continue;
+    }
+    assert.equal(reply.locked, scenario === 'partly-locked' ? 1 : 0);
+    assert.equal(reply.entries.length, { mixed: 3, 'partly-locked': 1 }[scenario] ?? 0);
     if (scenario === 'mixed') {
       assert.deepEqual(reply.entries.map(entry => entry.exact), [false, true, true]);
       assert.equal(new Set(reply.entries.map(entry => entry.db)).size, 2);
