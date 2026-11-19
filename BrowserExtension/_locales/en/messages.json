@@ -78,7 +78,7 @@
     "message": "Too many requests. Try again shortly."
   },
   "disabled": {
-    "message": "The browser bridge is turned off in KeeForge."
+    "message": "Filling from browser extensions is turned off in KeeForge. Turn it on in Settings, Browsers."
   },
   "disconnected": {
     "message": "The connection closed. Reopen the popup."

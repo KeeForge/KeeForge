@@ -78,7 +78,7 @@
     "message": "Zu viele Anfragen. Versuche es gleich erneut."
   },
   "disabled": {
-    "message": "Die Browser-Verbindung ist in KeeForge deaktiviert."
+    "message": "Das Ausfüllen durch Browsererweiterungen ist in KeeForge deaktiviert. Aktiviere es unter Einstellungen, Browser."
   },
   "disconnected": {
     "message": "Die Verbindung wurde geschlossen. Öffne das Popup erneut."

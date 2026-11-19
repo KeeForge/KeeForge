@@ -12,7 +12,7 @@
     "message": "Conectando…"
   },
   "hostMissing": {
-    "message": "Prepara este navegador en KeeForge: Ajustes, Navegadores"
+    "message": "Configura este navegador en KeeForge: Ajustes, Navegadores"
   },
   "appUnavailable": {
     "message": "KeeForge no está abierto."
@@ -78,7 +78,7 @@
     "message": "Demasiadas solicitudes. Reinténtalo en breve."
   },
   "disabled": {
-    "message": "La conexión del navegador está desactivada en KeeForge."
+    "message": "El relleno desde extensiones del navegador está desactivado en KeeForge. Actívalo en Ajustes, Navegadores."
   },
   "disconnected": {
     "message": "La conexión se cerró. Vuelve a abrir la ventana."

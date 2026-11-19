@@ -78,7 +78,7 @@
     "message": "Trop de demandes. Réessayez dans un instant."
   },
   "disabled": {
-    "message": "La connexion au navigateur est désactivée dans KeeForge."
+    "message": "Le remplissage par les extensions de navigateur est désactivé dans KeeForge. Activez-le dans Réglages, Navigateurs."
   },
   "disconnected": {
     "message": "La connexion a été fermée. Rouvrez la fenêtre."

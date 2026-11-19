@@ -78,7 +78,7 @@
     "message": "Troppe richieste. Riprova tra poco."
   },
   "disabled": {
-    "message": "Il collegamento al browser è disattivato in KeeForge."
+    "message": "La compilazione dalle estensioni del browser è disattivata in KeeForge. Attivala in Impostazioni, Browser."
   },
   "disconnected": {
     "message": "La connessione è stata chiusa. Riapri il popup."

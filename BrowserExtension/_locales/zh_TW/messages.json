@@ -78,7 +78,7 @@
     "message": "請求過多。請稍後重試。"
   },
   "disabled": {
-    "message": "KeeForge 中的瀏覽器連線已關閉。"
+    "message": "KeeForge 已關閉瀏覽器延伸功能填寫。請在「設定」的「瀏覽器」中開啟。"
   },
   "disconnected": {
     "message": "連線已關閉。請重新開啟彈出視窗。"

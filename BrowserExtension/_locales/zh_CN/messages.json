@@ -78,7 +78,7 @@
     "message": "请求过多。请稍后重试。"
   },
   "disabled": {
-    "message": "KeeForge 中的浏览器连接已关闭。"
+    "message": "KeeForge 已关闭浏览器扩展填充。请在“设置”的“浏览器”中打开。"
   },
   "disconnected": {
     "message": "连接已关闭。请重新打开弹出窗口。"
