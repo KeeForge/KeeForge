@@ -264,16 +264,13 @@ struct RegularDatabaseWorkspaceView: View {
 
             do {
                 if let drive = provider as? GoogleDriveCloudProvider {
-                    let updated = try await drive.reconnect(from: presentationAnchor(), reference: reference)
-                    guard case .unlocked = viewModel.state,
-                          viewModel.databaseReference.id == reference.id,
-                          viewModel.databaseReference.cloudSyncMetadata?.fileId == metadata.fileId,
-                          viewModel.databaseReference.cloudSyncMetadata?.accountId == metadata.accountId else { return }
-                    viewModel.reconcileReference(updated)
+                    try await viewModel.reconnectGoogleDrive { reference in
+                        try await drive.reconnect(from: presentationAnchor(), reference: reference)
+                    }
                 } else {
                     _ = try await provider.authenticate(from: presentationAnchor())
+                    viewModel.clearSaveError()
                 }
-                viewModel.clearSaveError()
             } catch let error as CloudProviderError where error == .authenticationCancelled {
                 return
             } catch {

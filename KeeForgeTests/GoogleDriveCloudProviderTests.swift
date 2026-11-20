@@ -92,6 +92,42 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         XCTAssertTrue(CloudAccountStore.accounts.isEmpty)
     }
 
+    func testReconnectClearsTheUnlockedSessionIssue() async throws {
+        let fixture = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        let bytes = try Data(contentsOf: fixture)
+        var reference = try registerDriveReference(bytes: bytes)
+        reference.updateCloudSyncMetadata { $0.lastSyncIssue = .notAuthenticated }
+        DatabaseListStore.testUpsert(reference)
+        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
+        let viewModel = DatabaseViewModel(databaseReference: reference, cloudSyncOperation: { reference, _ in
+            CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference),
+                data: bytes, status: .disconnectedCached)
+        })
+        await viewModel.unlock(password: "testpassword123")
+        XCTAssertEqual(viewModel.state, .unlocked)
+        XCTAssertTrue(viewModel.needsGoogleDriveReconnect)
+        viewModel.presentSaveError(CloudProviderError.writeScopeRequired)
+        var expected = viewModel.databaseReference.cloudSyncMetadata
+        expected?.lastSyncIssue = nil
+
+        let vault = DriveTestCredentials()
+        let transport = DriveTransport([
+            .json(["user": ["permissionId": "test-account"]]), try .file(bytes, revision: "base"),
+        ])
+        let provider = GoogleDriveCloudProvider(authorization: try vault.authorization(present: { _, _, _ in
+            DriveTestCredentials.grant()
+        }), transport: transport)
+        try await viewModel.reconnectGoogleDrive { reference in
+            try await provider.reconnect(from: ASPresentationAnchor(), reference: reference)
+        }
+
+        XCTAssertFalse(viewModel.needsGoogleDriveReconnect)
+        XCTAssertNil(viewModel.saveError)
+        XCTAssertEqual(viewModel.databaseReference.cloudSyncMetadata, expected)
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertNil(stored.cloudSyncMetadata?.lastSyncIssue)
+    }
+
     func testOAuthCancellationAndLateCallbackAfterClosingTheSheet() async throws {
         let vault = DriveTestCredentials()
         let transport = DriveTransport([])
@@ -153,6 +189,38 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         })
         await assertIssue(.notAuthenticated) { _ = try await revoked.accessToken(accountID: "test-account") }
         XCTAssertNil(vault.archive(for: "test-account"))
+    }
+
+    func testCancelledRefreshWaiterLeavesBeforeSharedRefreshCompletes() async throws {
+        let vault = DriveTestCredentials()
+        try vault.seed()
+        let latch = DriveGrantLatch()
+        let authorization = try vault.authorization(refresh: { _, _ in await latch.grant().token })
+        let cancelled = expectation(description: "The cancelled caller stops waiting")
+        let first = Task {
+            do {
+                _ = try await authorization.accessToken(accountID: "test-account")
+                XCTFail("Expected the caller to be cancelled")
+            } catch {
+                XCTAssertTrue(error is CancellationError)
+            }
+            cancelled.fulfill()
+        }
+        await latch.waitUntilStarted()
+        first.cancel()
+        await fulfillment(of: [cancelled], timeout: 2)
+
+        let secondStarted = expectation(description: "Second caller joins the refresh")
+        let second = Task {
+            secondStarted.fulfill()
+            return try await authorization.accessToken(accountID: "test-account")
+        }
+        await fulfillment(of: [secondStarted], timeout: 2)
+        latch.resume()
+        await first.value
+        let token = try await second.value
+        XCTAssertEqual(token, "synthetic-token")
+        XCTAssertEqual(latch.callCount, 1)
     }
 
     func testMultipartWritesOnlyAfterMatchingPreflightAndChecksPaginatedHistory() async throws {
@@ -346,25 +414,31 @@ final class DriveTestCredentials {
 
 @MainActor
 private final class DriveGrantLatch {
-    private var pending: CheckedContinuation<GoogleDriveAuthorization.Grant, Never>?
+    private var pending: [CheckedContinuation<GoogleDriveAuthorization.Grant, Never>] = []
     private var waiting: CheckedContinuation<Void, Never>?
+    private var released = false
+    private(set) var callCount = 0
 
     func grant() async -> GoogleDriveAuthorization.Grant {
-        await withCheckedContinuation { continuation in
-            pending = continuation
+        callCount += 1
+        if released { return DriveTestCredentials.grant() }
+        return await withCheckedContinuation { continuation in
+            pending.append(continuation)
             waiting?.resume()
             waiting = nil
         }
     }
 
     func waitUntilStarted() async {
-        guard pending == nil else { return }
+        guard callCount == 0 else { return }
         await withCheckedContinuation { waiting = $0 }
     }
 
     func resume() {
-        pending?.resume(returning: DriveTestCredentials.grant())
-        pending = nil
+        released = true
+        let waiters = pending
+        pending.removeAll()
+        for waiter in waiters { waiter.resume(returning: DriveTestCredentials.grant()) }
     }
 }
 

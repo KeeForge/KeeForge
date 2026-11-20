@@ -71,6 +71,7 @@
 ### Credentials and transport
 
 - `CloudTokenStore` holds the Dropbox refresh token, Google Drive’s per-account AppAuth state, and WebDAV/FTP credentials as Keychain items in the group named by `CloudKeychainAccessGroup` in the app `Info.plist`, `AfterFirstUnlockThisDeviceOnly`, with no biometric gate. It is not compiled into the extensions.
+- Drive callers can stop waiting independently of the shared token refresh. Refresh results remain bound to the credential generation and account lifetime.
 - OneDrive tokens live in MSAL's own cache: keychain group `com.microsoft.adalcache` on iOS (second in `KeeForge.entitlements`), `com.microsoft.identity.universalstorage` on macOS (not declared today).
 - WebDAV requires `https` unless the user set `allowsUnencryptedHTTP`; FTP always requires `allowsUnencryptedFTP`, because the password travels in the clear. Keep both opt-ins explicit. ATS allows arbitrary loads for user-entered hosts, so this code is the only enforcement.
 - WebDAV refuses cross-origin redirects and never forwards credentials.

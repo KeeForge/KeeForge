@@ -2556,6 +2556,33 @@ final class DatabaseViewModel {
         saveError = nil
     }
 
+#if os(iOS)
+    func reconnectGoogleDrive(_ reconnect: (DatabaseReference) async throws -> DatabaseReference) async throws {
+        let reference = databaseReference
+        let cycle = lockCycleID
+        guard state == .unlocked, reference.cloudProviderKind == .googleDrive,
+              let original = reference.cloudSyncMetadata else { return }
+
+        let updated = try await reconnect(reference)
+        try Task.checkCancellation()
+        guard state == .unlocked, lockCycleID == cycle, databaseReference.id == reference.id,
+              updated.id == reference.id, let current = databaseReference.cloudSyncMetadata,
+              let verified = updated.cloudSyncMetadata,
+              current.provider == original.provider, current.accountId == original.accountId,
+              current.fileId == original.fileId, current.keyEpoch == original.keyEpoch,
+              databaseReference.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt,
+              verified.provider == original.provider, verified.accountId == original.accountId,
+              verified.fileId == original.fileId, verified.keyEpoch == original.keyEpoch,
+              updated.lastMasterKeyChangeAt == reference.lastMasterKeyChangeAt,
+              verified.lastSyncIssue == nil else { return }
+
+        if needsGoogleDriveReconnect {
+            databaseReference.updateCloudSyncMetadata { $0.lastSyncIssue = nil }
+        }
+        if saveError == .writeScopeRequired || saveError == .notAuthenticated { clearSaveError() }
+    }
+#endif
+
     func presentSaveError(_ error: Error) {
         saveError = DatabaseSaveError(error)
     }

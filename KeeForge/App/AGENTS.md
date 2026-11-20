@@ -28,7 +28,7 @@ Keep scene and platform adapters here and lifecycle decisions in the owning view
 
 ### Launch and presentation
 
-- Google Drive reconnect in both iOS layouts must verify the bound account and file before clearing a reconnect error. A fenced Drive write uses the Cloud Recovery banner and encrypted export action.
+- Google Drive reconnect in both iOS layouts clears only authentication errors in the same unlocked session after verifying the bound account and file. A fenced Drive write uses the Cloud Recovery banner and encrypted export action.
 
 - Open cloud databases keep Sync Now below the iPad sidebar title and in the Mac status card (the detail toolbar while the Mac sidebar is hidden). On iPhone only a status badge sits beside the root title and scrolls away with it (a spinner while syncing, a warning whose popover offers Sync Now), and pulling a cloud list down syncs on every iOS layout. Skipped-check, last-sync, pending-upload, and result text lives in its status popover; choosing a future sync policy never claims the current open skipped a check. Sync enablement comes from `DatabaseViewModel.canSyncCloudNow`.
 - Unlock, unlocking, and unlocked are one selected-database flow. Compact presents unlock as a sheet over the list and swaps to the session once unlocked; regular renders all three states inline in the detail column. After an automatic lock (`DatabaseViewModel.staysSelectedAfterLock`), compact presents the database's unlock page again so auto-unlock can run; a manual or system lock returns to the list.

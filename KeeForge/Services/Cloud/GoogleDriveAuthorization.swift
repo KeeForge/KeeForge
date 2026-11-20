@@ -111,13 +111,50 @@ final class GoogleDriveAuthorization {
     typealias Present = @MainActor @Sendable (ASPresentationAnchor, GoogleDriveConfiguration, String?) async throws -> Grant
     typealias Refresh = @MainActor @Sendable (Data, GoogleDriveConfiguration) async throws -> GoogleDriveToken
 
+    @MainActor
+    private final class TokenRefresh {
+        let generation: UInt64
+        private var result: Result<String, Error>?
+        private var waiters: [UUID: CheckedContinuation<String, Error>] = [:]
+
+        init(generation: UInt64) {
+            self.generation = generation
+        }
+
+        func value() async throws -> String {
+            let id = UUID()
+            return try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    if Task.isCancelled {
+                        continuation.resume(throwing: CancellationError())
+                    } else if let result {
+                        continuation.resume(with: result)
+                    } else {
+                        waiters[id] = continuation
+                    }
+                }
+            } onCancel: {
+                Task { @MainActor in
+                    self.waiters.removeValue(forKey: id)?.resume(throwing: CancellationError())
+                }
+            }
+        }
+
+        func finish(_ result: Result<String, Error>) {
+            self.result = result
+            let waiting = waiters.values
+            waiters.removeAll()
+            for waiter in waiting { waiter.resume(with: result) }
+        }
+    }
+
     nonisolated let configuration: GoogleDriveConfiguration?
     private nonisolated let credentials: GoogleDriveCredentialStore
     private let present: Present?
     private let refresh: Refresh
     private var attempt: UUID?
     private var pendingSession: (any OIDExternalUserAgentSession)?
-    private var refreshes: [String: (id: UUID, generation: UInt64, task: Task<String, Error>)] = [:]
+    private var refreshes: [String: TokenRefresh] = [:]
 
     nonisolated init(configuration: GoogleDriveConfiguration? = .load(),
                      credentials: GoogleDriveCredentialStore = GoogleDriveCredentialStore(),
@@ -188,27 +225,28 @@ final class GoogleDriveAuthorization {
         try Task.checkCancellation()
         let snapshot = credentials.snapshot(accountID)
         guard let data = snapshot.data else { throw CloudProviderError.notAuthenticated }
-        let task: Task<String, Error>
+        let request: TokenRefresh
         if let existing = refreshes[accountID], existing.generation == snapshot.generation {
-            task = existing.task
+            request = existing
         } else {
-            let id = UUID()
-            task = Task {
-                defer { if refreshes[accountID]?.id == id { refreshes[accountID] = nil } }
+            request = TokenRefresh(generation: snapshot.generation)
+            refreshes[accountID] = request
+            // A cancelled caller leaves its wait while other callers keep the shared refresh.
+            Task {
+                defer { if refreshes[accountID] === request { refreshes[accountID] = nil } }
                 do {
                     let refreshed = try await refresh(data, configuration)
                     guard credentials.save(refreshed.archive, accountID: accountID, generation: snapshot.generation) else {
                         throw CloudProviderError.notAuthenticated
                     }
-                    return refreshed.accessToken
+                    request.finish(.success(refreshed.accessToken))
                 } catch {
                     if Self.isInvalidGrant(error) { credentials.remove(accountID, ifGeneration: snapshot.generation) }
-                    throw Self.oauthError(error)
+                    request.finish(.failure(Self.oauthError(error)))
                 }
             }
-            refreshes[accountID] = (id, snapshot.generation, task)
         }
-        let token = try await task.value
+        let token = try await request.value()
         try Task.checkCancellation()
         let current = credentials.snapshot(accountID)
         guard current.data != nil, current.lifetime == snapshot.lifetime else { throw CloudProviderError.notAuthenticated }
