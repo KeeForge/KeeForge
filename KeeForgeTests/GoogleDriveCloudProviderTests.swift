@@ -99,13 +99,20 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         reference.updateCloudSyncMetadata { $0.lastSyncIssue = .notAuthenticated }
         DatabaseListStore.testUpsert(reference)
         try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
-        let viewModel = DatabaseViewModel(databaseReference: reference, cloudSyncOperation: { reference, _ in
+        let disconnected: DatabaseViewModel.CloudSyncOperation = { reference, _ in
             CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference),
                 data: bytes, status: .disconnectedCached)
-        })
+        }
+        let viewModel = DatabaseViewModel(databaseReference: reference, cloudSyncOperation: disconnected,
+            cloudRefreshOperation: disconnected, pendingUploadMarkerCheck: { _ in true })
         await viewModel.unlock(password: "testpassword123")
         XCTAssertEqual(viewModel.state, .unlocked)
         XCTAssertTrue(viewModel.needsGoogleDriveReconnect)
+        await viewModel.syncCloudNow()
+        let notice = CloudSyncResolution.disconnectedCachedBannerMessage
+        XCTAssertEqual(viewModel.cloudSyncBannerText, notice)
+        XCTAssertEqual(viewModel.cloudSyncOutcome, .failed(notice))
+        XCTAssertTrue(CloudSyncControls.showsPendingUploadNote(for: viewModel))
         viewModel.presentSaveError(CloudProviderError.writeScopeRequired)
         var expected = viewModel.databaseReference.cloudSyncMetadata
         expected?.lastSyncIssue = nil
@@ -122,6 +129,9 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         }
 
         XCTAssertFalse(viewModel.needsGoogleDriveReconnect)
+        XCTAssertNil(viewModel.cloudSyncBannerText)
+        XCTAssertNil(viewModel.cloudSyncOutcome)
+        XCTAssertTrue(CloudSyncControls.showsPendingUploadNote(for: viewModel))
         XCTAssertNil(viewModel.saveError)
         XCTAssertEqual(viewModel.databaseReference.cloudSyncMetadata, expected)
         let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })

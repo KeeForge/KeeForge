@@ -706,7 +706,11 @@ final class DatabaseViewModel {
     /// The cached copy is open because the provider refused the saved sign-in
     /// (or there is none), so only signing in again can refresh it.
     var cloudSyncNeedsReconnect: Bool {
-        switch cloudSyncBannerText {
+        Self.isCloudReconnectMessage(cloudSyncBannerText)
+    }
+
+    private static func isCloudReconnectMessage(_ message: String?) -> Bool {
+        switch message {
         case CloudSyncResolution.disconnectedCachedBannerMessage?,
              CloudSyncIssue.notAuthenticated.localizedDescription?,
              CloudSyncIssue.writeScopeRequired.localizedDescription?:
@@ -2578,6 +2582,10 @@ final class DatabaseViewModel {
 
         if needsGoogleDriveReconnect {
             databaseReference.updateCloudSyncMetadata { $0.lastSyncIssue = nil }
+        }
+        if cloudSyncNeedsReconnect { cloudSyncBannerText = nil }
+        if case .failed(let message) = cloudSyncOutcome, Self.isCloudReconnectMessage(message) {
+            cloudSyncOutcome = nil
         }
         if saveError == .writeScopeRequired || saveError == .notAuthenticated { clearSaveError() }
     }
