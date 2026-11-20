@@ -1,0 +1,82 @@
+/* Shared tokens and primitives for the popup, pairing page and in-page menu. */
+:root {
+  color-scheme: light dark;
+  --kf-bg: #fbfbfc;
+  --kf-fg: #1d1d1f;
+  --kf-muted: #6b6b70;
+  --kf-accent: #3070cc;
+  --kf-accent-fg: #ffffff;
+  --kf-border: #e1e1e4;
+  --kf-hover: #efeff1;
+  --kf-radius: 6px;
+  --kf-font: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --kf-bg: #242427;
+    --kf-fg: #f5f5f7;
+    --kf-muted: #a1a1a7;
+    --kf-border: #3b3b3f;
+    --kf-hover: #323236;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--kf-bg); color: var(--kf-fg); font: 13px/1.4 var(--kf-font); -webkit-font-smoothing: antialiased; }
+:lang(ja), :lang(zh) { line-height: 1.55; }
+button { font: inherit; color: inherit; cursor: default; }
+button:focus-visible { outline: 2px solid var(--kf-accent); outline-offset: 2px; }
+button:disabled { opacity: .5; }
+[hidden] { display: none !important; }
+
+.kf-primary, .kf-secondary { min-height: 28px; max-width: 100%; padding: 4px 14px; border: 1px solid transparent; border-radius: var(--kf-radius); font-weight: 500; text-align: center; }
+.kf-primary { background: var(--kf-accent); color: var(--kf-accent-fg); }
+.kf-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--kf-accent) 88%, #000); }
+.kf-primary:active:not(:disabled) { background: color-mix(in srgb, var(--kf-accent) 78%, #000); }
+.kf-secondary { background: var(--kf-bg); border-color: var(--kf-border); }
+.kf-secondary:hover:not(:disabled) { background: var(--kf-hover); }
+
+.kf-section { margin: 0; padding: 10px 10px 4px; color: var(--kf-muted); font-size: 11px; font-weight: 600; line-height: 16px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Monochrome glyphs are masks so they take the surrounding text colour. */
+.kf-icon { display: inline-block; width: 16px; height: 16px; flex: none; background: currentColor; mask: url('images/key.svg') center / contain no-repeat; }
+.glyph-key { mask-image: url('images/key.svg'); }
+.glyph-code { mask-image: url('images/code.svg'); }
+.glyph-lock { mask-image: url('images/lock.svg'); }
+.glyph-reveal { mask-image: url('images/reveal.svg'); }
+.glyph-page { mask-image: url('images/page.svg'); }
+.glyph-alert { mask-image: url('images/alert.svg'); }
+.glyph-check { mask-image: url('images/check.svg'); }
+.glyph-link { mask-image: url('images/link.svg'); }
+.glyph-power { mask-image: url('images/power.svg'); }
+
+/* Login row: the whole row highlights; the selected row takes the accent like a native list. */
+.kf-row { display: flex; align-items: center; min-width: 0; padding-inline-end: 4px; border-radius: var(--kf-radius); }
+.kf-row:hover { background: var(--kf-hover); }
+.kf-row[data-selected="true"] { background: var(--kf-accent); color: var(--kf-accent-fg); }
+.kf-login { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; padding: 6px 4px 6px 8px; border: 0; border-radius: var(--kf-radius); background: transparent; text-align: start; }
+.kf-login:focus-visible { outline: none; }
+.kf-row:not([data-selected="true"]):has(.kf-login:focus-visible) { box-shadow: inset 0 0 0 2px var(--kf-accent); }
+.kf-label { flex: 1; min-width: 0; }
+.kf-title, .kf-username { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kf-title { font-size: 13px; font-weight: 600; line-height: 17px; }
+.kf-username { font-size: 12px; line-height: 16px; color: var(--kf-muted); }
+.kf-avatar { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 7px; background: var(--kf-hover); color: var(--kf-muted); font-size: 13px; font-weight: 600; line-height: 1; }
+.kf-row:hover:not([data-selected="true"]) .kf-avatar { background: var(--kf-border); }
+.kf-code { width: 13px; height: 13px; color: var(--kf-muted); }
+.kf-row:is(:hover, :focus-within, [data-selected="true"]) .kf-code { display: none; }
+.kf-icon-button { display: grid; place-items: center; flex: none; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 5px; color: var(--kf-muted); background: transparent; opacity: 0; }
+.kf-row:hover .kf-icon-button, .kf-row:focus-within .kf-icon-button, .kf-row[data-selected="true"] .kf-icon-button { opacity: 1; }
+.kf-icon-button:hover { background: var(--kf-border); color: var(--kf-fg); }
+.kf-row[data-selected="true"] .kf-username { color: var(--kf-accent-fg); }
+.kf-row[data-selected="true"] .kf-icon-button { color: color-mix(in srgb, var(--kf-accent-fg) 85%, transparent); }
+.kf-row[data-selected="true"] .kf-avatar { background: color-mix(in srgb, var(--kf-accent-fg) 20%, transparent); color: var(--kf-accent-fg); }
+.kf-row[data-selected="true"] .kf-icon-button:hover { background: color-mix(in srgb, var(--kf-accent-fg) 20%, transparent); color: var(--kf-accent-fg); }
+.kf-row[data-selected="true"] .kf-icon-button:focus-visible { outline-color: var(--kf-accent-fg); outline-offset: -2px; }
+
+/* Status block: one glyph, one sentence, at most one primary button. */
+.kf-state { padding: 28px 24px 24px; text-align: center; }
+.kf-state p { margin: 12px auto 0; max-width: 270px; text-wrap: balance; overflow-wrap: anywhere; }
+.kf-state-icon { display: block; width: 32px; height: 32px; margin: 0 auto; color: var(--kf-muted); }
+.kf-waiting { display: block; width: 26px; height: 26px; margin: 3px auto; border: 2.5px solid var(--kf-border); border-top-color: var(--kf-accent); border-radius: 50%; animation: kf-spin .8s linear infinite; }
+@keyframes kf-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .kf-waiting { animation-duration: 2.4s; } }

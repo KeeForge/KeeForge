@@ -9,6 +9,7 @@ Thanks for helping improve KeeForge.
 - For a substantial change, open an issue first so the scope and approach can be discussed.
 - Read [`AGENTS.md`](AGENTS.md), then the folder-local `README.md` nearest to the code you plan to change.
 - Keep changes focused. Security-sensitive parser, writer, crypto, secret-handling, and save-path changes require focused tests.
+- If you change the messages exchanged between the browser extension, its native-messaging host, and the Mac app, update [`docs/browser-bridge-protocol.md`](docs/browser-bridge-protocol.md) in the same commit. A change to which origins are accepted or which entries match a site also updates the conformance fixtures in [`TestFixtures/browser-bridge/`](TestFixtures/browser-bridge/).
 
 ## Requirements
 
@@ -17,6 +18,7 @@ Thanks for helping improve KeeForge.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 with strict concurrency
 - Swift Package dependencies: the local [KDBXKit](Packages/KDBXKit) package (which uses [argon2](https://github.com/P-H-C/phc-winner-argon2) and KeeForgeTwofish) and [KDBXXML](Packages/KDBXXML) package, [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), [swift-psl](https://github.com/ameshkov/swift-psl), [YubiKit](https://github.com/Yubico/yubikit-ios), and the vendored [KeeForgeTwofish](Vendor/KeeForgeTwofish) package
+- For the browser extension in `BrowserExtension/` only: Node.js with WebCrypto X25519, Python 3 for packaging, and Chrome and Firefox for the real-browser checks; no npm packages
 
 ## Build From Source
 
@@ -41,6 +43,15 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
   -destination 'platform=macOS' \
   -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
+
+The Mac browser extension in `BrowserExtension/` is plain JavaScript with no packages. `tools/ci.sh` runs all of its checks, including real Chrome and Firefox; its Node tests alone are the quick subset:
+
+```bash
+BrowserExtension/tools/ci.sh
+cd BrowserExtension && node --test
+```
+
+[`BrowserExtension/README.md`](BrowserExtension/README.md) explains how to load it into a browser and what each check covers.
 
 ## Development Workflow
 
@@ -67,6 +78,8 @@ Three status checks must pass before a pull request can merge:
 - **unit-tests** — runs the `KeeForgeTests` unit suite on an iOS simulator.
 - **macos-unit-tests** — compiles the shared unit sources against the native Mac app and runs `KeeForgeMacTests` on macOS.
 - **DCO** — verifies every commit is signed off (see below).
+
+Pull requests also run a **browser-extension** check, `BrowserExtension/tools/ci.sh` against a stand-in for the Mac app; it is not yet required.
 
 ## Developer Certificate of Origin
 

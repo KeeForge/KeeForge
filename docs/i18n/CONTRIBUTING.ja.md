@@ -9,6 +9,7 @@ KeeForge の改善にご協力いただきありがとうございます。
 - 大きめの変更については、範囲と方針を相談できるよう、先に issue を作成してください。
 - まず [`AGENTS.md`](../../AGENTS.md) を読み、次に変更する予定のコードに最も近いフォルダ内の `README.md` を読んでください。
 - 変更は目的を絞ってください。セキュリティに関わるパーサ、ライタ、暗号処理、秘密情報の取り扱い、保存経路の変更には、的を絞ったテストが必要です。
+- ブラウザ機能拡張、そのネイティブメッセージングホスト、Mac App の間でやり取りするメッセージを変更する場合は、同じコミットで [`docs/browser-bridge-protocol.md`](../../docs/browser-bridge-protocol.md) を更新してください。受け入れるオリジンや、サイトに一致するエントリを変える場合は、[`TestFixtures/browser-bridge/`](../../TestFixtures/browser-bridge/) の適合性フィクスチャも更新してください。
 
 ## 必要な環境
 
@@ -17,6 +18,7 @@ KeeForge の改善にご協力いただきありがとうございます。
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6（strict concurrency 有効）
 - Swift Package の依存関係: [argon2](https://github.com/P-H-C/phc-winner-argon2)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)、[swift-psl](https://github.com/ameshkov/swift-psl)、[YubiKit](https://github.com/Yubico/yubikit-ios)、および同梱の [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) パッケージ
+- `BrowserExtension/` のブラウザ機能拡張のみ：WebCrypto の X25519 に対応した Node.js、パッケージ作成用の Python 3、実際のブラウザでのチェック用の Chrome と Firefox（npm パッケージは不要）
 
 ## ソースからのビルド
 
@@ -41,6 +43,15 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
   -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
 
+`BrowserExtension/` の Mac 用ブラウザ機能拡張は、パッケージを使わないプレーンな JavaScript です。`tools/ci.sh` は実際の Chrome と Firefox を含むすべてのチェックを実行し、Node のテストだけを実行するのが手早い方法です。
+
+```bash
+BrowserExtension/tools/ci.sh
+cd BrowserExtension && node --test
+```
+
+ブラウザへの読み込み方と各チェックの対象は [`BrowserExtension/README.md`](../../BrowserExtension/README.md) を参照してください。
+
 ## 開発の進め方
 
 1. リポジトリをフォークし、`main` からトピックブランチを作成します。
@@ -62,6 +73,8 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - **unit-tests** — GitHub Actions で、iOS シミュレータ上の `KeeForgeTests` ユニットスイートを実行します。
 - **macos-unit-tests** — 共有ユニットテストを macOS 上の `KeeForgeMacTests` として実行します。
 - **DCO** — すべてのコミットに署名（sign-off）があることを検証します（下記参照）。
+
+プルリクエストでは **browser-extension** チェック（Mac App の代わりのモックに対する `BrowserExtension/tools/ci.sh`）も実行されます。このチェックはまだ必須ではありません。
 
 ## Developer Certificate of Origin
 

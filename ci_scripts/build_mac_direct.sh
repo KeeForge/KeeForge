@@ -66,7 +66,7 @@ done
 
 candidate_identity() {
   awk '
-    /^  (KeeForge|KeeForgeAutoFill|KeeForgeMac|KeeForgeMacAutoFill):$/ { target=$1; sub(/:$/, "", target); next }
+    /^  (KeeForge|KeeForgeAutoFill|KeeForgeMac|KeeForgeMacAutoFill|KeeForgeBrowserHost):$/ { target=$1; sub(/:$/, "", target); next }
     /^  [^ ]/ { target="" }
     target && /MARKETING_VERSION:/ { value=$0; sub(/^.*MARKETING_VERSION:[[:space:]]*"?/, "", value); sub(/"[[:space:]]*$/, "", value); version[target]=value }
     target && /CURRENT_PROJECT_VERSION:/ { value=$0; sub(/^.*CURRENT_PROJECT_VERSION:[[:space:]]*"?/, "", value); sub(/"[[:space:]]*$/, "", value); build[target]=value }
@@ -77,7 +77,7 @@ candidate_identity() {
 resolve_candidate_identity() {
   local rows versions builds version build expected_tag tagged_sha tagged_tree head_sha
   rows="$(candidate_identity)"
-  [[ "$(printf '%s\n' "$rows" | sed '/^$/d' | wc -l | tr -d ' ')" == 4 ]] || { echo "error: project.yml must define all four release targets" >&2; return 1; }
+  [[ "$(printf '%s\n' "$rows" | sed '/^$/d' | wc -l | tr -d ' ')" == 5 ]] || { echo "error: project.yml must define all five release targets" >&2; return 1; }
   versions="$(printf '%s\n' "$rows" | cut -d: -f2 | sort -u)"
   builds="$(printf '%s\n' "$rows" | cut -d: -f3 | sort -u)"
   [[ "$(printf '%s\n' "$versions" | wc -l | tr -d ' ')" == 1 && "$(printf '%s\n' "$builds" | wc -l | tr -d ' ')" == 1 ]] || { echo "error: release targets must share version and repo build" >&2; return 1; }
@@ -451,12 +451,30 @@ targets:
       base:
         MARKETING_VERSION: "1.2.3"
         CURRENT_PROJECT_VERSION: "9"
+  KeeForgeBrowserHost:
+    settings:
+      base:
+        MARKETING_VERSION: "1.2.3"
+        CURRENT_PROJECT_VERSION: "9"
 YAML
   git -C "${test_repo}" add project.yml
   git -C "${test_repo}" commit -q -m candidate
   git -C "${test_repo}" tag rc/1.2.3-b9
   saved_repo_root="${REPO_ROOT}"; saved_rc_tag="${RC_TAG}"
   REPO_ROOT="${test_repo}"; RC_TAG=""
+  cp "${test_repo}/project.yml" "${test_root}/project.yml"
+  sed -i '' 's/KeeForgeBrowserHost:/Other:/' "${test_repo}/project.yml"
+  if (resolve_candidate_identity) >/dev/null 2>&1; then
+    echo "error: preflight accepted a project without the browser host target" >&2
+    return 1
+  fi
+  cp "${test_root}/project.yml" "${test_repo}/project.yml"
+  perl -0pi -e 's/(KeeForgeBrowserHost:\n.*\n.*\n.*\n.*CURRENT_PROJECT_VERSION: )"9"/$1"10"/' "${test_repo}/project.yml"
+  if (resolve_candidate_identity) >/dev/null 2>&1; then
+    echo "error: preflight accepted a browser host build that differs" >&2
+    return 1
+  fi
+  cp "${test_root}/project.yml" "${test_repo}/project.yml"
   resolve_candidate_identity
   [[ "${RC_TAG}" == "rc/1.2.3-b9" ]] || { echo "error: preflight did not derive the RC tag" >&2; return 1; }
   checkpoint_output="${test_repo}/build/checkpoint-output"
@@ -771,7 +789,7 @@ check_hardening "${APP_PATH}"
 while IFS= read -r NESTED; do
   check_hardening "${NESTED}"
 done < <(find "${APP_PATH}/Contents" \
-  \( -name "*.appex" -o -name "*.xpc" -o -name "*.app" \) -print)
+  \( -name "*.appex" -o -name "*.xpc" -o -name "*.app" -o -name "keeforge-browser-host" \) -print)
 
 # The AutoFill extension must stay sandboxed in its own right: it is the process
 # that holds decrypted vault contents while filling.

@@ -90,6 +90,8 @@ KeeForge/
 ├── ViewModels/       # Datenbankliste, Entsperren, Speichern, Suche, Sortierung, TOTP-State
 ├── Views/            # SwiftUI-Screens, Editor, Einstellungen, Trinkgeld, wiederverwendbare Controls
 AutoFillExtension/    # AutoFill-Credential-Provider, Passkey-Auth, Anlegen von Zugangsdaten
+BrowserExtension/     # Chrome- und Firefox-Erweiterung zum Ausfüllen aus der Mac-App
+BrowserHost/          # In die Mac-App eingebetteter Native-Messaging-Host
 KeeForgeMac/          # Native macOS-App: AppKit-Oberfläche, Konfiguration und Entitlements
 KeeForgeMacUITests/   # XCUITest-Abdeckung für die macOS-App
 KeeForgeTests/        # Unit-Tests

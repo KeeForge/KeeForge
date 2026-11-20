@@ -1,0 +1,15 @@
+body { min-height: 100vh; display: grid; place-items: center; padding: 32px 16px; background: color-mix(in srgb, var(--kf-fg) 4%, var(--kf-bg)); }
+main { width: 100%; max-width: 380px; padding: 32px 28px 28px; border: 1px solid var(--kf-border); border-radius: 12px; background: var(--kf-bg); box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 8px 24px rgb(0 0 0 / .06); text-align: center; }
+.app-icon { display: block; width: 64px; height: 64px; margin: 0 auto 14px; }
+h1 { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; overflow-wrap: anywhere; }
+#browser { margin: 4px 0 0; color: var(--kf-muted); font-size: 12px; overflow-wrap: anywhere; }
+#browser:empty { display: none; }
+#outcome { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--kf-border); }
+#state-icon.kf-state-icon { width: 36px; height: 36px; }
+#state-icon.glyph-check { color: var(--kf-accent); }
+#code { margin: 0; padding: 14px 0; border-radius: 10px; background: var(--kf-hover); font: 600 38px/1.1 var(--kf-font); font-variant-numeric: tabular-nums; letter-spacing: .06em; word-spacing: .35em; white-space: nowrap; }
+#code:empty { display: none; }
+#status { margin: 14px auto 0; max-width: 300px; text-wrap: balance; overflow-wrap: anywhere; }
+#switch { margin: 10px auto 0; max-width: 300px; color: var(--kf-muted); font-size: 12px; text-wrap: balance; }
+#open { margin-top: 18px; }
+@media (prefers-color-scheme: dark) { body { background: color-mix(in srgb, #000 30%, var(--kf-bg)); } main { box-shadow: 0 8px 24px rgb(0 0 0 / .3); } }

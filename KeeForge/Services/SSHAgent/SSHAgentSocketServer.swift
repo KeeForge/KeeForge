@@ -1,290 +1,35 @@
 #if os(macOS)
-import Darwin
 import Foundation
-import os
 
-enum SSHAgentSocketError: Error, Equatable {
-    case pathTooLong
-    /// Something other than a socket already exists at the path.
-    case pathOccupied
-    /// Another agent, such as a second copy of the app, listens on the path.
-    case socketInUse
-    case system(errno: Int32)
-}
-
-/// Serves `SSHAgentRequestHandler` on a Unix-domain socket that only the
-/// current user can connect to. Each connection is read on its own thread:
-/// requests are tiny, but a client may hold its connection open for as long
-/// as its SSH session runs.
+/// SSH's request/reply adapter over the shared local transport.
 final class SSHAgentSocketServer: Sendable {
-    /// Far more than SSH clients hold open at once. Each connection costs a
-    /// thread, so a process that keeps opening them must run out of
-    /// connections before the app runs out of threads. A connection past the
-    /// limit takes the place of the one that has gone longest without sending
-    /// a request, so clients that stall cannot keep new ones out.
-    static let defaultMaximumConnections = 64
-
-    let path: String
-    private let handler: SSHAgentRequestHandler
-    private let maximumConnections: Int
-    private let acceptQueue = DispatchQueue(label: "com.keevault.app.ssh-agent")
-    private let state = OSAllocatedUnfairLock(uncheckedState: State())
-
-    private struct State {
-        var listener: (any DispatchSourceRead)?
-        /// The socket file this server bound, so `stop()` never removes one
-        /// that another agent has since put at the path.
-        var boundFile: FileIdentity?
-        /// Each open connection and when it last sent a complete request, or
-        /// was accepted if it has sent none.
-        var connections: [Int32: ContinuousClock.Instant] = [:]
-    }
-
-    private struct FileIdentity: Equatable {
-        let device: dev_t
-        let inode: ino_t
-    }
+    private let server: LocalSocketServer
 
     init(
         path: String,
         handler: SSHAgentRequestHandler,
-        maximumConnections: Int = SSHAgentSocketServer.defaultMaximumConnections
+        maximumConnections: Int = LocalSocketServer.defaultMaximumConnections
     ) {
-        self.path = path
-        self.handler = handler
-        self.maximumConnections = maximumConnections
+        server = LocalSocketServer(
+            path: path,
+            framing: .init(
+                byteOrder: .bigEndian,
+                maximumInboundLength: SSHAgentRequestHandler.maximumMessageLength,
+                maximumOutboundLength: SSHAgentRequestHandler.maximumMessageLength
+            ),
+            maximumConnections: maximumConnections
+        ) { ConnectionHandler(connection: $0, handler: handler) }
     }
 
-    deinit {
-        stop()
-    }
+    func start() throws { try server.start() }
+    func stop() { server.stop() }
 
-    func start() throws {
-        guard state.withLockUnchecked({ $0.listener == nil }) else { return }
-        let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard descriptor >= 0 else { throw SSHAgentSocketError.system(errno: errno) }
-        let boundFile: FileIdentity
-        do {
-            boundFile = try bindSocket(descriptor)
-            guard listen(descriptor, SOMAXCONN) == 0,
-                  fcntl(descriptor, F_SETFL, fcntl(descriptor, F_GETFL) | O_NONBLOCK) == 0
-            else { throw SSHAgentSocketError.system(errno: errno) }
-        } catch {
-            close(descriptor)
-            throw error
-        }
+    private struct ConnectionHandler: LocalSocketConnectionHandler {
+        let connection: LocalSocketServer.Connection
+        let handler: SSHAgentRequestHandler
 
-        let listener = DispatchSource.makeReadSource(fileDescriptor: descriptor, queue: acceptQueue)
-        listener.setEventHandler { [weak self] in
-            self?.acceptConnections(from: descriptor)
-        }
-        listener.setCancelHandler {
-            close(descriptor)
-        }
-        state.withLockUnchecked {
-            $0.listener = listener
-            $0.boundFile = boundFile
-        }
-        listener.resume()
-    }
-
-    /// Stops listening, removes the socket file if it is still the one this
-    /// server bound, and ends every open connection; a request already being
-    /// answered gets no reply.
-    func stop() {
-        let (listener, boundFile) = state.withLockUnchecked { state -> ((any DispatchSourceRead)?, FileIdentity?) in
-            // Shut down under the lock: `serve` deregisters a descriptor under
-            // the same lock before closing it, so none of these can have been
-            // closed and reused for another file.
-            for connection in state.connections.keys {
-                shutdown(connection, SHUT_RDWR)
-            }
-            defer {
-                state.listener = nil
-                state.boundFile = nil
-            }
-            return (state.listener, state.boundFile)
-        }
-        guard let listener else { return }
-        listener.cancel()
-        if let boundFile, Self.fileIdentity(at: path) == boundFile {
-            unlink(path)
-        }
-    }
-
-    private static func fileIdentity(at path: String) -> FileIdentity? {
-        var status = stat()
-        guard lstat(path, &status) == 0 else { return nil }
-        return FileIdentity(device: status.st_dev, inode: status.st_ino)
-    }
-
-    /// Binds `descriptor` at `path` and returns the socket file it created.
-    private func bindSocket(_ descriptor: Int32) throws -> FileIdentity {
-        var address = try Self.address(path)
-        try removeStaleSocket()
-        let result = withUnsafePointer(to: &address) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                Darwin.bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-            }
-        }
-        guard result == 0 else { throw SSHAgentSocketError.system(errno: errno) }
-        // Owner-only whatever the umask; the container directory already is.
-        guard chmod(path, S_IRUSR | S_IWUSR) == 0, let boundFile = Self.fileIdentity(at: path) else {
-            let error = errno
-            unlink(path)
-            throw SSHAgentSocketError.system(errno: error)
-        }
-        return boundFile
-    }
-
-    private static func address(_ path: String) throws -> sockaddr_un {
-        var address = sockaddr_un()
-        let pathBytes = Array(path.utf8CString)
-        guard pathBytes.count <= MemoryLayout.size(ofValue: address.sun_path) else {
-            throw SSHAgentSocketError.pathTooLong
-        }
-        address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
-        address.sun_family = sa_family_t(AF_UNIX)
-        withUnsafeMutableBytes(of: &address.sun_path) { destination in
-            pathBytes.withUnsafeBytes { destination.copyMemory(from: $0) }
-        }
-        return address
-    }
-
-    /// A socket left by a previous run that did not stop cleanly: nothing
-    /// accepts a connection on it.
-    private func removeStaleSocket() throws {
-        var status = stat()
-        guard lstat(path, &status) == 0 else { return }
-        guard status.st_mode & S_IFMT == S_IFSOCK else { throw SSHAgentSocketError.pathOccupied }
-        let probe = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard probe >= 0 else { throw SSHAgentSocketError.system(errno: errno) }
-        defer { close(probe) }
-        var address = try Self.address(path)
-        let connected = withUnsafePointer(to: &address) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                Darwin.connect(probe, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-            }
-        }
-        if connected == 0 {
-            throw SSHAgentSocketError.socketInUse
-        }
-        switch errno {
-        case ECONNREFUSED:
-            unlink(path)
-        case ENOENT:
-            break
-        default:
-            throw SSHAgentSocketError.system(errno: errno)
-        }
-    }
-
-    private func acceptConnections(from listener: Int32) {
-        while true {
-            let connection = accept(listener, nil, nil)
-            guard connection >= 0 else {
-                if errno == EINTR || errno == ECONNABORTED {
-                    continue
-                }
-                return
-            }
-            guard Self.isCurrentUser(connection) else {
-                close(connection)
-                continue
-            }
-            var noSIGPIPE: Int32 = 1
-            setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &noSIGPIPE, socklen_t(MemoryLayout<Int32>.size))
-            // Accepted sockets inherit the listener's non-blocking mode.
-            _ = fcntl(connection, F_SETFL, fcntl(connection, F_GETFL) & ~O_NONBLOCK)
-            let isAccepted = state.withLockUnchecked { state -> Bool in
-                guard state.listener != nil else { return false }
-                if state.connections.count >= maximumConnections {
-                    guard let stalled = state.connections.min(by: { $0.value < $1.value })?.key else { return false }
-                    // Its thread wakes from the read or write it is blocked
-                    // in and closes the descriptor.
-                    shutdown(stalled, SHUT_RDWR)
-                    state.connections[stalled] = nil
-                }
-                state.connections[connection] = .now
-                return true
-            }
-            guard isAccepted else {
-                close(connection)
-                continue
-            }
-            Thread.detachNewThread {
-                self.serve(connection)
-            }
-        }
-    }
-
-    private func serve(_ connection: Int32) {
-        defer {
-            state.withLockUnchecked { $0.connections[connection] = nil }
-            close(connection)
-        }
-        while let request = Self.readMessage(from: connection) {
-            state.withLockUnchecked { state in
-                // Absent once the connection gave up its place to a new one.
-                if state.connections[connection] != nil {
-                    state.connections[connection] = .now
-                }
-            }
-            guard Self.writeMessage(handler.response(to: request), to: connection) else { return }
-        }
-    }
-
-    private static func isCurrentUser(_ connection: Int32) -> Bool {
-        var userID: uid_t = 0
-        var groupID: gid_t = 0
-        return getpeereid(connection, &userID, &groupID) == 0 && userID == geteuid()
-    }
-
-    /// One length-prefixed message body, or `nil` at end of stream, on error,
-    /// or for a length the protocol does not allow.
-    private static func readMessage(from connection: Int32) -> Data? {
-        guard let prefix = readBytes(4, from: connection) else { return nil }
-        let length = prefix.reduce(0) { $0 << 8 | Int($1) }
-        guard length > 0, length <= SSHAgentRequestHandler.maximumMessageLength else { return nil }
-        return readBytes(length, from: connection)
-    }
-
-    private static func readBytes(_ count: Int, from connection: Int32) -> Data? {
-        var buffer = [UInt8](repeating: 0, count: count)
-        var received = 0
-        while received < count {
-            let result = buffer.withUnsafeMutableBytes { bytes in
-                bytes.baseAddress.map { Darwin.read(connection, $0 + received, count - received) } ?? -1
-            }
-            if result > 0 {
-                received += result
-            } else if result < 0, errno == EINTR {
-                continue
-            } else {
-                return nil
-            }
-        }
-        return Data(buffer)
-    }
-
-    private static func writeMessage(_ body: Data, to connection: Int32) -> Bool {
-        var framed = SSHWireWriter()
-        framed.writeString(body)
-        let bytes = [UInt8](framed.data)
-        var sent = 0
-        while sent < bytes.count {
-            let result = bytes.withUnsafeBytes { buffer in
-                buffer.baseAddress.map { Darwin.write(connection, $0 + sent, bytes.count - sent) } ?? -1
-            }
-            if result > 0 {
-                sent += result
-            } else if result < 0, errno == EINTR {
-                continue
-            } else {
-                return false
-            }
-        }
-        return true
+        func receive(_ frame: Data) { connection.send(handler.response(to: frame)) }
+        func connectionClosed() {}
     }
 }
 #endif

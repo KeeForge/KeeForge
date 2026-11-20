@@ -10,12 +10,15 @@ final class SettingsWindowController: NSWindowController {
         sessionStore: DatabaseSessionStore,
         quickAccess: MacQuickAccessController,
         sshAgent: MacSSHAgentController,
+        browserBridge: MacBrowserBridgeController,
+        browserHosts: any BrowserHostInstalling,
         prepareWindow: (NSWindow) -> Void = { window in
             window.sharingType = ScreenProtectionService.windowSharingType(blockCapture: SettingsService.blockScreenCapture)
         }
     ) {
         tabs = MacSettingsTabController(listViewModel: listViewModel, sessionStore: sessionStore,
-                                       quickAccess: quickAccess, sshAgent: sshAgent)
+                                       quickAccess: quickAccess, sshAgent: sshAgent,
+                                       browserBridge: MacBrowserBridgeSettingsModel(controller: browserBridge, installer: browserHosts))
         let window = SettingsWindow(contentViewController: tabs)
         window.styleMask = [.titled, .closable]
         window.identifier = NSUserInterfaceItemIdentifier("settings")
@@ -29,6 +32,7 @@ final class SettingsWindowController: NSWindowController {
 
     override func showWindow(_ sender: Any?) {
         tabs.settings.reload()
+        tabs.browserBridge?.reload()
         // Sizes the window to the selected tab while it is still hidden.
         tabs.sizeWindowToSelectedTab()
         super.showWindow(sender)
@@ -39,7 +43,7 @@ final class SettingsWindowController: NSWindowController {
 }
 
 enum MacSettingsTab: String, CaseIterable {
-    case general, security, autofill, quickSearch = "quick-search", sshAgent = "ssh-agent", appearance, servers, about
+    case general, security, autofill, quickSearch = "quick-search", sshAgent = "ssh-agent", browsers, appearance, servers, about
 
     var identifier: String { "settings.tab.\(rawValue)" }
     var title: String {
@@ -49,6 +53,7 @@ enum MacSettingsTab: String, CaseIterable {
         case .autofill: String(localized: "AutoFill")
         case .quickSearch: String(localized: "Quick Search")
         case .sshAgent: String(localized: "SSH Agent")
+        case .browsers: String(localized: "Browsers")
         case .appearance: String(localized: "Appearance")
         case .servers: String(localized: "Servers")
         case .about: String(localized: "About")
@@ -61,6 +66,7 @@ enum MacSettingsTab: String, CaseIterable {
         case .autofill: "text.cursor"
         case .quickSearch: "magnifyingglass"
         case .sshAgent: "terminal"
+        case .browsers: "globe"
         case .appearance: "circle.lefthalf.filled"
         case .servers: "server.rack"
         case .about: "info.circle"
@@ -71,6 +77,7 @@ enum MacSettingsTab: String, CaseIterable {
 @MainActor
 final class MacSettingsTabController: NSTabViewController {
     let settings: AppSettingsViewModel
+    let browserBridge: MacBrowserBridgeSettingsModel?
     private var acknowledgmentsSheet: NSWindow?
     var presentAlert: (NSAlert, NSWindow, @escaping (NSApplication.ModalResponse) -> Void) -> Void = {
         $0.beginSheetModal(for: $1, completionHandler: $2)
@@ -78,8 +85,10 @@ final class MacSettingsTabController: NSTabViewController {
 
     init(listViewModel: DatabaseListViewModel, sessionStore: DatabaseSessionStore?,
          quickAccess: MacQuickAccessController?, sshAgent: MacSSHAgentController?,
+         browserBridge: MacBrowserBridgeSettingsModel?,
          settings: AppSettingsViewModel = AppSettingsViewModel()) {
         self.settings = settings
+        self.browserBridge = browserBridge
         super.init(nibName: nil, bundle: nil)
         settings.connect(to: sessionStore)
         tabStyle = .toolbar
@@ -98,6 +107,11 @@ final class MacSettingsTabController: NSTabViewController {
             case .sshAgent:
                 guard let sshAgent else { continue }
                 content = AnyView(MacSSHAgentSettingsTab(controller: sshAgent))
+            case .browsers:
+                guard let browserBridge else { continue }
+                content = AnyView(MacBrowsersSettingsTab(model: browserBridge,
+                                                         remove: { [weak self] in self?.confirmRemoveBrowser($0) },
+                                                         removeAll: { [weak self] in self?.confirmRemoveAllBrowsers() }))
             case .appearance: content = AnyView(MacAppearanceSettingsTab(settings: settings))
             case .servers:
                 content = AnyView(MacServersSettingsTab(settings: settings, disconnect: { [weak self] in self?.confirmDisconnect($0) }))
@@ -186,6 +200,26 @@ final class MacSettingsTabController: NSTabViewController {
                 message: String(localized: "Disconnect \(account.displayName)? KeeForge will keep any cached databases until you remove them."),
                 button: String(localized: "Disconnect"), identifier: "settings.cloud.signout.confirm") { [weak self] in
             self?.settings.signOut(account)
+        }
+    }
+
+    /// The removal gets the row's id now, so nothing the alert's dismissal does can change what is removed.
+    func confirmRemoveBrowser(_ row: MacBrowserBridgeSettingsModel.PairedRow) {
+        guard let browserBridge else { return }
+        let clientID = row.id
+        confirm(title: String(localized: "Remove “\(row.name)”?"),
+                message: String(localized: "This browser must pair again before it can fill from KeeForge."),
+                button: String(localized: "Remove"), identifier: "settings.browsers.remove.confirm") {
+            Task { await browserBridge.remove(clientID: clientID) }
+        }
+    }
+
+    func confirmRemoveAllBrowsers() {
+        guard let browserBridge else { return }
+        confirm(title: String(localized: "Remove All Browsers?"),
+                message: String(localized: "Every browser must pair again before it can fill from KeeForge."),
+                button: String(localized: "Remove All"), identifier: "settings.browsers.remove.confirm") {
+            Task { await browserBridge.removeAll() }
         }
     }
 

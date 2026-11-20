@@ -7,62 +7,6 @@ import CryptoKit
 import XCTest
 @testable import KeeForge
 
-private struct BrowserBridgeTestClient {
-    let key: Curve25519.KeyAgreement.PrivateKey
-    let ephemeral: Curve25519.KeyAgreement.PrivateKey
-    let nonce: Data
-    var cipher: BrowserBridgeCipher?
-    var pending: [Int: BrowserBridgeRequest.Operation] = [:]
-
-    var pub: Data { key.publicKey.rawRepresentation }
-    var eph: Data { ephemeral.publicKey.rawRepresentation }
-    var id: String { BrowserBridgeCrypto.clientID(pub) }
-    var commit: BrowserBridgeEnvelope { .pairCommit(commit: Data(SHA256.hash(data: pub + eph + nonce)), name: "Test Browser") }
-    var reveal: BrowserBridgeEnvelope { .pairReveal(pub: pub, eph: eph, nonce: nonce) }
-    var hello: BrowserBridgeEnvelope { .clientHello(client: id, eph: eph) }
-
-    func code(app: Data, appEphemeral: Data) -> String {
-        let bytes = Array(SHA256.hash(data: Data("KeeForge browser pairing v1".utf8) + pub + app + eph + appEphemeral))
-        let number = UInt32(bytes[0]) * 16_777_216 + UInt32(bytes[1]) * 65_536 + UInt32(bytes[2]) * 256 + UInt32(bytes[3])
-        return String(format: "%06u", number % 1_000_000)
-    }
-
-    func keys(app: Data, appEphemeral: Data) throws -> BrowserBridgeCrypto.Keys {
-        let s = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: app)
-        let es = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: appEphemeral)
-        let ee = try ephemeral.sharedSecretFromKeyAgreement(with: es)
-        let ce = try key.sharedSecretFromKeyAgreement(with: es)
-        let cs = try ephemeral.sharedSecretFromKeyAgreement(with: s)
-        let ikm = ee.withUnsafeBytes { Data($0) } + ce.withUnsafeBytes { Data($0) } + cs.withUnsafeBytes { Data($0) }
-        let salt = SHA256.hash(data: Data("KeeForge browser bridge v1".utf8) + eph + appEphemeral + pub + app)
-        func derive(_ info: String) -> SymmetricKey {
-            HKDF<SHA256>.deriveKey(inputKeyMaterial: SymmetricKey(data: ikm), salt: Data(salt), info: Data(info.utf8), outputByteCount: 32)
-        }
-        return BrowserBridgeCrypto.Keys(c2s: derive("c2s"), s2c: derive("s2c"))
-    }
-
-    mutating func establish(_ hello: BrowserBridgeEnvelope, app: Data) throws {
-        guard case .serverHello(let es, _) = hello else { throw BrowserBridgeErrorCode.badRequest }
-        let keys = try keys(app: app, appEphemeral: es)
-        cipher = BrowserBridgeCipher(sending: keys.c2s, receiving: keys.s2c)
-    }
-
-    mutating func send(_ request: BrowserBridgeRequest) throws -> BrowserBridgeEnvelope {
-        let message = try cipher!.seal(BrowserBridgeJSON.encode(request))
-        pending[request.id] = request.operation
-        return message
-    }
-    mutating func receive(_ reply: BrowserBridgeEnvelope) throws -> BrowserBridgeReply {
-        struct Identifier: Decodable { let id: Int }
-        let plaintext = try cipher!.open(reply)
-        let id = try BrowserBridgeJSON.decode(Identifier.self, from: plaintext).id
-        guard let operation = pending[id] else { throw BrowserBridgeErrorCode.badRequest }
-        let decoded = try BrowserBridgeJSON.decodeReply(from: plaintext, for: operation)
-        pending.removeValue(forKey: id)
-        return decoded
-    }
-}
-
 final class BrowserBridgeProtocolTests: XCTestCase {
     private func key(_ byte: UInt8) throws -> Curve25519.KeyAgreement.PrivateKey {
         try .init(rawRepresentation: Data(repeating: byte, count: 32))
@@ -70,9 +14,10 @@ final class BrowserBridgeProtocolTests: XCTestCase {
     private func client() throws -> BrowserBridgeTestClient {
         try BrowserBridgeTestClient(key: key(1), ephemeral: key(3), nonce: Data(repeating: 5, count: 32))
     }
-    private func server(known: Data? = nil, busy: Bool = false) throws -> BrowserBridgeSession {
+    private func server(known: Data? = nil, busy: Bool = false, admissions: (() -> Void)? = nil) throws -> BrowserBridgeSession {
         let es = try key(4)
-        return BrowserBridgeSession(appKey: try key(2), appVersion: "1.0", lookupClient: { _ in known }, pairingAvailable: { !busy }, makeEphemeral: { es })
+        return BrowserBridgeSession(appKey: try key(2), appVersion: "1.0", lookupClient: { _ in known },
+                                    admitPairing: { admissions?(); return !busy }, makeEphemeral: { es })
     }
     private func frame(_ envelope: BrowserBridgeEnvelope) throws -> Data {
         try BrowserBridgeFraming.encode(BrowserBridgeJSON.encode(envelope), toward: .towardApp)
@@ -90,6 +35,13 @@ final class BrowserBridgeProtocolTests: XCTestCase {
         let server = try server(known: client.pub)
         try client.establish(envelope(server.receive(frame(client.hello))), app: key(2).publicKey.rawRepresentation)
         return (server, client)
+    }
+
+    func testEstablishedEventIdentifiesClient() throws {
+        let client = try client()
+        let server = try server(known: client.pub)
+        let result = server.receive(try frame(client.hello))
+        XCTAssertEqual(result.events, [.established(clientID: client.id)])
     }
 
     func testFramingRoundTripAndCaps() throws {
@@ -179,14 +131,15 @@ final class BrowserBridgeProtocolTests: XCTestCase {
             }
         }
         XCTAssertThrowsError(try BrowserBridgeJSON.decode(BrowserBridgeRequest.self, from: Data("{\"id\":1,\"type\":\"future\"}".utf8)))
-        let results: [BrowserBridgeReply.Result] = [.status(app: "1", unlocked: 2, locked: 3), .matches(entries: [.init(entry: uuid, db: uuid, dbName: "Test", title: "Title", username: "user", hasTotp: true)], locked: 1), .credential(username: "user", password: "test", totp: "123456"), .credential(username: "", password: "", totp: nil), .empty] + BrowserBridgeRequestError.allCases.map { .failure($0) }
+        let results: [BrowserBridgeReply.Result] = [.status(app: "1", unlocked: 2, locked: 3), .matches(entries: [.init(entry: uuid, db: uuid, dbName: "Test", title: "Title", username: "user", hasTotp: true, exact: true)], locked: 1), .credential(username: "user", password: "test"), .credential(username: "", password: ""), .totp("123456"), .empty] + BrowserBridgeRequestError.allCases.map { .failure($0) }
         for result in results {
             let reply = BrowserBridgeReply(id: 7, result: result)
             let operation: BrowserBridgeRequest.Operation
             switch result {
             case .status, .failure: operation = .status
             case .matches: operation = .matches(origin: "https://example.com")
-            case .credential: operation = .credential(entry: uuid, db: uuid, origin: "https://example.com", totp: true)
+            case .credential: operation = .credential(entry: uuid, db: uuid, origin: "https://example.com", totp: nil)
+            case .totp: operation = .credential(entry: uuid, db: uuid, origin: "https://example.com", totp: true)
             case .empty: operation = .unlock(db: nil)
             }
             let encoded = try BrowserBridgeJSON.encode(reply)
@@ -194,16 +147,30 @@ final class BrowserBridgeProtocolTests: XCTestCase {
             var extra = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
             extra["future"] = [false]
             XCTAssertEqual(try BrowserBridgeJSON.decodeReply(from: JSONSerialization.data(withJSONObject: extra), for: operation), reply)
-            for field in extra.keys where field != "future" && field != "totp" {
+            for field in extra.keys where field != "future" {
                 var missing = extra; missing.removeValue(forKey: field)
                 XCTAssertThrowsError(try BrowserBridgeJSON.decodeReply(from: JSONSerialization.data(withJSONObject: missing), for: operation))
                 var wrong = extra; wrong[field] = [false]
                 XCTAssertThrowsError(try BrowserBridgeJSON.decodeReply(from: JSONSerialization.data(withJSONObject: wrong), for: operation))
             }
         }
+        let codeOnly = try XCTUnwrap(JSONSerialization.jsonObject(with: BrowserBridgeJSON.encode(BrowserBridgeReply(id: 7, result: .totp("123456")))) as? [String: Any])
+        XCTAssertEqual(Set(codeOnly.keys), ["id", "ok", "totp"])
+        let fill = try XCTUnwrap(JSONSerialization.jsonObject(with: BrowserBridgeJSON.encode(BrowserBridgeReply(id: 7, result: .credential(username: "user", password: "test")))) as? [String: Any])
+        XCTAssertEqual(Set(fill.keys), ["id", "ok", "username", "password"])
         for code in BrowserBridgeErrorCode.allCases {
             XCTAssertEqual(try BrowserBridgeJSON.decode(BrowserBridgeEnvelope.self, from: BrowserBridgeJSON.encode(BrowserBridgeEnvelope.error(code))), .error(code))
         }
+    }
+
+    func testMatchesRequireExactBoolean() throws {
+        let uuid = UUID()
+        let row = BrowserBridgeMatch(entry: uuid, db: uuid, dbName: "Test", title: "Title", username: "user", hasTotp: false, exact: false)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: BrowserBridgeJSON.encode(row)) as? [String: Any])
+        json.removeValue(forKey: "exact")
+        XCTAssertThrowsError(try BrowserBridgeJSON.decode(BrowserBridgeMatch.self, from: JSONSerialization.data(withJSONObject: json)))
+        json["exact"] = "true"
+        XCTAssertThrowsError(try BrowserBridgeJSON.decode(BrowserBridgeMatch.self, from: JSONSerialization.data(withJSONObject: json)))
     }
 
     func testPairingHappyPathThenSessionOnSameConnection() throws {
@@ -252,7 +219,50 @@ final class BrowserBridgeProtocolTests: XCTestCase {
         try assertError(try self.server().receive(frame(.host)), .badRequest)
         try assertError(try self.server().receive(frame(client.reveal)), .badRequest)
         let (disabled, _) = try established()
-        try assertError(disabled.disable(), .disabled)
+        try assertError(disabled.refuse(.disabled), .disabled)
+    }
+
+    func testSlotIsTakenAtCommitAndBusyIssuesNoPairKey() throws {
+        let client = try client()
+        var admissions = 0
+        let session = try server(admissions: { admissions += 1 })
+        _ = try session.receive(frame(client.commit))
+        XCTAssertEqual(admissions, 1, "Admission happens at commit, before the pair-key")
+        _ = try session.receive(frame(client.reveal))
+        XCTAssertEqual(admissions, 1, "Reveal asks for nothing more")
+        let busy = try server(busy: true).receive(frame(client.commit))
+        try assertError(busy, .pairingBusy)
+        XCTAssertTrue(busy.events.isEmpty)
+    }
+
+    func testPairingNameIsSanitizedInEvents() throws {
+        let client = try client()
+        guard case .pairCommit(let commit, _) = client.commit else { return XCTFail() }
+        let session = try server()
+        _ = try session.receive(frame(.pairCommit(commit: commit, name: "Chrome\nCode matches \u{202E}wolla\u{202C}")))
+        guard case .pairingRequested(_, let name, _) = try XCTUnwrap(session.receive(frame(client.reveal)).events.first) else { return XCTFail() }
+        XCTAssertEqual(name, "Chrome Code matches wolla")
+        XCTAssertEqual(session.pairingAnswered(true).events, [.paired(clientPublicKey: client.pub, name: "Chrome Code matches wolla")])
+    }
+
+    func testHelloRefusedAfterLookupSendsUnpaired() throws {
+        let client = try client()
+        let session = try server(known: client.pub)
+        XCTAssertEqual(try session.receive(frame(client.hello)).events, [.established(clientID: client.id)])
+        try assertError(session.refuse(.unpaired), .unpaired)
+    }
+
+    func testReplyAtPlaintextCapFitsAndLittleMoreCloses() throws {
+        for (extra, fits) in [(0, true), (48, false)] {
+            var (server, client) = try established()
+            let request = BrowserBridgeRequest(id: 1, operation: .status)
+            _ = try server.receive(frame(client.send(request)))
+            let base = try BrowserBridgeJSON.encode(BrowserBridgeReply(id: 1, result: .credential(username: "", password: ""))).count
+            let password = String(repeating: "x", count: BrowserBridgeFraming.maximumReplyPlaintext - base + extra)
+            let output = server.reply(.credential(username: "", password: password), to: request)
+            XCTAssertEqual(output.close, !fits)
+            if fits, case .message = try envelope(output) {} else if fits { XCTFail("Expected a sealed reply") }
+        }
     }
 
     func testEstablishedRoundTripAndExactlyOneReply() throws {
@@ -269,7 +279,7 @@ final class BrowserBridgeProtocolTests: XCTestCase {
         var (server, client) = try established()
         let request = BrowserBridgeRequest(id: 1, operation: .status)
         _ = try server.receive(frame(client.send(request)))
-        try assertError(server.reply(.credential(username: "", password: String(repeating: "x", count: BrowserBridgeFraming.maximumExtensionPayload), totp: nil), to: request), .badRequest)
+        try assertError(server.reply(.credential(username: "", password: String(repeating: "x", count: BrowserBridgeFraming.maximumExtensionPayload)), to: request), .badRequest)
         let (host, _) = try established()
         try assertError(host.receive(frame(.host)), .badRequest)
     }

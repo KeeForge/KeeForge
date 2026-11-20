@@ -1,0 +1,128 @@
+{
+  "extensionName": {
+    "message": "KeeForge"
+  },
+  "actionTitle": {
+    "message": "KeeForge"
+  },
+  "extensionDescription": {
+    "message": "Inserisci le credenziali da KeeForge."
+  },
+  "loading": {
+    "message": "Connessione…"
+  },
+  "hostMissing": {
+    "message": "Configura questo browser in KeeForge: Impostazioni, Browser"
+  },
+  "appUnavailable": {
+    "message": "KeeForge non è in esecuzione."
+  },
+  "openApp": {
+    "message": "Apri KeeForge"
+  },
+  "notPaired": {
+    "message": "Questo browser non è abbinato."
+  },
+  "pair": {
+    "message": "Abbina a KeeForge"
+  },
+  "unlock": {
+    "message": "Sblocca in KeeForge"
+  },
+  "locked": {
+    "message": "KeeForge è bloccato."
+  },
+  "confirm": {
+    "message": "Conferma in KeeForge"
+  },
+  "noLogins": {
+    "message": "Nessuna credenziale per $1"
+  },
+  "otherLogins": {
+    "message": "Altre credenziali per questo sito"
+  },
+  "fillLogin": {
+    "message": "Inserisci $1, $2"
+  },
+  "verificationCode": {
+    "message": "Codice di verifica"
+  },
+  "fillCode": {
+    "message": "Inserisci codice di verifica"
+  },
+  "reveal": {
+    "message": "Mostra in KeeForge"
+  },
+  "inFrame": {
+    "message": "in un frame di questa pagina"
+  },
+  "filled": {
+    "message": "Inserito."
+  },
+  "badOrigin": {
+    "message": "Impossibile compilare questa pagina. Usa un sito sicuro."
+  },
+  "noFields": {
+    "message": "Nessun campo visibile e modificabile in questa pagina."
+  },
+  "noLongerMatches": {
+    "message": "Questa voce non corrisponde più al sito."
+  },
+  "denied": {
+    "message": "La conferma è stata annullata o non è riuscita."
+  },
+  "notOffered": {
+    "message": "Riapri il popup per aggiornare le credenziali."
+  },
+  "rateLimited": {
+    "message": "Troppe richieste. Riprova tra poco."
+  },
+  "disabled": {
+    "message": "La compilazione dalle estensioni del browser è disattivata in KeeForge. Attivala in Impostazioni, Browser."
+  },
+  "disconnected": {
+    "message": "La connessione è stata chiusa. Riapri il popup."
+  },
+  "unavailable": {
+    "message": "KeeForge o questa voce non è disponibile."
+  },
+  "timeout": {
+    "message": "La richiesta è scaduta. Riprova."
+  },
+  "pairDeclined": {
+    "message": "L'abbinamento è stato rifiutato."
+  },
+  "pairBusy": {
+    "message": "Impossibile avviare l'abbinamento ora. Riprova tra un minuto."
+  },
+  "paired": {
+    "message": "Abbinato a KeeForge. Puoi chiudere questa scheda."
+  },
+  "compareCode": {
+    "message": "Verifica che KeeForge mostri lo stesso codice, poi fai clic su Consenti in KeeForge."
+  },
+  "switchToApp": {
+    "message": "Se KeeForge non compare in primo piano, passa a KeeForge."
+  },
+  "browserLabel": {
+    "message": "Browser: $1"
+  },
+  "browser": {
+    "message": "Browser"
+  },
+  "tryAgain": {
+    "message": "Riprova"
+  },
+  "inlineMenu": {
+    "message": "Apri il menu di inserimento automatico di KeeForge"
+  },
+  "fillCodeFor": {
+    "message": "Inserisci codice di verifica per $1"
+  },
+  "inlineFrameTitle": {
+    "message": "Credenziali KeeForge"
+  },
+  "confirmFill": {
+    "message": "Inserisci"
+  }
+}

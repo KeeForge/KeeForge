@@ -1,0 +1,22 @@
+/* The toolbar popup sizes its viewport from the content: no viewport-relative widths here. */
+html, body { width: 340px; min-width: 340px; }
+body { overflow: hidden; }
+main { display: flex; flex-direction: column; max-height: 600px; }
+header { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 10px 14px; border-bottom: 1px solid var(--kf-border); flex: none; }
+.brand { width: 28px; height: 28px; flex: none; }
+.header-label { min-width: 0; }
+h1 { margin: 0; font-size: 13px; font-weight: 600; line-height: 17px; }
+.site-line { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--kf-muted); }
+#site { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; line-height: 16px; }
+#site:empty, .site-line:has(#site:empty) { display: none; }
+#secure { width: 11px; height: 11px; mask-image: url('images/lock.svg'); }
+#frame { margin: 0; color: var(--kf-muted); font-size: 11px; line-height: 15px; }
+#panel { overflow-y: auto; min-height: 0; scrollbar-width: thin; }
+#content { padding: 0 6px 6px; }
+#content:empty { display: none; }
+#content > button { display: block; margin: 0 auto 22px; }
+#state:has(+ #content > button) { padding-bottom: 16px; }
+ul { list-style: none; margin: 0; padding: 0; }
+#content > ul:first-child { padding-top: 6px; }
+h2.kf-section { margin-top: 6px; border-top: 1px solid var(--kf-border); padding-top: 10px; }
+h2.kf-section + h3.kf-section { padding-top: 2px; }

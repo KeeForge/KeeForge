@@ -90,6 +90,8 @@ KeeForge/
 ├── ViewModels/       # データベース一覧、ロック解除、保存、検索、並べ替え、TOTP の状態
 ├── Views/            # SwiftUI の画面、エディタ、設定、チップ、再利用可能なコントロール
 AutoFillExtension/    # 自動入力の資格情報プロバイダ、パスキー認証、認証情報の作成
+BrowserExtension/     # Mac App から入力する Chrome・Firefox 用機能拡張
+BrowserHost/          # Mac App に組み込まれたネイティブメッセージングホスト
 KeeForgeMac/          # ネイティブ macOS App：AppKit のシェル、構成、エンタイトルメント
 KeeForgeMacUITests/   # macOS App の XCUITest カバレッジ
 KeeForgeTests/        # ユニットテスト

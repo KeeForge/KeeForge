@@ -173,8 +173,9 @@ action-time confirmation. That beta authorization never authorizes production re
 submission, or legal declarations. Never use the newest build by default.
 
 **Any failed test also fails locally** → stop. Fix it as a new commit on the shared release branch;
-never amend or force-push the existing RC. Increment the global `repoBuild` on all four product
-targets (`KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`), run both KDBX
+never amend or force-push the existing RC. Increment the global `repoBuild` on all five product
+targets (`KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, `KeeForgeMacAutoFill`, and
+`KeeForgeBrowserHost`), run both KDBX
 gates again, rebuild all three artifacts (iOS, MAS, and direct Mac) from the new commit, and push
 the immutable `rc/{version}-b{repoBuild}` tag. Repeat every cloud verdict, both KDBX gates,
 local Mac smoke, artifact mapping, and any required soak.

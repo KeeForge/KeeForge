@@ -27,7 +27,7 @@ Inspect `base..target` history and the net diff, accounting for reversions and s
 fixes. Group changes by behavior and follow affected callers and contracts. Review
 committed snapshots; distinguish uncommitted changes and preserve the user's checkout.
 Read affected folder docs on demand. Include iPhone, iPad, Mac App Store, direct Mac,
-and both AutoFill extensions where relevant.
+both AutoFill extensions, and the browser extension with its embedded host where relevant.
 
 ## Parallel review
 
@@ -55,7 +55,10 @@ For each affected behavior, assess concrete risks and the assertions that cover 
   minimum OS, platform/channel differences, existing installs, interrupted operations,
   and relevant performance limits.
 - Coverage: success, failure, cancellation, and persistence paths; assertions that
-  prove outcomes; mocks that bypass the relevant behavior; CI selection and skips;
+  prove outcomes; mocks that bypass the relevant behavior; CI selection and skips
+  (the `browser-extension` job checks the extension against a mock host only; the bridge
+  against the signed app is covered only by `MacBrowserBridgeUITests` and
+  `MacBrowserExtensionUITests`, available on the owner's test Mac and not release gates);
   UI interactions that unit tests cannot establish.
 
 Explicitly assess compatibility coverage when creation, edits, parsing/writing, or any
@@ -70,7 +73,8 @@ verification. Test consolidation campaigns belong to `test-audit`.
 
 Read `KeeForge/Resources/README.md` and discover shipped locales from the catalogs and
 localization tests. Inspect changed user-facing text and affected call sites across
-the app, Mac, and AutoFill extensions for:
+the app, Mac, and AutoFill extensions, and the browser extension's `_locales/` messages
+(outside the catalogs and `LocalizationTests`), for:
 
 - Hardcoded display text or strings that bypass localized lookup.
 - Missing keys, missing locale translations, empty values, and stale translations

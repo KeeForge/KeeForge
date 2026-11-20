@@ -27,6 +27,20 @@ final class MacFilePanelsTests: XCTestCase {
         }
     }
 
+    func testBrowserFolderPanelStartsAtTheRequestedFolderAndChoosesOnlyIt() {
+        let folder = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        let request = BrowserHostInstaller.FolderGrantRequest(browser: .brave,
+            manifestDirectory: folder.appendingPathComponent("NativeMessagingHosts"), directoryToGrant: folder)
+        let panel = MacFilePanels.makeBrowserFolderPanel(for: request)
+        XCTAssertTrue(panel.canChooseDirectories)
+        XCTAssertFalse(panel.canChooseFiles)
+        XCTAssertFalse(panel.canCreateDirectories)
+        XCTAssertFalse(panel.allowsMultipleSelection)
+        XCTAssertEqual(panel.directoryURL?.resolvingSymlinksInPath().path, folder.resolvingSymlinksInPath().path)
+        XCTAssertEqual(panel.prompt, String(localized: "Grant Access"))
+        XCTAssertTrue(panel.message.contains("Brave"))
+    }
+
     func testTheChosenKeyFileReachesTheFormOnThePanelsWindow() async throws {
         let url = try makeFile(named: "personal.keyx", contents: Data(repeating: 3, count: 32))
         let window = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)

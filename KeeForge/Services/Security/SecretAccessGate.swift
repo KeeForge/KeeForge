@@ -65,6 +65,13 @@ final class SecretAccessGate {
         isWithinGracePeriod == false && isAuthenticationAvailable()
     }
 
+    /// Whether `authenticate(reason:)` can prompt at all. A caller that must
+    /// fail closed checks this instead of reading `requiresAuthentication`
+    /// false as permission.
+    var canAuthenticateDeviceOwner: Bool {
+        isAuthenticationAvailable()
+    }
+
     /// Shortening the setting applies at once, while lengthening it takes a
     /// new authentication, so an unlocked app in someone else's hands cannot
     /// be switched to a longer period.

@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Controlled inputs</title></head><body>
+<form><input id="u" autocomplete="username"><input id="p" type="password" autocomplete="current-password"><input id="ctl"></form>
+<script>
+// Reproduces React's value tracker plus controlled re-render on the element's own value property.
+window.state = { u: '', p: '', ctl: '' };
+const native = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+for (const key of Object.keys(state)) {
+  const input = document.getElementById(key);
+  let tracked = native.get.call(input);
+  Object.defineProperty(input, 'value', { configurable: true, get() { return native.get.call(this); }, set(v) { tracked = '' + v; native.set.call(this, v); } });
+  input.addEventListener('input', () => {
+    const next = native.get.call(input);
+    if (next !== tracked) { tracked = next; state[key] = next; }
+    if (native.get.call(input) !== state[key]) native.set.call(input, state[key]);
+    tracked = state[key];
+  });
+}
+</script>
+</body></html>

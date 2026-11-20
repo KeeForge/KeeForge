@@ -29,8 +29,10 @@ test('pairing, equal codes, reconnect, concurrent encrypted round trips and no r
   const statuses = await Promise.all(Array.from({ length: 8 }, () => c.request('status')));
   assert.equal(statuses.length, 8); assert.equal(statuses[0].app, 'mock');
   await c.request('matches', { origin: 'https://example.com' });
-  const credential = await c.request('credential', { entry: ENTRY, db: DB, origin: 'https://example.com', totp: true });
-  assert.equal(credential.password, 'mock-password'); assert.equal(credential.totp, '123456');
+  const code = await c.request('credential', { entry: ENTRY, db: DB, origin: 'https://example.com', totp: true });
+  assert.deepEqual(code, { id: code.id, ok: true, totp: '123456' });
+  const credential = await c.request('credential', { entry: ENTRY, db: DB, origin: 'https://example.com' });
+  assert.equal(credential.password, 'mock-password'); assert.equal('totp' in credential, false);
   assert.equal(c.pending.size, 0); assert.equal(c.record, null); assert.equal(c.ephemeral, null);
   c.close(); await c.open(); assert.equal(c.state, 'ready');
   assert.equal((await c.request('status')).ok, true);
@@ -78,8 +80,10 @@ test('handshake timeout and wrong app static key fail closed', async () => {
 });
 test('wrong client static key cannot authenticate', async () => {
   const s = await paired();
-  const record = await s.store.load(); await s.store.storage.write({ ...record, client: await keyPair() });
-  s.connection.close(); await s.connection.open(); assert.equal(s.connection.reason, 'unpaired');
+  const record = await s.store.load(); await s.store.storage.write({ ...record, client: { ...record.client, privateKey: (await keyPair()).privateKey } });
+  s.connection.close(); await s.connection.open(); assert.equal(s.connection.state, 'ready');
+  await assert.rejects(s.connection.request('status'), /bad-handshake/);
+  assert.equal(s.connection.cipher, null);
 });
 for (const n of [0, 2]) test(`counter ${n === 0 ? 'replay' : 'skip'} tears down`, async () => {
   const s = await paired(); await s.connection.request('status');
@@ -133,7 +137,58 @@ test('remote disable and connected/unavailable control events discard pending se
 test('pairing while paired uses a new connection; concurrent starts cannot replace a waiting pairing', async () => {
   const s = await paired(); const old = s.connection.port;
   s.app.decision = 'pending';
-  const p = await s.connection.startPairing(); assert.notEqual(s.connection.port, old); assert.equal(old.disconnected, true);
+  const first = s.connection.startPairing();
+  const second = s.connection.startPairing();
+  await assert.rejects(second, /pairing-busy/);
+  const p = await first; assert.notEqual(s.connection.port, old); assert.equal(old.disconnected, true);
   await assert.rejects(s.connection.startPairing(), /pairing-busy/);
   s.connection.close(); await assert.rejects(p.result);
+});
+test('mock UI scenarios return real protocol matches including mixed exactness and databases', async () => {
+  for (const scenario of ['locked', 'partly-locked', 'empty', 'mixed']) {
+    const s = await paired({ scenario });
+    const reply = await s.connection.request('matches', { origin: 'https://example.com' });
+    if (scenario === 'locked') {
+      // With no database unlocked the app answers `locked`, not an empty list.
+      assert.deepEqual([reply.ok, reply.error, reply.entries], [false, 'locked', undefined]);
+      assert.equal((await s.connection.request('status', {})).unlocked, 0);
+      s.connection.close(); continue;
+    }
+    assert.equal(reply.locked, scenario === 'partly-locked' ? 1 : 0);
+    assert.equal(reply.entries.length, { mixed: 3, 'partly-locked': 1 }[scenario] ?? 0);
+    if (scenario === 'mixed') {
+      assert.deepEqual(reply.entries.map(entry => entry.exact), [false, true, true]);
+      assert.equal(new Set(reply.entries.map(entry => entry.db)).size, 2);
+      for (const entry of reply.entries) assert.equal((await s.connection.request('credential', { entry: entry.entry, db: entry.db, origin: 'https://example.com' })).ok, true);
+    }
+    s.connection.close();
+  }
+});
+test('outbound frame cap counts JSON bytes only, excluding the native header', () => {
+  const s = setup(); const frames = []; s.connection.port = { postMessage: frame => frames.push(frame) };
+  const frame = { padding: '' }, overhead = new TextEncoder().encode(JSON.stringify(frame)).length;
+  frame.padding = 'x'.repeat(65536 - overhead); s.connection.send(frame); assert.equal(frames.length, 1);
+  assert.throws(() => s.connection.send({ padding: frame.padding + 'x' }));
+});
+test('Open KeeForge fronts an already-running paired app through launch on a fresh session', async () => {
+  const s = await paired(); const previous = s.connection.port;
+  assert.equal((await s.connection.hostCommand('launch')).state, 'ready');
+  assert.equal(previous.disconnected, true); assert.deepEqual(s.runtime.commands, ['launch']);
+  assert.equal((await s.connection.request('status')).ok, true); s.connection.close();
+});
+
+test('popup reconnect after a real disconnect or timeout establishes a fresh working session', async () => {
+  const { Background } = await import('../src/background.js');
+  for (const mode of ['disconnected', 'timeout']) {
+    const s = await paired(); const background = new Background({ connection: s.connection, timers: s.timers });
+    if (mode === 'disconnected') s.connection.port.onDisconnect.emit();
+    else {
+      s.app.dropReplies = true;
+      const pending = s.connection.request('status'); await until(() => s.connection.pending.size === 1);
+      s.timers.fire(10000); await assert.rejects(pending, /timeout/); s.app.dropReplies = false;
+    }
+    assert.equal(s.connection.reason, mode);
+    assert.equal((await background.handle({ type: 'getState', reconnect: true })).state, 'ready');
+    assert.equal((await s.connection.request('status')).ok, true); assert.equal(s.runtime.ports.length, 2); s.connection.close();
+  }
 });

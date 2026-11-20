@@ -130,8 +130,9 @@ def report(probe_dir):
     def ver(p, app):
         return p["installed"].get(app, {}).get("version") if app else None
 
-    if jobs["unit-tests"]["runs-on"] != mac["label"]:
-        drift.append(f"`unit-tests` runs on `{jobs['unit-tests']['runs-on']}`; the newest stable macOS image is `{mac['label']}`.")
+    for job in ("unit-tests", "browser-extension"):
+        if jobs[job]["runs-on"] != mac["label"]:
+            drift.append(f"`{job}` runs on `{jobs[job]['runs-on']}`; the newest stable macOS image is `{mac['label']}`.")
     for job in ("macos-unit-tests", "ios-rc-tests"):
         if jobs[job]["runs-on"] != xc["label"]:
             drift.append(f"`{job}` runs on `{jobs[job]['runs-on']}`; the newest Xcode image is `{xc['label']}`.")
