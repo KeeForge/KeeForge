@@ -21,7 +21,7 @@ struct CloudSyncControls: View {
     /// right below says it failed and offers Merge Changes, so this line would
     /// contradict it.
     static func showsPendingUploadNote(for viewModel: DatabaseViewModel) -> Bool {
-        viewModel.hasPendingCloudUploads && viewModel.hasPendingUploadConflict == false
+        viewModel.hasPendingCloudUploads && viewModel.hasPendingUploadConflict == false && viewModel.driveUploadRecoveryIssue == nil
     }
 
     static func title(for viewModel: DatabaseViewModel) -> String {
@@ -249,3 +249,33 @@ struct CloudSyncWarningButton: View {
         }
     }
 }
+
+#if os(iOS)
+struct DriveUploadRecoveryBanner: View {
+    let issue: CloudSyncIssue
+    @State private var showsRecovery = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(issue.localizedDescription)
+                .font(.footnote)
+            Button("Cloud Recovery") { showsRecovery = true }
+                .font(.footnote.weight(.semibold))
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.warning.opacity(0.1))
+        .sheet(isPresented: $showsRecovery) {
+            NavigationStack {
+                CloudRecoveryView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { showsRecovery = false }
+                        }
+                    }
+            }
+        }
+    }
+}
+#endif

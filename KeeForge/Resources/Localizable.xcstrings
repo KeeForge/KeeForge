@@ -9084,6 +9084,58 @@
         }
       }
     },
+    "Another device wrote to Google Drive during this save. Open Cloud Recovery to export your encrypted copy, then merge it with the other device’s copy." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein anderes Gerät hat beim Speichern in Google Drive geschrieben. Öffne die Cloud-Wiederherstellung, exportiere deine verschlüsselte Kopie und führe sie mit der Kopie des anderen Geräts zusammen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otro dispositivo escribió en Google Drive durante este guardado. Abre Recuperación en la nube para exportar tu copia cifrada y luego fusiónala con la del otro dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un autre appareil a écrit dans Google Drive pendant cet enregistrement. Ouvrez Récupération cloud pour exporter votre copie chiffrée, puis fusionnez-la avec celle de l’autre appareil."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un altro dispositivo ha scritto su Google Drive durante questo salvataggio. Apri Recupero cloud per esportare la copia crittografata, quindi uniscila a quella dell’altro dispositivo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存中に別のデバイスが Google Drive に書き込みました。「クラウドの復旧」で暗号化されたコピーを書き出し、別のデバイスのコピーとマージしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Во время сохранения другое устройство записало данные в Google Диск. Откройте «Восстановление облака», экспортируйте зашифрованную копию и объедините её с копией на другом устройстве."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存期间，另一台设备写入了 Google 云端硬盘。请打开“云端恢复”导出加密副本，再将其与另一台设备上的副本合并。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存期間，另一部裝置寫入了 Google 雲端硬碟。請開啟「雲端復原」匯出加密副本，再將它與另一部裝置上的副本合併。"
+          }
+        }
+      }
+    },
     "Another Dropbox sign-in is already in progress." : {
       "localizations" : {
         "de" : {
@@ -35103,6 +35155,58 @@
         }
       }
     },
+    "Google Drive may have received your changes. Open Cloud Recovery to export your encrypted copy." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google Drive hat deine Änderungen möglicherweise erhalten. Öffne die Cloud-Wiederherstellung, um deine verschlüsselte Kopie zu exportieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es posible que Google Drive haya recibido tus cambios. Abre Recuperación en la nube para exportar tu copia cifrada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google Drive a peut-être reçu vos modifications. Ouvrez Récupération cloud pour exporter votre copie chiffrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google Drive potrebbe aver ricevuto le tue modifiche. Apri Recupero cloud per esportare la copia crittografata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google Drive が変更を受信した可能性があります。「クラウドの復旧」で暗号化されたコピーを書き出してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Возможно, Google Диск получил ваши изменения. Откройте «Восстановление облака», чтобы экспортировать зашифрованную копию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google 云端硬盘可能已收到你的更改。请打开“云端恢复”导出加密副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google 雲端硬碟可能已收到你的變更。請開啟「雲端復原」匯出加密副本。"
+          }
+        }
+      }
+    },
     "Group" : {
       "localizations" : {
         "de" : {
@@ -38949,6 +39053,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 無法確定共享副本是否已被取代。此次儲存未更新原始資料庫。請勿重複此操作；請在 KeeForge 中開啟資料庫詳細資訊，以復原其加密快照。"
+          }
+        }
+      }
+    },
+    "KeeForge could not verify the Google Drive save. Open Cloud Recovery to export your encrypted copy." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge konnte den Speichervorgang in Google Drive nicht überprüfen. Öffne die Cloud-Wiederherstellung, um deine verschlüsselte Kopie zu exportieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no pudo verificar el guardado en Google Drive. Abre Recuperación en la nube para exportar tu copia cifrada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n’a pas pu vérifier l’enregistrement dans Google Drive. Ouvrez Récupération cloud pour exporter votre copie chiffrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non ha potuto verificare il salvataggio su Google Drive. Apri Recupero cloud per esportare la copia crittografata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge は Google Drive への保存を確認できませんでした。「クラウドの復旧」で暗号化されたコピーを書き出してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge не удалось проверить сохранение на Google Диске. Откройте «Восстановление облака», чтобы экспортировать зашифрованную копию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法验证是否已保存到 Google 云端硬盘。请打开“云端恢复”导出加密副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法驗證是否已儲存至 Google 雲端硬碟。請開啟「雲端復原」匯出加密副本。"
           }
         }
       }

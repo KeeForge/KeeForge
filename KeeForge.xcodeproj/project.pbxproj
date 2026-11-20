@@ -133,6 +133,7 @@
 		16E6C8D2E6318417E98D36E3 /* RecycleBinOrigin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5252A2977E836EAAAE6ACE17 /* RecycleBinOrigin.swift */; };
 		17292E0F8DF83A6450FEEC8C /* MacNewDatabaseSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D24D31FA27AF6B5A20D950D4 /* MacNewDatabaseSheet.swift */; };
 		175271DB3D4B017FD4044CB2 /* EntryHistoryTrimmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B23EE0FFF365E0E5F1E571E /* EntryHistoryTrimmer.swift */; };
+		176E344EF4A312D28A7746BF /* YubiKit in Frameworks */ = {isa = PBXBuildFile; productRef = 679304F71B3D2E8B3188AC97 /* YubiKit */; };
 		177C5EEBA0126F6ECA7F409A /* FakeFTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 289CDB8B6F95F2A6B0C698A9 /* FakeFTPServer.swift */; };
 		17D1F06AF2FE6680C75D8957 /* DistributionChannelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F95571BBCA58EA386C4C081C /* DistributionChannelTests.swift */; };
 		186B0BF0473B22258603AFB1 /* DatabaseCreationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FFC8C91D571F07AF7531393 /* DatabaseCreationService.swift */; };
@@ -241,6 +242,7 @@
 		2CB0AF9E0916D6D554CEF43A /* ScreenProtectionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B484939EF6D6E1366A7A9C34 /* ScreenProtectionServiceTests.swift */; };
 		2CED87BE4255F6BBC0E04541 /* TOTPEnrollmentAlertContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBBAB4CAD6548E2ECDE7A14 /* TOTPEnrollmentAlertContent.swift */; };
 		2DE6B2A3403F1B60AAF74E7D /* MacSSHAgentSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32D6FBFB97ADFE34E3B65CD2 /* MacSSHAgentSettingsTab.swift */; };
+		2E3DDD7D93636C65F401FC6A /* GoogleDriveCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8640764313BDC6C916644A24 /* GoogleDriveCloudProvider.swift */; };
 		2E7F32B617110C16EF4E5B66 /* MacWindowCloseGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E00D0D53A542542B165F15C /* MacWindowCloseGuardTests.swift */; };
 		2E8C1464E89E7DF540940F2F /* EntryEditCompletionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01A49238AD6DEF29C56B328 /* EntryEditCompletionGateTests.swift */; };
 		2EF4A37C8512D76CCACA08C5 /* CredentialProviderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268A6ED5FD7C908116437C5E /* CredentialProviderCoordinator.swift */; };
@@ -253,6 +255,7 @@
 		30654F910DE3D6AD103BC613 /* StandardIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6C4374097541AB7852E249 /* StandardIconView.swift */; };
 		306FB3EBBC61ED1F83716A39 /* TOTPQRScannerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F715792780CA7205B5924EE /* TOTPQRScannerSheet.swift */; };
 		30BE98BCBB2C8D6352147FFF /* SiteMatching in Frameworks */ = {isa = PBXBuildFile; productRef = CAF94C81C0EA622E6A9E60AF /* SiteMatching */; };
+		30F1BE0B5EA355FC1B0C8F5E /* GoogleDriveTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5311756C92C118CD67F2D37 /* GoogleDriveTransport.swift */; };
 		310F8939E17928B0959017BC /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB106882B5AF908E0B1ED82C /* ClipboardService.swift */; };
 		3112DEB9B3E66696A337CF23 /* MacLargeTypeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE0D0465A8E74C9F41E8583B /* MacLargeTypeView.swift */; };
 		311CB4B89676FC78D7FD48F6 /* AttachmentLoadCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C2DB820A9B925DD55086586 /* AttachmentLoadCoordinatorTests.swift */; };
@@ -360,6 +363,7 @@
 		4463B550B2DF1AF07BBF8692 /* LargeTypeModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 301015579014972294779964 /* LargeTypeModelTests.swift */; };
 		449D834CE75B30CE67E5E52A /* MacAlertQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77FE8B329D05E90F0330898E /* MacAlertQueueTests.swift */; };
 		44A49975F91A2656847DD7BC /* CompactDatabaseHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37E637975037C946BDD49AD4 /* CompactDatabaseHost.swift */; };
+		44AA55F5B761D0AABC13701F /* GoogleDriveAuthorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FE1E1BECEB49DFF9DBD8DBB /* GoogleDriveAuthorization.swift */; };
 		44E54B54069F7681F2A68806 /* MacEntryEditorSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB00B80098578B8EDBF2E5A1 /* MacEntryEditorSession.swift */; };
 		44FAB47B77CC0AD7C15DE0DE /* MacWorkspaceSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6780DAA40F648E3646D5FEFF /* MacWorkspaceSheets.swift */; };
 		452F1DD93E5FD74824E2BD1A /* MacEntryListModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCA0C8011120C0638C6D7062 /* MacEntryListModelTests.swift */; };
@@ -716,11 +720,12 @@
 		8CD3D7330ED594D430C34A3A /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9714CA937531E201FF3ECB45 /* AppRootView.swift */; };
 		8D1AFF3945FDDCC9EE4F6CC6 /* EntryRowActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD520D3AC1DA5802F01BD550 /* EntryRowActions.swift */; };
 		8D451C0FF02C60504FE778CC /* foreign-chacha20.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = EF6FBD0976DB77F511EDBFFA /* foreign-chacha20.kdbx */; };
+		8D64D468ACE582629EA031C0 /* GoogleDriveCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8640764313BDC6C916644A24 /* GoogleDriveCloudProvider.swift */; };
 		8D665EF38B9AB910835950AD /* PasswordInputRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A81C906DE4BC0FFCA1CC754 /* PasswordInputRow.swift */; };
 		8DBA5DD43302AD63DCCE2E6C /* FieldReferenceResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BF0F834B82C15D0578505A6 /* FieldReferenceResolverTests.swift */; };
 		8DF985F86524598EAF42C4C9 /* PasswordImportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E33F4F8664FD57973FE3A5 /* PasswordImportViewModel.swift */; };
 		8E07A098775D3B3801012403 /* DatabaseExportPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070BD45C43AB658FAE6C8225 /* DatabaseExportPresenter.swift */; };
-		8E2665CEC7D0AF4BC2C0DDD8 /* YubiKit in Frameworks */ = {isa = PBXBuildFile; productRef = 679304F71B3D2E8B3188AC97 /* YubiKit */; };
+		8E2665CEC7D0AF4BC2C0DDD8 /* SiteMatching in Frameworks */ = {isa = PBXBuildFile; productRef = C0D2ECB37C663D0B86FA869E /* SiteMatching */; };
 		8E54AEF7D995D0778431B77D /* AutoFillMemoryLimit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CCBDF8ED23DD32B45AD2C3 /* AutoFillMemoryLimit.swift */; };
 		8EAB80EF201B8AE0EA7F865F /* EntryEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E36B86BDCAAD4E3C120428 /* EntryEdit.swift */; };
 		8EB3704D45E8F904451DCF1B /* DatabaseWindowControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 160ACBD377D4E347100263CC /* DatabaseWindowControllerTests.swift */; };
@@ -785,7 +790,7 @@
 		9C52BA1EC8FF38191ADF78D9 /* PendingUploadRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0144D383D6F598C1B89725B0 /* PendingUploadRecovery.swift */; };
 		9C79590F954BF1DEAD2EDBA0 /* WebDAVSyncUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707D0691762DF0F7082224A2 /* WebDAVSyncUITests.swift */; };
 		9C979F47AD2C98F98BBE16DD /* CompactDatabaseHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37E637975037C946BDD49AD4 /* CompactDatabaseHost.swift */; };
-		9D1A1327DB1549DFCA1A93B3 /* SiteMatching in Frameworks */ = {isa = PBXBuildFile; productRef = C0D2ECB37C663D0B86FA869E /* SiteMatching */; };
+		9D1A1327DB1549DFCA1A93B3 /* AppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 5C549F72ABD9E578B1B78FA5 /* AppAuth */; };
 		9D4573ED84B3C93122BFD4BA /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17350EF5DF6C5C2E97B61A34 /* Attachment.swift */; };
 		9D6529EFA34001C636C6C22F /* AppSettingsCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761192478C291FBAE7135E0A /* AppSettingsCommands.swift */; };
 		9D72ADA8DA6AD1C51A5C953F /* EntryAttachmentFileLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98171453C578E034D7883CF3 /* EntryAttachmentFileLoaderTests.swift */; };
@@ -812,8 +817,10 @@
 		A02D3C44505B3523369922D8 /* DatabaseReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1036AABC590833FFFA1B8A2 /* DatabaseReference.swift */; };
 		A035BB8D1ABFD9CC4E053C55 /* PasswordDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AD4237706B18C568583C16A /* PasswordDisplay.swift */; };
 		A05D930AFFD3F011100F4C5D /* test.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = ACDB93B40CC051227D2E6D76 /* test.kdbx */; };
+		A06392074BCAEF8D1DA30C88 /* GoogleDrivePickerSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33363D92D3DD9FCF22441650 /* GoogleDrivePickerSelection.swift */; };
 		A1577F2F16B060C03C4E6CCB /* MacWorkspaceToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D911AF6B24C434C35185D9 /* MacWorkspaceToolbar.swift */; };
 		A17669F6C06AE3923D9B892B /* MacIconPickerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F578708349381E9C37893D91 /* MacIconPickerController.swift */; };
+		A1B625C9231E53E7B2727824 /* GoogleDriveAuthorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FE1E1BECEB49DFF9DBD8DBB /* GoogleDriveAuthorization.swift */; };
 		A1BF18E7DDE9647E7331665E /* UITestDropboxCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F010A269DB2C2D6FD2B162EF /* UITestDropboxCloudProvider.swift */; };
 		A1D9D4F1DAA557991446D0D2 /* TOTPGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */; };
 		A2ABF21B28C749EB6654EB0E /* MacDatabasesSheetsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3500671B03D89E3F0A552C /* MacDatabasesSheetsTests.swift */; };
@@ -831,6 +838,7 @@
 		A5B9206D383729EA7C05A005 /* MacAttachmentPreviewControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC443719350E528D09F8072 /* MacAttachmentPreviewControllerTests.swift */; };
 		A5E49E50B0892570919D12D3 /* EntryHistoryTrimmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B23EE0FFF365E0E5F1E571E /* EntryHistoryTrimmer.swift */; };
 		A65B92FF831C88C93F890C88 /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3FF6C98ADE49FE6BDB7B6D /* SecurityScopedBookmarkManager.swift */; };
+		A6908743734A2F0191E8E1AE /* GoogleDrivePickerSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080609A86B9A7DDB492F9D42 /* GoogleDrivePickerSelectionTests.swift */; };
 		A708A76DFE6E483112E9ABBE /* VaultCloseTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C4F229D9C69C5A42C3696E4 /* VaultCloseTransition.swift */; };
 		A70A6C8762DA2533989A2E92 /* BrowserBridgeCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF8ABFA65F8493D4AB18D37 /* BrowserBridgeCrypto.swift */; };
 		A70DC1369C5F42750B6EE9A1 /* PasswordInputRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A81C906DE4BC0FFCA1CC754 /* PasswordInputRow.swift */; };
@@ -859,6 +867,7 @@
 		AB262501A61481EC22FA6C77 /* CredentialProviderViewControllerMac.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CD5B20E6190897E216C7F3 /* CredentialProviderViewControllerMac.swift */; };
 		AB2EDD795CFABEA25AE6EE4A /* WebDAVCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9B34D490C64CC4D568F1384 /* WebDAVCloudProviderTests.swift */; };
 		AB8240BDC8D941A91BF1D73F /* MacEntryEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D3C76F452F5113157D9FD66 /* MacEntryEditorView.swift */; };
+		AC0C2945BE4AFEE57407F8CF /* GoogleDrivePickerSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33363D92D3DD9FCF22441650 /* GoogleDrivePickerSelection.swift */; };
 		AC3A4F535475A40584132682 /* AutoLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A60D769EF54ACAE8FAFEC73 /* AutoLockTests.swift */; };
 		AC61E4150CB49D29DAAD8898 /* PasswordGeneratorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A44A4BDE31CF4D03409F0A /* PasswordGeneratorModel.swift */; };
 		AC7D6EFFB6D606BEF2738151 /* DatabaseExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EEAD48EE61A06762FE713A4 /* DatabaseExportService.swift */; };
@@ -959,6 +968,7 @@
 		C110FD677FE768A4B4EEE6A8 /* RecycleBinOrigin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5252A2977E836EAAAE6ACE17 /* RecycleBinOrigin.swift */; };
 		C1242A3A4361F90F813693E4 /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB106882B5AF908E0B1ED82C /* ClipboardService.swift */; };
 		C17474EFCA4ED65FA5E4C66F /* DatabaseOpeningStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A03CD98BE2B5DB7E0A901431 /* DatabaseOpeningStepTests.swift */; };
+		C1AE018FA7479D60998D503D /* GoogleDriveCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3976C660114E36F44CB4D9D /* GoogleDriveCloudProviderTests.swift */; };
 		C1CBD6B8A74FF9DBF593BFA5 /* LocalSaveRecoveryContents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9153CBABF648D1CCB27A565F /* LocalSaveRecoveryContents.swift */; };
 		C1CEACAED5AB3B9B689E1875 /* DatabaseWorkspaceStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E7D480B1AAABFDCE5A3839 /* DatabaseWorkspaceStateTests.swift */; };
 		C1D505978EEA111EDC76C642 /* WebDAVConnectViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50107994AC5A4E705F829F17 /* WebDAVConnectViewModel.swift */; };
@@ -1028,6 +1038,7 @@
 		D135A0F2787BC3C7719CD862 /* PasskeyCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEA3048149FA6E823621EA0 /* PasskeyCrypto.swift */; };
 		D143D4C8769C37834DEA6BC1 /* PasswordImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463D3C1B7ADCE90874A762C7 /* PasswordImportView.swift */; };
 		D16F13866CF393A8571A45CF /* DatabaseEditorCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B385ACB450479808986B203B /* DatabaseEditorCoordinatorTests.swift */; };
+		D1A587F3461C6FFF30945748 /* GoogleDriveCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3976C660114E36F44CB4D9D /* GoogleDriveCloudProviderTests.swift */; };
 		D1B0A333D5D6B70EE2005577 /* KDBXKit+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FB1BFFB08291B7AA0415E5F /* KDBXKit+Localization.swift */; };
 		D1CCF2F101297F3F9CE03DF5 /* PasswordGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 613225A0024C030E19B2F7E1 /* PasswordGeneratorTests.swift */; };
 		D1DD910DD16D8800D481E9DF /* MacPasswordImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1D9C41E94477C8677AA1C9 /* MacPasswordImportSheet.swift */; };
@@ -1235,11 +1246,13 @@
 		F9841AA2F4C454FD73C370A1 /* ChallengeResponseKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDE9E08FA5FE394B6337815 /* ChallengeResponseKeyTests.swift */; };
 		F9F8C9E33B5C2D486617E10B /* EncryptedValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEDEBBDC91EBD1B2FBB3716B /* EncryptedValueTests.swift */; };
 		F9FB5D05351DA7701AD96B7B /* EntryRowActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD520D3AC1DA5802F01BD550 /* EntryRowActions.swift */; };
+		FA133C0F22ACFF2E4689037F /* GoogleDrivePickerSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080609A86B9A7DDB492F9D42 /* GoogleDrivePickerSelectionTests.swift */; };
 		FA5E45C131BCC71E739B55AB /* EntryEditViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35C305B6F0D78BBFE30F45FE /* EntryEditViewModel.swift */; };
 		FA67A0030A6DF5CAA991A3CA /* UnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071784990B1A3ADA285BF6B0 /* UnlockView.swift */; };
 		FA6A9BFED9EB3F7DC35632A1 /* MacBiometricAutoUnlockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B459F34FCD09A4A573B6F3DD /* MacBiometricAutoUnlockTests.swift */; };
 		FA7D85FA459054A81D955408 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E0A599916DAE57D4D11320 /* SettingsService.swift */; };
 		FAAB1B02D30635B3168A6953 /* TestDatabaseSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5ACBC2E82EEFC396C2C39E6 /* TestDatabaseSupport.swift */; };
+		FAF5C1661299FACC483DF13D /* GoogleDriveTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5311756C92C118CD67F2D37 /* GoogleDriveTransport.swift */; };
 		FB38D1BBBDE8F5D443FB0FEC /* CloudAccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFB9EC163DF66E977BC27389 /* CloudAccountStore.swift */; };
 		FBB0F6A1CE0987E2EC695E1C /* DistributionChannelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F95571BBCA58EA386C4C081C /* DistributionChannelTests.swift */; };
 		FBB66D54E8F7BE1F791192BE /* autofill-store-alpha.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = DA15B4ED585B95FF075F18A3 /* autofill-store-alpha.kdbx */; };
@@ -1371,6 +1384,7 @@
 		070BD45C43AB658FAE6C8225 /* DatabaseExportPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseExportPresenter.swift; sourceTree = "<group>"; };
 		071784990B1A3ADA285BF6B0 /* UnlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockView.swift; sourceTree = "<group>"; };
 		07DCAC6B2242F7FC28617138 /* DatabaseCreationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseCreationViewModel.swift; sourceTree = "<group>"; };
+		080609A86B9A7DDB492F9D42 /* GoogleDrivePickerSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDrivePickerSelectionTests.swift; sourceTree = "<group>"; };
 		08207C2D0BAFA8C5AE3CB2C5 /* MacAutoFillPickerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAutoFillPickerUITests.swift; sourceTree = "<group>"; };
 		08499FD7D360D2D492C2F787 /* PreviousParentGroupXML.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviousParentGroupXML.swift; sourceTree = "<group>"; };
 		0864DD9FC046B7D6ADFF7020 /* MacRemoteBrowserModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacRemoteBrowserModel.swift; sourceTree = "<group>"; };
@@ -1484,6 +1498,7 @@
 		3286BE8035670519E0D813C1 /* EncryptionSettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptionSettingsViewModelTests.swift; sourceTree = "<group>"; };
 		32D4BB41876D699E93EF6F80 /* MacWhatsNewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWhatsNewUITests.swift; sourceTree = "<group>"; };
 		32D6FBFB97ADFE34E3B65CD2 /* MacSSHAgentSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSSHAgentSettingsTab.swift; sourceTree = "<group>"; };
+		33363D92D3DD9FCF22441650 /* GoogleDrivePickerSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDrivePickerSelection.swift; sourceTree = "<group>"; };
 		335C4EA521C5C3DF112C6F9B /* PendingUploadQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUploadQueueTests.swift; sourceTree = "<group>"; };
 		33FB55D1B41198FB84115734 /* NavigationConformances.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationConformances.swift; sourceTree = "<group>"; };
 		340F0FF1888495E6A1B18A67 /* LayoutSwitchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutSwitchUITests.swift; sourceTree = "<group>"; };
@@ -1680,6 +1695,7 @@
 		859C701D22CBF7ABEF51E825 /* CloudTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTokenStore.swift; sourceTree = "<group>"; };
 		85B5D788DA54A0CEC1A03E7E /* ReadOnlyIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadOnlyIndicator.swift; sourceTree = "<group>"; };
 		85CCB3B17E0555F9C8F4115F /* DatabaseSessionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseSessionStoreTests.swift; sourceTree = "<group>"; };
+		8640764313BDC6C916644A24 /* GoogleDriveCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveCloudProvider.swift; sourceTree = "<group>"; };
 		8652A9E62D2101C8E91A1B84 /* HardwareKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareKey.swift; sourceTree = "<group>"; };
 		87F440A311BC64D32980E78A /* ReviewPromptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptService.swift; sourceTree = "<group>"; };
 		88380F3217BD0B2ED403BE33 /* DatabaseOpeningSteps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseOpeningSteps.swift; sourceTree = "<group>"; };
@@ -1736,6 +1752,7 @@
 		9ED688DE3842ACE0808D88BD /* MacUnlockPasswordFieldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacUnlockPasswordFieldTests.swift; sourceTree = "<group>"; };
 		9F73C7416942403B1CB84408 /* MacWorkspacePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWorkspacePresentationTests.swift; sourceTree = "<group>"; };
 		9FB1BFFB08291B7AA0415E5F /* KDBXKit+Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KDBXKit+Localization.swift"; sourceTree = "<group>"; };
+		9FE1E1BECEB49DFF9DBD8DBB /* GoogleDriveAuthorization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveAuthorization.swift; sourceTree = "<group>"; };
 		A01A49238AD6DEF29C56B328 /* EntryEditCompletionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditCompletionGateTests.swift; sourceTree = "<group>"; };
 		A03CD98BE2B5DB7E0A901431 /* DatabaseOpeningStepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseOpeningStepTests.swift; sourceTree = "<group>"; };
 		A04A6F5E71D63FC88AC15D59 /* TagNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagNormalizerTests.swift; sourceTree = "<group>"; };
@@ -1851,6 +1868,7 @@
 		D265572977E75D10885314BB /* IOSUserActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSUserActivityTests.swift; sourceTree = "<group>"; };
 		D2AC0F9D824F4A5B7AF45B5C /* KeyFileExportDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyFileExportDocument.swift; sourceTree = "<group>"; };
 		D2CD79AEEAA3785A4F4135AB /* EntryRowChangeIconAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryRowChangeIconAction.swift; sourceTree = "<group>"; };
+		D3976C660114E36F44CB4D9D /* GoogleDriveCloudProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveCloudProviderTests.swift; sourceTree = "<group>"; };
 		D3E1425327264227236C2B67 /* FTPConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FTPConnectView.swift; sourceTree = "<group>"; };
 		D3EC23DC678BC8ED8AA5EEFC /* MacEntryListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacEntryListViewController.swift; sourceTree = "<group>"; };
 		D42EFE8F97F612C4B7D540BD /* BiometricServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricServiceTests.swift; sourceTree = "<group>"; };
@@ -1935,6 +1953,7 @@
 		F17ECD151BDCFAC6C487788B /* KPMeta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KPMeta.swift; sourceTree = "<group>"; };
 		F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */ = {isa = PBXFileReference; path = demo.kdbx; sourceTree = "<group>"; };
 		F4848101D8507FA92F1BC8E8 /* RegularDatabaseWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegularDatabaseWorkspaceView.swift; sourceTree = "<group>"; };
+		F5311756C92C118CD67F2D37 /* GoogleDriveTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveTransport.swift; sourceTree = "<group>"; };
 		F578708349381E9C37893D91 /* MacIconPickerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacIconPickerController.swift; sourceTree = "<group>"; };
 		F715BA635B9236867617D7B7 /* UnlockKeyFileSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockKeyFileSelectionTests.swift; sourceTree = "<group>"; };
 		F8CDC58A04801FC931A9706B /* unknown-inner-header.kdbx */ = {isa = PBXFileReference; path = "unknown-inner-header.kdbx"; sourceTree = "<group>"; };
@@ -1994,8 +2013,9 @@
 				1FA80A53C3A5B065151DDDC3 /* RemoteFileTransports in Frameworks */,
 				48B196D18783A6205792621A /* SwiftyDropbox in Frameworks */,
 				7AD08FFA02A073BFB1965785 /* MSAL in Frameworks */,
-				9D1A1327DB1549DFCA1A93B3 /* SiteMatching in Frameworks */,
-				8E2665CEC7D0AF4BC2C0DDD8 /* YubiKit in Frameworks */,
+				9D1A1327DB1549DFCA1A93B3 /* AppAuth in Frameworks */,
+				8E2665CEC7D0AF4BC2C0DDD8 /* SiteMatching in Frameworks */,
+				176E344EF4A312D28A7746BF /* YubiKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2788,6 +2808,8 @@
 				9BF0F834B82C15D0578505A6 /* FieldReferenceResolverTests.swift */,
 				695FD416F0002BB9CAE9F2C8 /* FTPCloudProviderTests.swift */,
 				EA44C9DED7389761B585E671 /* FTPConnectViewModelTests.swift */,
+				D3976C660114E36F44CB4D9D /* GoogleDriveCloudProviderTests.swift */,
+				080609A86B9A7DDB492F9D42 /* GoogleDrivePickerSelectionTests.swift */,
 				3ECEDBFE3791A3AF8121C4DD /* GroupEditViewModelTests.swift */,
 				BEFC4B470F2EA79C7D8950A7 /* GroupIconViewTests.swift */,
 				78F02B60D6E7C4712F4D4769 /* HardwareKeyUnlockTests.swift */,
@@ -2959,6 +2981,10 @@
 				6AFBBC10051B412E85947EB5 /* DropboxCloudProvider.swift */,
 				B3C7CE4528F3ACC4647DE8A6 /* FTPCloudProvider.swift */,
 				F0C84F58EE09F0725331BDBA /* FTPModels.swift */,
+				9FE1E1BECEB49DFF9DBD8DBB /* GoogleDriveAuthorization.swift */,
+				8640764313BDC6C916644A24 /* GoogleDriveCloudProvider.swift */,
+				33363D92D3DD9FCF22441650 /* GoogleDrivePickerSelection.swift */,
+				F5311756C92C118CD67F2D37 /* GoogleDriveTransport.swift */,
 				B942B75B67043A4CB397BE27 /* OneDriveCloudProvider.swift */,
 				0B85CAF10E8CFC72802590A3 /* PendingUploadDrainer.swift */,
 				E6B7062FC711FD8F8EA1BEE3 /* PendingUploadQueue.swift */,
@@ -3128,6 +3154,7 @@
 				B56AFA26FA319F92B1156748 /* RemoteFileTransports */,
 				51EBD2A917385D3E88CA0277 /* SwiftyDropbox */,
 				64B6830B629BBAC2E266834E /* MSAL */,
+				5C549F72ABD9E578B1B78FA5 /* AppAuth */,
 				C0D2ECB37C663D0B86FA869E /* SiteMatching */,
 				679304F71B3D2E8B3188AC97 /* YubiKit */,
 			);
@@ -3215,6 +3242,7 @@
 			mainGroup = ED085A8C1666D500B09A3437;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				28CC9FE05ADDFEB01C0FAEFE /* XCRemoteSwiftPackageReference "AppAuth-iOS" */,
 				1406D2AE51BB5512501439B4 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
 				0DE6D7E1C06867E37CE51E7D /* XCRemoteSwiftPackageReference "SwiftyDropbox" */,
 				BB87B9FEC7CAAA5EB2725924 /* XCRemoteSwiftPackageReference "yubikit-ios" */,
@@ -3587,6 +3615,8 @@
 				8BB6422DAD2503E2052570CC /* FeedbackSubmissionServiceTests.swift in Sources */,
 				8DBA5DD43302AD63DCCE2E6C /* FieldReferenceResolverTests.swift in Sources */,
 				910E27E6CA2845484DBF732B /* FilePathAssertions.swift in Sources */,
+				C1AE018FA7479D60998D503D /* GoogleDriveCloudProviderTests.swift in Sources */,
+				A6908743734A2F0191E8E1AE /* GoogleDrivePickerSelectionTests.swift in Sources */,
 				7991355F2A9BA147B460445B /* GroupEditViewModelTests.swift in Sources */,
 				BAD538FD3B169A39330E023F /* GroupIconViewTests.swift in Sources */,
 				CFB92212E5D7BA2EF612D84D /* HardwareKeyUnlockTests.swift in Sources */,
@@ -3837,6 +3867,10 @@
 				3D2B79225A6E3CC5CC20A405 /* FeedbackSubmissionService.swift in Sources */,
 				5B9503870CDB4FDA5011E8D9 /* FieldReferenceResolver.swift in Sources */,
 				286D4685FD25C275588F3AA2 /* FileDigest.swift in Sources */,
+				44AA55F5B761D0AABC13701F /* GoogleDriveAuthorization.swift in Sources */,
+				8D64D468ACE582629EA031C0 /* GoogleDriveCloudProvider.swift in Sources */,
+				AC0C2945BE4AFEE57407F8CF /* GoogleDrivePickerSelection.swift in Sources */,
+				30F1BE0B5EA355FC1B0C8F5E /* GoogleDriveTransport.swift in Sources */,
 				629C25E9B77D26A6F95E3699 /* Group.swift in Sources */,
 				CADA85848D7284D9C9804FCD /* GroupEditView.swift in Sources */,
 				5A7AFD448B2C67EE04D999C0 /* GroupEditViewModel.swift in Sources */,
@@ -4157,6 +4191,10 @@
 				7CE7F2D598280A675D89FB02 /* FeedbackSubmissionService.swift in Sources */,
 				9DDA8CE8DDDE2430967C8AB6 /* FieldReferenceResolver.swift in Sources */,
 				CE31CADB8CA2F03C81DDE385 /* FileDigest.swift in Sources */,
+				A1B625C9231E53E7B2727824 /* GoogleDriveAuthorization.swift in Sources */,
+				2E3DDD7D93636C65F401FC6A /* GoogleDriveCloudProvider.swift in Sources */,
+				A06392074BCAEF8D1DA30C88 /* GoogleDrivePickerSelection.swift in Sources */,
+				FAF5C1661299FACC483DF13D /* GoogleDriveTransport.swift in Sources */,
 				9C36CE737F98C0D6D44AE500 /* Group.swift in Sources */,
 				7CAB34B07818A1D3DC2D1D92 /* GroupEditView.swift in Sources */,
 				1AEFBED9548E21E13517BA1D /* GroupEditViewModel.swift in Sources */,
@@ -4432,6 +4470,8 @@
 				5276D337E44553DACFDCD0B9 /* FeedbackSubmissionServiceTests.swift in Sources */,
 				ED885E82DF11D0A81987D497 /* FieldReferenceResolverTests.swift in Sources */,
 				B9678605A2230AE22B51B984 /* FilePathAssertions.swift in Sources */,
+				D1A587F3461C6FFF30945748 /* GoogleDriveCloudProviderTests.swift in Sources */,
+				FA133C0F22ACFF2E4689037F /* GoogleDrivePickerSelectionTests.swift in Sources */,
 				715289CA9B37F2D1C8DFBC2E /* GroupEditViewModelTests.swift in Sources */,
 				CC496523ADEA443E53609241 /* GroupIconViewTests.swift in Sources */,
 				15DF17582DB69A0D67E214D1 /* HardwareKeyUnlockTests.swift in Sources */,
@@ -5313,6 +5353,14 @@
 				minimumVersion = 1.7.0;
 			};
 		};
+		28CC9FE05ADDFEB01C0FAEFE /* XCRemoteSwiftPackageReference "AppAuth-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/openid/AppAuth-iOS.git";
+			requirement = {
+				kind = exactVersion;
+				version = 3.0.0;
+			};
+		};
 		BB87B9FEC7CAAA5EB2725924 /* XCRemoteSwiftPackageReference "yubikit-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/Yubico/yubikit-ios.git";
@@ -5348,6 +5396,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0DE6D7E1C06867E37CE51E7D /* XCRemoteSwiftPackageReference "SwiftyDropbox" */;
 			productName = SwiftyDropbox;
+		};
+		5C549F72ABD9E578B1B78FA5 /* AppAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 28CC9FE05ADDFEB01C0FAEFE /* XCRemoteSwiftPackageReference "AppAuth-iOS" */;
+			productName = AppAuth;
 		};
 		5F9764ED7BDA0C4BAA0B8854 /* KDBXXML */ = {
 			isa = XCSwiftPackageProductDependency;

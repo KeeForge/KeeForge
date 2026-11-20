@@ -1888,3 +1888,66 @@ final class KDBXCompatibilityTests: XCTestCase {
         TOTPGenerator.decryptedSecret(config: config, sessionKey: entrySessionKey)
     }
 }
+
+#if os(iOS)
+extension KDBXCompatibilityTests {
+    @MainActor
+    func test_googleDriveAutoFillWriteQueuesAndUploadsReadableCiphertext() async throws {
+        DatabaseListStore.clearAll()
+        defer { DatabaseListStore.clearAll() }
+        let loaded = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: bundle)
+        let base = loaded.sourceData
+        var reference = try DatabaseListStore.addCloud(provider: "googledrive", accountId: "test-account",
+            file: CloudFile(id: "fixture-file", name: "Fixture.kdbx", path: "Fixture.kdbx", isFolder: false,
+                modifiedDate: .now, size: Int64(base.count)))
+        reference.updateCloudSyncMetadata {
+            $0.remoteRev = "base"
+            $0.remoteContentHash = DriveTransport.md5(base)
+        }
+        DatabaseListStore.testUpsert(reference)
+        try DatabaseListStore.cacheDatabaseCopy(base, for: reference)
+        var autoFill = AutoFillSaveCoordinator.Environment.live
+        autoFill.populateCredentialStore = { _, _ in }
+        let title = "Drive AutoFill fixture"
+        let result = try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: .init(title: title, username: "fixture", password: "synthetic", url: "", notes: ""),
+            reference: reference, rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey,
+            compositeKey: loaded.compositeKey, openTimeSHA512: FileDigest.sha512(base), environment: autoFill)
+        guard case .saved(let save) = result else { return XCTFail("AutoFill must save a durable copy") }
+        XCTAssertTrue(save.enqueuedPendingUpload)
+        let marker = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        let payload = try PendingUploadQueue.readImmutablePayload(marker)
+        XCTAssertEqual(DatabaseListStore.recentBackups(for: reference).compactMap { try? Data(contentsOf: $0) }, [base])
+
+        let receipt = try DriveTransport.Reply.file(payload, revision: "our-write")
+        let transport = DriveTransport([
+            try .file(base, revision: "base"), try .file(base, revision: "base"), receipt,
+            .json(["revisions": [["id": "base"], ["id": "our-write"]]]), receipt,
+        ])
+        let vault = DriveTestCredentials()
+        try vault.seed()
+        let provider = GoogleDriveCloudProvider(authorization: try vault.authorization(), transport: transport)
+        var saver = CloudDatabaseSaver.Environment.live
+        saver.getMetadata = { _ in
+            try await provider.getMetadata(accountId: "test-account", fileId: "fixture-file")
+        }
+        saver.uploadObserved = { _, bytes, observed in
+            try await provider.upload(accountId: "test-account", fileId: "fixture-file", data: bytes, observed: observed) { _ in }
+        }
+        var environment = PendingUploadDrainer.Environment.live
+        let saveEnvironment = saver
+        environment.deliverMarker = { try await CloudDatabaseSaver.deliver($0, reference: $1, environment: saveEnvironment) }
+        let delivery = await PendingUploadDrainer(environment: environment).drain(databaseId: reference.id)
+        XCTAssertEqual(delivery.drainedDatabaseIDs, [reference.id])
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertEqual(DatabaseListStore.recentBackups(for: reference).compactMap { try? Data(contentsOf: $0) }, [base])
+        let requests = await transport.requests
+        let request = try XCTUnwrap(requests.first { $0.httpMethod == "PATCH" })
+        XCTAssertNotNil(request.httpBody?.range(of: payload))
+        let decoded = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: loaded.compositeKey,
+            sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
+        XCTAssertTrue(decoded.rootGroup.allEntries.contains { $0.title == title && $0.username == "fixture" })
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata?.remoteRev, "our-write")
+    }
+}
+#endif

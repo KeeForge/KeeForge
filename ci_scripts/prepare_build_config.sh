@@ -43,6 +43,14 @@ bootstrap_local_config_from_env() {
 
   local dropbox_app_key="${DROPBOX_APP_KEY:-}"
   local onedrive_client_id="${ONEDRIVE_CLIENT_ID:-}"
+  local drive_client_id="${GOOGLE_DRIVE_CLIENT_ID:-}"
+  local drive_redirect_scheme=""
+  if [[ -n "${drive_client_id}" ]]; then
+    if [[ ! "${drive_client_id}" =~ ^[A-Za-z0-9-]+\.apps\.googleusercontent\.com$ ]]; then
+      fail_with_message "GOOGLE_DRIVE_CLIENT_ID must be an iOS client ID ending in .apps.googleusercontent.com."
+    fi
+    drive_redirect_scheme="com.googleusercontent.apps.${drive_client_id%.apps.googleusercontent.com}"
+  fi
   if [[ -z "${dropbox_app_key}" ]] && is_ci_environment; then
     dropbox_app_key="${CI_PLACEHOLDER_DROPBOX_APP_KEY}"
   fi
@@ -62,6 +70,10 @@ bootstrap_local_config_from_env() {
     printf "DROPBOX_APP_KEY = %s\n" "${dropbox_app_key}"
     if [[ -n "${onedrive_client_id}" ]]; then
       printf "ONEDRIVE_CLIENT_ID = %s\n" "${onedrive_client_id}"
+    fi
+    if [[ -n "${drive_client_id}" ]]; then
+      printf "GOOGLE_DRIVE_CLIENT_ID = %s\n" "${drive_client_id}"
+      printf "GOOGLE_DRIVE_REDIRECT_SCHEME = %s\n" "${drive_redirect_scheme}"
     fi
   } > "${LOCAL_CONFIG_PATH}"
 }
@@ -133,3 +145,12 @@ fi
 
 validate_setting "DROPBOX_APP_KEY" "YOUR_DROPBOX_APP_KEY" "DROPBOX_APP_KEY"
 validate_onedrive_client_id
+
+if [[ "${CI_PRODUCT_PLATFORM:-}" == "iOS" ]] && requires_real_cloud_keys; then
+  drive_client_id="$(read_setting GOOGLE_DRIVE_CLIENT_ID | tr -d '[:space:]')"
+  drive_redirect_scheme="$(read_setting GOOGLE_DRIVE_REDIRECT_SCHEME | tr -d '[:space:]')"
+  if [[ ! "${drive_client_id}" =~ ^[A-Za-z0-9-]+\.apps\.googleusercontent\.com$ ||
+        "${drive_redirect_scheme}" != "com.googleusercontent.apps.${drive_client_id%.apps.googleusercontent.com}" ]]; then
+    fail_with_message "Set GOOGLE_DRIVE_CLIENT_ID for the iOS archive workflow. The redirect scheme must match that client."
+  fi
+fi

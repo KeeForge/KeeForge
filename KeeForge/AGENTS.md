@@ -21,7 +21,7 @@ Exclusions in `../project.yml`:
 
 What each platform offers differs from what compiles:
 
-- Cloud sync: iOS offers Dropbox, OneDrive, WebDAV, and FTP. The Mac app offers WebDAV and FTP only (`CloudProviderKind.isAvailableOnCurrentPlatform`).
+- Cloud sync: iOS offers Dropbox, OneDrive, WebDAV, FTP, and Google Drive when configured. AppAuth is linked only by the iOS app. The Mac app offers WebDAV and FTP only (`CloudProviderKind.isAvailableOnCurrentPlatform`).
 - Mac AutoFill fills passwords, passkeys, and one-time codes and saves a passkey registration. The system offers no password-save, password-generation, or picker-created entry flow there. Details in [../AutoFillExtension/AGENTS.md](../AutoFillExtension/AGENTS.md).
 
 ## Workflows

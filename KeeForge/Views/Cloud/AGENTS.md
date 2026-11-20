@@ -8,6 +8,8 @@
 
 ## Invariants
 
+- Google Drive uses the OAuth Picker on iOS and returns directly into the existing database selection callback. It has no folder browser. Cloud Recovery exposes a verified encrypted export for unconfirmed writes.
+
 - Each browser `NavigationStack` is `.id(session.selectedAccountID)`, so switching accounts drops pushed folder IDs that belong to the old account.
 - A selection callback captures the listing's account ID and resolves it through `CloudFileBrowserSession.selectionAccount(matching:)`. A pick from a superseded account's listing must not be attributed to the current one.
 - Both connect forms block Cancel and interactive dismissal while connecting, and on disappearance invalidate the form and clear the password. A late provider result cannot call back into a dismissed form; credentials a provider already persisted stay.

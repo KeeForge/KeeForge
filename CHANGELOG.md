@@ -4,6 +4,7 @@
 
 ### New Features
 
+- Open and save existing Google Drive databases directly on iPhone and iPad, with encrypted offline copies and Cloud Recovery for unverified uploads.
 - Retain encrypted cloud saves for recovery, queue cached changes durably, and avoid automatically resending uncertain replacement requests.
 
 ### Changes

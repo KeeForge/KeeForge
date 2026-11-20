@@ -648,6 +648,13 @@ final class DatabaseViewModel {
     /// An AutoFill save for this database could not be uploaded because the
     /// cloud copy moved on. Checked at unlock and after a pending merge.
     private(set) var hasPendingUploadConflict = false
+    private(set) var driveUploadRecoveryIssue: CloudSyncIssue?
+    var needsGoogleDriveReconnect: Bool {
+        guard databaseReference.cloudProviderKind == .googleDrive,
+              let issue = databaseReference.cloudSyncMetadata?.lastSyncIssue else { return false }
+        return issue == .notAuthenticated || issue == .writeScopeRequired
+    }
+
     /// The recorded hashes of the conflicted AutoFill saves, refreshed with `hasPendingUploadConflict`.
     private var conflictedPendingUploadSHA512s: Set<Data> = []
     /// The session opened the conflicted AutoFill save itself (the cached copy, offline or signed out),
@@ -2669,6 +2676,7 @@ final class DatabaseViewModel {
         mergeFailure = nil
         mergeSummaryMessage = nil
         hasPendingUploadConflict = false
+        driveUploadRecoveryIssue = nil
         conflictedPendingUploadSHA512s = []
         pendingUploadMergeFailure = nil
         pendingLockRequest = nil
@@ -3812,7 +3820,8 @@ final class DatabaseViewModel {
                 guard stillCurrent, !Task.isCancelled, copyCycle == lockCycleID, copyRevision == contentRevision,
                       databaseReference == copyReference, case .unlocked = state else { throw SaveError.saveContextUnavailable }
                 let candidate = attempt == 1 ? filename : Self.uniquifiedConflictCopyName(filename, attempt: attempt)
-                let fileID = Self.siblingCloudConflictFileID(currentFileID: metadata.fileId, filename: candidate)
+                let fileID = copyReference.cloudProviderKind == .googleDrive
+                    ? candidate : Self.siblingCloudConflictFileID(currentFileID: metadata.fileId, filename: candidate)
                 do {
                     try await cloudConflictCopyOperation(copyReference, fileID, bytes, batchID)
                     break
@@ -4373,6 +4382,12 @@ final class DatabaseViewModel {
     }
 
     private func refreshPendingUploadConflict() {
+        if databaseReference.cloudProviderKind == .googleDrive {
+            driveUploadRecoveryIssue = pendingUploadRecovery.listMarkers(databaseReference.id).lazy
+                .compactMap { CloudJournalDecision.driveUploadRecoveryIssue(for: $0.marker) }.first
+        } else {
+            driveUploadRecoveryIssue = nil
+        }
         let hashes = databaseReference.isCloudBacked && isReadOnly == false
             ? PendingUploadRecovery.conflictedPayloadSHA512s(for: databaseReference, environment: pendingUploadRecovery)
             : []

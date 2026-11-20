@@ -10,7 +10,9 @@ final class CloudProviderRegistryTests: XCTestCase {
         // they stay out of the UI. Unhiding them is a later release's call.
         XCTAssertEqual(CloudProviderRegistry.availableProviders, [.webDAV, .ftp])
         #else
-        XCTAssertEqual(CloudProviderRegistry.availableProviders, [.dropbox, .oneDrive, .webDAV, .ftp])
+        let withoutDrive = CloudProviderRegistry.availableProviders.filter { $0 != .googleDrive }
+        XCTAssertEqual(withoutDrive, [.dropbox, .oneDrive, .webDAV, .ftp])
+        XCTAssertEqual(CloudProviderRegistry.availableProviders.contains(.googleDrive), GoogleDriveConfiguration.load() != nil)
         #endif
     }
 
@@ -18,11 +20,13 @@ final class CloudProviderRegistryTests: XCTestCase {
         #if os(macOS)
         XCTAssertFalse(CloudProviderKind.dropbox.isAvailableOnCurrentPlatform)
         XCTAssertFalse(CloudProviderKind.oneDrive.isAvailableOnCurrentPlatform)
+        XCTAssertFalse(CloudProviderKind.googleDrive.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.webDAV.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.ftp.isAvailableOnCurrentPlatform)
         #else
         XCTAssertTrue(CloudProviderKind.dropbox.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.oneDrive.isAvailableOnCurrentPlatform)
+        XCTAssertTrue(CloudProviderKind.googleDrive.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.webDAV.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.ftp.isAvailableOnCurrentPlatform)
         #endif
@@ -35,6 +39,7 @@ final class CloudProviderRegistryTests: XCTestCase {
         // one, because neither has ever been reachable from the Mac UI.
         XCTAssertNil(CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue))
         XCTAssertNil(CloudProviderRegistry.provider(for: CloudProviderKind.oneDrive.rawValue))
+        XCTAssertNil(CloudProviderRegistry.provider(for: CloudProviderKind.googleDrive.rawValue))
         #else
         // The UI gate must not affect provider(for:) resolution: an
         // already-connected Dropbox/OneDrive database must still resolve its
@@ -42,6 +47,7 @@ final class CloudProviderRegistryTests: XCTestCase {
         // provider is hidden from the add/import UI.
         XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue))
         XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.oneDrive.rawValue))
+        XCTAssertTrue(CloudProviderRegistry.provider(for: CloudProviderKind.googleDrive.rawValue) === GoogleDriveCloudProvider.shared)
         #endif
         XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.webDAV.rawValue))
     }

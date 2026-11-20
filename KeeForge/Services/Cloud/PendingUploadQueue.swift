@@ -220,6 +220,8 @@ enum PendingUploadQueue {
         var journalVersion: Int?
         var localCommitBaseline: LocalCommitBaseline?
         var attemptIsFenced: Bool?
+        var uploadRecoveryIssue: CloudSyncIssue?
+        var observedUploadRevision: String?
         var discardRequested: Bool?
         var requiresLocalRecovery: Bool?
         var absorbedOperationIDs: [UUID]?
@@ -283,6 +285,8 @@ enum PendingUploadQueue {
             journalVersion = try container.decodeIfPresent(Int.self, forKey: .journalVersion)
             localCommitBaseline = try container.decodeIfPresent(LocalCommitBaseline.self, forKey: .localCommitBaseline)
             attemptIsFenced = try container.decodeIfPresent(Bool.self, forKey: .attemptIsFenced)
+            uploadRecoveryIssue = try container.decodeIfPresent(CloudSyncIssue.self, forKey: .uploadRecoveryIssue)
+            observedUploadRevision = try container.decodeIfPresent(String.self, forKey: .observedUploadRevision)
             discardRequested = try container.decodeIfPresent(Bool.self, forKey: .discardRequested)
             requiresLocalRecovery = try container.decodeIfPresent(Bool.self, forKey: .requiresLocalRecovery)
             absorbedOperationIDs = try container.decodeIfPresent([UUID].self, forKey: .absorbedOperationIDs)
