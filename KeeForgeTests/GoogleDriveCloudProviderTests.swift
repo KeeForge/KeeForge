@@ -230,25 +230,31 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
     }
 
     func testDrainerPreservesDurableCiphertextAcrossEveryPostDispatchOutcome() async throws {
-        for issue: CloudSyncIssue in [.postUploadConflict, .uploadResponseLost, .uploadVerificationIncomplete] {
+        let cases: [(fileID: String, issue: CloudSyncIssue)] = [
+            ("conflicting-write", .postUploadConflict),
+            ("lost-response", .uploadResponseLost),
+            ("incomplete-verification", .uploadVerificationIncomplete),
+        ]
+        for (fileID, issue) in cases {
             let base = Data("base ciphertext".utf8)
             let payload = Data("saved ciphertext".utf8)
-            let reference = try registerDriveReference(bytes: base)
+            let reference = try registerDriveReference(bytes: base, fileID: fileID)
             let context = try CloudJournalTestContext(reference: reference, base: base, payload: payload)
-            var replies: [DriveTransport.Reply] = [try .file(base, revision: "base"), try .file(base, revision: "base")]
+            let baseline = try DriveTransport.Reply.file(base, revision: "base", id: fileID)
+            var replies: [DriveTransport.Reply] = [baseline, baseline]
             if issue == .uploadResponseLost {
                 replies.append(.lost)
             } else {
-                replies.append(try .file(payload, revision: "our-write"))
+                replies.append(try .file(payload, revision: "our-write", id: fileID))
                 let history = issue == .postUploadConflict ? ["base", "other-write", "our-write"] : ["our-write"]
                 replies.append(.json(["revisions": history.map { ["id": $0] }]))
             }
             let transport = DriveTransport(replies)
             let provider = try authenticatedProvider(transport)
             var saver = context.environment()
-            saver.getMetadata = { _ in try await provider.getMetadata(accountId: "test-account", fileId: "fixture-file") }
+            saver.getMetadata = { _ in try await provider.getMetadata(accountId: "test-account", fileId: fileID) }
             saver.uploadObserved = { _, data, observed in
-                try await provider.upload(accountId: "test-account", fileId: "fixture-file", data: data, observed: observed) { _ in }
+                try await provider.upload(accountId: "test-account", fileId: fileID, data: data, observed: observed) { _ in }
             }
             saver.upload = { _, _, _, _ in throw CloudProviderError.invalidConfiguration }
             saver.revisionIdentifiesContent = { _, _ in true }
@@ -276,9 +282,9 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         return GoogleDriveCloudProvider(authorization: try vault.authorization(), transport: transport)
     }
 
-    private func registerDriveReference(bytes: Data) throws -> DatabaseReference {
+    private func registerDriveReference(bytes: Data, fileID: String = "fixture-file") throws -> DatabaseReference {
         var reference = try DatabaseListStore.addCloud(provider: "googledrive", accountId: "test-account",
-            file: CloudFile(id: "fixture-file", name: "Fixture.kdbx", path: "Fixture.kdbx", isFolder: false,
+            file: CloudFile(id: fileID, name: "Fixture.kdbx", path: "Fixture.kdbx", isFolder: false,
                 modifiedDate: .now, size: Int64(bytes.count)))
         reference.updateCloudSyncMetadata { metadata in
             metadata.remoteRev = "base"
