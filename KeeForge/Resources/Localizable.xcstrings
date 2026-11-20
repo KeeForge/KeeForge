@@ -108,7 +108,7 @@
         }
       }
     },
-    "\"%@\" contains %@. The group and its contents will be moved to the recycle bin." : {
+    "\"%@\" contains %@. The group and its contents will be moved to the Recycle Bin." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -119,7 +119,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "\"%1$@\" contains %2$@. The group and its contents will be moved to the recycle bin."
+            "value" : "\"%1$@\" contains %2$@. The group and its contents will be moved to the Recycle Bin."
           }
         },
         "es" : {
@@ -376,6 +376,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「%@」已被僅限 KeeForge 的資料庫使用。"
+          }
+        }
+      }
+    },
+    "\"%@\" is empty. The group will be moved to the Recycle Bin." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ ist leer. Die Gruppe wird in den Papierkorb verschoben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«%@» está vacío. El grupo se moverá a la papelera."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "« %@ » est vide. Le groupe sera déplacé vers la corbeille."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” è vuoto. Il gruppo verrà spostato nel cestino."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」は空です。グループはごみ箱に移動されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«%@» пуста. Группа будет перемещена в корзину."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”为空。该群组将移至回收站。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」是空的。此群組將移至資源回收筒。"
+          }
+        }
+      }
+    },
+    "\"%@\" is empty. The group will be removed immediately and cannot be restored from KeeForge." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ ist leer. Die Gruppe wird sofort gelöscht und kann in KeeForge nicht wiederhergestellt werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«%@» está vacío. El grupo se eliminará inmediatamente y no podrá restaurarse desde KeeForge."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "« %@ » est vide. Le groupe sera supprimé immédiatement et ne pourra pas être restauré depuis KeeForge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” è vuoto. Il gruppo verrà rimosso immediatamente e non potrà essere ripristinato da KeeForge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」は空です。グループはすぐに削除され、KeeForge から復元することはできません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«%@» пуста. Группа будет удалена сразу, и восстановить её в KeeForge будет нельзя."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”为空。该群组将被立即移除，且无法从 KeeForge 恢复。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」是空的。此群組將立即移除，且無法從 KeeForge 回復。"
           }
         }
       }
@@ -25755,7 +25859,7 @@
         }
       }
     },
-    "Deleted entries are moved to the recycle bin." : {
+    "Deleted entries are moved to the Recycle Bin." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -71668,7 +71772,7 @@
         }
       }
     },
-    "The entry will be moved to the recycle bin." : {
+    "The entry will be moved to the Recycle Bin." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -73207,7 +73311,7 @@
         }
       }
     },
-    "The selected entries will be moved to the recycle bin." : {
+    "The selected entries will be moved to the Recycle Bin." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -77219,7 +77323,7 @@
         }
       }
     },
-    "This entry is already in the recycle bin. It will be permanently deleted." : {
+    "This entry is already in the Recycle Bin. It will be permanently deleted." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {

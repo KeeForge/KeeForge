@@ -4,6 +4,24 @@ import XCTest
 
 @MainActor
 final class DatabaseCommandsTests: XCTestCase {
+    func testGroupDeleteConfirmationNamesOnlyTheContentsTheGroupHas() {
+        func message(entries: Int, groups: Int, recycles: Bool = true) -> String {
+            PendingDeletion.group(PendingGroupDeletion(
+                groupID: UUID(), groupName: "Work", entryCount: entries,
+                nestedGroupCount: groups, sendToRecycleBin: recycles
+            )).confirmationMessage
+        }
+        XCTAssertEqual(message(entries: 3, groups: 1),
+                       "\"Work\" contains 3 entries and 1 nested group. The group and its contents will be moved to the Recycle Bin.")
+        XCTAssertEqual(message(entries: 1, groups: 0),
+                       "\"Work\" contains 1 entry. The group and its contents will be moved to the Recycle Bin.")
+        XCTAssertEqual(message(entries: 0, groups: 2),
+                       "\"Work\" contains 2 nested groups. The group and its contents will be moved to the Recycle Bin.")
+        XCTAssertEqual(message(entries: 0, groups: 0), "\"Work\" is empty. The group will be moved to the Recycle Bin.")
+        XCTAssertEqual(message(entries: 0, groups: 0, recycles: false),
+                       "\"Work\" is empty. The group will be removed immediately and cannot be restored from KeeForge.")
+    }
+
     func testEnablementWithoutSessionAndWhileLocked() throws {
         assertEnablement(DatabaseCommands(session: nil), unlocked: false, writable: false, hasSession: false)
         let session = try makeSession()

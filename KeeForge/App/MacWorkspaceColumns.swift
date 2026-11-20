@@ -88,7 +88,7 @@ private struct MacEntrySelectionSummaryView: View {
             }
             .controlSize(.large)
             .padding(.top, 18)
-            Text("Deleted entries are moved to the recycle bin.")
+            Text("Deleted entries are moved to the Recycle Bin.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 2)
