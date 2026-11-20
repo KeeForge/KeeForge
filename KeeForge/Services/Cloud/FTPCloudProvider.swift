@@ -265,22 +265,32 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         let path = Self.remotePath(base: location.basePath, fileId: normalizedId)
         let temporaryPath = scratchPath(beside: path, kind: .upload)
 
-        let metadata = try await perform(context: .write, location: location, credential: credential) { session in
-            guard try await session.stat(path) == nil else {
-                throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected)
-            }
-            do {
-                try await session.store(temporaryPath, data: data)
+        var renameStarted = false
+        let metadata: CloudFileMetadata
+        do {
+            metadata = try await perform(context: .write, location: location, credential: credential) { session in
                 guard try await session.stat(path) == nil else {
                     throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected)
                 }
-                try await session.rename(temporaryPath, to: path)
-            } catch {
-                try? await session.delete(temporaryPath)
-                throw error
+                do {
+                    try await session.store(temporaryPath, data: data)
+                    guard try await session.stat(path) == nil else {
+                        throw CloudUploadFailure(underlying: .conflict(remoteRev: nil), outcome: .rejected)
+                    }
+                    renameStarted = true
+                    try await session.rename(temporaryPath, to: path)
+                } catch {
+                    try? await session.delete(temporaryPath)
+                    throw error
+                }
+                await sweepStaleUploads(beside: path, in: session)
+                return await Self.metadata(of: data, at: path, in: session)
             }
-            await sweepStaleUploads(beside: path, in: session)
-            return await Self.metadata(of: data, at: path, in: session)
+        } catch let failure as CloudUploadFailure {
+            throw failure
+        } catch {
+            guard !renameStarted else { throw error }
+            throw CloudCreationNotDispatched(underlying: error)
         }
         progress(1)
 
@@ -501,7 +511,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
 
     private static func mapError(_ error: Error, context: OperationContext) -> Error {
         switch error {
-        case is CancellationError, is CloudProviderError, is CloudUploadFailure, is FTPURLError:
+        case is CancellationError, is CloudProviderError, is CloudUploadFailure, is CloudCreationNotDispatched, is FTPURLError:
             return error
         case FTPClientError.unexpectedReply(let reply), FTPClientError.renameRefused(let reply):
             return mapReply(reply, context: context)

@@ -48,7 +48,7 @@
 
 - App saves publish an immutable encrypted payload and durable intent before replacing the shared cache. A successful local save means cached and queued, not remote delivery. Local/AutoFill replacement truth and revocation remain owned by the local saver.
 - Explicit creation discard accepts only the exact prepared snapshot under target and operation locks. It durably removes the record before cleaning its ciphertext; attempting or changed records remain untouched.
-- FTP creation may report a proven conflict only at its checks before the target rename; errors during or after rename remain uncertain. Other provider conflict responses remain uncertain when a request may have been retried invisibly.
+- FTP creation keeps its record prepared on session setup or other failures before the target rename. Only the destination checks can report a proven conflict; errors once rename starts remain uncertain. Other provider conflict responses remain uncertain when a request may have been retried invisibly.
 - `CloudJournalDecision` is the extension-safe pure admission/transition policy, including delivery eligibility and confirmed head/epoch/descendant reconciliation. Adapters supply storage observations and execute declared dispatch/acknowledgement/retirement effects. Adapters own filesystem/provider effects. Dispatch requires a durable attempt UUID; only an actual response confirms delivery. Generic errors, remote equality, changed revisions and missing files never settle an uncertain attempt or authorize retransmission.
 - Marker generations are CAS protected. Confirmed delivery verifies the exact cache/head/epoch, reconfirms cache and registry durability, transfers predecessor ancestry and durably removes the marker before deleting its payload. Failure retains recovery evidence; confirmed reconciliation never uploads again.
 - Cache reads and credential filling remain available when recovery fails. Mutations use strict journal reads; unknown formats and unreadable owners fail closed. A pending journal prevents sync-down from overwriting the shared copy.
@@ -122,3 +122,5 @@
 - Cancellation after recording an attempt but before dispatch restores that exact attempt to prepared; if restoration is not confirmed, it stays uncertain and retains its payload.
 
 - Numbered conflict-copy attempts share an operation batch ID. A durably completed receipt permits cleanup only of unchanged prepared siblings in that batch with the same provider, account and payload digest; uncertain attempts and unrelated batches remain owned. Recovery retries interrupted cleanup.
+
+- FTP creation errors before target rename prove no target install; restore the prepared record while retaining its ciphertext. Errors once rename starts remain uncertain.
