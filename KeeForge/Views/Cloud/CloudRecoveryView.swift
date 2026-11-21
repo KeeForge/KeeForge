@@ -59,13 +59,13 @@ struct CloudRecoveryView: View {
                 }
             }
             ForEach(uploads, id: \.id) { stored in
-                Section(references[stored.marker.databaseId]?.displayName ?? String(localized: "Cloud")) {
+                Section(references[stored.marker.databaseId]?.displayName ?? stored.marker.detachedFilename ?? String(localized: "Cloud")) {
                     Button("Export Encrypted Copy") {
                         let reference = references[stored.marker.databaseId]
                         perform {
                             let data = try PendingUploadQueue.readImmutablePayload(stored)
                             let name = reference.map { DatabaseExportService.currentCopyFilename(for: $0, date: .now) }
-                                ?? "KeeForge copy \(Int(Date().timeIntervalSince1970)).kdbx"
+                                ?? stored.marker.detachedFilename ?? "KeeForge copy \(Int(Date().timeIntervalSince1970)).kdbx"
                             return (data, name)
                         }
                     }

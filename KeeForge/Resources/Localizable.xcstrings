@@ -43073,6 +43073,64 @@
         }
       }
     },
+    "KeeForge will keep the encrypted copies in Cloud Recovery. While the upload remains unconfirmed, you can’t add this cloud file again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge bewahrt die verschlüsselten Kopien in der Cloud-Wiederherstellung auf. Solange der Upload unbestätigt ist, kannst du diese Cloud-Datei nicht erneut hinzufügen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge will keep the encrypted copies in Cloud Recovery. While the upload remains unconfirmed, you can’t add this cloud file again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge conservará las copias cifradas en Recuperación en la nube. Mientras la subida siga sin confirmarse, no podrás volver a añadir este archivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge conservera les copies chiffrées dans Récupération cloud. Tant que l’envoi reste non confirmé, tu ne peux pas ajouter à nouveau ce fichier cloud."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge conserverà le copie cifrate in Recupero cloud. Finché il caricamento non sarà confermato, non potrai aggiungere di nuovo questo file cloud."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge は暗号化されたコピーを「クラウドの復旧」に保持します。アップロードが確認されるまで、このクラウドファイルは再追加できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge сохранит зашифрованные копии в разделе «Восстановление облака». Пока отправка не подтверждена, этот облачный файл нельзя добавить снова."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 会将加密副本保留在“云端恢复”中。上传得到确认前，无法重新添加此云端文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 會將加密副本保留在「雲端復原」中。上傳確認前，無法重新加入此雲端檔案。"
+          }
+        }
+      }
+    },
     "KeeForge's Documents folder now appears in Finder and Windows File Sharing. Drop a .kdbx file there and it joins your database list automatically." : {
       "localizations" : {
         "de" : {
@@ -77981,6 +78039,64 @@
         }
       }
     },
+    "This database has pending cloud changes. Open Cloud Recovery to export an encrypted copy." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für diese Datenbank gibt es ausstehende Cloud-Änderungen. Öffne die Cloud-Wiederherstellung, um eine verschlüsselte Kopie zu exportieren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This database has pending cloud changes. Open Cloud Recovery to export an encrypted copy."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos tiene cambios pendientes en la nube. Abre Recuperación en la nube para exportar una copia cifrada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données a des modifications cloud en attente. Ouvre Récupération cloud pour exporter une copie chiffrée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database ha modifiche cloud in sospeso. Apri Recupero cloud per esportare una copia cifrata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースにはクラウドへの未反映の変更があります。「クラウドの復旧」を開いて暗号化されたコピーをエクスポートしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этой базы данных есть ожидающие отправки изменения. Откройте раздел «Восстановление облака», чтобы экспортировать зашифрованную копию."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库有待同步的云端更改。打开“云端恢复”以导出加密副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫有待同步的雲端變更。開啟「雲端復原」匯出加密副本。"
+          }
+        }
+      }
+    },
     "This database is not ready to merge right now. Reload it or save your changes as a conflict copy instead." : {
       "localizations" : {
         "de" : {
@@ -79873,6 +79989,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此匯出檔案不包含任何密碼。"
+          }
+        }
+      }
+    },
+    "This file has an unconfirmed upload. You can export the encrypted copy in Cloud Recovery." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für diese Datei gibt es einen unbestätigten Upload. Du kannst die verschlüsselte Kopie in der Cloud-Wiederherstellung exportieren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This file has an unconfirmed upload. You can export the encrypted copy in Cloud Recovery."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo tiene una subida sin confirmar. Puedes exportar la copia cifrada en Recuperación en la nube."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier a un envoi non confirmé. Tu peux exporter la copie chiffrée dans Récupération cloud."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file ha un caricamento non confermato. Puoi esportare la copia cifrata in Recupero cloud."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルには未確認のアップロードがあります。「クラウドの復旧」から暗号化されたコピーをエクスポートできます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этого файла есть неподтверждённая отправка. Зашифрованную копию можно экспортировать в разделе «Восстановление облака»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此文件有未确认的上传。你可以在“云端恢复”中导出加密副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此檔案有未確認的上傳。你可以在「雲端復原」中匯出加密副本。"
           }
         }
       }
