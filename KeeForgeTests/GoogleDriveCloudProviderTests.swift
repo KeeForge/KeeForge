@@ -238,7 +238,8 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         let saved = Data("new document".utf8)
         let fixture = try DriveTransport.Reply.file(saved, revision: "our-write")
         let transport = DriveTransport([
-            try .file(initial, revision: "base"), try .file(initial, revision: "base"), fixture,
+            try .file(initial, revision: "base"), .json(["revisions": [["id": "base"]]]),
+            try .file(initial, revision: "base"), fixture,
             .json(["revisions": [["id": "base"]], "nextPageToken": "next"]),
             .json(["revisions": [["id": "our-write"]]]), fixture,
         ])
@@ -247,15 +248,21 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         let result = try await provider.upload(accountId: "test-account", fileId: "fixture-file", data: saved, observed: observed) { _ in }
         XCTAssertEqual(result.rev, "our-write")
         let requests = await transport.requests
-        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "GET", "PATCH", "GET", "GET", "GET"])
-        XCTAssertTrue(requests[2].url?.query?.contains("uploadType=multipart") == true)
-        XCTAssertTrue(requests[2].httpBody?.range(of: saved) != nil)
-        XCTAssertTrue(requests[4].url?.query?.contains("pageToken=next") == true)
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "GET", "GET", "PATCH", "GET", "GET", "GET"])
+        XCTAssertEqual(requests.map { $0.url?.path }, [
+            "/drive/v3/files/fixture-file", "/drive/v3/files/fixture-file/revisions", "/drive/v3/files/fixture-file",
+            "/upload/drive/v3/files/fixture-file", "/drive/v3/files/fixture-file/revisions",
+            "/drive/v3/files/fixture-file/revisions", "/drive/v3/files/fixture-file",
+        ])
+        XCTAssertTrue(requests[3].url?.query?.contains("uploadType=multipart") == true)
+        XCTAssertTrue(requests[3].httpBody?.range(of: saved) != nil)
+        XCTAssertTrue(requests[5].url?.query?.contains("pageToken=next") == true)
     }
 
     func testChecksumMismatchWithSameRevisionPreventsTheWrite() async throws {
         let transport = DriveTransport([
-            try .file(Data([1]), revision: "base"), try .file(Data([2]), revision: "base"),
+            try .file(Data([1]), revision: "base"), .json(["revisions": [["id": "base"]]]),
+            try .file(Data([2]), revision: "base"),
         ])
         let provider = try authenticatedProvider(transport)
         let observed = try await provider.getMetadata(accountId: "test-account", fileId: "fixture-file")
@@ -263,14 +270,15 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
             _ = try await provider.upload(accountId: "test-account", fileId: "fixture-file", data: Data([3]), observed: observed) { _ in }
         }
         let requests = await transport.requests
-        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "GET"])
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "GET", "GET"])
     }
 
     func testResumableTransferUsesOnlyTheSameSession() async throws {
         let bytes = Data(repeating: 3, count: 5_000_001)
         let fixture = try DriveTransport.Reply.file(bytes, revision: "our-write")
         let transport = DriveTransport([
-            try .file(Data([1]), revision: "base"), try .file(Data([1]), revision: "base"),
+            try .file(Data([1]), revision: "base"), .json(["revisions": [["id": "base"]]]),
+            try .file(Data([1]), revision: "base"),
             .body(.init(), headers: ["Location": "https://www.googleapis.com/upload/drive/v3/files/fixture-file?upload_id=synthetic"]),
             .body(.init(), status: 308, headers: ["Range": "bytes=0-262143"]),
             fixture, .json(["revisions": [["id": "base"], ["id": "our-write"]]]), fixture,
@@ -279,11 +287,11 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         let observed = try await provider.getMetadata(accountId: "test-account", fileId: "fixture-file")
         _ = try await provider.upload(accountId: "test-account", fileId: "fixture-file", data: bytes, observed: observed) { _ in }
         let requests = await transport.requests
-        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "GET", "PATCH", "PUT", "PUT", "GET", "GET"])
-        XCTAssertTrue(requests[2].url?.query?.contains("uploadType=resumable") == true)
-        XCTAssertEqual(requests[3].url, requests[4].url)
-        XCTAssertNil(requests[3].value(forHTTPHeaderField: "Authorization"))
-        XCTAssertEqual(requests[4].value(forHTTPHeaderField: "Content-Range"), "bytes 262144-5000000/5000001")
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "GET", "GET", "PATCH", "PUT", "PUT", "GET", "GET"])
+        XCTAssertTrue(requests[3].url?.query?.contains("uploadType=resumable") == true)
+        XCTAssertEqual(requests[4].url, requests[5].url)
+        XCTAssertNil(requests[4].value(forHTTPHeaderField: "Authorization"))
+        XCTAssertEqual(requests[5].value(forHTTPHeaderField: "Content-Range"), "bytes 262144-5000000/5000001")
     }
 
     func testConflictCopyCreatesANewDriveFileThroughTheCreationJournal() async throws {
@@ -319,7 +327,7 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
             let reference = try registerDriveReference(bytes: base, fileID: fileID)
             let context = try CloudJournalTestContext(reference: reference, base: base, payload: payload)
             let baseline = try DriveTransport.Reply.file(base, revision: "base", id: fileID)
-            var replies: [DriveTransport.Reply] = [baseline, baseline]
+            var replies: [DriveTransport.Reply] = [baseline, .json(["revisions": [["id": "base"]]]), baseline]
             if issue == .uploadResponseLost {
                 replies.append(.lost)
             } else {

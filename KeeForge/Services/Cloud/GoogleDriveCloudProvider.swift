@@ -124,6 +124,9 @@ final class GoogleDriveCloudProvider: CloudObservedUploadProvider {
             ], token: token, upload: true)
             upload.httpMethod = "PATCH"
             Self.configureBody(&upload, metadata: Data("{}".utf8), bytes: data, resumable: resumable)
+            guard try await revisionHistory(path: path, token: token).last == revision else {
+                throw CloudProviderError.serviceUnavailable
+            }
             let item = try await resource(fileID: fileId, token: token)
             guard item.isWritable else { throw CloudProviderError.permissionDenied }
             before = try item.metadata()
@@ -201,14 +204,26 @@ final class GoogleDriveCloudProvider: CloudObservedUploadProvider {
     }
 
     private func verifyHistory(path: String, fileID: String, token: String, expected: String, own: String) async throws {
+        let ids = try await revisionHistory(path: path, token: token)
+        let inconclusive = CloudUploadRecovery.verificationIncomplete(ownRevision: own)
+        guard let base = ids.firstIndex(of: expected), let sent = ids.firstIndex(of: own), base < sent else {
+            throw inconclusive
+        }
+        guard sent == base + 1, ids.last == own else {
+            throw CloudUploadRecovery.postUploadConflict(ownRevision: own)
+        }
+        let current = try await resource(fileID: fileID, token: token).metadata()
+        guard current.rev == own else { throw inconclusive }
+    }
+
+    private func revisionHistory(path: String, token: String) async throws -> [String] {
         struct Page: Decodable {
             struct Revision: Decodable { let id: String }
             let revisions: [Revision]
             let nextPageToken: String?
         }
-        let inconclusive = CloudUploadRecovery.verificationIncomplete(ownRevision: own)
-        let conflict = CloudUploadRecovery.postUploadConflict(ownRevision: own)
         var ids: [String] = []
+        var tokens = Set<String>()
         var pageToken: String?
         for _ in 0..<10 {
             var query = [URLQueryItem(name: "fields", value: "nextPageToken,revisions(id)"), URLQueryItem(name: "pageSize", value: "1000")]
@@ -217,17 +232,13 @@ final class GoogleDriveCloudProvider: CloudObservedUploadProvider {
             let page = try JSONDecoder().decode(Page.self, from: data)
             ids.append(contentsOf: page.revisions.map(\.id))
             guard let next = page.nextPageToken else {
-                guard Set(ids).count == ids.count, let base = ids.firstIndex(of: expected),
-                      let sent = ids.firstIndex(of: own), base < sent else { throw inconclusive }
-                if sent != base + 1 || ids.last != own { throw conflict }
-                let current = try await resource(fileID: fileID, token: token).metadata()
-                guard current.rev == own else { throw inconclusive }
-                return
+                guard Set(ids).count == ids.count else { throw CloudProviderError.serviceUnavailable }
+                return ids
             }
-            guard !next.isEmpty, next != pageToken else { throw inconclusive }
+            guard !next.isEmpty, tokens.insert(next).inserted else { throw CloudProviderError.serviceUnavailable }
             pageToken = next
         }
-        throw inconclusive
+        throw CloudProviderError.serviceUnavailable
     }
 
     private static func configureBody(_ request: inout URLRequest, metadata: Data, bytes: Data, resumable: Bool) {

@@ -1919,9 +1919,11 @@ extension KDBXCompatibilityTests {
         let payload = try PendingUploadQueue.readImmutablePayload(marker)
         XCTAssertEqual(DatabaseListStore.recentBackups(for: reference).compactMap { try? Data(contentsOf: $0) }, [base])
 
+        let baseline = try DriveTransport.Reply.file(base, revision: "base")
         let receipt = try DriveTransport.Reply.file(payload, revision: "our-write")
         let transport = DriveTransport([
-            try .file(base, revision: "base"), try .file(base, revision: "base"), receipt,
+            baseline, .body(Data(), status: 500),
+            baseline, .json(["revisions": [["id": "base"]]]), baseline, receipt,
             .json(["revisions": [["id": "base"], ["id": "our-write"]]]), receipt,
         ])
         let vault = DriveTestCredentials()
@@ -1937,11 +1939,23 @@ extension KDBXCompatibilityTests {
         var environment = PendingUploadDrainer.Environment.live
         let saveEnvironment = saver
         environment.deliverMarker = { try await CloudDatabaseSaver.deliver($0, reference: $1, environment: saveEnvironment) }
-        let delivery = await PendingUploadDrainer(environment: environment).drain(databaseId: reference.id)
+        let drainer = PendingUploadDrainer(environment: environment)
+        let blocked = await drainer.drain(databaseId: reference.id)
+        XCTAssertTrue(blocked.drainedDatabaseIDs.isEmpty)
+        let failedRequests = await transport.requests
+        XCTAssertEqual(failedRequests.map(\.httpMethod), ["GET", "GET"])
+        XCTAssertEqual(failedRequests.last?.url?.path, "/drive/v3/files/fixture-file/revisions")
+        let ready = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        XCTAssertEqual(CloudJournalDecision.state(of: ready.marker), .ready)
+        XCTAssertNil(CloudJournalDecision.driveUploadRecoveryIssue(for: ready.marker))
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(ready), payload)
+
+        let delivery = await drainer.drain(databaseId: reference.id)
         XCTAssertEqual(delivery.drainedDatabaseIDs, [reference.id])
         XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
         XCTAssertEqual(DatabaseListStore.recentBackups(for: reference).compactMap { try? Data(contentsOf: $0) }, [base])
         let requests = await transport.requests
+        XCTAssertEqual(requests.filter { $0.httpMethod == "PATCH" }.count, 1)
         let request = try XCTUnwrap(requests.first { $0.httpMethod == "PATCH" })
         XCTAssertNotNil(request.httpBody?.range(of: payload))
         let decoded = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: loaded.compositeKey,
