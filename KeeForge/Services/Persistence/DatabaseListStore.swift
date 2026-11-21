@@ -7,6 +7,7 @@ enum DatabaseListStore {
     enum AddDatabaseError: Error, LocalizedError, Equatable {
         case duplicateFile(existingReferenceID: UUID, filename: String)
         case duplicateCreatedFilename(filename: String)
+        case unresolvedCloudUpload
 
         var errorDescription: String? {
             switch self {
@@ -14,6 +15,8 @@ enum DatabaseListStore {
                 return String(localized: "“\(filename)” is already in your database list.")
             case .duplicateCreatedFilename(let filename):
                 return String(localized: "“\(filename)” is already used by a KeeForge-only database.")
+            case .unresolvedCloudUpload:
+                return String(localized: "This file has an unconfirmed upload. You can export the encrypted copy in Cloud Recovery.")
             }
         }
     }
@@ -392,6 +395,7 @@ enum DatabaseListStore {
                 guard let metadata = $0.cloudSyncMetadata else { return false }
                 return metadata.provider == provider && metadata.accountId == accountId && metadata.fileId == file.id
             }) { return .noop(existing) }
+            try requireNoDetachedUpload(provider: provider, accountID: accountId, fileID: file.id, in: rows)
             guard !rows.contains(where: { $0.id == reference.id }) else { return .rejected }
             rows.append(reference)
             return .write(reference)
@@ -544,6 +548,7 @@ enum DatabaseListStore {
     enum RemovalOutcome: Sendable, Equatable {
         case removed, alreadyMissing, rejected, notPublished, revocationUnconfirmed
         case recoveryRequired, revokedRegistryNotPublished, visibleUnconfirmed
+        case cloudRecoveryRequired(canKeepRecoveryCopies: Bool)
     }
 
     private struct RemovalReceipt {
@@ -553,10 +558,12 @@ enum DatabaseListStore {
     }
 
     @discardableResult
-    static func remove(observed: DatabaseReference, io: DurableFileWriteIO = .init()) -> RemovalOutcome {
+    static func remove(observed: DatabaseReference, keepingUnconfirmedCloudUploads: Bool = false,
+                       io: DurableFileWriteIO = .init()) -> RemovalOutcome {
         var revocationAttempted = false
         var revocationObserved = false
         var recoveryRequired = false
+        var cloudRecoveryCanKeepCopies: Bool?
         var rowMissing = false
         var recordedFile: RemovedDocumentsFile?
         let removedFile = removedDocumentsFileRecord(for: observed)
@@ -584,11 +591,35 @@ enum DatabaseListStore {
                           current.cloudSyncMetadata?.keyEpoch == observed.cloudSyncMetadata?.keyEpoch,
                           current.cloudSyncMetadata?.remoteRev == observed.cloudSyncMetadata?.remoteRev,
                           current.cloudSyncMetadata?.remoteContentHash == observed.cloudSyncMetadata?.remoteContentHash else { return .rejected }
-                    if current.isCloudBacked {
-                        guard try PendingUploadQueue.readJournal(for: current.id).isEmpty else { return .rejected }
+                    var recoveryCopies: [PendingUploadQueue.StoredMarker] = []
+                    if let metadata = current.cloudSyncMetadata {
+                        let journal = try PendingUploadQueue.readJournal(for: current.id)
+                        if !journal.isEmpty {
+                            let hasAnotherReference = rows.contains { other in
+                                guard other.id != current.id, let source = other.cloudSyncMetadata else { return false }
+                                return sameCloudFile(metadata.provider, metadata.accountId, metadata.fileId,
+                                    source.provider, source.accountId, source.fileId)
+                            }
+                            let recoverable = !hasAnotherReference && journal.allSatisfy { entry in
+                                let marker = entry.marker
+                                return CloudJournalDecision.state(of: marker) == .attempting
+                                    && marker.keyChange == nil && marker.isPayloadFinalized == true
+                                    && PendingUploadQueue.hasBoundAuthority(entry, reference: current)
+                                    && (try? PendingUploadQueue.readImmutablePayload(entry)) != nil
+                            }
+                            guard recoverable && keepingUnconfirmedCloudUploads else {
+                                cloudRecoveryCanKeepCopies = recoverable
+                                return .rejected
+                            }
+                            recoveryCopies = journal
+                        }
                     }
                     // Durable before the list write: a crash right after it must not re-list the file.
                     guard removedFile.isCurrent(for: current) else { return .rejected }
+                    for var copy in recoveryCopies {
+                        copy.marker.detachedFilename = current.filename
+                        _ = try PendingUploadQueue.update(copy)
+                    }
                     recordedFile = try rememberRemovedDocumentsFile(removedFile.file)
                     revocationAttempted = true
                     let ready = try PendingLocalSaveStore.revokeForRemoval(current.id, nonBlocking: true)
@@ -614,7 +645,11 @@ enum DatabaseListStore {
                     return .removed
                 case .visibleUnconfirmed: return .visibleUnconfirmed
                 case .missing: return rowMissing ? .alreadyMissing : .notPublished
-                case .rejected: return recoveryRequired ? .recoveryRequired : .rejected
+                case .rejected:
+                    if let cloudRecoveryCanKeepCopies {
+                        return .cloudRecoveryRequired(canKeepRecoveryCopies: cloudRecoveryCanKeepCopies)
+                    }
+                    return recoveryRequired ? .recoveryRequired : .rejected
                 case .notPublished:
                     if revocationObserved { return .revokedRegistryNotPublished }
                     return revocationAttempted ? .revocationUnconfirmed : .notPublished
@@ -3113,6 +3148,27 @@ enum DatabaseListStore {
                 filename: filename
             )
         }
+        try requireNoDetachedUpload(provider: provider, accountID: accountId, fileID: fileId, in: references)
+    }
+
+    private static func requireNoDetachedUpload(
+        provider: String, accountID: String, fileID: String, in references: [DatabaseReference]
+    ) throws {
+        let detached = try PendingUploadQueue.readJournal(excluding: Set(references.map(\.id)))
+        for entry in detached where entry.marker.detachedFilename != nil {
+            guard let binding = entry.marker.binding, binding.isRecognized else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            if sameCloudFile(provider, accountID, fileID, binding.provider, binding.accountID, binding.fileID) {
+                throw AddDatabaseError.unresolvedCloudUpload
+            }
+        }
+    }
+
+    private static func sameCloudFile(_ provider: String, _ accountID: String, _ fileID: String,
+                                      _ otherProvider: String?, _ otherAccountID: String?, _ otherFileID: String?) -> Bool {
+        provider == otherProvider && fileID == otherFileID
+            && (accountID == otherAccountID || CloudProviderKind(rawValue: provider)?.fileIDIsAccountIndependent == true)
     }
 
     private static func normalizedFilePath(for url: URL) -> String {

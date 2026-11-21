@@ -222,6 +222,7 @@ enum PendingUploadQueue {
         var attemptIsFenced: Bool?
         var uploadRecoveryIssue: CloudSyncIssue?
         var observedUploadRevision: String?
+        var detachedFilename: String?
         var discardRequested: Bool?
         var requiresLocalRecovery: Bool?
         var absorbedOperationIDs: [UUID]?
@@ -287,6 +288,7 @@ enum PendingUploadQueue {
             attemptIsFenced = try container.decodeIfPresent(Bool.self, forKey: .attemptIsFenced)
             uploadRecoveryIssue = try container.decodeIfPresent(CloudSyncIssue.self, forKey: .uploadRecoveryIssue)
             observedUploadRevision = try container.decodeIfPresent(String.self, forKey: .observedUploadRevision)
+            detachedFilename = try container.decodeIfPresent(String.self, forKey: .detachedFilename)
             discardRequested = try container.decodeIfPresent(Bool.self, forKey: .discardRequested)
             requiresLocalRecovery = try container.decodeIfPresent(Bool.self, forKey: .requiresLocalRecovery)
             absorbedOperationIDs = try container.decodeIfPresent([UUID].self, forKey: .absorbedOperationIDs)
@@ -459,8 +461,10 @@ enum PendingUploadQueue {
         return directories.filter { databaseID == nil || $0.lastPathComponent == databaseID?.uuidString }
     }
 
-    static func readJournal(for databaseID: UUID? = nil, environment: Environment = .live) throws -> [StoredMarker] {
+    static func readJournal(for databaseID: UUID? = nil, excluding excludedIDs: Set<UUID> = [],
+                            environment: Environment = .live) throws -> [StoredMarker] {
         let directories = try journalDirectories(for: databaseID, environment: environment)
+            .filter { UUID(uuidString: $0.lastPathComponent).map { !excludedIDs.contains($0) } ?? false }
         var records: [StoredMarker] = []
         for folder in directories {
             for file in try environment.listDirectory(folder) where file.pathExtension == "json" {
