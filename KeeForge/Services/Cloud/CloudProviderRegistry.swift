@@ -12,7 +12,11 @@ enum CloudProviderRegistry {
     /// them there. Nothing can have connected one, because neither has ever
     /// been reachable from the Mac UI.
     static var availableProviders: [CloudProviderKind] {
-        [.dropbox, .oneDrive, .webDAV, .ftp].filter(\.isAvailableOnCurrentPlatform)
+        var providers: [CloudProviderKind] = [.dropbox, .oneDrive, .webDAV, .ftp]
+        #if os(iOS)
+        if GoogleDriveCloudProvider.shared.isConfigured { providers.insert(.googleDrive, at: 2) }
+        #endif
+        return providers.filter(\.isAvailableOnCurrentPlatform)
     }
 
     static func provider(for id: String) -> CloudProvider? {
@@ -35,6 +39,12 @@ enum CloudProviderRegistry {
             return nil
             #else
             return OneDriveCloudProvider.shared
+            #endif
+        case .googleDrive:
+            #if os(iOS)
+            return GoogleDriveCloudProvider.shared
+            #else
+            return nil
             #endif
         case .webDAV:
             #if DEBUG

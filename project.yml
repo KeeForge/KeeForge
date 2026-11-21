@@ -38,6 +38,9 @@ packages:
   MSAL:
     url: https://github.com/AzureAD/microsoft-authentication-library-for-objc.git
     from: 1.7.0
+  AppAuth:
+    url: https://github.com/openid/AppAuth-iOS.git
+    exactVersion: 3.0.0
   SiteMatching:
     path: Packages/SiteMatching
   YubiKit:
@@ -131,6 +134,8 @@ targets:
       - package: RemoteFileTransports
       - package: SwiftyDropbox
       - package: MSAL
+      - package: AppAuth
+        product: AppAuth
       - package: SiteMatching
       - package: YubiKit
     sources:

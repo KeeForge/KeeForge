@@ -12,6 +12,7 @@ struct CloudFileBrowserView: View {
     @State private var session: CloudFileBrowserSession
     @State private var isManualConnectPresented = false
     @State private var showsAllFiles = false
+    @State private var driveSelectionTask: Task<Void, Never>?
 
     init(
         providerID: String,
@@ -31,7 +32,16 @@ struct CloudFileBrowserView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let provider {
+                if let drive = provider as? GoogleDriveCloudProvider {
+                    ContentUnavailableView {
+                        Label(drive.displayName, systemImage: drive.iconName)
+                    } actions: {
+                        Button("Choose Database…") { beginDriveSelection(drive) }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(driveSelectionTask != nil)
+                            .accessibilityIdentifier("cloud.browser.connect.button")
+                    }
+                } else if let provider {
                     if let selectedAccount = session.selectedAccount {
                         CloudFolderBrowserView(
                             provider: provider,
@@ -85,7 +95,7 @@ struct CloudFileBrowserView: View {
                     .accessibilityIdentifier("cloud.browser.cancel.button")
                 }
 
-                if provider != nil {
+                if provider != nil, !(provider is GoogleDriveCloudProvider) {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             if !session.accounts.isEmpty {
@@ -110,9 +120,10 @@ struct CloudFileBrowserView: View {
                 }
             }
         }
+        .onDisappear { driveSelectionTask?.cancel() }
         .id(session.selectedAccountID)
         .task {
-            session.refreshAccounts()
+            if !(provider is GoogleDriveCloudProvider) { session.refreshAccounts() }
         }
         .sheet(isPresented: $isManualConnectPresented) {
             ManualConnectSheet(
@@ -125,6 +136,24 @@ struct CloudFileBrowserView: View {
                     isManualConnectPresented = false
                 }
             )
+        }
+    }
+
+    private func beginDriveSelection(_ drive: GoogleDriveCloudProvider) {
+        guard driveSelectionTask == nil else { return }
+        driveSelectionTask = Task {
+            defer { driveSelectionTask = nil }
+            do {
+                let selection = try await drive.selectDatabase(from: presentationAnchor())
+                try Task.checkCancellation()
+                onSelect(selection)
+                dismiss()
+            } catch is CancellationError {
+            } catch CloudProviderError.authenticationCancelled {
+            } catch {
+                onFailure(error)
+                dismiss()
+            }
         }
     }
 
@@ -391,6 +420,8 @@ struct CloudProviderIcon: View {
             Image("DropboxGlyph")
         case .oneDrive:
             Image("OneDriveGlyph")
+        case .googleDrive:
+            Image(systemName: CloudProviderKind.googleDrive.iconName)
         case .webDAV:
             Image(systemName: CloudProviderKind.webDAV.iconName)
         case .ftp:

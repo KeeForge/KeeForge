@@ -135,8 +135,10 @@ final class DatabaseListViewModel {
     }
 
     @discardableResult
-    func removeDatabase(_ reference: DatabaseReference) async -> DatabaseListStore.RemovalOutcome {
-        let removed = await Task.detached { DatabaseListStore.remove(observed: reference) }.value
+    func removeDatabase(_ reference: DatabaseReference, keepingUnconfirmedCloudUploads: Bool = false) async -> DatabaseListStore.RemovalOutcome {
+        let removed = await Task.detached {
+            DatabaseListStore.remove(observed: reference, keepingUnconfirmedCloudUploads: keepingUnconfirmedCloudUploads)
+        }.value
         reload()
         return removed
     }

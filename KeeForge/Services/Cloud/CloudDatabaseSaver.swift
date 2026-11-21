@@ -315,6 +315,7 @@ enum CloudDatabaseSaver {
         var writeBackup: @Sendable (Data, URL) throws -> Void
         var pruneBackups: @Sendable (DatabaseReference, Int) throws -> Void
         var now: @Sendable () -> Date
+        var uploadObserved: (@Sendable (DatabaseReference, Data, CloudFileMetadata) async throws -> CloudFileMetadata?)?
         var queue: PendingUploadQueue.Environment = .live
         var revisionIdentifiesContent: @Sendable (DatabaseReference, String?) -> Bool = { reference, revision in
             guard let metadata = reference.cloudSyncMetadata,
@@ -376,7 +377,15 @@ enum CloudDatabaseSaver {
             createDirectory: LocalDatabaseSaver.Environment.live.createDirectory,
             writeBackup: LocalDatabaseSaver.Environment.live.writeBackup,
             pruneBackups: LocalDatabaseSaver.Environment.live.pruneBackups,
-            now: LocalDatabaseSaver.Environment.live.now
+            now: LocalDatabaseSaver.Environment.live.now,
+            uploadObserved: { reference, data, observed in
+                guard let metadata = reference.cloudSyncMetadata,
+                      let observedProvider = CloudProviderRegistry.provider(for: metadata.provider) as? any CloudObservedUploadProvider else {
+                    return nil
+                }
+                return try await observedProvider.upload(accountId: metadata.accountId, fileId: metadata.fileId,
+                                                         data: data, observed: observed, progress: { _ in })
+            }
         )
     }
 
@@ -742,7 +751,13 @@ enum CloudDatabaseSaver {
             let remoteBytes = try await environment.downloadRemoteData(reference)
             let remoteSHA = FileDigest.sha512(remoteBytes)
             guard remoteSHA == marker.remoteBaseSHA512 else {
-                try PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
+                if reference.cloudProviderKind == .googleDrive {
+                    stored.marker.uploadRecoveryIssue = .conflict
+                    stored.marker.isConflicted = true
+                    _ = try PendingUploadQueue.update(stored, environment: environment.queue)
+                } else {
+                    try PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
+                }
                 return .conflict(remoteRev: remoteMetadata.rev)
             }
         }
@@ -763,12 +778,31 @@ enum CloudDatabaseSaver {
                     stored.marker.uploadAttemptID = UUID()
                     stored.marker.attemptIsFenced = false
                     stored = try PendingUploadQueue.update(stored, environment: environment.queue)
-                case .upload: response = try await environment.upload(reference, bytes, expectedRev, { _ in })
+                case .upload:
+                    if let result = try await environment.uploadObserved?(reference, bytes, remoteMetadata) {
+                        response = result
+                    } else {
+                        response = try await environment.upload(reference, bytes, expectedRev, { _ in })
+                    }
                 default: throw SaveError.saveContextUnavailable
                 }
             }
         }
         catch {
+            if let recovery = error as? CloudUploadRecovery {
+                stored.marker.uploadRecoveryIssue = recovery.syncIssue
+                stored.marker.observedUploadRevision = recovery.observedRevision
+                switch recovery {
+                case .preflightConflict(let remoteRevision):
+                    stored.marker.isConflicted = true
+                    stored.marker.attemptIsFenced = true
+                    _ = try PendingUploadQueue.update(stored, environment: environment.queue)
+                    return .conflict(remoteRev: remoteRevision)
+                default:
+                    _ = try PendingUploadQueue.update(stored, environment: environment.queue)
+                    throw recovery
+                }
+            }
             if let failure = error as? CloudUploadFailure, failure.provesNoCommit,
                let rejected = CloudJournalDecision.transition(from: .attempting, on: .rejectedBeforeCommit) {
                 for effect in rejected.effects {

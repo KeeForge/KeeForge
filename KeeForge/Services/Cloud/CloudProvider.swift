@@ -21,6 +21,37 @@ struct CloudUploadFailure: Error, LocalizedError, CloudSyncIssueConvertible {
     var provesNoCommit: Bool { outcome != .uncertain }
 }
 
+enum CloudUploadRecovery: Error, LocalizedError, CloudSyncIssueConvertible, Sendable {
+    case preflightConflict(remoteRevision: String?)
+    case postUploadConflict(ownRevision: String)
+    case responseLost
+    case verificationIncomplete(ownRevision: String?)
+
+    var syncIssue: CloudSyncIssue {
+        switch self {
+        case .preflightConflict: .conflict
+        case .postUploadConflict: .postUploadConflict
+        case .responseLost: .uploadResponseLost
+        case .verificationIncomplete: .uploadVerificationIncomplete
+        }
+    }
+
+    var observedRevision: String? {
+        switch self {
+        case .preflightConflict(let revision), .verificationIncomplete(let revision): revision
+        case .postUploadConflict(let revision): revision
+        case .responseLost: nil
+        }
+    }
+
+    var errorDescription: String? { syncIssue.localizedDescription }
+}
+
+protocol CloudObservedUploadProvider: CloudProvider {
+    func upload(accountId: String, fileId: String, data: Data, observed: CloudFileMetadata,
+                progress: @escaping @Sendable (Double) -> Void) async throws -> CloudFileMetadata
+}
+
 protocol CloudProvider: AnyObject, Sendable {
     var id: String { get }
     var displayName: String { get }

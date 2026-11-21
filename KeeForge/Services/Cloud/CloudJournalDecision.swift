@@ -3,6 +3,13 @@ import Foundation
 /// Pure admission and transition policy; storage and provider calls belong to the adapters.
 enum CloudJournalDecision {
     enum State: Equatable { case legacy, prepared, ready, attempting, confirmed, recoveryRequired, invalid }
+    static func driveUploadRecoveryIssue(for marker: PendingUploadQueue.Marker) -> CloudSyncIssue? {
+        guard marker.binding?.provider == CloudProviderKind.googleDrive.rawValue,
+              marker.uploadAttemptID != nil, marker.attemptIsFenced != true,
+              marker.confirmedAt == nil else { return nil }
+        return marker.uploadRecoveryIssue ?? .uploadResponseLost
+    }
+
     enum Event { case payloadInstalled, dispatch, acknowledged, rejectedBeforeCommit, localReconciled, interruption }
     enum Effect: Equatable { case persist, replaceCache, upload, publishReference, retire, retainForRecovery }
     struct Transition: Equatable {
@@ -55,6 +62,7 @@ enum CloudJournalDecision {
             return marker.journalVersion == nil && marker.isPayloadFinalized == true ? .conflict : .retain
         }
         if state(of: marker) == .confirmed { return .reconcile }
+        if marker.uploadRecoveryIssue != nil { return .retain }
         if snapshot.siblings.contains(where: {
             $0.keyChange != nil || ($0.uploadAttemptID != nil && $0.confirmedAt == nil && $0.attemptIsFenced != true)
         }) { return .retain }

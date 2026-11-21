@@ -43,7 +43,7 @@ struct DatabaseNavigationView: View {
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 8) {
-                    if viewModel.saveError?.isWriteScopeRequired == true {
+                    if viewModel.saveError?.isWriteScopeRequired == true || viewModel.needsGoogleDriveReconnect {
                         CloudReauthBanner(
                             providerName: viewModel.databaseReference.cloudProviderKind?.displayName ?? "cloud",
                             isReconnectInFlight: isCloudReconnectInFlight,
@@ -55,7 +55,9 @@ struct DatabaseNavigationView: View {
                         UnsavedChangesBanner(viewModel: viewModel)
                     }
 
-                    if viewModel.hasPendingUploadConflict && viewModel.isSaving == false {
+                    if let issue = viewModel.driveUploadRecoveryIssue, !viewModel.isSaving {
+                        DriveUploadRecoveryBanner(issue: issue)
+                    } else if viewModel.hasPendingUploadConflict && viewModel.isSaving == false {
                         PendingUploadConflictBanner(viewModel: viewModel)
                     }
                 }
@@ -145,8 +147,9 @@ struct DatabaseNavigationView: View {
     @MainActor
     private func beginCloudReconnect() {
         guard isCloudReconnectInFlight == false else { return }
-        guard let providerID = viewModel.databaseReference.cloudSyncMetadata?.provider,
-              let provider = CloudProviderRegistry.provider(for: providerID) else {
+        let reference = viewModel.databaseReference
+        guard let metadata = reference.cloudSyncMetadata,
+              let provider = CloudProviderRegistry.provider(for: metadata.provider) else {
             viewModel.presentSaveError(CloudProviderError.invalidConfiguration)
             return
         }
@@ -156,8 +159,14 @@ struct DatabaseNavigationView: View {
             defer { isCloudReconnectInFlight = false }
 
             do {
-                _ = try await provider.authenticate(from: presentationAnchor())
-                viewModel.clearSaveError()
+                if let drive = provider as? GoogleDriveCloudProvider {
+                    try await viewModel.reconnectGoogleDrive { reference in
+                        try await drive.reconnect(from: presentationAnchor(), reference: reference)
+                    }
+                } else {
+                    _ = try await provider.authenticate(from: presentationAnchor())
+                    viewModel.clearSaveError()
+                }
             } catch let error as CloudProviderError where error == .authenticationCancelled {
                 return
             } catch {

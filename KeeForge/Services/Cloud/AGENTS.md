@@ -14,7 +14,7 @@
 
 ### Platform scope
 
-- iOS offers Dropbox, OneDrive, WebDAV, and FTP. The Mac app offers WebDAV and FTP only (`CloudProviderKind.isAvailableOnCurrentPlatform`).
+- iOS offers Dropbox, OneDrive, WebDAV, FTP, and Google Drive when its iOS OAuth client is configured. Google Drive uses the hosted file picker for existing files, and create-only conflict copies target My Drive root. It is not a New Database destination. The Mac app offers WebDAV and FTP only (`CloudProviderKind.isAvailableOnCurrentPlatform`).
 - Dropbox and OneDrive are not built into the Mac app: both provider files are excluded from `KeeForgeMac` in `../../../project.yml`, `SwiftyDropbox` and `MSAL` are off that target (MSAL is an embedded framework that ships whole), `provider(for:)` returns nil for them, and `handleOpenURL` returns false. The macOS branches inside those two files are uncompiled and untested.
 - Re-enabling either means restoring its source, package, URL scheme and Info.plist keys (`DropboxAppKey`, `OneDriveClientID`, `OneDriveRedirectURI`) together, plus for OneDrive the MSAL keychain group, then regenerating the Developer ID profiles.
 
@@ -32,7 +32,7 @@
 - The app save rebases instead of conflicting only when the remote bytes hash to a state `SaveBaseline` covers, at the divergence gate and after a provider 412, with exactly one retry. The retry's rev is read before the byte check so an edit in between fails `If-Match`. Bytes that differ always conflict.
 - The pending-upload push uses the plain gate; it has no baseline.
 - The backup is written before the upload, so a local failure cannot leave the remote advanced and the save reported as failed.
-- Known residue, not hidden: WebDAV sends `If-Match` only for strong ETags; a OneDrive upload session (over 4 MiB) checks it at session creation, not commit; FTP has no conditional write. Read the site comment before attempting a fix.
+- Known residue, not hidden: WebDAV sends `If-Match` only for strong ETags; a OneDrive upload session (over 4 MiB) checks it at session creation, not commit; FTP has no conditional write. Google Drive requires a readable revision history ending at the observed revision before comparing the journal-approved revision and MD5 immediately before dispatch. Failed preflight leaves the encrypted save queued. After the write, revision history and the current head must confirm delivery. A concurrent revision can be overwritten before detection. Conflicts after dispatch, missing receipts and unverified revision history retain the fenced journal and immutable export; no automatic resend or clean confirmation follows. Read the site comment before attempting a fix.
 
 ### Opening and cache replacement
 
@@ -70,7 +70,8 @@
 
 ### Credentials and transport
 
-- `CloudTokenStore` holds the Dropbox refresh token and WebDAV/FTP credentials as Keychain items in the group named by `CloudKeychainAccessGroup` in the app `Info.plist`, `AfterFirstUnlockThisDeviceOnly`, with no biometric gate. It is not compiled into the extensions.
+- `CloudTokenStore` holds the Dropbox refresh token, Google Drive’s per-account AppAuth state, and WebDAV/FTP credentials as Keychain items in the group named by `CloudKeychainAccessGroup` in the app `Info.plist`, `AfterFirstUnlockThisDeviceOnly`, with no biometric gate. It is not compiled into the extensions.
+- Drive callers can stop waiting independently of the shared token refresh. Refresh results remain bound to the credential generation and account lifetime.
 - OneDrive tokens live in MSAL's own cache: keychain group `com.microsoft.adalcache` on iOS (second in `KeeForge.entitlements`), `com.microsoft.identity.universalstorage` on macOS (not declared today).
 - WebDAV requires `https` unless the user set `allowsUnencryptedHTTP`; FTP always requires `allowsUnencryptedFTP`, because the password travels in the clear. Keep both opt-ins explicit. ATS allows arbitrary loads for user-entered hosts, so this code is the only enforcement.
 - WebDAV refuses cross-origin redirects and never forwards credentials.
@@ -87,6 +88,7 @@
 - Markers: `PendingUploadQueueTests`, `PendingUploadDrainerTests` (also the rekey cutoff), `PendingUploadRecoveryTests`; the AutoFill side in `CredentialProviderSaveTests`.
 - Providers: `WebDAVCloudProviderTests`, `WebDAVErrorMessageTests`, `FTPCloudProviderTests`. The WebDAV and FTP clients, their parsers, and the address rules are tested in `../../../Packages/RemoteFileTransports`. `DropboxCloudProviderTests` and `OneDriveCloudProviderTests` import the SDKs and are excluded from `KeeForgeMacTests`; run them on iOS.
 - Session-side sync and merge: `DatabaseViewModelCloudSyncTests`.
+- Google Drive authorization/transport and durable delivery: `GoogleDrivePickerSelectionTests`, `GoogleDriveCloudProviderTests`, and the Google Drive AutoFill case in `KDBXCompatibilityTests`.
 
 ## See also
 
