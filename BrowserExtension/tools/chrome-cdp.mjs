@@ -167,7 +167,8 @@ export function pageTools(send, { onAttach = async () => {} } = {}) {
     for (const type of ['mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 }, session);
   }
   async function key(session, keyName, code = keyName) {
-    for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: keyName, code, windowsVirtualKeyCode: { Enter: 13, Escape: 27 }[keyName] }, session);
+    // A key that closes its own target (Escape in the menu frame) may never be acknowledged; do not wait on it.
+    for (const type of ['keyDown', 'keyUp']) await Promise.race([send('Input.dispatchKeyEvent', { type, key: keyName, code, windowsVirtualKeyCode: { Enter: 13, Escape: 27 }[keyName] }, session).catch(() => {}), sleep(2000)]);
   }
   async function nodes(session) {
     const tree = await send('DOM.getDocument', { depth: -1, pierce: true }, session);
