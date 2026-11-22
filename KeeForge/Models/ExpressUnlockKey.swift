@@ -211,7 +211,7 @@ enum ExpressUnlock {
         deriveKey: KeyDerivation = { try KDBXKeyDerivation.deriveKey(compositeKey: $0, parameters: $1, policy: $2) }
     ) throws -> Written {
         var expressKey: ExpressUnlockKey?
-        let data = try draft.write(header: header) { kdfParameters in
+        let data = try draft.write(header: header, compositeKey: compositeKey) { kdfParameters in
             let derived = try derive(compositeKey, kdfParameters, kdfPolicy, deriveKey)
             expressKey = derived.key
             return derived.bytes

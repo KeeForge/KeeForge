@@ -127,7 +127,11 @@ struct EncryptionSettingsChange: Sendable {
         if let cipherID {
             header.cipherID = cipherID
         }
-        if let kdfParameters {
+        if var kdfParameters {
+            // The writer rotates the salt anyway, unless a YubiKey key pins it.
+            if let salt = header.kdfParameters.bytes("S") {
+                kdfParameters["S"] = .bytes(salt)
+            }
             header.kdfParameters = kdfParameters
         }
         if let compressionFlags {

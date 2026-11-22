@@ -15,8 +15,10 @@ enum KDBXWriter {
         sessionKey: SymmetricKey,
         kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
-        try write(rootGroup: rootGroup, meta: meta, header: header, sessionKey: sessionKey) { kdfParameters in
-            try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: kdfParameters, policy: kdfPolicy)
+        try write(rootGroup: rootGroup, meta: meta, header: header, sessionKey: sessionKey,
+                  kdfSaltRotation: ChallengeResponseKey.kdfSaltRotation(compositeKey: compositeKey)) { kdfParameters in
+            try ChallengeResponseKey.checkWrite(compositeKey: compositeKey, kdfParameters: kdfParameters)
+            return try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: kdfParameters, policy: kdfPolicy)
         }
     }
 
@@ -28,6 +30,7 @@ enum KDBXWriter {
         meta: KPMeta,
         header: KDBXContainer.Header,
         sessionKey: SymmetricKey,
+        kdfSaltRotation: KDBXContainerWriter.KDFSaltRotation,
         transformedKey provideTransformedKey: (_ kdfParameters: KDBXVariantMap) throws -> Data
     ) throws -> Data {
         try write(
@@ -35,6 +38,7 @@ enum KDBXWriter {
             meta: meta,
             sessionKey: sessionKey,
             headerSource: .reuse(header),
+            kdfSaltRotation: kdfSaltRotation,
             provideTransformedKey: provideTransformedKey
         )
     }
@@ -51,9 +55,11 @@ enum KDBXWriter {
             rootGroup: rootGroup,
             meta: meta,
             sessionKey: sessionKey,
-            headerSource: .fresh(freshHeader)
+            headerSource: .fresh(freshHeader),
+            kdfSaltRotation: ChallengeResponseKey.kdfSaltRotation(compositeKey: compositeKey)
         ) { kdfParameters in
-            try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: kdfParameters, policy: kdfPolicy)
+            try ChallengeResponseKey.checkWrite(compositeKey: compositeKey, kdfParameters: kdfParameters)
+            return try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: kdfParameters, policy: kdfPolicy)
         }
     }
 
@@ -62,11 +68,13 @@ enum KDBXWriter {
         meta: KPMeta,
         sessionKey: SymmetricKey,
         headerSource: KDBXContainerWriter.HeaderSource,
+        kdfSaltRotation: KDBXContainerWriter.KDFSaltRotation,
         provideTransformedKey: (_ kdfParameters: KDBXVariantMap) throws -> Data
     ) throws -> Data {
         let header = try KDBXContainerWriter.prepareHeader(
             headerSource,
-            requiredMinorVersion: requiredMinorVersion(for: rootGroup, meta: meta)
+            requiredMinorVersion: requiredMinorVersion(for: rootGroup, meta: meta),
+            kdfSaltRotation: kdfSaltRotation
         )
         let document = try document(rootGroup: rootGroup, meta: meta, sessionKey: sessionKey)
         let xml: Data

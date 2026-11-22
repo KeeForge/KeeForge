@@ -147,15 +147,17 @@ struct DatabaseDraft: Sendable {
         header: KDBXContainer.Header,
         kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
-        try write(header: header) { kdfParameters in
+        try write(header: header, compositeKey: compositeKey) { kdfParameters in
             try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: kdfParameters, policy: kdfPolicy)
         }
     }
 
     /// As above, with the KDF output supplied by `transformedKey`
-    /// (`KDBXWriter`'s seam).
+    /// (`KDBXWriter`'s seam). `compositeKey` decides the salt: a YubiKey
+    /// key keeps the one it answered (`ChallengeResponseKey`).
     func write(
         header: KDBXContainer.Header,
+        compositeKey: SymmetricKey,
         transformedKey provideTransformedKey: (_ kdfParameters: KDBXVariantMap) throws -> Data
     ) throws -> Data {
         var header = header
@@ -167,8 +169,11 @@ struct DatabaseDraft: Sendable {
             meta: meta,
             header: header,
             sessionKey: sessionKey,
-            transformedKey: provideTransformedKey
-        )
+            kdfSaltRotation: ChallengeResponseKey.kdfSaltRotation(compositeKey: compositeKey)
+        ) { kdfParameters in
+            try ChallengeResponseKey.checkWrite(compositeKey: compositeKey, kdfParameters: kdfParameters)
+            return try provideTransformedKey(kdfParameters)
+        }
     }
 
     func apply(_ edit: EntryEdit) throws -> DatabaseDraft {

@@ -470,7 +470,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             title = String(localized: "YubiKey Disconnected")
             summary = String(localized: "The YubiKey was removed before it answered. Keep it in place until the database opens.")
             code = "disconnected"
-        case .communicationFailed:
+        case .communicationFailed, .challengeChanged:
             title = String(localized: "YubiKey Not Read")
             summary = String(localized: "KeeForge couldn't talk to the YubiKey. Try again.")
             code = "communication_failed"

@@ -12430,6 +12430,58 @@
         }
       }
     },
+    "This save would need a new answer from your YubiKey, so nothing was written. Lock the database, unlock it with your YubiKey, and save again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für dieses Speichern bräuchte es eine neue Antwort deines YubiKey, deshalb wurde nichts geschrieben. Sperre die Datenbank, entsperre sie mit deinem YubiKey und speichere erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para guardar se necesitaría una nueva respuesta de tu YubiKey, así que no se escribió nada. Bloquea la base de datos, desbloquéala con tu YubiKey y vuelve a guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet enregistrement nécessiterait une nouvelle réponse de votre YubiKey ; rien n’a donc été écrit. Verrouillez la base de données, déverrouillez-la avec votre YubiKey, puis enregistrez à nouveau."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo salvataggio richiederebbe una nuova risposta dalla YubiKey, quindi non è stato scritto nulla. Blocca il database, sbloccalo con la YubiKey e salva di nuovo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この保存には YubiKey の新しい応答が必要なため、何も書き込まれませんでした。データベースをロックし、YubiKey でロック解除してから、もう一度保存してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этого сохранения нужен новый ответ YubiKey, поэтому ничего не записано. Заблокируйте базу данных, разблокируйте её с YubiKey и сохраните снова."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此次保存需要 YubiKey 的新响应，因此未写入任何内容。请锁定数据库，使用 YubiKey 解锁后再保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此次儲存需要 YubiKey 的新回應，因此未寫入任何內容。請鎖定資料庫，使用 YubiKey 解鎖後再儲存。"
+          }
+        }
+      }
+    },
     "Title" : {
       "localizations" : {
         "de" : {

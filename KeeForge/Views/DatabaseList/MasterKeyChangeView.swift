@@ -27,6 +27,7 @@ struct MasterKeyChangeView: View {
                 currentKeyFileFilename: reference.keyFileFilename,
                 currentKeyFileBookmarkData: reference.keyFileBookmarkData,
                 sessionKeyFileData: sessionViewModel.sessionKeyFileData,
+                hardwareKey: sessionViewModel.sessionUsesHardwareKey ? reference.hardwareKey : nil,
                 loadCurrentKeyFile: { [weak sessionViewModel] in
                     await sessionViewModel?.loadAssociatedKeyFile()
                 },
@@ -49,6 +50,13 @@ struct MasterKeyChangeView: View {
         Form {
             passwordSection
             keyFileSection
+            if let hardwareKey = viewModel.hardwareKey {
+                Section {
+                    LabeledContent("Hardware Key", value: hardwareKey.title)
+                } footer: {
+                    Text("The database keeps this YubiKey. Hold it to your device when asked while the change is saved.")
+                }
+            }
         }
         .macGroupedForm()
         .disabled(viewModel.isWorking || viewModel.hasCompleted)
@@ -65,7 +73,15 @@ struct MasterKeyChangeView: View {
         }
         .overlay {
             if viewModel.isWorking {
-                ProgressView("Changing Master Key")
+                VStack(spacing: 8) {
+                    ProgressView("Changing Master Key")
+                    if let hardwareKey = viewModel.hardwareKey {
+                        Text(HardwareKeyService.prompt(for: hardwareKey.transport))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
                     .padding()
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }

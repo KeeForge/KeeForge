@@ -25207,58 +25207,6 @@
         }
       }
     },
-    "Databases unlocked with a YubiKey open read-only, because saving them is not supported yet." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mit einem YubiKey entsperrte Datenbanken öffnen schreibgeschützt, weil das Sichern noch nicht unterstützt wird."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Las bases de datos desbloqueadas con una YubiKey se abren en solo lectura, porque aún no se pueden guardar."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les bases de données déverrouillées avec une YubiKey s'ouvrent en lecture seule, car leur enregistrement n'est pas encore pris en charge."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I database sbloccati con una YubiKey si aprono in sola lettura, perché il salvataggio non è ancora supportato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "YubiKey でロック解除したデータベースは、保存にまだ対応していないため読み出し専用で開きます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Базы данных, разблокированные YubiKey, открываются только для чтения, потому что их сохранение пока не поддерживается."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 YubiKey 解锁的数据库以只读方式打开，因为尚不支持保存。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 YubiKey 解鎖的資料庫以唯讀方式開啟，因為尚不支援儲存。"
-          }
-        }
-      }
-    },
     "Databases window:" : {
       "localizations" : {
         "de" : {
@@ -36561,6 +36509,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "硬體金鑰"
+          }
+        }
+      }
+    },
+    "Hardware key:" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hardwareschlüssel:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Llave de hardware:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clé matérielle :"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiave hardware:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ハードウェアキー:"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аппаратный ключ:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "硬件密钥："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "硬體金鑰："
           }
         }
       }
@@ -73747,6 +73747,110 @@
         }
       }
     },
+    "The database keeps this YubiKey. Hold it to your device when asked while the change is saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank behält diesen YubiKey. Halte ihn an dein Gerät, wenn du beim Speichern der Änderung dazu aufgefordert wirst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos conserva esta YubiKey. Acércala al dispositivo cuando se te pida mientras se guarda el cambio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données conserve cette YubiKey. Approchez-la de votre appareil lorsque cela vous est demandé pendant l’enregistrement de la modification."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database mantiene questa YubiKey. Avvicinala al dispositivo quando richiesto mentre la modifica viene salvata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースはこの YubiKey を引き続き使用します。変更の保存中に求められたら、キーをデバイスに近づけてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных сохраняет этот YubiKey. Поднесите его к устройству, когда появится запрос во время сохранения изменения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库会保留此 YubiKey。保存更改时，请在提示时将其靠近设备。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫會保留此 YubiKey。儲存變更時，請在提示時將其靠近裝置。"
+          }
+        }
+      }
+    },
+    "The database keeps this YubiKey. Touch it if it flashes while the change is saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank behält diesen YubiKey. Berühre ihn, wenn er beim Speichern der Änderung blinkt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos conserva esta YubiKey. Tócala si parpadea mientras se guarda el cambio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données conserve cette YubiKey. Touchez-la si elle clignote pendant l’enregistrement de la modification."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il database mantiene questa YubiKey. Toccala se lampeggia mentre la modifica viene salvata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースはこの YubiKey を引き続き使用します。変更の保存中にキーが点滅したらタッチしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "База данных сохраняет этот YubiKey. Коснитесь его, если он замигает во время сохранения изменения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库会保留此 YubiKey。保存更改时如果它闪烁，请轻触它。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫會保留此 YubiKey。儲存變更時如果它閃爍，請輕觸它。"
+          }
+        }
+      }
+    },
     "The database nests its groups or data too deeply to open." : {
       "localizations" : {
         "de" : {
@@ -81469,6 +81573,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此次儲存未取代資料庫檔案，但 KeeForge 無法確認其復原記錄是否已清除。嘗試新操作前，請開啟資料庫詳細資訊。"
+          }
+        }
+      }
+    },
+    "This save would need a new answer from your YubiKey, so nothing was written. Lock the database, unlock it with your YubiKey, and save again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für dieses Speichern bräuchte es eine neue Antwort deines YubiKey, deshalb wurde nichts geschrieben. Sperre die Datenbank, entsperre sie mit deinem YubiKey und speichere erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para guardar se necesitaría una nueva respuesta de tu YubiKey, así que no se escribió nada. Bloquea la base de datos, desbloquéala con tu YubiKey y vuelve a guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet enregistrement nécessiterait une nouvelle réponse de votre YubiKey ; rien n’a donc été écrit. Verrouillez la base de données, déverrouillez-la avec votre YubiKey, puis enregistrez à nouveau."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo salvataggio richiederebbe una nuova risposta dalla YubiKey, quindi non è stato scritto nulla. Blocca il database, sbloccalo con la YubiKey e salva di nuovo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この保存には YubiKey の新しい応答が必要なため、何も書き込まれませんでした。データベースをロックし、YubiKey でロック解除してから、もう一度保存してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этого сохранения нужен новый ответ YubiKey, поэтому ничего не записано. Заблокируйте базу данных, разблокируйте её с YubiKey и сохраните снова."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此次保存需要 YubiKey 的新响应，因此未写入任何内容。请锁定数据库，使用 YubiKey 解锁后再保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此次儲存需要 YubiKey 的新回應，因此未寫入任何內容。請鎖定資料庫，使用 YubiKey 解鎖後再儲存。"
           }
         }
       }

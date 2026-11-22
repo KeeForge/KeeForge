@@ -82,6 +82,7 @@ The root `AGENTS.md` lists the stable-core files and when they may change. Most 
 ### Interoperability choices
 
 - YubiKey challenge-response follows KeePassXC: the challenge is the KDF salt PKCS#7-padded to 64 bytes and the key is `SHA256(preKey || SHA256(response))`. KDBX 4 only (3.1 folds the response in after the KDF); a KDBX 4 file with the legacy AES-KDF UUID is accepted because KeePassXC writes it.
+- A composite key from `ChallengeResponseKey.compositeKey(preKey:response:challenge:)` is pinned to that challenge in memory. Every write with it keeps the KDF salt (`KDBXContainerWriter.KDFSaltRotation.keep`) and refuses (`challengeChanged`) any parameters whose salt asks another challenge, so a save can never produce a file only an unknown response opens. The master seed, IV and inner stream key still rotate. `DatabaseDraft.write(header:compositeKey:transformedKey:)` is the one funnel; do not add a write path that bypasses it.
 - `PasskeyCredential` reads KeePassXC `KPEX_PASSKEY_*` fields with ordered fallback to the legacy Strongbox / older KeePassXC names.
 - `OTPAuthURI` (in `OneTimeCodes`) keeps the trimmed input verbatim in `rawURI` for the protected `otp` field KeePassXC reads.
 - `ApplePasswordsCSVImporter` rejects a CSV with any column it does not know, so no column is dropped unseen.

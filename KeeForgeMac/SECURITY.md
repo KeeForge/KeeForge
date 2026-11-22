@@ -242,7 +242,7 @@ or hardware-key unlock and after a rekey that reached only the remote. A rekey
 replaces the session's key-file bytes, so a removed key file is never carried into
 the next change. They are never persisted or inferred from a key-file association. AutoFill
 participation still writes through the list model and its matching-session refresh
-bridge. KDBX 3.1 and hardware-key databases stay read-only in either settings context.
+bridge. KDBX 3.1 databases stay read-only in either settings context.
 The sheet does not edit key-file associations; the unlock page, launcher row and
 master-key change keep their own association paths. Backups remain encrypted
 copies exported through the existing exporter, without restore or plaintext export.

@@ -42,7 +42,8 @@ final class ChallengeResponseKeyTests: XCTestCase {
 
         let compositeKey = ChallengeResponseKey.compositeKey(
             preKey: try KDBXCrypto.preKey(password: fixture.password, keyFileData: nil),
-            response: YubiKeyEmulator.response(to: challenge)
+            response: YubiKeyEmulator.response(to: challenge),
+            challenge: challenge
         )
         let parsed = try KDBXParser.parseWithMetaAndHeader(
             data: data,
@@ -58,7 +59,7 @@ final class ChallengeResponseKeyTests: XCTestCase {
     func testCompositeKeyMatchesKeePassXCForPassword() throws {
         let preKey = try KDBXCrypto.preKey(password: "password", keyFileData: nil)
 
-        let composite = ChallengeResponseKey.compositeKey(preKey: preKey, response: Data(0..<20))
+        let composite = ChallengeResponseKey.compositeKey(preKey: preKey, response: Data(0..<20), challenge: Data(count: 64))
 
         XCTAssertEqual(
             composite.withUnsafeBytes { Data($0) }.hexString,
@@ -69,7 +70,7 @@ final class ChallengeResponseKeyTests: XCTestCase {
     func testCompositeKeyMatchesKeePassXCForPasswordAndKeyFile() throws {
         let preKey = try KDBXCrypto.preKey(password: "password", keyFileData: Data(0..<32))
 
-        let composite = ChallengeResponseKey.compositeKey(preKey: preKey, response: Data(0..<20))
+        let composite = ChallengeResponseKey.compositeKey(preKey: preKey, response: Data(0..<20), challenge: Data(count: 64))
 
         XCTAssertEqual(
             composite.withUnsafeBytes { Data($0) }.hexString,
@@ -80,7 +81,7 @@ final class ChallengeResponseKeyTests: XCTestCase {
     func testCompositeKeyMatchesKeePassXCForYubiKeyAlone() throws {
         let preKey = try KDBXCrypto.preKey(password: nil, keyFileData: nil)
 
-        let composite = ChallengeResponseKey.compositeKey(preKey: preKey, response: Data(0..<20))
+        let composite = ChallengeResponseKey.compositeKey(preKey: preKey, response: Data(0..<20), challenge: Data(count: 64))
 
         XCTAssertEqual(
             composite.withUnsafeBytes { Data($0) }.hexString,
@@ -108,7 +109,8 @@ final class ChallengeResponseKeyTests: XCTestCase {
         let preKey = try KDBXCrypto.preKey(password: fixture.password, keyFileData: nil)
         let compositeKey = ChallengeResponseKey.compositeKey(
             preKey: preKey,
-            response: YubiKeyEmulator.response(to: challenge)
+            response: YubiKeyEmulator.response(to: challenge),
+            challenge: challenge
         )
 
         let parsed = try KDBXParser.parseWithMetaAndHeader(
@@ -134,7 +136,8 @@ final class ChallengeResponseKeyTests: XCTestCase {
         let challenge = try ChallengeResponseKey.challenge(forDatabase: data)
         let compositeKey = ChallengeResponseKey.compositeKey(
             preKey: try KDBXCrypto.preKey(password: fixture.password, keyFileData: nil),
-            response: YubiKeyEmulator.response(to: challenge, secret: Data("another-yubikey-secr".utf8))
+            response: YubiKeyEmulator.response(to: challenge, secret: Data("another-yubikey-secr".utf8)),
+            challenge: challenge
         )
 
         XCTAssertThrowsError(try KDBXParser.parseWithMetaAndHeader(

@@ -55,6 +55,10 @@ final class MasterKeyChangeViewModel {
     private(set) var pickedKeyFileBookmarkData: Data?
     private(set) var pickedKeyFileFilename: String?
 
+    /// The database's YubiKey, which a change keeps: the key is asked again
+    /// while the change runs.
+    let hardwareKey: HardwareKeyConfiguration?
+    private var keepsHardwareKey: Bool { hardwareKey != nil }
     private let currentKeyFileFilename: String?
     private let currentKeyFileBookmarkData: Data?
     private let sessionKeyFileData: Data?
@@ -65,9 +69,11 @@ final class MasterKeyChangeViewModel {
         currentKeyFileFilename: String?,
         currentKeyFileBookmarkData: Data?,
         sessionKeyFileData: Data? = nil,
+        hardwareKey: HardwareKeyConfiguration? = nil,
         loadCurrentKeyFile: @escaping CurrentKeyFileLoader,
         changeOperation: @escaping ChangeOperation
     ) {
+        self.hardwareKey = hardwareKey
         self.currentKeyFileFilename = currentKeyFileFilename
         self.currentKeyFileBookmarkData = currentKeyFileBookmarkData
         self.sessionKeyFileData = sessionKeyFileData
@@ -187,7 +193,7 @@ final class MasterKeyChangeViewModel {
             return false
         }
 
-        guard newPassword.isEmpty == false || hasEffectiveKeyFile else {
+        guard newPassword.isEmpty == false || hasEffectiveKeyFile || keepsHardwareKey else {
             validationError = DatabaseCreationService.CreationError.missingKeyComponent.localizedDescription
             return false
         }

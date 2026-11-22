@@ -26,6 +26,7 @@ final class MacMasterKeySheet {
             currentKeyFileFilename: reference.keyFileFilename,
             currentKeyFileBookmarkData: reference.keyFileBookmarkData,
             sessionKeyFileData: session.sessionKeyFileData,
+            hardwareKey: session.sessionUsesHardwareKey ? reference.hardwareKey : nil,
             loadCurrentKeyFile: { [weak session] in await session?.loadAssociatedKeyFile() },
             changeOperation: { [weak session] password, keyFileData, bookmarkData, filename in
                 guard let session else { throw DatabaseViewModel.RekeyError.sessionUnavailable }
@@ -221,7 +222,7 @@ private struct MacMasterKeyForm: View {
                                      visibilityAccessibilityIdentifier: "master-key.confirm-password-visibility-button",
                                      usesPasswordAutoFill: false).labelsHidden()
                         .disabled(model.removesPassword)
-                    if model.hasEffectiveKeyFile {
+                    if model.hasEffectiveKeyFile || model.hardwareKey != nil {
                         Toggle("Remove Master Password", isOn: $model.removesPassword)
                             .toggleStyle(.checkbox)
                             .accessibilityIdentifier("master-key.remove-password")
@@ -244,6 +245,15 @@ private struct MacMasterKeyForm: View {
                         ? String(localized: "After the change, the database needs this key file; clear it to unlock with the master password alone.")
                         : String(localized: "After the change, the master password alone unlocks the database."))
                     caption(String(localized: "Keep a copy of the key file somewhere safe: without it, the database can’t be opened."))
+                }
+            }
+            if let hardwareKey = model.hardwareKey {
+                Divider()
+                LabeledContent("Hardware key:") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(hardwareKey.title)
+                        caption(String(localized: "The database keeps this YubiKey. Touch it if it flashes while the change is saved."))
+                    }
                 }
             }
         }

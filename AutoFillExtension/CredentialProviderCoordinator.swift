@@ -1643,7 +1643,7 @@ final class CredentialProviderCoordinator {
         var response = try await hardwareKeyResponse(challenge, configuration)
         defer { SecureWipe.wipe(&response) }
         guard isRequestActive(generation) else { throw RequestNoLongerActive() }
-        return ChallengeResponseKey.compositeKey(preKey: preKey, response: response)
+        return ChallengeResponseKey.compositeKey(preKey: preKey, response: response, challenge: challenge)
     }
 
     private static func kdfWriteRefusal(for header: KDBXContainer.Header) -> String? {
