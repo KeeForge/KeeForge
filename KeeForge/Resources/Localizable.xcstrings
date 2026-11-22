@@ -14431,54 +14431,106 @@
         }
       }
     },
-    "Changes saved through AutoFill are still waiting to upload." : {
+    "Changes saved through AutoFill are on this device and haven’t been uploaded yet." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Über AutoFill gesicherte Änderungen warten noch auf das Hochladen."
+            "value" : "Über AutoFill gespeicherte Änderungen sind auf diesem Gerät, wurden aber noch nicht hochgeladen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los cambios guardados mediante el autorrelleno aún están pendientes de cargar."
+            "value" : "Los cambios guardados mediante el autorrelleno están en este dispositivo, pero aún no se han cargado."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les modifications enregistrées via le Remplissage automatique sont encore en attente d'envoi."
+            "value" : "Les modifications enregistrées via le remplissage automatique sont sur cet appareil, mais n'ont pas encore été envoyées."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le modifiche salvate tramite l'inserimento automatico sono ancora in attesa di caricamento."
+            "value" : "Le modifiche salvate tramite l'inserimento automatico sono su questo dispositivo, ma non sono ancora state caricate."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自動入力で保存された変更はまだアップロードを待っています。"
+            "value" : "自動入力で保存された変更はこのデバイスにありますが、まだアップロードされていません。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Изменения, сохранённые через автозаполнение, всё ещё ждут отправки."
+            "value" : "Изменения, сохранённые через автозаполнение, есть на этом устройстве, но ещё не отправлены."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "通过自动填充保存的更改仍在等待上传。"
+            "value" : "通过自动填充保存的更改已在此设备上，但尚未上传。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "透過自動填寫儲存的變更仍在等待上傳。"
+            "value" : "透過自動填寫儲存的變更已在此裝置上，但尚未上傳。"
+          }
+        }
+      }
+    },
+    "Changes saved through AutoFill couldn’t be uploaded yet. They’re still saved on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Über AutoFill gespeicherte Änderungen konnten noch nicht hochgeladen werden. Sie sind weiterhin auf diesem Gerät gespeichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los cambios guardados mediante el autorrelleno aún no se han podido cargar. Siguen guardados en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les modifications enregistrées via le remplissage automatique n'ont pas encore pu être envoyées. Elles restent enregistrées sur cet appareil."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non è stato ancora possibile caricare le modifiche salvate tramite l'inserimento automatico. Restano salvate su questo dispositivo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更はまだアップロードできていません。変更はこのデバイスに保存されたままです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменения, сохранённые через автозаполнение, пока не удалось отправить. Они по-прежнему сохранены на этом устройстве."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改尚未能上传。这些更改仍保存在此设备上。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更尚未能上傳。這些變更仍儲存在此裝置上。"
           }
         }
       }

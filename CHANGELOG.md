@@ -14,6 +14,7 @@
 
 ### Fixes
 
+- A login created with AutoFill's Create Login for This Site now shows up in KeeForge as soon as you return to an unlocked cloud database (#323). Sync Now uploads waiting AutoFill changes first, no longer offers to merge a change that is only waiting to upload, and says plainly when AutoFill changes are saved on this device but not uploaded yet (#324).
 - FTP creation name conflicts keep the encrypted draft recoverable; conflict copies can try a numbered name.
 - Cloud creations that have not been sent can be discarded from Cloud Recovery.
 - Preserve encrypted cloud creation data when the outcome is uncertain instead of automatically creating another remote copy.

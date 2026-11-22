@@ -294,6 +294,9 @@ final class DatabaseViewModel {
         /// A newer copy reached the cache, but the YubiKey answered the old
         /// copy's challenge; only a fresh unlock can open the new one.
         case updateWaitsForUnlock
+        /// The cloud copy is current, but changes saved through AutoFill are
+        /// still queued on this device: the drainer could not deliver them.
+        case uploadsPending
         case failed(String)
 
         var message: String {
@@ -306,6 +309,8 @@ final class DatabaseViewModel {
                 String(localized: "A newer copy was downloaded. When you save, KeeForge will ask how to combine it with your changes.")
             case .updateWaitsForUnlock:
                 String(localized: "A newer copy was downloaded. Lock the database and unlock it again with your YubiKey to open it.")
+            case .uploadsPending:
+                String(localized: "Changes saved through AutoFill couldn’t be uploaded yet. They’re still saved on this device.")
             case .failed(let message):
                 message
             }
@@ -713,6 +718,10 @@ final class DatabaseViewModel {
     /// Changes saved through AutoFill that have not reached the cloud yet, as
     /// of the last open or Sync Now.
     private(set) var hasPendingCloudUploads = false
+    /// Hands Sync Now's upload of queued AutoFill changes to the database
+    /// list's drainer, the only uploader. Installed by `DatabaseSessionStore`.
+    @ObservationIgnored var pendingUploadDrain: (@MainActor (DatabaseReference) async -> Void)?
+    @ObservationIgnored private var isAdoptingChangedCloudCache = false
     private(set) var unlockStatusMessage: String
     private var entryIndex: [UUID: KPEntry] = [:]
     /// Built on first use over `currentRootGroup` + `sessionKey`; dropped with
@@ -4648,9 +4657,16 @@ final class DatabaseViewModel {
     /// Checks the cloud for a newer copy whatever the sync policy says, and
     /// replaces the open database with it when it differs from what was
     /// opened. Refuses while edits are unsaved, so a sync never discards
-    /// them. Uploads are left to the pending-upload drainer; this only
-    /// reports whether any are still waiting.
+    /// them. Queued AutoFill changes are handed to the pending-upload drainer
+    /// first; any it could not deliver stay queued and stay open here.
     func syncCloudNow() async {
+        await performCloudSyncNow()
+        if cloudSyncOutcome == .uploadsPending {
+            await adoptChangedCloudCacheIfPossible()
+        }
+    }
+
+    private func performCloudSyncNow() async {
         revokePendingCloudRekey()
         guard canSyncCloudNow, compositeKey != nil else { return }
 
@@ -4661,6 +4677,11 @@ final class DatabaseViewModel {
             if lockCycleID == expectedLockCycleID {
                 isSyncingCloud = false
             }
+        }
+
+        if let pendingUploadDrain, pendingUploadMarkerCheck(databaseReference) {
+            await pendingUploadDrain(databaseReference)
+            guard lockCycleID == expectedLockCycleID else { return }
         }
 
         // A save that finishes during the round trip is newer than what was
@@ -4709,7 +4730,16 @@ final class DatabaseViewModel {
                 cloudSyncOutcome = .failed(CloudSaveRecoveryWarning().localizedDescription)
                 return
             }
-            saveConflict = SaveConflict(remoteSHA512: FileDigest.sha512(resolution.data), remoteData: resolution.data)
+            // Queued changes built on the copy the cloud still holds are only
+            // waiting to upload; offering to merge or reload them is wrong.
+            let remoteSHA512 = FileDigest.sha512(resolution.data)
+            if resolution.pendingUploadSources.allSatisfy({
+                $0.marker.isConflicted == false && $0.marker.remoteBaseSHA512 == remoteSHA512
+            }) {
+                cloudSyncOutcome = .uploadsPending
+                return
+            }
+            saveConflict = SaveConflict(remoteSHA512: remoteSHA512, remoteData: resolution.data)
             cloudSyncOutcome = .updateWaitsForSave
             return
         }
@@ -4762,6 +4792,63 @@ final class DatabaseViewModel {
         synchronizeSelections()
         refreshCredentialStoreForCurrentTreeIfNeeded()
         cloudSyncOutcome = .updated
+    }
+
+    /// Opens the shared cached copy in place of the open tree when something
+    /// outside this session replaced it, such as an AutoFill save. Only
+    /// a session with nothing unsaved is replaced; the cache is exactly what a
+    /// fresh unlock would open, queued AutoFill changes included.
+    @discardableResult
+    func adoptChangedCloudCacheIfPossible() async -> Bool {
+        guard case .unlocked = state, databaseReference.isCloudBacked, isAdoptingChangedCloudCache == false,
+              isSyncingCloud == false, isSaving == false, isDirty == false, hasUnsavedEditor == false,
+              saveConflict == nil, sessionUsesHardwareKey == false, let compositeKey else { return false }
+        let expectedLockCycleID = lockCycleID
+        let observedReference = databaseReference
+        let observedOpenTimeSHA512 = openTimeSHA512
+        isAdoptingChangedCloudCache = true
+        defer { isAdoptingChangedCloudCache = false }
+
+        let cacheURL = DatabaseListStore.cacheLocation(for: observedReference)
+        let cached = await Task.detached(priority: .userInitiated) { () -> (data: Data, sha512: Data)? in
+            guard let data = try? CoordinatedFileReader.readData(from: cacheURL) else { return nil }
+            return (data, FileDigest.sha512(data))
+        }.value
+        guard let cached, cached.sha512 != observedOpenTimeSHA512,
+              lockCycleID == expectedLockCycleID, case .unlocked = state,
+              databaseReference == observedReference, openTimeSHA512 == observedOpenTimeSHA512,
+              isSyncingCloud == false, isSaving == false, isDirty == false, hasUnsavedEditor == false,
+              saveConflict == nil else { return false }
+
+        // Replaced the way Sync Now does it, so no editor outlives the tree.
+        state = .unlocking
+        isReplacingOpenDatabase = true
+        unlockStatusMessage = Self.decryptingStatusMessage
+        let reloaded: ReloadedDatabase
+        do {
+            reloaded = try await Self.parseReloadedDatabase(
+                data: cached.data,
+                reference: observedReference,
+                compositeKey: compositeKey,
+                cloudSyncStatus: nil
+            )
+        } catch {
+            guard lockCycleID == expectedLockCycleID else { return false }
+            isReplacingOpenDatabase = false
+            state = .unlocked
+            return false
+        }
+        guard lockCycleID == expectedLockCycleID else { return false }
+
+        let currentReference = databaseReference
+        isReplacingOpenDatabase = false
+        applyReloadedDatabase(reloaded)
+        databaseReference = currentReference
+        state = .unlocked
+        synchronizeSelections()
+        refreshCredentialStoreForCurrentTreeIfNeeded()
+        refreshPendingUploadState()
+        return true
     }
 
     func waitForInFlightSave() async {
