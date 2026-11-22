@@ -339,6 +339,37 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         present(alert, animated: true)
     }
 
+    func presentTextInsertionFieldChoice(
+        isValid: @escaping () -> Bool,
+        entryTitle: String,
+        fields: [AutoFillTextInsertionField],
+        onSelect: @escaping (AutoFillTextInsertionField) -> Void,
+        onBack: @escaping () -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        // An alert, not an action sheet: it needs no popover anchor on iPad.
+        let alert = UIAlertController(
+            title: String(localized: "Choose What to Insert"),
+            message: entryTitle.isEmpty ? nil : entryTitle,
+            preferredStyle: .alert
+        )
+        for field in fields {
+            alert.addAction(UIAlertAction(title: field.title, style: .default) { _ in
+                guard isValid() else { return }
+                onSelect(field)
+            })
+        }
+        alert.addAction(UIAlertAction(title: String(localized: "Back"), style: .default) { _ in
+            guard isValid() else { return }
+            onBack()
+        })
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel) { _ in
+            guard isValid() else { return }
+            onCancel()
+        })
+        present(alert, animated: true)
+    }
+
     func presentGeneratedPassword(
         _ password: String,
         onUse: @escaping () -> Void,

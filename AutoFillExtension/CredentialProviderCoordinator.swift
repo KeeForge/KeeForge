@@ -200,6 +200,18 @@ protocol CredentialProviderPresenting: AnyObject {
         onAcknowledge: @escaping () -> Void
     )
 
+    /// Text insertion only (iOS): the field to insert from the chosen entry.
+    /// `fields` is never empty and is never auto-chosen, even with one item.
+    /// `onBack` returns to the entry picker; `onCancel` ends the request.
+    func presentTextInsertionFieldChoice(
+        isValid: @escaping () -> Bool,
+        entryTitle: String,
+        fields: [AutoFillTextInsertionField],
+        onSelect: @escaping (AutoFillTextInsertionField) -> Void,
+        onBack: @escaping () -> Void,
+        onCancel: @escaping () -> Void
+    )
+
     func presentGeneratedPassword(
         _ password: String,
         onUse: @escaping () -> Void,
@@ -1372,14 +1384,55 @@ final class CredentialProviderCoordinator {
     }
 
     func presentTextInsertionPicker() {
-        let entries = parsedEntries.filter(\.hasTOTP)
+        let entries = parsedEntries.filter { !AutoFillTextInsertionField.availableFields(for: $0).isEmpty }
         presentSearchView(entries: entries, includesDatabaseSwitcher: true) { [weak self] entry in
-            guard let self else { return }
-            guard let config = entry.totpConfig, let key = self.sessionKey else { self.cancelRequest(code: .failed); return }
-            let code = TOTPGenerator.generateCode(config: config, sessionKey: key)
-            guard code != "------" else { self.cancelRequest(code: .failed); return }
-            self.finishFill { $0.completeTextInsertion(code) }
+            self?.presentTextInsertionFieldChoice(for: entry)
         }
+    }
+
+    func presentTextInsertionFieldChoice(for entry: KPEntry) {
+        let fields = AutoFillTextInsertionField.availableFields(for: entry)
+        guard !fields.isEmpty else {
+            presentTextInsertionPicker()
+            return
+        }
+        pickerGeneration &+= 1
+        let picker = pickerGeneration
+        let generation = requestGeneration
+        let isValid = { [weak self] in
+            guard let self else { return false }
+            return self.isRequestActive(generation) && self.pickerGeneration == picker
+        }
+        presentWhenActive { [weak self] in
+            guard let self, isValid() else { return }
+            presenter?.presentTextInsertionFieldChoice(
+                isValid: isValid,
+                entryTitle: entry.title,
+                fields: fields,
+                onSelect: { [weak self] field in
+                    guard isValid() else { return }
+                    self?.completeTextInsertion(from: entry, field: field)
+                },
+                onBack: { [weak self] in
+                    guard isValid() else { return }
+                    self?.presentTextInsertionPicker()
+                },
+                onCancel: { [weak self] in
+                    guard isValid() else { return }
+                    self?.cancelRequest(code: .userCanceled)
+                }
+            )
+        }
+    }
+
+    func completeTextInsertion(from entry: KPEntry, field: AutoFillTextInsertionField) {
+        guard let sessionKey,
+              let text = field.text(for: entry, allEntries: parsedRootGroup?.allEntries ?? parsedEntries, sessionKey: sessionKey) else {
+            cancelRequest(code: .failed)
+            return
+        }
+        AutoFillDiagnostics.log("completing text insertion")
+        finishFill { $0.completeTextInsertion(text) }
     }
 
     /// Handles a pending save-password request after unlock. Save-password is

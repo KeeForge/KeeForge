@@ -66,6 +66,15 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         let onCancel: () -> Void
     }
 
+    struct TextInsertionFieldChoice {
+        let isValid: () -> Bool
+        let entryTitle: String
+        let fields: [AutoFillTextInsertionField]
+        let onSelect: (AutoFillTextInsertionField) -> Void
+        let onBack: () -> Void
+        let onCancel: () -> Void
+    }
+
     struct PasskeyRegistrationFailure {
         let message: String
         let onAcknowledge: () -> Void
@@ -79,6 +88,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     var noEnabledDatabasesState: NoEnabledDatabasesState?
     var passkeyCreator: PasskeyCreator?
     var passkeyRegistrationFailure: PasskeyRegistrationFailure?
+    var textInsertionFieldChoice: TextInsertionFieldChoice?
 
     var completedCredential: ASPasswordCredential?
     var completedAssertion: ASPasskeyAssertionCredential?
@@ -239,6 +249,24 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
 
     func completeOneTimeCodeRequest(code: String) {
         completedOneTimeCode = code
+    }
+
+    func presentTextInsertionFieldChoice(
+        isValid: @escaping () -> Bool,
+        entryTitle: String,
+        fields: [AutoFillTextInsertionField],
+        onSelect: @escaping (AutoFillTextInsertionField) -> Void,
+        onBack: @escaping () -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        textInsertionFieldChoice = TextInsertionFieldChoice(
+            isValid: isValid,
+            entryTitle: entryTitle,
+            fields: fields,
+            onSelect: onSelect,
+            onBack: onBack,
+            onCancel: onCancel
+        )
     }
 
     var insertedText: String?

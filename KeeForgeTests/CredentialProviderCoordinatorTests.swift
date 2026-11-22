@@ -1191,26 +1191,117 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
-    func testTextInsertionOffersCodesAfterRealUnlockAndCleansUpAfterSelection() async throws {
+    func testTextInsertionOffersFieldsAfterRealUnlockAndCleansUpAfterSelection() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let picker = try await unlockTextInsertionFixture(coordinator, presenter)
 
         XCTAssertTrue(coordinator.hasPendingTextInsertion)
         XCTAssertTrue(coordinator.serviceIdentifiers.isEmpty)
-        XCTAssertEqual(picker.entries.map(\.title), ["TOTP Login"])
+        XCTAssertTrue(picker.entries.contains { $0.title == "TOTP Login" })
+        XCTAssertTrue(picker.entries.allSatisfy { !AutoFillTextInsertionField.availableFields(for: $0).isEmpty })
         XCTAssertNil(picker.onCreateEntry)
         XCTAssertNil(picker.urlAddition)
         XCTAssertNil(presenter.completedCredential)
         XCTAssertNil(presenter.completedOneTimeCode)
         XCTAssertEqual(SettingsService.successfulAutoFillCount, 0)
-        picker.onSelect(try XCTUnwrap(picker.entries.first))
+        let entry = try totpLoginEntry(in: picker)
+        picker.onSelect(entry)
+        XCTAssertNil(presenter.insertedText, "Choosing an entry must not insert before a field is chosen")
+        let choice = try XCTUnwrap(presenter.textInsertionFieldChoice)
+        XCTAssertEqual(choice.entryTitle, "TOTP Login")
+        XCTAssertEqual(choice.fields, AutoFillTextInsertionField.availableFields(for: entry))
+        XCTAssertTrue(choice.fields.contains(.verificationCode))
+        XCTAssertEqual(SettingsService.successfulAutoFillCount, 0)
+        choice.onSelect(.verificationCode)
         XCTAssertNil(presenter.completedOneTimeCode)
+        XCTAssertNil(presenter.completedCredential)
         XCTAssertEqual(presenter.insertedText?.count, 6)
-        XCTAssertNotEqual(presenter.insertedText, "------")
+        XCTAssertNotEqual(presenter.insertedText, TOTPGenerator.placeholderCode)
         XCTAssertEqual(SettingsService.successfulAutoFillCount, 1)
-        picker.onSelect(try XCTUnwrap(picker.entries.first))
+        choice.onSelect(.verificationCode)
+        picker.onSelect(entry)
         XCTAssertEqual(SettingsService.successfulAutoFillCount, 1)
         assertCleanedUp(coordinator)
+    }
+
+    func testTextInsertionInsertsTheChosenPasswordAndUsername() async throws {
+        for field in [AutoFillTextInsertionField.password, .username] {
+            let (coordinator, presenter) = makeCoordinator()
+            let picker = try await unlockTextInsertionFixture(coordinator, presenter)
+            let key = try XCTUnwrap(coordinator.sessionKey)
+            let rawValue: (KPEntry) -> String = { entry in
+                field == .password ? ((try? entry.password.decrypt(using: key)) ?? "") : entry.username
+            }
+            let entry = try XCTUnwrap(picker.entries.first {
+                field.isAvailable(for: $0) && !FieldReferenceResolver.containsReference(rawValue($0))
+            })
+            let expected = rawValue(entry)
+            picker.onSelect(entry)
+            try XCTUnwrap(presenter.textInsertionFieldChoice).onSelect(field)
+            XCTAssertEqual(presenter.insertedText, expected, "\(field)")
+            XCTAssertNil(presenter.completedCredential)
+            assertCleanedUp(coordinator)
+        }
+    }
+
+    func testTextInsertionFieldChoiceBackReturnsToTheEntryPicker() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let picker = try await unlockTextInsertionFixture(coordinator, presenter)
+        picker.onSelect(try totpLoginEntry(in: picker))
+        let staleChoice = try XCTUnwrap(presenter.textInsertionFieldChoice)
+        presenter.searchView = nil
+
+        staleChoice.onBack()
+
+        let represented = try XCTUnwrap(presenter.searchView)
+        XCTAssertFalse(staleChoice.isValid(), "Going back must invalidate the previous field choice")
+        staleChoice.onSelect(.verificationCode)
+        staleChoice.onCancel()
+        XCTAssertNil(presenter.insertedText)
+        XCTAssertNil(presenter.cancelledError)
+        XCTAssertTrue(coordinator.hasPendingTextInsertion)
+        XCTAssertNotNil(coordinator.sessionKey)
+
+        represented.onSelect(try totpLoginEntry(in: represented))
+        try XCTUnwrap(presenter.textInsertionFieldChoice).onSelect(.verificationCode)
+        XCTAssertEqual(presenter.insertedText?.count, 6)
+        assertCleanedUp(coordinator)
+    }
+
+    func testTextInsertionFieldChoiceCancelCleansUpWithoutInserting() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let picker = try await unlockTextInsertionFixture(coordinator, presenter)
+        picker.onSelect(try totpLoginEntry(in: picker))
+        let choice = try XCTUnwrap(presenter.textInsertionFieldChoice)
+
+        choice.onCancel()
+
+        XCTAssertNil(presenter.insertedText)
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+        XCTAssertEqual(SettingsService.successfulAutoFillCount, 0)
+        choice.onSelect(.verificationCode)
+        XCTAssertNil(presenter.insertedText, "A field choice must not insert after its request ended")
+        assertCleanedUp(coordinator)
+    }
+
+    func testTextInsertionFieldChoiceIsDeferredWhileOffScreenAndDroppedByARepeatedRequest() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let picker = try await unlockTextInsertionFixture(coordinator, presenter)
+        presenter.isPresentationActive = false
+        picker.onSelect(try totpLoginEntry(in: picker))
+        XCTAssertNil(presenter.textInsertionFieldChoice)
+
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
+        let oldChoice = try XCTUnwrap(presenter.textInsertionFieldChoice)
+
+        coordinator.prepareTextInsertion()
+        XCTAssertFalse(oldChoice.isValid())
+        oldChoice.onSelect(.verificationCode)
+        oldChoice.onCancel()
+        XCTAssertNil(presenter.insertedText)
+        XCTAssertNil(presenter.cancelledError)
+        XCTAssertTrue(coordinator.hasPendingTextInsertion)
     }
 
     func testTextInsertionCancelAfterUnlockCleansUpWithoutReturningCode() async throws {
@@ -1225,18 +1316,15 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
-    func testTextInsertionWithoutCodesKeepsDatabaseSwitchingAvailable() async throws {
+    func testTextInsertionWithoutInsertableFieldsKeepsDatabaseSwitchingAvailable() async throws {
         let (coordinator, presenter) = makeCoordinator()
         let databaseA = try seedResolvableDefaultDatabase()
         let databaseB = try makeRegisteredDatabase(named: "text-insertion-codes.kdbx")
         let sessionKey = SymmetricKey(size: .bits256)
         let parsed = try KDBXTestFixture.test.parse(in: Bundle(for: Self.self), sessionKey: sessionKey)
-        let passwordEntry = KPEntry(
-            title: "Password Only",
-            password: try EncryptedValue.encrypt("password", using: sessionKey)
-        )
+        let notesEntry = KPEntry(title: "Notes Only", notes: "Nothing to insert")
         let dataWithoutCodes = try KDBXWriter.write(
-            rootGroup: KPGroup(name: "Passwords", entries: [passwordEntry]),
+            rootGroup: KPGroup(name: "Notes", entries: [notesEntry]),
             meta: parsed.meta,
             compositeKey: parsed.compositeKey,
             header: parsed.header,
@@ -1249,7 +1337,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.prepareTextInsertion()
         let emptyPicker = try await unlockPreparedRequestAndPresentSearch(coordinator, presenter)
 
-        XCTAssertEqual(coordinator.parsedEntries.map(\.title), ["Password Only"])
+        XCTAssertTrue(coordinator.parsedEntries.isEmpty)
         XCTAssertTrue(emptyPicker.entries.isEmpty)
         XCTAssertNil(presenter.cancelledError)
         XCTAssertNil(presenter.insertedText)
@@ -1258,15 +1346,14 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         switcher.onSwitch(databaseB, "")
         let prompt = try XCTUnwrap(presenter.unlockPrompt)
         presenter.searchView = nil
-        let represented = expectation(description: "code picker presented after switching from a database without codes")
+        let represented = expectation(description: "entry picker presented after switching from a database with nothing to insert")
         presenter.onSearchViewPresented = { represented.fulfill() }
         prompt.onSubmitPassword("testpassword123")
         await fulfillment(of: [represented], timeout: 60)
 
         let picker = try XCTUnwrap(presenter.searchView)
         XCTAssertEqual(coordinator.activeDatabaseReference?.id, databaseB.id)
-        XCTAssertEqual(picker.entries.map(\.title), ["TOTP Login"])
-        picker.onSelect(try XCTUnwrap(picker.entries.first))
+        insertCode(from: picker, presenter)
         XCTAssertEqual(presenter.insertedText?.count, 6)
         XCTAssertNil(presenter.completedOneTimeCode)
         XCTAssertEqual(SettingsService.successfulAutoFillCount, 1)
@@ -1280,8 +1367,9 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         presenter.isPresentationActive = false
 
         coordinator.presentTextInsertionPicker()
-        oldPicker.onSelect(try XCTUnwrap(oldPicker.entries.first))
+        oldPicker.onSelect(try totpLoginEntry(in: oldPicker))
         oldPicker.onCancel()
+        XCTAssertNil(presenter.textInsertionFieldChoice)
 
         XCTAssertNil(presenter.searchView)
         XCTAssertNil(presenter.insertedText)
@@ -1292,7 +1380,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         presenter.isPresentationActive = true
         coordinator.presentationDidBecomeActive()
         let picker = try XCTUnwrap(presenter.searchView)
-        picker.onSelect(try XCTUnwrap(picker.entries.first))
+        insertCode(from: picker, presenter)
 
         XCTAssertEqual(presenter.insertedText?.count, 6)
         XCTAssertNil(presenter.completedOneTimeCode)
@@ -1306,14 +1394,15 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         presenter.isPresentationActive = false
         coordinator.prepareTextInsertion()
 
-        oldPicker.onSelect(try XCTUnwrap(oldPicker.entries.first))
+        oldPicker.onSelect(try totpLoginEntry(in: oldPicker))
         oldPicker.onCancel()
+        XCTAssertNil(presenter.textInsertionFieldChoice)
         XCTAssertNil(presenter.insertedText)
         XCTAssertNil(presenter.cancelledError)
         XCTAssertTrue(coordinator.hasPendingTextInsertion)
 
         let picker = try await unlockPreparedRequestAndPresentSearch(coordinator, presenter)
-        picker.onSelect(try XCTUnwrap(picker.entries.first))
+        insertCode(from: picker, presenter)
 
         XCTAssertEqual(presenter.insertedText?.count, 6)
         XCTAssertNil(presenter.completedOneTimeCode)
@@ -1329,8 +1418,9 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             let databaseA = try XCTUnwrap(coordinator.activeDatabaseReference)
             let switcher = try XCTUnwrap(oldPicker.databaseSwitcher)
             switcher.onSwitch(databaseB, "TOTP")
-            oldPicker.onSelect(try XCTUnwrap(oldPicker.entries.first))
+            oldPicker.onSelect(try totpLoginEntry(in: oldPicker))
             oldPicker.onCancel()
+            XCTAssertNil(presenter.textInsertionFieldChoice)
             XCTAssertNil(presenter.insertedText)
             XCTAssertNil(presenter.cancelledError)
             let prompt = try XCTUnwrap(presenter.unlockPrompt)
@@ -1349,16 +1439,17 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             XCTAssertTrue(coordinator.hasPendingTextInsertion)
             XCTAssertEqual(coordinator.activeDatabaseReference?.id, switchSucceeds ? databaseB.id : databaseA.id)
             XCTAssertEqual(picker.initialSearchText, "TOTP")
-            XCTAssertEqual(picker.entries.map(\.title), ["TOTP Login"])
+            XCTAssertTrue(picker.entries.contains { $0.title == "TOTP Login" })
             XCTAssertNil(presenter.cancelledError)
             XCTAssertNil(presenter.completedCredential)
             XCTAssertNil(presenter.completedOneTimeCode)
-            oldPicker.onSelect(try XCTUnwrap(oldPicker.entries.first))
+            oldPicker.onSelect(try totpLoginEntry(in: oldPicker))
             oldPicker.onCancel()
+            XCTAssertNil(presenter.textInsertionFieldChoice, "A callback from the previous presentation must not continue")
             XCTAssertNil(presenter.insertedText, "A callback from the previous presentation must not fill")
             XCTAssertNil(presenter.cancelledError)
             XCTAssertNotNil(coordinator.sessionKey)
-            picker.onSelect(try XCTUnwrap(picker.entries.first))
+            insertCode(from: picker, presenter)
             XCTAssertEqual(presenter.insertedText?.count, 6)
             XCTAssertNil(presenter.completedOneTimeCode)
             assertCleanedUp(coordinator)
@@ -4315,6 +4406,27 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.memoryBudgetOverride = 512 * 1024 * 1024
         coordinator.prepareCredentialList(for: [serviceIdentifier])
         return try await unlockPreparedRequestAndPresentSearch(coordinator, presenter, password: password)
+    }
+
+    private func totpLoginEntry(in picker: CredentialProviderPresentingSpy.SearchView) throws -> KPEntry {
+        try XCTUnwrap(picker.entries.first { $0.title == "TOTP Login" })
+    }
+
+    private func insertCode(
+        from picker: CredentialProviderPresentingSpy.SearchView,
+        _ presenter: CredentialProviderPresentingSpy,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let entry = picker.entries.first(where: { $0.title == "TOTP Login" }) else {
+            return XCTFail("TOTP Login missing from the text-insertion picker", file: file, line: line)
+        }
+        presenter.textInsertionFieldChoice = nil
+        picker.onSelect(entry)
+        guard let choice = presenter.textInsertionFieldChoice else {
+            return XCTFail("Choosing an entry must present the field choice", file: file, line: line)
+        }
+        choice.onSelect(.verificationCode)
     }
 
     private func unlockTextInsertionFixture(
