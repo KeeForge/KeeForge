@@ -124,6 +124,14 @@ enum SettingsService {
         case oneMinute
         case fiveMinutes
 
+        /// Used until the user picks a period. The Mac, used at a desk, skips
+        /// a prompt per copy; iPhone and iPad keep asking every time.
+        #if os(macOS)
+        static let defaultValue = AuthenticationGracePeriod.oneMinute
+        #else
+        static let defaultValue = AuthenticationGracePeriod.alwaysAsk
+        #endif
+
         var duration: Duration? {
             switch self {
             case .alwaysAsk: nil
@@ -322,8 +330,9 @@ enum SettingsService {
     static var authenticationGracePeriod: AuthenticationGracePeriod {
         get {
             guard let raw = UserDefaults.standard.string(forKey: Key.authenticationGracePeriod) else {
-                return .alwaysAsk
+                return .defaultValue
             }
+            // An unreadable stored value fails closed rather than to the default.
             return AuthenticationGracePeriod(rawValue: raw) ?? .alwaysAsk
         }
         set {

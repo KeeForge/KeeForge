@@ -9,6 +9,7 @@
 
 ### Changes
 
+- On Mac, the Authentication Grace Period now defaults to 1 Minute, so copying or revealing several passwords right after you unlock or authenticate no longer asks each time (#296). Locking still ends it, iPhone and iPad still ask every time, and a period you already picked, including Always Ask, is kept. Change it in Settings → Security.
 - Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
 - AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
 

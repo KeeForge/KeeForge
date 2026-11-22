@@ -360,9 +360,11 @@ A protected `KP2A_URL_*` field is a protected custom field, not a website: the
 live detail, a History version and its comparison show it concealed with gated
 reveal and copy, and it is never opened, listed as a website, used for AutoFill
 matching or published as a suggestion ([KPEntry.additionalURLFields](../KeeForge/Models/Entry.swift)). With
-the Authentication Grace Period setting at its default, Always Ask, every such
-action prompts. A longer setting (at most five minutes) skips the prompt for that
-long after an unlock or a successful authentication. The grant is held in memory
+the Authentication Grace Period setting at Always Ask, every such action
+prompts. The Mac default, used until the user picks a period, is 1 Minute; a
+stored choice, Always Ask included, is kept. A grace period (at most five
+minutes) skips the prompt for that long after an unlock or a successful
+authentication. The grant is held in memory
 only and belongs to its session; invalidating it leaves other sessions' grants
 intact. It ends on every lock request above, including one that unsaved work defers,
 and on a failed or cancelled prompt, and is not extended by using it. Under the
@@ -721,7 +723,7 @@ then applies these rules:
   on the same connection offered for the same origin. It takes that session's
   device-owner gate: it releases inside the session's grace period, which a
   successful unlock or device-owner authentication starts and which defaults to
-  Always Ask, or after the user passes a prompt that names the entry and the
+  1 Minute on the Mac unless the user picked another period, or after the user passes a prompt that names the entry and the
   site (Fill “Title” on example.com in your browser). The title is sanitized
   like a browser name and cut to 64 characters; the host is the site matcher's
   (lowercased, without port or a leading `www.`), in punycode because the origin

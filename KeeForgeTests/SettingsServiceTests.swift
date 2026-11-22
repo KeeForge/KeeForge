@@ -117,8 +117,22 @@ final class SettingsServiceTests: XCTestCase {
     }
     #endif
 
-    func testAuthenticationGracePeriodDefaultsToAlwaysAsk() {
+    #if os(macOS)
+    func testAuthenticationGracePeriodDefaultsToOneMinuteOnMac() {
         UserDefaults.standard.removeObject(forKey: authenticationGraceKey)
+        XCTAssertEqual(SettingsService.AuthenticationGracePeriod.defaultValue, .oneMinute)
+        XCTAssertEqual(SettingsService.authenticationGracePeriod, .oneMinute)
+    }
+    #else
+    func testAuthenticationGracePeriodDefaultsToAlwaysAskOnIOS() {
+        UserDefaults.standard.removeObject(forKey: authenticationGraceKey)
+        XCTAssertEqual(SettingsService.AuthenticationGracePeriod.defaultValue, .alwaysAsk)
+        XCTAssertEqual(SettingsService.authenticationGracePeriod, .alwaysAsk)
+    }
+    #endif
+
+    func testExplicitAlwaysAskOverridesThePlatformDefault() {
+        UserDefaults.standard.set("alwaysAsk", forKey: authenticationGraceKey)
         XCTAssertEqual(SettingsService.authenticationGracePeriod, .alwaysAsk)
     }
 

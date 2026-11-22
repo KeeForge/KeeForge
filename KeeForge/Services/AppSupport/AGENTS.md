@@ -26,7 +26,7 @@
 
 - A setting the extension reads lives in the App Group suite: `clipboardTimeout`, `autoFillCopyTOTP`, `autoUnlockWithFaceID`, `quickAutoFillEnabled`, `quickUnlockPasswordInterval`, `passwordGeneratorOptions`, and the extension-written `successfulAutoFillCount`. `showWebsiteIcons` is shared too, but no extension code reads it today. Everything else stays in `UserDefaults.standard`. Moving one changes what shipped installs read.
 - `clipboardTimeout` is shared so the app and extension agree on expiry; its getter migrates the older app-local value on first read.
-- `AuthenticationGracePeriod` defaults to Always Ask and is bounded at five minutes; do not add an unbounded option. `../Security/SecretAccessGate` reads it.
+- `AuthenticationGracePeriod` defaults to 1 Minute on macOS and Always Ask on iOS and iPadOS when nothing is stored; a stored choice, including Always Ask, always wins, and an unreadable one fails closed to Always Ask. It is bounded at five minutes; do not add an unbounded option. `../Security/SecretAccessGate` reads it.
 - The SSH agent's settings (`macSSHAgentEnabled(in:)`, `macSSHAgentSelectedEntryIDs(in:)`, and their setters) take the `UserDefaults` to use instead of reading `.standard`. `../SSHAgent/MacSSHAgentController` passes the app's own and its tests a suite of their own, so a Mac test run never changes a developer's agent.
 - The browser bridge's switch and its paired-browser records take the `UserDefaults` to use in the same way. `../BrowserBridge/BrowserPairingStore` owns the record format; none of it goes in the App Group defaults.
 

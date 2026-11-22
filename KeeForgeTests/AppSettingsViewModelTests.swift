@@ -105,7 +105,7 @@ final class AppSettingsViewModelTests: XCTestCase {
             loadCloudAccounts: { accounts }
         )
         SettingsService.autoLockTimeout = .oneMinute
-        SettingsService.authenticationGracePeriod = .oneMinute
+        SettingsService.authenticationGracePeriod = .fiveMinutes
         let previousInterval = SettingsService.quickUnlockPasswordInterval
         defer { SettingsService.quickUnlockPasswordInterval = previousInterval }
         SettingsService.quickUnlockPasswordInterval = .always
@@ -119,7 +119,7 @@ final class AppSettingsViewModelTests: XCTestCase {
         model.reload()
 
         XCTAssertEqual(model.autoLockTimeout, .oneMinute)
-        XCTAssertEqual(model.authenticationGracePeriod, .oneMinute)
+        XCTAssertEqual(model.authenticationGracePeriod, .fiveMinutes)
         XCTAssertEqual(model.quickUnlockPasswordInterval, .always)
         XCTAssertEqual(model.quickAutoFillEnabled, SettingsService.quickAutoFillEnabled)
         XCTAssertEqual(model.blockScreenCapture, SettingsService.blockScreenCapture)
@@ -149,11 +149,24 @@ final class AppSettingsViewModelTests: XCTestCase {
             observedPeriods.append(SettingsService.authenticationGracePeriod)
         })
 
-        model.authenticationGracePeriod = .oneMinute
-        model.authenticationGracePeriod = .oneMinute
+        model.authenticationGracePeriod = .fiveMinutes
+        model.authenticationGracePeriod = .fiveMinutes
         model.authenticationGracePeriod = .alwaysAsk
 
-        XCTAssertEqual(observedPeriods, [.oneMinute, .alwaysAsk])
+        XCTAssertEqual(observedPeriods, [.fiveMinutes, .alwaysAsk])
+    }
+
+    /// The picker shows the period in force when the user never chose one,
+    /// and opening Settings stores nothing.
+    func testUnsetGracePeriodShowsThePlatformDefaultWithoutStoringIt() {
+        let model = AppSettingsViewModel()
+
+        #if os(macOS)
+        XCTAssertEqual(model.authenticationGracePeriod, .oneMinute)
+        #else
+        XCTAssertEqual(model.authenticationGracePeriod, .alwaysAsk)
+        #endif
+        XCTAssertNil(UserDefaults.standard.object(forKey: "KeeForge.authenticationGracePeriod"))
     }
 
     /// Saved keys that a stricter interval makes due must go when the setting

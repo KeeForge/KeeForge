@@ -495,6 +495,36 @@ final class SecretAccessSessionTests: XCTestCase {
         XCTAssertFalse(vm.secretAccess.isWithinGracePeriod)
     }
 
+    #if os(macOS)
+    /// The Mac default opens a one-minute period at unlock that still ends
+    /// with the session and never carries over to the next unlock.
+    func testTheShippedMacDefaultOpensAGracePeriodThatEndsWithTheSession() async throws {
+        UserDefaults.standard.removeObject(forKey: "KeeForge.authenticationGracePeriod")
+        let vm = DatabaseViewModel(databaseReference: try makeReference())
+
+        await vm.unlock(password: fixturePassword)
+
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked, got \(vm.state)")
+        }
+        XCTAssertTrue(vm.secretAccess.isWithinGracePeriod)
+        vm.lockRequest(force: true)
+        XCTAssertFalse(vm.secretAccess.isWithinGracePeriod)
+    }
+
+    func testAnExplicitAlwaysAskOnMacOpensNoGracePeriod() async throws {
+        SettingsService.authenticationGracePeriod = .alwaysAsk
+        let vm = DatabaseViewModel(databaseReference: try makeReference())
+
+        await vm.unlock(password: fixturePassword)
+
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked, got \(vm.state)")
+        }
+        XCTAssertFalse(vm.secretAccess.isWithinGracePeriod)
+        vm.lockRequest(force: true)
+    }
+    #else
     func testTheShippedDefaultOpensNoGracePeriod() async throws {
         UserDefaults.standard.removeObject(forKey: "KeeForge.authenticationGracePeriod")
         let vm = DatabaseViewModel(databaseReference: try makeReference())
@@ -507,6 +537,7 @@ final class SecretAccessSessionTests: XCTestCase {
         XCTAssertFalse(vm.secretAccess.isWithinGracePeriod)
         vm.lockRequest(force: true)
     }
+    #endif
 
     // MARK: - Helpers
 
