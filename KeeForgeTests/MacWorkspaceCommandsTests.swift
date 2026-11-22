@@ -198,6 +198,19 @@ final class MacWorkspaceCommandsTests: XCTestCase {
         XCTAssertEqual(session.sortOrder, .modifiedDate, "A dimmed command does nothing")
     }
 
+    func testUnsortedDimsTheSortDirection() async throws {
+        let (session, presentation, _) = try await makeSession()
+        let commands = MacWorkspaceCommands(session: session, presentation: presentation)
+        commands.setSortAscending(true)
+        XCTAssertTrue(commands.canChooseSortDirection)
+
+        commands.setSortOrder(.unsorted)
+        XCTAssertEqual(session.sortOrder, .unsorted)
+        XCTAssertFalse(commands.canChooseSortDirection)
+        commands.setSortAscending(false)
+        XCTAssertTrue(session.sortAscending, "File order has no direction to choose")
+    }
+
     func testExpandAndCollapseAllGroupsDriveTheSidebarsFoldedGroups() async throws {
         let (session, presentation, tree) = try await makeSession()
         let commands = MacWorkspaceCommands(session: session, presentation: presentation)

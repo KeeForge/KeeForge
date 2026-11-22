@@ -190,8 +190,9 @@ final class AppSettingsViewModelTests: XCTestCase {
 
         model.sortOrder = .createdDate
         model.sortAscending = false
+        model.sortOrder = .unsorted
 
-        XCTAssertEqual(observedOrders, [.createdDate])
+        XCTAssertEqual(observedOrders, [.createdDate, .unsorted])
         XCTAssertEqual(observedDirections, [false])
     }
 

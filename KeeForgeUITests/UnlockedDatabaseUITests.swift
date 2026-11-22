@@ -334,6 +334,7 @@ final class UnlockedDatabaseSearchAndSortUITests: UnlockedDatabaseUITestCase {
         XCTAssertTrue(app.buttons["Title"].waitForExistence(timeout: 5), "Title sort option was not visible")
         XCTAssertTrue(app.buttons["Date Created"].exists, "Date Created sort option was not visible")
         XCTAssertTrue(app.buttons["Date Modified"].exists, "Date Modified sort option was not visible")
+        XCTAssertTrue(app.buttons["Unsorted"].exists, "Unsorted sort option was not visible")
 
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
     }

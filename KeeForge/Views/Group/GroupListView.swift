@@ -161,6 +161,7 @@ struct GroupListView: View {
                                         Text("Ascending").tag(true)
                                         Text("Descending").tag(false)
                                     }
+                                    .disabled(!viewModel.sortOrder.usesDirection)
                                 } label: {
                                     Image(systemName: "arrow.up.arrow.down")
                                 }

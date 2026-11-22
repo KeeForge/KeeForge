@@ -540,6 +540,7 @@ private struct DisplaySettingsView: View {
                 Text("Ascending").tag(true)
                 Text("Descending").tag(false)
             }
+            .disabled(!sortOrder.usesDirection)
         }
     }
 }

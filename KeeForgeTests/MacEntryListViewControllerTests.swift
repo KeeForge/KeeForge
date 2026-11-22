@@ -178,6 +178,14 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertFalse(session.sortAscending)
         await settle()
         XCTAssertEqual(states(), DatabaseViewModel.SortOrder.allCases.map { $0 == .modifiedDate } + [false, true])
+        XCTAssertTrue(header.sortDirectionItems.allSatisfy(\.isEnabled))
+
+        try perform(XCTUnwrap(header.sortOrderItems.first { $0.representedObject as? String == DatabaseViewModel.SortOrder.unsorted.rawValue }))
+        XCTAssertEqual(session.sortOrder, .unsorted)
+        await settle()
+        XCTAssertFalse(header.sortDirectionItems.contains(where: \.isEnabled), "File order has no direction")
+        session.sortOrder = .modifiedDate
+        await settle()
 
         session.workspace.selectedGroupID = tree.other.id
         await settle()

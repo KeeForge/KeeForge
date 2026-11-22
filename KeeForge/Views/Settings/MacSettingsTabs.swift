@@ -206,6 +206,7 @@ struct MacGeneralSettingsTab: View {
                     Text("Ascending").tag(true)
                     Text("Descending").tag(false)
                 }.macSettingsPopUp()
+                .disabled(!settings.sortOrder.usesDirection)
                 settingsCaption("New database windows start with this order.")
             }
             MacSettingsSeparator()

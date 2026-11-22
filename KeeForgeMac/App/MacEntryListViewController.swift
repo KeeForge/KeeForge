@@ -1437,6 +1437,7 @@ final class MacEntryListHeaderView: NSView {
         }
         for item in sortDirectionItems {
             item.state = item.representedObject as? Bool == sortAscending ? .on : .off
+            item.isEnabled = sortOrder.usesDirection
         }
     }
 
