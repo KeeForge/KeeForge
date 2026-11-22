@@ -56,8 +56,7 @@ async function start() {
   const { id } = await chrome.send('Extensions.loadUnpacked', { path: root });
   if (id !== EXTENSION_ID) throw Error(`unexpected extension id ${id}; the manifest key must give ${EXTENSION_ID}`);
   extension = `chrome-extension://${id}/`;
-  const target = await tools.waitFor(async () => (await targets()).find(t => t.type === 'service_worker' && t.url.startsWith(extension)), 'service worker');
-  worker = await tools.attach(target.targetId);
+  worker = await tools.attachWorker(extension);
   return { product, extensionId: id, origin, port };
 }
 

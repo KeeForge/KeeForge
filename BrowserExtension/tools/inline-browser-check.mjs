@@ -28,7 +28,7 @@ const results = [];
 function check(name, value, detail = '') { assert.ok(value, name + (detail ? ': ' + detail : '')); results.push(name); console.log('PASS ' + name + (detail ? ` (${detail})` : '')); }
 let theme = 'light';
 async function applyTheme(session) { await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] }, session).catch(() => {}); }
-const { evaluate, waitFor, attach, tab, click, key, nodes, ui, visibleButtons, rect, buttonFor, menus, openMenu, text, menuClick, values } = pageTools(send, { onAttach: applyTheme });
+const { evaluate, waitFor, attach, attachWorker, tab, click, key, nodes, ui, visibleButtons, rect, buttonFor, menus, openMenu, text, menuClick, values } = pageTools(send, { onAttach: applyTheme });
 // A click inside the 300 ms visibility window is refused by design, so actions first wait past it. A second click is
 // allowed only within a small per-run budget: a menu that systematically ignores a settled click fails the run.
 const settle = 700, retryBudget = 2;
@@ -91,8 +91,7 @@ try {
   await writeFile(join(profile, 'NativeMessagingHosts/com.keevault.browser.json'), JSON.stringify({ name: 'com.keevault.browser', description: 'Disposable KeeForge mock', path: wrapper, type: 'stdio', allowed_origins: [extension] }));
   await setMock({ scenario: 'locked' });
   // Watch every runtime message the background receives.
-  const worker = await waitFor(async () => (await send('Target.getTargets')).targetInfos.find(t => t.type === 'service_worker' && t.url.startsWith(extension)), 'service worker');
-  const sw = await attach(worker.targetId);
+  const sw = await attachWorker(extension);
   await evaluate(sw, `globalThis.__seen = []; chrome.runtime.onMessage.addListener(m => { globalThis.__seen.push(m?.type); })`);
 
   // In-field buttons on an HTTPS page.

@@ -145,6 +145,13 @@ export function pageTools(send, { onAttach = async () => {} } = {}) {
     await send('Runtime.enable', {}, sessionId); await onAttach(sessionId);
     return sessionId;
   }
+  // A new worker target can be attached before its script has run, when `chrome` is still undefined.
+  async function attachWorker(extension) {
+    const target = await waitFor(async () => (await send('Target.getTargets')).targetInfos.find(t => t.type === 'service_worker' && t.url.startsWith(extension)), 'service worker');
+    const session = await attach(target.targetId);
+    await waitFor(() => evaluate(session, `typeof chrome === 'object' && !!chrome.runtime?.onMessage`), 'service worker extension APIs');
+    return session;
+  }
   async function tab(url) {
     const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
     const session = await attach(targetId);
@@ -203,5 +210,5 @@ export function pageTools(send, { onAttach = async () => {} } = {}) {
     throw Error('menu action had no effect: ' + label);
   }
   const values = session => evaluate(session, `Object.fromEntries([...document.querySelectorAll('input')].map(i => [i.id, i.value]))`);
-  return { evaluate, waitFor, attach, tab, click, key, nodes, ui, visibleButtons, rect, buttonFor, menus, openMenu, text, menuClick, menuAct, values };
+  return { evaluate, waitFor, attach, attachWorker, tab, click, key, nodes, ui, visibleButtons, rect, buttonFor, menus, openMenu, text, menuClick, menuAct, values };
 }
