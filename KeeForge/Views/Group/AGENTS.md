@@ -21,7 +21,8 @@
 - The iOS group editor puts the icon button beside the name and the tags in the same card, like the entry editor; the Mac has its own `MacGroupEditorView`.
 - Edit Group, Change Icon, and the AutoFill exclusion toggle have the same eligibility (not read-only, not the recycle bin, not inside it), spelled as `canEditGroup`, `canChangeGroupIcon`, and `canChangeAutoFillExclusion`. Change them together.
 - The excluded badge is hidden inside the recycle bin so a row never shows a badge it cannot act on; KeePass marks the bins it creates `EnableSearching` false.
-- The recycle bin is never drawn as a group row at any level; it opens only from its tile.
+- The recycle bin is never drawn as a group row at any level; it opens only from its tile, or from the root's More menu while its tile is hidden.
+- The root shows only the tiles the user keeps on (More → Show Tiles, `DatabaseViewModel.hiddenVaultTiles`, persisted by `HiddenVaultTilesStore`). Every hidden tile gets an open button in the root's More menu, because it may be the only way to reach that list. The Mac sidebar has no equivalent: its Library rows are one line each, so they cost little space.
 - The iPad sidebar pins a cloud database's title above Sync Now, because the sidebar has no toolbar to hold it (`pinsCloudTitle`). On iPhone the root shows the sync state in words as its first row (`CloudSyncStatusRow`) while it syncs or has something to say.
 - From iOS 26 compact screens put search and New in a bottom bar; iPad and earlier releases keep New in the top bar. The identifier `entry-list.add-entry` stays on New in both places.
 - `ToolbarItemPlacement.databaseActions` pins the trailing items where the SDK allows, or an iOS 27 build folds Lock into an overflow menu behind a long inline title.
@@ -36,6 +37,7 @@
 
 - New-entry detail after save: `EntryCreateFocusUITests` on iPhone and iPad; the Mac selection and inline-editor case is `MacSmokeUITests.testNewEntryIsSelectedAfterSaving`.
 - `GroupEditViewModelTests` and `DatabaseEditorCoordinatorTests` cover parent dirty state, atomic fields/move, cancellation and lock. `MacWorkspaceSheetsTests` covers stacked pickers and teardown, and `MacSmokeUITests.testDraggingAnEntryOntoASidebarGroupMovesIt` the picker's disabled current group and double-click on screen; `MacIconPickerModelTests` covers icon selection and cancellable favicon state.
+- Tile visibility and its persistence: `DatabaseWorkspaceStateTests`.
 - `VaultHomeUITests`, `VaultLargeTextUITests`, `TagBrowserUITests` for the root and its collections; `GroupEditUITests`, `GroupIconPickerUITests` for the editor and picker.
 - `KeeForgeUITestCase.selectDatabaseView` is the supported way to open a collection, or return to the root, in a test.
 - The iPad cloud title, the iPhone sync warning and its Sync Now, pull to refresh, and the status popover: `CloudUnlockSmokeUITests`.

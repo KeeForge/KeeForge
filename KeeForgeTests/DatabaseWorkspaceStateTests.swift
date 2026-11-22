@@ -434,4 +434,68 @@ final class DatabaseWorkspaceStateTests: XCTestCase {
         XCTAssertNil(workspace.openEditor)
         XCTAssertEqual(workspace.navigationPath, [.group(groupID)])
     }
+
+    // MARK: - Vault home tiles
+
+    private func makeTileDefaults() throws -> UserDefaults {
+        let suite = "DatabaseWorkspaceStateTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
+        return defaults
+    }
+
+    func testVaultTilesHidingKeepsTileOrder() {
+        XCTAssertEqual(
+            DatabaseCollection.vaultTiles(hiding: [.verificationCodes]),
+            [.allEntries, .tags, .recycleBin]
+        )
+        XCTAssertEqual(DatabaseCollection.vaultTiles(hiding: []), DatabaseCollection.vaultTiles)
+        XCTAssertEqual(DatabaseCollection.vaultTiles(hiding: Set(DatabaseCollection.vaultTiles)), [])
+    }
+
+    func testHiddenVaultTilesDefaultToNoneAndRoundTrip() throws {
+        let defaults = try makeTileDefaults()
+        XCTAssertEqual(HiddenVaultTilesStore.load(from: defaults), [])
+
+        HiddenVaultTilesStore.save([.recycleBin, .tags], to: defaults)
+        XCTAssertEqual(HiddenVaultTilesStore.load(from: defaults), [.recycleBin, .tags])
+        XCTAssertEqual(defaults.stringArray(forKey: HiddenVaultTilesStore.defaultsKey), ["tags", "recycleBin"])
+
+        HiddenVaultTilesStore.save([], to: defaults)
+        XCTAssertNil(defaults.object(forKey: HiddenVaultTilesStore.defaultsKey))
+    }
+
+    func testHiddenVaultTilesIgnoreUnknownAndTilelessValues() throws {
+        let defaults = try makeTileDefaults()
+        defaults.set(["passkeys", "favorites", "allEntries"], forKey: HiddenVaultTilesStore.defaultsKey)
+
+        XCTAssertEqual(HiddenVaultTilesStore.load(from: defaults), [.allEntries])
+    }
+
+    func testSetVaultTileHidesAndShowsAndPersists() throws {
+        let key = HiddenVaultTilesStore.defaultsKey
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(saved, forKey: key) }
+        UserDefaults.standard.removeObject(forKey: key)
+        DatabaseListStore.clearAll()
+        SharedVaultStore.clearBookmark()
+        defer {
+            DatabaseListStore.clearAll()
+            SharedVaultStore.clearBookmark()
+        }
+        let fixture = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        let viewModel = try DatabaseViewModel(databaseReference: TestDatabaseSupport.makeReference(for: fixture))
+
+        viewModel.setVaultTile(.recycleBin, isVisible: false)
+        viewModel.setVaultTile(.allEntries, isVisible: false)
+        viewModel.setVaultTile(.passkeys, isVisible: false)
+
+        XCTAssertEqual(viewModel.visibleVaultTiles, [.verificationCodes, .tags])
+        XCTAssertEqual(viewModel.hiddenVaultTilesInOrder, [.allEntries, .recycleBin])
+        XCTAssertEqual(HiddenVaultTilesStore.load(), [.allEntries, .recycleBin])
+
+        viewModel.setVaultTile(.allEntries, isVisible: true)
+        XCTAssertEqual(viewModel.hiddenVaultTilesInOrder, [.recycleBin])
+        XCTAssertEqual(HiddenVaultTilesStore.load(), [.recycleBin])
+    }
 }

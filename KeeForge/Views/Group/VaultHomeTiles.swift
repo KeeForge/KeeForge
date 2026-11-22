@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// The vault root's tiles: All Entries, Verification Codes, Tags and the
-/// Recycle Bin with their counts. Two columns, one at accessibility sizes.
+/// The vault root's tiles the user shows, from All Entries, Verification
+/// Codes, Tags and the Recycle Bin, with their counts. Two columns, one at
+/// accessibility sizes.
 struct VaultHomeTiles: View {
+    let tiles: [DatabaseCollection]
     let counts: DatabaseCollectionCounts
     var isInSidebar = false
     let open: (DatabaseCollection) -> Void
@@ -15,7 +17,7 @@ struct VaultHomeTiles: View {
             count: dynamicTypeSize.isAccessibilitySize ? 1 : 2
         )
         LazyVGrid(columns: columns, spacing: Theme.Spacing.tileGap) {
-            ForEach(DatabaseCollection.vaultTiles, id: \.self) { collection in
+            ForEach(tiles, id: \.self) { collection in
                 VaultHomeTile(collection: collection, count: counts[collection], isInSidebar: isInSidebar) {
                     open(collection)
                 }
