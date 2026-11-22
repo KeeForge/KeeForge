@@ -25,7 +25,9 @@ Captures are read per locale from the platform's input directory and come from:
 
 The classes skip unless APPSTORE_SCREENSHOTS=1 reaches the test runner: set
 TEST_RUNNER_APPSTORE_SCREENSHOTS=1 on the xcodebuild process (or pass
-`--test-env APPSTORE_SCREENSHOTS=1` to studio-test). Export a run with
+`--test-env APPSTORE_SCREENSHOTS=1` to studio-test). A Mac capture ignores
+-testLanguage; pass `--test-env APPSTORE_LANGUAGE=ja --test-env APPSTORE_LOCALE=ja_JP`
+for each locale. Export a run with
 `xcrun xcresulttool export attachments --path <xcresult> --output-path <dir>`;
 the export is used as is, each capture found through manifest.json's
 `suggestedHumanReadableName`. Plainly named files (`06-entry-detail.png`) work too.
@@ -129,7 +131,7 @@ PLATFORMS = {
         "frames": {
             "01-pitch": {"field": INDIGO, "focus": (0.7, 0.5), "screen": "01-entry-detail", "art": "kdbx"},
             "02-autofill": {"field": PAPER, "focus": (0.75, 0.5), "screen": "04-search", "cards": [
-                ("07-autofill-picker", (0.0, 0.0, 0.52, 0.27), "box")]},
+                ("07-autofill-picker", (0.0, 0.0, 0.52, 0.6), "box")]},
             "03-keepassxc": {"field": INDIGO, "focus": (0.6, 0.5), "screen": "03-database-details"},
             "04-security": {"field": PAPER, "focus": (0.6, 0.5), "screen": "02-unlock", "cards": [
                 ("06-settings-security", (0.0, 0.0, 1.0, 0.37), "box")]},
