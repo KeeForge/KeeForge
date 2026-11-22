@@ -61,6 +61,23 @@ struct MacNewDatabaseSheet: View {
                     }
                     caption(Text("Create Key File saves a new key file where you choose. Keep a copy somewhere safe: without the key file, the database can’t be opened."))
                 }
+                if model.hardwareKeyOptions.isEmpty == false {
+                    MacSettingsSeparator()
+                    MacSettingsRow("Hardware key:") {
+                        Picker("Hardware key", selection: $model.hardwareKeyChoice) {
+                            Text("None").tag(HardwareKeyConfiguration?.none)
+                            ForEach(model.hardwareKeyOptions, id: \.self) { option in
+                                Text(option.title).tag(Optional(option))
+                            }
+                        }
+                        .labelsHidden()
+                        .fixedSize()
+                        .accessibilityIdentifier("database-create.hardware-key.picker")
+                        caption(Text(model.isAwaitingHardwareKey
+                            ? HardwareKeyService.prompt(for: .usb)
+                            : String(localized: "The YubiKey's slot must be set up for HMAC-SHA1 challenge-response. Without the YubiKey, the database can't be opened.")))
+                    }
+                }
                 MacSettingsSeparator()
                 MacSettingsRow {
                     // A plain toggle rather than DisclosureGroup: the rows it reveals sit on the form's own grid,

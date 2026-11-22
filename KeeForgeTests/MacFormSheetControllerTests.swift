@@ -66,7 +66,7 @@ final class MacFormSheetControllerTests: XCTestCase {
                 await gate.signalStarted()
                 await gate.waitUntilOpen()
                 return (Data([2]), "key.keyx")
-            }, changeOperation: { _, _, _, _ in changes += 1 })
+            }, changeOperation: { _, _, _, _, _ in changes += 1 })
         form.newPassword = "new password"
         form.confirmPassword = form.newPassword
         let shell = makeShell()
@@ -88,7 +88,7 @@ final class MacFormSheetControllerTests: XCTestCase {
         let gate = SaveGate()
         var finishedWrite = false
         let form = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
-            loadCurrentKeyFile: { nil }, changeOperation: { password, _, _, _ in
+            loadCurrentKeyFile: { nil }, changeOperation: { password, _, _, _, _ in
                 XCTAssertEqual(password, "new password")
                 await gate.signalStarted()
                 await gate.waitUntilOpen()

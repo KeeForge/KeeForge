@@ -19,7 +19,8 @@ final class MasterKeyChangeViewModel {
         _ newPassword: String?,
         _ newKeyFileData: Data?,
         _ newKeyFileBookmarkData: Data?,
-        _ newKeyFileFilename: String?
+        _ newKeyFileFilename: String?,
+        _ newHardwareKey: DatabaseViewModel.HardwareKeyChange
     ) async throws -> Void
     typealias CurrentKeyFileLoader = @MainActor () async -> (data: Data, filename: String)?
 
@@ -55,10 +56,15 @@ final class MasterKeyChangeViewModel {
     private(set) var pickedKeyFileBookmarkData: Data?
     private(set) var pickedKeyFileFilename: String?
 
-    /// The database's YubiKey, which a change keeps: the key is asked again
-    /// while the change runs.
+    /// The YubiKey the session unlocked with.
     let hardwareKey: HardwareKeyConfiguration?
-    private var keepsHardwareKey: Bool { hardwareKey != nil }
+    /// The YubiKey the database needs after the change, asked while it runs.
+    var hardwareKeyChoice: HardwareKeyConfiguration? {
+        didSet { if hardwareKeyChoice != oldValue { clearDisplayedErrors() } }
+    }
+    /// Every slot on each transport this device has, plus the current YubiKey.
+    let hardwareKeyOptions: [HardwareKeyConfiguration]
+    private var keepsHardwareKey: Bool { hardwareKeyChoice != nil }
     private let currentKeyFileFilename: String?
     private let currentKeyFileBookmarkData: Data?
     private let sessionKeyFileData: Data?
@@ -70,10 +76,13 @@ final class MasterKeyChangeViewModel {
         currentKeyFileBookmarkData: Data?,
         sessionKeyFileData: Data? = nil,
         hardwareKey: HardwareKeyConfiguration? = nil,
+        hardwareKeyTransports: [HardwareKeyConfiguration.Transport] = [],
         loadCurrentKeyFile: @escaping CurrentKeyFileLoader,
         changeOperation: @escaping ChangeOperation
     ) {
         self.hardwareKey = hardwareKey
+        self.hardwareKeyChoice = hardwareKey
+        self.hardwareKeyOptions = HardwareKeyConfiguration.pickerOptions(transports: hardwareKeyTransports, current: hardwareKey)
         self.currentKeyFileFilename = currentKeyFileFilename
         self.currentKeyFileBookmarkData = currentKeyFileBookmarkData
         self.sessionKeyFileData = sessionKeyFileData
@@ -122,6 +131,7 @@ final class MasterKeyChangeViewModel {
     /// Whether the form asks for any change; `validate()` still decides whether it is valid.
     var canSave: Bool {
         !newPassword.isEmpty || !confirmPassword.isEmpty || keyFileChange != .keepCurrent || removesPassword
+            || hardwareKeyChoice != hardwareKey
     }
 
     private var hasCurrentKeyFile: Bool {
@@ -253,6 +263,8 @@ final class MasterKeyChangeViewModel {
         // mid-flight, and re-reading the form afterwards would rekey with an
         // empty password.
         let password = newPassword
+        let hardwareKeyChange: DatabaseViewModel.HardwareKeyChange = hardwareKeyChoice == hardwareKey
+            ? .keep : .set(hardwareKeyChoice)
 
         let effectiveKeyFile: (data: Data?, bookmark: Data?, filename: String?)
         switch keyFileChange {
@@ -283,7 +295,8 @@ final class MasterKeyChangeViewModel {
                 password.isEmpty ? nil : password,
                 effectiveKeyFile.data,
                 effectiveKeyFile.bookmark,
-                effectiveKeyFile.filename
+                effectiveKeyFile.filename,
+                hardwareKeyChange
             )
             clearSecrets()
             hasCompleted = true
@@ -301,6 +314,10 @@ final class MasterKeyChangeViewModel {
             completedWarning = warning.localizedDescription
             return false
         } catch let warning as SaveUnknownOutcomeWarning {
+            hasCompleted = true
+            completedWarning = warning.localizedDescription
+            return false
+        } catch let warning as DatabaseViewModel.HardwareKeyPreferenceWarning {
             hasCompleted = true
             completedWarning = warning.localizedDescription
             return false

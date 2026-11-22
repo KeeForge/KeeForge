@@ -27,11 +27,13 @@ final class MacMasterKeySheet {
             currentKeyFileBookmarkData: reference.keyFileBookmarkData,
             sessionKeyFileData: session.sessionKeyFileData,
             hardwareKey: session.sessionUsesHardwareKey ? reference.hardwareKey : nil,
+            hardwareKeyTransports: session.availableHardwareKeyTransports,
             loadCurrentKeyFile: { [weak session] in await session?.loadAssociatedKeyFile() },
-            changeOperation: { [weak session] password, keyFileData, bookmarkData, filename in
+            changeOperation: { [weak session] password, keyFileData, bookmarkData, filename, hardwareKeyChange in
                 guard let session else { throw DatabaseViewModel.RekeyError.sessionUnavailable }
                 try await session.changeMasterKey(newPassword: password, newKeyFileData: keyFileData,
-                                                  newKeyFileBookmarkData: bookmarkData, newKeyFileFilename: filename)
+                                                  newKeyFileBookmarkData: bookmarkData, newKeyFileFilename: filename,
+                                                  newHardwareKey: hardwareKeyChange)
             })
         self.init(name: reference.displayName, databaseFilename: reference.filename, model: model,
                   performChange: { [weak session] model in
@@ -222,7 +224,7 @@ private struct MacMasterKeyForm: View {
                                      visibilityAccessibilityIdentifier: "master-key.confirm-password-visibility-button",
                                      usesPasswordAutoFill: false).labelsHidden()
                         .disabled(model.removesPassword)
-                    if model.hasEffectiveKeyFile || model.hardwareKey != nil {
+                    if model.hasEffectiveKeyFile || model.hardwareKeyChoice != nil {
                         Toggle("Remove Master Password", isOn: $model.removesPassword)
                             .toggleStyle(.checkbox)
                             .accessibilityIdentifier("master-key.remove-password")
@@ -247,12 +249,22 @@ private struct MacMasterKeyForm: View {
                     caption(String(localized: "Keep a copy of the key file somewhere safe: without it, the database can’t be opened."))
                 }
             }
-            if let hardwareKey = model.hardwareKey {
+            if model.hardwareKeyOptions.isEmpty == false {
                 Divider()
                 LabeledContent("Hardware key:") {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(hardwareKey.title)
-                        caption(String(localized: "The database keeps this YubiKey. Touch it if it flashes while the change is saved."))
+                        Picker("Hardware key", selection: $model.hardwareKeyChoice) {
+                            Text("None").tag(HardwareKeyConfiguration?.none)
+                            ForEach(model.hardwareKeyOptions, id: \.self) { option in
+                                Text(option.title).tag(Optional(option))
+                            }
+                        }
+                        .labelsHidden()
+                        .fixedSize()
+                        .accessibilityIdentifier("master-key.hardware-key.picker")
+                        if model.hardwareKeyChoice != nil {
+                            caption(String(localized: "Touch your YubiKey if it flashes while the change is saved."))
+                        }
                     }
                 }
             }

@@ -404,6 +404,22 @@ final class DatabaseViewModel {
 
     /// Typed rejection reasons for `changeMasterKey`. Presentation strings are
     /// the caller's responsibility.
+    /// What a master-key change does with the database's YubiKey.
+    enum HardwareKeyChange: Equatable, Sendable {
+        /// Whatever the session unlocked with: its YubiKey, or none.
+        case keep
+        /// This YubiKey from now on, or none.
+        case set(HardwareKeyConfiguration?)
+    }
+
+    /// The master key changed but the database list kept its old YubiKey
+    /// setting; the unlock page's Hardware Key fixes it.
+    struct HardwareKeyPreferenceWarning: LocalizedError {
+        var errorDescription: String? {
+            String(localized: "The master key changed, but KeeForge couldn't remember the database's YubiKey setting. Choose it under Hardware Key the next time you unlock.")
+        }
+    }
+
     enum RekeyError: Error, Equatable, Sendable {
         case sessionUnavailable
         case databaseIsReadOnly
@@ -772,6 +788,7 @@ final class DatabaseViewModel {
         let key: SymmetricKey
         /// What Keychain keeps: `key`, or the pre-key of a YubiKey database.
         let storedKey: SymmetricKey
+        let usesHardwareKey: Bool
         let keyFileData: Data?
         let hadStoredKey: Bool
         var publicationStarted = false
@@ -995,8 +1012,8 @@ final class DatabaseViewModel {
                 encryptedSnapshot: createdDatabase.encryptedSnapshot
             ),
             compositeKey: createdDatabase.compositeKey,
-            quickLaunchKey: createdDatabase.compositeKey,
-            usesHardwareKey: false,
+            quickLaunchKey: createdDatabase.storedKey,
+            usesHardwareKey: createdDatabase.reference.hardwareKey != nil,
             sessionKey: createdDatabase.sessionKey,
             masterKeyEntered: true
         )
@@ -1004,7 +1021,7 @@ final class DatabaseViewModel {
             let actionID = UUID()
             let cycle = lockCycleID
             keyCommitPublicationActionID = actionID
-            let keys = QuickUnlockKeys(storedKey: createdDatabase.compositeKey)
+            let keys = QuickUnlockKeys(storedKey: createdDatabase.storedKey)
             Task { _ = await publishReadKeys(nil, keys: keys, masterKeyEntered: true, actionID: actionID, expectedCycle: cycle) }
         }
     }
@@ -3100,7 +3117,8 @@ final class DatabaseViewModel {
         newPassword: String?,
         newKeyFileData: Data?,
         newKeyFileBookmarkData: Data?,
-        newKeyFileFilename: String?
+        newKeyFileFilename: String?,
+        newHardwareKey: HardwareKeyChange = .keep
     ) async throws {
         revokePendingCloudRekey()
         try await reconcileOwnBookmarkBeforeMutation()
@@ -3119,8 +3137,13 @@ final class DatabaseViewModel {
         guard draft == nil || draft?.isDirty == false else {
             throw RekeyError.unsavedChanges
         }
+        let originalHardwareKey = sessionUsesHardwareKey ? databaseReference.hardwareKey : nil
+        let targetHardwareKey: HardwareKeyConfiguration? = switch newHardwareKey {
+        case .keep: originalHardwareKey
+        case .set(let configuration): configuration
+        }
         // A YubiKey alone is a valid master key; KeePassXC allows it.
-        guard newPassword?.isEmpty == false || newKeyFileData != nil || sessionUsesHardwareKey else {
+        guard newPassword?.isEmpty == false || newKeyFileData != nil || targetHardwareKey != nil else {
             throw RekeyError.missingKeyComponent
         }
         // Pending AutoFill upload markers hold ciphertext under the old key;
@@ -3135,24 +3158,24 @@ final class DatabaseViewModel {
             throw PendingLocalSaveStore.OwnershipError.recoveryRequired
         }
 
-        // A YubiKey database keeps its key: it answers the salt the session
-        // pinned again, and Keychain holds the new pre-key, never the response.
+        // With a YubiKey, the file gets a fresh KDF salt and the key answers
+        // its challenge; Keychain holds the new pre-key, never the response.
         let newCompositeKey: SymmetricKey
         let newStoredKey: SymmetricKey
-        if sessionUsesHardwareKey {
-            guard let configuration = databaseReference.hardwareKey,
-                  let challenge = ChallengeResponseKey.pinnedChallenge(for: compositeKey) else {
-                throw RekeyError.sessionUnavailable
-            }
+        var keyChangeSettings: EncryptionSettingsChange?
+        if let targetHardwareKey {
+            let salt = try SecureRandom.data(count: 32)
+            let challenge = try ChallengeResponseKey.challenge(forSalt: salt)
             let newPreKey = try KDBXCrypto.preKey(password: newPassword, keyFileData: newKeyFileData)
             let expectedCycle = lockCycleID
-            var response = try await hardwareKeyResponseOperation(challenge, configuration)
+            var response = try await hardwareKeyResponseOperation(challenge, targetHardwareKey)
             defer { SecureWipe.wipe(&response) }
             guard expectedCycle == lockCycleID, case .unlocked = state, isSaving == false else {
                 throw RekeyError.sessionUnavailable
             }
             newCompositeKey = ChallengeResponseKey.compositeKey(preKey: newPreKey, response: response, challenge: challenge)
             newStoredKey = newPreKey
+            keyChangeSettings = EncryptionSettingsChange(kdfSalt: salt)
         } else {
             newCompositeKey = try KDBXCrypto.compositeKey(password: newPassword, keyFileData: newKeyFileData)
             newStoredKey = newCompositeKey
@@ -3190,7 +3213,7 @@ final class DatabaseViewModel {
             }
             pendingCloudRekey = PendingCloudRekey(ticket: ticket, actionID: actionID, cycle: expectedLockCycleID,
                 original: databaseReference, baselineSHA: openTimeSHA512, change: cloudKeyChange, key: newCompositeKey,
-                storedKey: newStoredKey, keyFileData: newKeyFileData, hadStoredKey: storedKeyPresenceCheck(databaseReference))
+                storedKey: newStoredKey, usesHardwareKey: targetHardwareKey != nil, keyFileData: newKeyFileData, hadStoredKey: storedKeyPresenceCheck(databaseReference))
         }
         let saveResult: SaveResult
         do {
@@ -3204,7 +3227,7 @@ final class DatabaseViewModel {
                     openTimeSHA512,
                     nil,
                     newCompositeKey,
-                    nil
+                    keyChangeSettings
                     )
                 }
             case .cloud:
@@ -3218,7 +3241,7 @@ final class DatabaseViewModel {
                     nil,
                     databaseReference.expectedCloudRevision,
                     newCompositeKey,
-                    nil
+                    keyChangeSettings
                 )
                     }
                 }
@@ -3253,8 +3276,9 @@ final class DatabaseViewModel {
                keyCommitPublicationActionID == actionID, case .unlocked = state {
                 rememberCommittedCiphertext(localCommit)
                 self.compositeKey = newCompositeKey
+                sessionUsesHardwareKey = targetHardwareKey != nil
                 // A YubiKey response is part of the key but not of this summary.
-                masterKeyComposition = sessionUsesHardwareKey ? nil
+                masterKeyComposition = targetHardwareKey != nil ? nil
                     : MasterKeyComposition(hasPassword: newPassword?.isEmpty == false, hasKeyFile: newKeyFileData != nil)
                 sessionKeyFileData = newKeyFileData
                 self.openTimeSHA512 = newSHA512
@@ -3271,6 +3295,7 @@ final class DatabaseViewModel {
             if databaseReference.isCloudBacked {
                 if expectedLockCycleID == lockCycleID, keyCommitPublicationActionID == actionID, case .unlocked = state {
                     self.compositeKey = newCompositeKey
+                    sessionUsesHardwareKey = targetHardwareKey != nil
                     self.openTimeSHA512 = newSHA512
                     sessionKeyFileData = newKeyFileData
                     databaseReference.keyFileBookmarkData = newKeyFileBookmarkData
@@ -3373,16 +3398,22 @@ final class DatabaseViewModel {
             }
             if expectedLockCycleID == lockCycleID {
                 rememberCommittedCiphertext(localCommit)
-                self.masterKeyComposition = sessionUsesHardwareKey ? nil
+                self.masterKeyComposition = targetHardwareKey != nil ? nil
                     : MasterKeyComposition(hasPassword: newPassword?.isEmpty == false, hasKeyFile: newKeyFileData != nil)
                 self.compositeKey = newCompositeKey
+                sessionUsesHardwareKey = targetHardwareKey != nil
                 sessionKeyFileData = newKeyFileData
-                quickUnlockItemHoldsSessionKey = storedNewKey && !sessionUsesHardwareKey
+                quickUnlockItemHoldsSessionKey = storedNewKey && targetHardwareKey == nil
                 self.openTimeSHA512 = newSHA512
                 // Edits can land while the rekey save is in flight (the sheet
                 // is dismissible); their own save() no-ops on `isSaving`, so
                 // flush them here under the new key. The task starts after
                 // this function's defer resets `isSaving`.
+            }
+            // The file needs the new YubiKey setting from now on, whatever warning follows.
+            if targetHardwareKey != originalHardwareKey {
+                let outcome = await setHardwareKey(targetHardwareKey)
+                guard outcome == .saved || outcome == .unchanged else { throw HardwareKeyPreferenceWarning() }
             }
             if associationSaved == false { throw SaveAssociationWarning(durabilityUnconfirmed: saveResult.hasUnconfirmedDurability || associationUnconfirmed) }
             if saveResult.hasUnconfirmedDurability { if databaseReference.isCloudBacked { throw CloudSaveRecoveryWarning() }
@@ -3490,6 +3521,7 @@ final class DatabaseViewModel {
                   pendingCloudRekey?.ticket === pending.ticket, pendingCloudRekey?.publicationStarted == true,
                   case .unlocked = state else { return }
             compositeKey = pending.key
+            sessionUsesHardwareKey = pending.usesHardwareKey
             sessionKeyFileData = pending.keyFileData
             openTimeSHA512 = sha
             databaseReference = current

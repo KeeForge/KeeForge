@@ -6,6 +6,14 @@ import KDBXXML
 import UIKit
 #endif
 
+/// A YubiKey's answer for a new database: the salt its header will carry and
+/// the response to that salt's challenge.
+struct CreationHardwareKey: Sendable {
+    let configuration: HardwareKeyConfiguration
+    let salt: Data
+    let response: Data
+}
+
 struct DatabaseCreationRequest: Sendable {
     var displayName: String
     var destination: DatabaseCreationDestination
@@ -15,6 +23,7 @@ struct DatabaseCreationRequest: Sendable {
     var keyFileFilename: String?
     var cipher: DatabaseCreationCipher = .aes256
     var kdfPreset: DatabaseCreationKDFPreset = .balanced
+    var hardwareKey: CreationHardwareKey?
     var operationID: UUID = UUID()
     var lifetime: CloudCreationLifetime = CloudCreationLifetime()
 }
@@ -27,6 +36,7 @@ struct DatabasePreparationRequest: Sendable {
     var keyFileFilename: String?
     var cipher: DatabaseCreationCipher = .aes256
     var kdfPreset: DatabaseCreationKDFPreset = .balanced
+    var hardwareKey: CreationHardwareKey?
 }
 
 /// Outer ciphers offered when creating a database or changing its encryption
@@ -108,6 +118,9 @@ struct PreparedDatabase: Sendable {
     let formatVersion: KDBXContainer.FileVersion
     let sessionKey: SymmetricKey
     let compositeKey: SymmetricKey
+    /// What Keychain keeps: `compositeKey`, or the pre-key with a YubiKey.
+    let storedKey: SymmetricKey
+    let hardwareKey: HardwareKeyConfiguration?
     let openTimeSHA512: Data
     let encryptedBytes: Data
 }
@@ -119,6 +132,7 @@ struct CreatedDatabase: Sendable {
     let formatVersion: KDBXContainer.FileVersion
     let sessionKey: SymmetricKey
     let compositeKey: SymmetricKey
+    var storedKey: SymmetricKey
     let openTimeSHA512: Data
     var encryptedSnapshot: Data? = nil
 }
@@ -133,11 +147,12 @@ enum DatabaseCreationDefaults {
 
     static func freshHeaderConfiguration(
         cipher: DatabaseCreationCipher = .aes256,
-        kdfPreset: DatabaseCreationKDFPreset = .balanced
+        kdfPreset: DatabaseCreationKDFPreset = .balanced,
+        kdfSalt: Data? = nil
     ) throws -> KDBXContainerWriter.FreshHeaderConfiguration {
         try KDBXContainerWriter.FreshHeaderConfiguration(
             cipher: cipher.outerCipher,
-            kdfParameters: argon2idKDFParameters(preset: kdfPreset)
+            kdfParameters: argon2idKDFParameters(preset: kdfPreset, salt: kdfSalt)
         )
     }
 
@@ -277,7 +292,8 @@ enum DatabaseCreationService {
                     keyFileBookmarkData: request.keyFileBookmarkData,
                     keyFileFilename: request.keyFileFilename,
                     cipher: request.cipher,
-                    kdfPreset: request.kdfPreset
+                    kdfPreset: request.kdfPreset,
+                    hardwareKey: request.hardwareKey
                 ),
                 environment: environment
             )
@@ -324,6 +340,7 @@ enum DatabaseCreationService {
             formatVersion: prepared.formatVersion,
             sessionKey: prepared.sessionKey,
             compositeKey: prepared.compositeKey,
+            storedKey: prepared.storedKey,
             openTimeSHA512: prepared.openTimeSHA512,
             encryptedSnapshot: prepared.encryptedBytes
         )
@@ -355,17 +372,27 @@ enum DatabaseCreationService {
         let filename = try normalizedFilename(for: request.displayName)
         let hasPassword = request.password?.isEmpty == false
         let hasKeyFile = request.keyFileData?.isEmpty == false
-        guard hasPassword || hasKeyFile else {
+        guard hasPassword || hasKeyFile || request.hardwareKey != nil else {
             throw CreationError.missingKeyComponent
         }
 
         let now = environment.now()
         let referenceID = environment.id()
         let tree = makeFreshTree(displayName: (filename as NSString).deletingPathExtension, now: now)
-        let compositeKey = try KDBXCrypto.compositeKey(
-            password: request.password,
-            keyFileData: request.keyFileData
-        )
+        let compositeKey: SymmetricKey
+        let storedKey: SymmetricKey
+        if let hardwareKey = request.hardwareKey {
+            let preKey = try KDBXCrypto.preKey(password: request.password, keyFileData: request.keyFileData)
+            compositeKey = ChallengeResponseKey.compositeKey(
+                preKey: preKey,
+                response: hardwareKey.response,
+                challenge: try ChallengeResponseKey.challenge(forSalt: hardwareKey.salt)
+            )
+            storedKey = preKey
+        } else {
+            compositeKey = try KDBXCrypto.compositeKey(password: request.password, keyFileData: request.keyFileData)
+            storedKey = compositeKey
+        }
         let sessionKey = SymmetricKey(size: .bits256)
         let encryptedBytes = try KDBXWriter.write(
             rootGroup: tree.rootGroup,
@@ -373,7 +400,8 @@ enum DatabaseCreationService {
             compositeKey: compositeKey,
             freshHeader: try DatabaseCreationDefaults.freshHeaderConfiguration(
                 cipher: request.cipher,
-                kdfPreset: request.kdfPreset
+                kdfPreset: request.kdfPreset,
+                kdfSalt: request.hardwareKey?.salt
             ),
             sessionKey: sessionKey,
             kdfPolicy: .mainApp
@@ -403,6 +431,8 @@ enum DatabaseCreationService {
             formatVersion: parsed.header.formatVersion,
             sessionKey: sessionKey,
             compositeKey: compositeKey,
+            storedKey: storedKey,
+            hardwareKey: request.hardwareKey?.configuration,
             openTimeSHA512: FileDigest.sha512(encryptedBytes),
             encryptedBytes: encryptedBytes
         )
@@ -453,6 +483,7 @@ enum DatabaseCreationService {
             formatVersion: prepared.formatVersion,
             sessionKey: prepared.sessionKey,
             compositeKey: prepared.compositeKey,
+            storedKey: prepared.storedKey,
             openTimeSHA512: prepared.openTimeSHA512,
             encryptedSnapshot: reference.isCloudBacked ? nil : prepared.encryptedBytes
         )
@@ -502,7 +533,7 @@ enum DatabaseCreationService {
         bookmarkData: Data?,
         fileURL: URL? = nil
     ) -> DatabaseReference {
-        DatabaseReference(
+        var reference = DatabaseReference(
             id: prepared.id,
             nickname: nil,
             filename: prepared.filename,
@@ -518,6 +549,8 @@ enum DatabaseCreationService {
             isDocumentsResident: fileURL.map(DatabaseListStore.isTopLevelDocumentsFile) ?? false,
             source: .local
         )
+        reference.hardwareKey = prepared.hardwareKey
+        return reference
     }
 
     static func cloudFilePath(filename: String, folderPath: String?) -> String {

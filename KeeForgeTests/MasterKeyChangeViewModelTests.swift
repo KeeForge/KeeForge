@@ -36,7 +36,7 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
             currentKeyFileBookmarkData: currentKeyFileBookmarkData,
             sessionKeyFileData: sessionKeyFileData,
             loadCurrentKeyFile: { currentKeyFileLoadResult },
-            changeOperation: { password, keyFileData, bookmarkData, filename in
+            changeOperation: { password, keyFileData, bookmarkData, filename, _ in
                 if let error = recorder.error {
                     throw error
                 }
@@ -63,7 +63,7 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
         for warning in [SaveDurabilityWarning() as any Error, CloudSaveRecoveryWarning()] {
             var calls = 0
             let vm = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
-                loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _ in
+                loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _, _ in
                     calls += 1
                     throw warning
                 })
@@ -451,7 +451,7 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
 
     private func makeLoggingViewModel(_ log: EventLog) -> MasterKeyChangeViewModel {
         let viewModel = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
-            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _ in log.events.append("change") })
+            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _, _ in log.events.append("change") })
         viewModel.newPassword = "new-password"
         viewModel.confirmPassword = "new-password"
         return viewModel
@@ -649,7 +649,7 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
                 viewModel?.cancelPendingChange()
                 return (Data("key-bytes".utf8), "vault.key")
             },
-            changeOperation: { password, keyFileData, bookmarkData, filename in
+            changeOperation: { password, keyFileData, bookmarkData, filename, _ in
                 recorder.captured = CapturedChange(
                     password: password,
                     keyFileData: keyFileData,
@@ -680,7 +680,7 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
                 viewModel?.clearSecrets()
                 return (Data("key-bytes".utf8), "vault.key")
             },
-            changeOperation: { password, keyFileData, bookmarkData, filename in
+            changeOperation: { password, keyFileData, bookmarkData, filename, _ in
                 recorder.captured = CapturedChange(
                     password: password,
                     keyFileData: keyFileData,

@@ -37785,6 +37785,58 @@
         }
       }
     },
+    "Hold your YubiKey to your device when asked while the change is saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte deinen YubiKey an dein Gerät, wenn du beim Speichern der Änderung dazu aufgefordert wirst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acerca tu YubiKey al dispositivo cuando se te pida mientras se guarda el cambio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approchez votre YubiKey de votre appareil lorsque cela vous est demandé pendant l’enregistrement de la modification."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avvicina la YubiKey al dispositivo quando richiesto mentre la modifica viene salvata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更の保存中に求められたら、YubiKey をデバイスに近づけてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поднесите YubiKey к устройству, когда появится запрос во время сохранения изменения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存更改时，请在提示时将 YubiKey 靠近设备。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存變更時，請在提示時將 YubiKey 靠近裝置。"
+          }
+        }
+      }
+    },
     "HTTP sends your username, password and database unencrypted, so use it only on a local network you trust." : {
       "localizations" : {
         "de" : {
@@ -73747,110 +73799,6 @@
         }
       }
     },
-    "The database keeps this YubiKey. Hold it to your device when asked while the change is saved." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Datenbank behält diesen YubiKey. Halte ihn an dein Gerät, wenn du beim Speichern der Änderung dazu aufgefordert wirst."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La base de datos conserva esta YubiKey. Acércala al dispositivo cuando se te pida mientras se guarda el cambio."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La base de données conserve cette YubiKey. Approchez-la de votre appareil lorsque cela vous est demandé pendant l’enregistrement de la modification."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Il database mantiene questa YubiKey. Avvicinala al dispositivo quando richiesto mentre la modifica viene salvata."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "データベースはこの YubiKey を引き続き使用します。変更の保存中に求められたら、キーをデバイスに近づけてください。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "База данных сохраняет этот YubiKey. Поднесите его к устройству, когда появится запрос во время сохранения изменения."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "数据库会保留此 YubiKey。保存更改时，请在提示时将其靠近设备。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "資料庫會保留此 YubiKey。儲存變更時，請在提示時將其靠近裝置。"
-          }
-        }
-      }
-    },
-    "The database keeps this YubiKey. Touch it if it flashes while the change is saved." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Datenbank behält diesen YubiKey. Berühre ihn, wenn er beim Speichern der Änderung blinkt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La base de datos conserva esta YubiKey. Tócala si parpadea mientras se guarda el cambio."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La base de données conserve cette YubiKey. Touchez-la si elle clignote pendant l’enregistrement de la modification."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Il database mantiene questa YubiKey. Toccala se lampeggia mentre la modifica viene salvata."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "データベースはこの YubiKey を引き続き使用します。変更の保存中にキーが点滅したらタッチしてください。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "База данных сохраняет этот YubiKey. Коснитесь его, если он замигает во время сохранения изменения."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "数据库会保留此 YubiKey。保存更改时如果它闪烁，请轻触它。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "資料庫會保留此 YubiKey。儲存變更時如果它閃爍，請輕觸它。"
-          }
-        }
-      }
-    },
     "The database nests its groups or data too deeply to open." : {
       "localizations" : {
         "de" : {
@@ -74970,6 +74918,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上次嘗試未能開啟此功能。請前往 iOS 自動填寫設定並在其中啟用 KeeForge。"
+          }
+        }
+      }
+    },
+    "The master key changed, but KeeForge couldn't remember the database's YubiKey setting. Choose it under Hardware Key the next time you unlock." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Master-Schlüssel wurde geändert, aber KeeForge konnte die YubiKey-Einstellung der Datenbank nicht speichern. Wähle sie beim nächsten Entsperren unter „Hardwareschlüssel“."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clave maestra cambió, pero KeeForge no pudo recordar el ajuste de YubiKey de la base de datos. Elígelo en «Llave de hardware» la próxima vez que desbloquees."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clé principale a été modifiée, mais KeeForge n’a pas pu mémoriser le réglage YubiKey de la base de données. Choisissez-le sous « Clé matérielle » lors du prochain déverrouillage."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La chiave principale è stata cambiata, ma KeeForge non ha potuto memorizzare l'impostazione YubiKey del database. Sceglila in Chiave hardware al prossimo sblocco."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マスターキーは変更されましたが、KeeForge はデータベースの YubiKey 設定を保存できませんでした。次回のロック解除時に「ハードウェアキー」で選択してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мастер-ключ изменён, но KeeForge не удалось запомнить настройку YubiKey для базы данных. Выберите её в разделе «Аппаратный ключ» при следующей разблокировке."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主密钥已更改，但 KeeForge 无法记住数据库的 YubiKey 设置。请在下次解锁时于“硬件密钥”中选择它。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主金鑰已變更，但 KeeForge 無法記住資料庫的 YubiKey 設定。請在下次解鎖時於「硬體金鑰」中選擇它。"
           }
         }
       }
@@ -77011,6 +77011,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "YubiKey 在回應前被移開。請保持不動，直到資料庫開啟。"
+          }
+        }
+      }
+    },
+    "The YubiKey's slot must be set up for HMAC-SHA1 challenge-response. Without the YubiKey, the database can't be opened." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Slot des YubiKey muss für HMAC-SHA1-Challenge-Response eingerichtet sein. Ohne den YubiKey lässt sich die Datenbank nicht öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La ranura de la YubiKey debe estar configurada para desafío-respuesta HMAC-SHA1. Sin la YubiKey, la base de datos no se puede abrir."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’emplacement de la YubiKey doit être configuré pour le défi-réponse HMAC-SHA1. Sans la YubiKey, la base de données ne peut pas être ouverte."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo slot della YubiKey deve essere configurato per il challenge-response HMAC-SHA1. Senza la YubiKey, il database non può essere aperto."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey のスロットは HMAC-SHA1 チャレンジレスポンス用に設定されている必要があります。YubiKey がないとデータベースを開けません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слот YubiKey должен быть настроен для режима «запрос — ответ» HMAC-SHA1. Без YubiKey базу данных нельзя открыть."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 插槽必须设置为 HMAC-SHA1 质询-响应。没有此 YubiKey，将无法打开数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 插槽必須設定為 HMAC-SHA1 挑戰-回應。沒有此 YubiKey，將無法開啟資料庫。"
           }
         }
       }
@@ -83081,6 +83133,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Touch ID 或 Apple Watch 解鎖"
+          }
+        }
+      }
+    },
+    "Touch your YubiKey if it flashes while the change is saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Berühre deinen YubiKey, wenn er beim Speichern der Änderung blinkt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toca tu YubiKey si parpadea mientras se guarda el cambio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touchez votre YubiKey si elle clignote pendant l’enregistrement de la modification."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tocca la YubiKey se lampeggia mentre la modifica viene salvata."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更の保存中に YubiKey が点滅したらタッチしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Коснитесь YubiKey, если он замигает во время сохранения изменения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存更改时如果 YubiKey 闪烁，请轻触它。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存變更時如果 YubiKey 閃爍，請輕觸它。"
           }
         }
       }

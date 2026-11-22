@@ -227,6 +227,22 @@ struct DatabaseCreationView: View {
                 onCompletion: handleKeyFileCreation
             )
 
+            if viewModel.hardwareKeyOptions.isEmpty == false {
+                Section {
+                    Picker("Hardware Key", selection: $viewModel.hardwareKeyChoice) {
+                        Text("None").tag(HardwareKeyConfiguration?.none)
+                        ForEach(viewModel.hardwareKeyOptions, id: \.self) { option in
+                            Text(option.title).tag(Optional(option))
+                        }
+                    }
+                    .accessibilityIdentifier("database-create.hardware-key.picker")
+                } footer: {
+                    Text(viewModel.isAwaitingHardwareKey
+                        ? HardwareKeyService.prompt(for: viewModel.hardwareKeyChoice?.transport ?? .nfc)
+                        : String(localized: "The YubiKey's slot must be set up for HMAC-SHA1 challenge-response. Without the YubiKey, the database can't be opened."))
+                }
+            }
+
             Section {
                 Picker("Encryption", selection: $viewModel.cipher) {
                     ForEach(DatabaseCreationCipher.allCases) { cipher in

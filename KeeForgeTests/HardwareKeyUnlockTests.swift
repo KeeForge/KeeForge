@@ -177,13 +177,108 @@ final class HardwareKeyUnlockTests: XCTestCase {
                                      newKeyFileBookmarkData: nil, newKeyFileFilename: nil)
 
         XCTAssertEqual(requests.count, 2)
-        XCTAssertEqual(requests.first, requests.last, "The pinned challenge is asked again")
+        XCTAssertNotEqual(requests.first, requests.last, "The change draws a new salt for the key to answer")
+        let saved = try Data(contentsOf: try XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: reference)))
+        XCTAssertEqual(try ChallengeResponseKey.challenge(forDatabase: saved), requests.last)
         XCTAssertNil(vm.masterKeyComposition)
+        XCTAssertTrue(vm.sessionUsesHardwareKey)
         let reopened = makeViewModel(reference: reference) { challenge, _ in YubiKeyEmulator.response(to: challenge) }
         await reopened.unlock(password: "new-password")
         guard case .unlocked = reopened.state else {
             return XCTFail("Expected unlocked, got \(reopened.state) \(String(describing: reopened.openFailure))")
         }
+    }
+
+    func testAddingAYubiKeyToAPasswordDatabase() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let copy = directory.appendingPathComponent("test.kdbx")
+        try FileManager.default.copyItem(at: KDBXTestFixture.test.url(in: bundle), to: copy)
+        let reference = try TestDatabaseSupport.makeReference(for: copy)
+        DatabaseListStore.testUpsert(reference)
+        let vm = makeViewModel(reference: reference) { challenge, _ in YubiKeyEmulator.response(to: challenge) }
+        await vm.unlock(password: KDBXTestFixture.test.password)
+        XCTAssertFalse(vm.sessionUsesHardwareKey)
+
+        try await vm.changeMasterKey(newPassword: "with-yubikey", newKeyFileData: nil, newKeyFileBookmarkData: nil,
+                                     newKeyFileFilename: nil, newHardwareKey: .set(slotTwoOverNFC))
+
+        XCTAssertTrue(vm.sessionUsesHardwareKey)
+        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.hardwareKey, slotTwoOverNFC)
+        let updated = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        let passwordOnly = makeViewModel(reference: { var r = updated; r.hardwareKey = nil; return r }()) { _, _ in
+            XCTFail("No YubiKey configured"); return Data()
+        }
+        await passwordOnly.unlock(password: "with-yubikey")
+        if case .unlocked = passwordOnly.state { XCTFail("The password alone must not open it any more") }
+        let reopened = makeViewModel(reference: updated) { challenge, _ in YubiKeyEmulator.response(to: challenge) }
+        await reopened.unlock(password: "with-yubikey")
+        guard case .unlocked = reopened.state else {
+            return XCTFail("Expected unlocked, got \(reopened.state) \(String(describing: reopened.openFailure))")
+        }
+    }
+
+    func testRemovingTheYubiKeyLeavesAPasswordDatabase() async throws {
+        let reference = try makeWritableCopy()
+        let vm = makeViewModel(reference: reference) { challenge, _ in YubiKeyEmulator.response(to: challenge) }
+        await vm.unlock(password: fixture.password)
+
+        try await vm.changeMasterKey(newPassword: "no-yubikey", newKeyFileData: nil, newKeyFileBookmarkData: nil,
+                                     newKeyFileFilename: nil, newHardwareKey: .set(nil))
+
+        XCTAssertFalse(vm.sessionUsesHardwareKey)
+        let updated = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertNil(updated.hardwareKey)
+        let reopened = makeViewModel(reference: updated) { _, _ in XCTFail("No YubiKey any more"); return Data() }
+        await reopened.unlock(password: "no-yubikey")
+        guard case .unlocked = reopened.state else {
+            return XCTFail("Expected unlocked, got \(reopened.state) \(String(describing: reopened.openFailure))")
+        }
+    }
+
+    /// A database created with a YubiKey carries the salt the key answered
+    /// and opens with the password and that key only.
+    func testNewDatabaseWithAYubiKeyOpensWithIt() async throws {
+        var asked: [Data] = []
+        let creation = DatabaseCreationViewModel(
+            hardwareKeyTransports: [.nfc],
+            hardwareKeyResponse: { challenge, configuration in
+                XCTAssertEqual(configuration, self.slotTwoOverNFC)
+                asked.append(challenge)
+                return YubiKeyEmulator.response(to: challenge)
+            }
+        )
+        creation.databaseName = "With YubiKey"
+        creation.password = "created"
+        creation.confirmPassword = "created"
+        creation.hardwareKeyChoice = slotTwoOverNFC
+
+        let didPrepare = await creation.prepareForExport()
+
+        XCTAssertTrue(didPrepare, creation.creationError ?? creation.validationError ?? "")
+        let bytes = creation.preparedEncryptedBytes
+        XCTAssertEqual(asked, [try ChallengeResponseKey.challenge(forDatabase: bytes)])
+        let preKey = try KDBXCrypto.preKey(password: "created", keyFileData: nil)
+        XCTAssertThrowsError(try KDBXParser.parse(data: bytes, compositeKey: KDBXCrypto.compositeKey(password: "created"),
+                                                  sessionKey: SymmetricKey(size: .bits256), kdfPolicy: .mainApp))
+        let challenge = try ChallengeResponseKey.challenge(forDatabase: bytes)
+        let key = ChallengeResponseKey.compositeKey(preKey: preKey, response: YubiKeyEmulator.response(to: challenge),
+                                                    challenge: challenge)
+        XCTAssertNoThrow(try KDBXParser.parse(data: bytes, compositeKey: key, sessionKey: SymmetricKey(size: .bits256),
+                                              kdfPolicy: .mainApp))
+    }
+
+    func testNewDatabaseMayUseAYubiKeyAlone() async {
+        let creation = DatabaseCreationViewModel(hardwareKeyTransports: [.nfc]) { challenge, _ in
+            YubiKeyEmulator.response(to: challenge)
+        }
+        creation.databaseName = "YubiKey Only"
+        creation.hardwareKeyChoice = slotTwoOverNFC
+
+        let didPrepare = await creation.prepareForExport()
+
+        XCTAssertTrue(didPrepare, creation.creationError ?? creation.validationError ?? "")
     }
 
     func testYubiKeyAloneIsAValidNewMasterKey() async throws {
