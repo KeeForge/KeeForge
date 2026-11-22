@@ -630,20 +630,29 @@ final class HardwareKeyUnlockTests: XCTestCase {
         XCTAssertEqual(vm.failedAttempts, 0)
     }
 
-    func testKDBX31IsRefusedBeforeTheYubiKeyIsAsked() async throws {
-        var calledResponder = false
-        let vm = try makeViewModel(
-            fixture: .legacyKDBX31,
-            hardwareKey: slotTwoOverNFC
-        ) { _, _ in
-            calledResponder = true
-            return Data()
+    func testKDBX31OpensReadOnlyWithTheYubiKey() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("legacy-yubikey.kdbx")
+        let data = try KDBX31ChallengeResponseFixture.data(in: bundle)
+        try data.write(to: url)
+        var reference = try TestDatabaseSupport.makeReference(for: url)
+        reference.hardwareKey = slotTwoOverNFC
+        var challenges: [Data] = []
+        let vm = makeViewModel(reference: reference) { challenge, _ in
+            challenges.append(challenge)
+            return YubiKeyEmulator.response(to: challenge)
         }
 
         await vm.unlock(password: KDBXTestFixture.legacyKDBX31.password)
 
-        XCTAssertEqual(vm.openFailure?.errorCode, "hardware_key.unsupported_database")
-        XCTAssertFalse(calledResponder)
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked, got \(vm.state) \(String(describing: vm.openFailure))")
+        }
+        XCTAssertEqual(challenges, [try ChallengeResponseKey.challenge(forSalt: KDBXContainer.readHeader(from: data).masterSeed)])
+        XCTAssertTrue(vm.sessionUsesHardwareKey)
+        XCTAssertTrue(vm.isReadOnly)
     }
 
     /// Quick Launch stores the pre-key for a hardware-key database, so the

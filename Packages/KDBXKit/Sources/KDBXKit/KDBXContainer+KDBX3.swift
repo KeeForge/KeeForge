@@ -64,6 +64,7 @@ extension KDBXContainer {
     static func readKDBX3(
         data: Data,
         reader: inout DataReader,
+        challengeResponseKey: Data?,
         transformedKey provideTransformedKey: (KDBXVariantMap) throws -> Data
     ) throws -> Payload {
         let legacy = try LegacyHeader(reading: &reader)
@@ -78,7 +79,8 @@ extension KDBXContainer {
         let encryptedPayload = data.subdata(in: reader.offset..<data.count)
         let decrypted: Data
         do {
-            var keys = try MasterKeys(masterSeed: header.masterSeed, transformedKey: provideTransformedKey(header.kdfParameters))
+            var keys = try MasterKeys(masterSeed: header.masterSeed, transformedKey: provideTransformedKey(header.kdfParameters),
+                                      challengeResponseKey: challengeResponseKey)
             defer { keys.wipe() }
             decrypted = try cipher.decrypt(data: encryptedPayload, key: keys.masterKey, iv: header.encryptionIV)
         } catch KDBXCrypto.CryptoError.decryptionFailed {

@@ -134,6 +134,7 @@ enum ExpressUnlock {
         cachedKey: ExpressUnlockKey?,
         sessionKey: SymmetricKey,
         kdfPolicy: KDFExecutionPolicy,
+        kdbx3ChallengeResponseKey: Data? = nil,
         deriveKey: KeyDerivation = { try KDBXKeyDerivation.deriveKey(compositeKey: $0, parameters: $1, policy: $2) }
     ) throws -> Outcome {
         guard case .kdbx4 = try KDBXContainer.parseFileVersion(from: data) else {
@@ -141,7 +142,8 @@ enum ExpressUnlock {
                 data: data,
                 compositeKey: compositeKey,
                 sessionKey: sessionKey,
-                kdfPolicy: kdfPolicy
+                kdfPolicy: kdfPolicy,
+                kdbx3ChallengeResponseKey: kdbx3ChallengeResponseKey
             )
             return Outcome(
                 rootGroup: parsed.rootGroup,

@@ -1378,18 +1378,22 @@ final class DatabaseViewModel {
             await cacheDatabaseCopyForLocalDatabase(data, lease: readResult.cacheLease)
 
             let hardwareKey = databaseReference.hardwareKey
+            let hardwareKeyUnlock: HardwareKeyUnlock?
             let compositeKey: SymmetricKey
             let quickLaunchKey: SymmetricKey
             if let hardwareKey {
                 let preKey = try KDBXCrypto.preKey(password: password, keyFileData: keyFileData)
-                compositeKey = try await hardwareKeyCompositeKey(
+                let unlock = try await hardwareKeyCompositeKey(
                     preKey: preKey,
                     databaseData: data,
                     configuration: hardwareKey,
                     attempt: attempt
                 )
+                hardwareKeyUnlock = unlock
+                compositeKey = unlock.compositeKey
                 quickLaunchKey = preKey
             } else {
+                hardwareKeyUnlock = nil
                 compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
                 quickLaunchKey = compositeKey
             }
@@ -1400,7 +1404,7 @@ final class DatabaseViewModel {
                 compositeKey: compositeKey,
                 sessionKey: sessionKey,
                 expressKey: nil,
-                usesHardwareKey: hardwareKey != nil
+                hardwareKey: hardwareKeyUnlock
             )
 
             guard finishUnlockAttempt(attempt) else { return }
@@ -1485,7 +1489,7 @@ final class DatabaseViewModel {
             encryptedData = data
             cloudSyncStatus = readResult.cloudSyncStatus
             await cacheDatabaseCopyForLocalDatabase(data, lease: readResult.cacheLease)
-            let compositeKey = if let hardwareKey {
+            let hardwareKeyUnlock: HardwareKeyUnlock? = if let hardwareKey {
                 try await hardwareKeyCompositeKey(
                     preKey: storedKey,
                     databaseData: data,
@@ -1493,8 +1497,9 @@ final class DatabaseViewModel {
                     attempt: attempt
                 )
             } else {
-                storedKey
+                nil
             }
+            let compositeKey = hardwareKeyUnlock?.compositeKey ?? storedKey
             let sessionKey = SymmetricKey(size: .bits256)
 
             let unlockPayload = try await Self.openForUnlock(
@@ -1502,7 +1507,7 @@ final class DatabaseViewModel {
                 compositeKey: compositeKey,
                 sessionKey: sessionKey,
                 expressKey: quickUnlockKeys.expressKey,
-                usesHardwareKey: hardwareKey != nil
+                hardwareKey: hardwareKeyUnlock
             )
 
             // A superseded attempt unlocked nothing; the lock that ended it
@@ -5232,18 +5237,19 @@ final class DatabaseViewModel {
         compositeKey: SymmetricKey,
         sessionKey: SymmetricKey,
         expressKey: ExpressUnlockKey?,
-        usesHardwareKey: Bool
+        hardwareKey: HardwareKeyUnlock?
     ) async throws -> UnlockPayload {
         try await Task.detached(priority: .userInitiated) {
             // A hardware-key composite key carries the YubiKey response. Its
             // KDF output is never reused or stored, or quick unlock would
             // open the database without the YubiKey.
-            if usesHardwareKey {
+            if let hardwareKey {
                 let parsed = try KDBXParser.parse(
                     data: data,
                     compositeKey: compositeKey,
                     sessionKey: sessionKey,
-                    kdfPolicy: .mainApp
+                    kdfPolicy: .mainApp,
+                    kdbx3ChallengeResponseKey: hardwareKey.kdbx3Factor
                 )
                 return UnlockPayload(
                     rootGroup: parsed.rootGroup,
@@ -5660,7 +5666,7 @@ final class DatabaseViewModel {
         databaseData: Data,
         configuration: HardwareKeyConfiguration,
         attempt: UUID
-    ) async throws -> SymmetricKey {
+    ) async throws -> HardwareKeyUnlock {
         let challenge = try await Task.detached(priority: .userInitiated) {
             try ChallengeResponseKey.challenge(forDatabase: databaseData)
         }.value
@@ -5687,7 +5693,9 @@ final class DatabaseViewModel {
         defer { SecureWipe.wipe(&response) }
         // A success already queued when Cancel was tapped must not unlock.
         guard task.isCancelled == false else { throw HardwareKeyError.cancelled }
-        return ChallengeResponseKey.compositeKey(preKey: preKey, response: response, challenge: challenge)
+        return try ChallengeResponseKey.unlockKeys(
+            preKey: preKey, response: response, challenge: challenge, databaseData: databaseData
+        )
     }
 
     /// Whether `data` asks the same challenge `compositeKey` answered, so the

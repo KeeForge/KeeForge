@@ -43177,58 +43177,6 @@
         }
       }
     },
-    "KeeForge supports YubiKeys only for KDBX 4 databases. Turn off Hardware Key to open this database." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge unterstützt YubiKeys nur für KDBX-4-Datenbanken. Schalte „Hardwareschlüssel“ aus, um diese Datenbank zu öffnen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge solo admite YubiKey en bases de datos KDBX 4. Desactiva «Llave de hardware» para abrir esta base de datos."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge ne prend en charge les YubiKey que pour les bases de données KDBX 4. Désactivez « Clé matérielle » pour ouvrir cette base de données."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge supporta le YubiKey solo per i database KDBX 4. Disattiva Chiave hardware per aprire questo database."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge は KDBX 4 データベースでのみ YubiKey に対応しています。このデータベースを開くには「ハードウェアキー」をオフにしてください。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge поддерживает YubiKey только для баз данных KDBX 4. Выключите «Аппаратный ключ», чтобы открыть эту базу данных."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge 仅支持在 KDBX 4 数据库中使用 YubiKey。请关闭“硬件密钥”以打开此数据库。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge 僅支援在 KDBX 4 資料庫中使用 YubiKey。請關閉「硬體金鑰」以開啟此資料庫。"
-          }
-        }
-      }
-    },
     "KeeForge's Documents folder now appears in Finder and Windows File Sharing. Drop a .kdbx file there and it joins your database list automatically." : {
       "localizations" : {
         "de" : {
@@ -78133,6 +78081,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此資料庫中有資料遺失的附件。新檔案會佔用它們的位置，因此無法新增。"
+          }
+        }
+      }
+    },
+    "This database has no challenge a YubiKey can answer. Turn off Hardware Key to open this database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank hat keine Challenge, die ein YubiKey beantworten kann. Schalte „Hardwareschlüssel“ aus, um diese Datenbank zu öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos no tiene un desafío que una YubiKey pueda responder. Desactiva «Llave de hardware» para abrir esta base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données n’a aucun défi auquel une YubiKey peut répondre. Désactivez « Clé matérielle » pour ouvrir cette base de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo database non ha una challenge a cui una YubiKey possa rispondere. Disattiva Chiave hardware per aprire questo database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースには YubiKey が応答できるチャレンジがありません。このデータベースを開くには「ハードウェアキー」をオフにしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этой базе данных нет запроса, на который может ответить YubiKey. Отключите «Аппаратный ключ», чтобы открыть эту базу данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库没有 YubiKey 可以应答的质询。请关闭“硬件密钥”以打开此数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫沒有 YubiKey 可以回應的挑戰。請關閉「硬體金鑰」以開啟此資料庫。"
           }
         }
       }

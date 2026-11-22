@@ -63,6 +63,14 @@ enum HardwareKeyError: Error, Equatable, Sendable {
 /// instead of rotating it, and refuses to write any other
 /// (`kdfSaltRotation(compositeKey:)`, `checkWrite`). Otherwise the file would
 /// need a response nobody holds.
+/// The keys a YubiKey answer opens a file with. On KDBX 3.1 the response
+/// joins after the KDF, so `compositeKey` alone does not open the file and a
+/// session keeps no `kdbx3Factor`.
+struct HardwareKeyUnlock: Sendable {
+    let compositeKey: SymmetricKey
+    let kdbx3Factor: Data?
+}
+
 enum ChallengeResponseKey {
     private static let challengeLength = 64
     private static let pinnedChallenges = Mutex<[Data: Data]>([:])
@@ -70,16 +78,41 @@ enum ChallengeResponseKey {
     /// The challenge KeePassXC issues for `data`: the KDF salt (the AES-KDF
     /// seed), PKCS#7-padded to 64 bytes so fixed-length and variable-length
     /// slots agree.
+    /// On KDBX 3.1, KeePassXC challenges the master seed instead, which
+    /// changes on every save.
     static func challenge(forDatabase data: Data) throws -> Data {
-        guard case .kdbx4 = try KDBXContainer.parseFileVersion(from: data) else {
-            throw HardwareKeyError.unsupportedDatabase
+        let header = try KDBXContainer.readHeader(from: data)
+        guard case .kdbx4 = header.formatVersion else {
+            return try challenge(forSalt: header.masterSeed)
         }
         // KeePassXC writes KDBX 4 AES-KDF under the legacy UUID and reads it
         // back as its KDBX 4 AES-KDF, which takes the response like Argon2.
-        guard let salt = try KDBXContainer.readHeader(from: data).keyDerivation?.salt else {
+        guard let salt = header.keyDerivation?.salt else {
             throw HardwareKeyError.unsupportedDatabase
         }
         return try challenge(forSalt: salt)
+    }
+
+    /// The keys that open `databaseData` with `response`, the answer to its
+    /// `challenge`. KeePassXC's KDBX 3.1 runs the KDF on the plain composite
+    /// key `SHA256(preKey)` and joins `SHA256(response)` after it; those keys
+    /// are not pinned, as KDBX 3.1 files are never written.
+    static func unlockKeys(
+        preKey: SymmetricKey,
+        response: Data,
+        challenge: Data,
+        databaseData: Data
+    ) throws -> HardwareKeyUnlock {
+        guard case .kdbx4 = try KDBXContainer.parseFileVersion(from: databaseData) else {
+            return HardwareKeyUnlock(
+                compositeKey: preKey.withUnsafeBytes { SymmetricKey(data: CryptoKit.SHA256.hash(data: $0)) },
+                kdbx3Factor: FileDigest.sha256(response)
+            )
+        }
+        return HardwareKeyUnlock(
+            compositeKey: compositeKey(preKey: preKey, response: response, challenge: challenge),
+            kdbx3Factor: nil
+        )
     }
 
     static func challenge(forSalt salt: Data) throws -> Data {

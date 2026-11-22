@@ -1578,12 +1578,14 @@ final class CredentialProviderCoordinator {
         // it without the YubiKey.
         let usesExpressUnlock = databaseReference.hardwareKey == nil
         let cachedKey = usesExpressUnlock ? cachedExpressKey : nil
-        let compositeKey = if let hardwareKey = databaseReference.hardwareKey {
+        let hardwareKeyUnlock: HardwareKeyUnlock? = if let hardwareKey = databaseReference.hardwareKey {
             try await hardwareKeyCompositeKey(preKey: compositeKey, data: data, configuration: hardwareKey,
                                               generation: generation)
         } else {
-            compositeKey
+            nil
         }
+        let compositeKey = hardwareKeyUnlock?.compositeKey ?? compositeKey
+        let kdbx3Factor = hardwareKeyUnlock?.kdbx3Factor
         let deriveKey = keyDerivation
 
         let parsed = try await Task.detached {
@@ -1593,6 +1595,7 @@ final class CredentialProviderCoordinator {
                 cachedKey: cachedKey,
                 sessionKey: key,
                 kdfPolicy: .autoFillExtension,
+                kdbx3ChallengeResponseKey: kdbx3Factor,
                 deriveKey: deriveKey
             )
         }.value
@@ -1635,7 +1638,7 @@ final class CredentialProviderCoordinator {
         data: Data,
         configuration: HardwareKeyConfiguration,
         generation: Int
-    ) async throws -> SymmetricKey {
+    ) async throws -> HardwareKeyUnlock {
         let challenge = try await Task.detached(priority: .userInitiated) {
             try ChallengeResponseKey.challenge(forDatabase: data)
         }.value
@@ -1643,7 +1646,7 @@ final class CredentialProviderCoordinator {
         var response = try await hardwareKeyResponse(challenge, configuration)
         defer { SecureWipe.wipe(&response) }
         guard isRequestActive(generation) else { throw RequestNoLongerActive() }
-        return ChallengeResponseKey.compositeKey(preKey: preKey, response: response, challenge: challenge)
+        return try ChallengeResponseKey.unlockKeys(preKey: preKey, response: response, challenge: challenge, databaseData: data)
     }
 
     private static func kdfWriteRefusal(for header: KDBXContainer.Header) -> String? {
