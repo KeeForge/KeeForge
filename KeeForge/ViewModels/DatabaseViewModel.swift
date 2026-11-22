@@ -294,8 +294,8 @@ final class DatabaseViewModel {
         /// A newer copy reached the cache, but the YubiKey answered the old
         /// copy's challenge; only a fresh unlock can open the new one.
         case updateWaitsForUnlock
-        /// The cloud copy is current, but changes saved through AutoFill are
-        /// still queued on this device: the drainer could not deliver them.
+        /// The cloud copy is still the queued changes' base, but the drainer
+        /// could not deliver them; they stay queued on this device.
         case uploadsPending
         case failed(String)
 
@@ -310,7 +310,7 @@ final class DatabaseViewModel {
             case .updateWaitsForUnlock:
                 String(localized: "A newer copy was downloaded. Lock the database and unlock it again with your YubiKey to open it.")
             case .uploadsPending:
-                String(localized: "Changes saved through AutoFill couldn’t be uploaded yet. They’re still saved on this device.")
+                String(localized: "Some changes couldn’t be uploaded yet. They’re still saved on this device.")
             case .failed(let message):
                 message
             }
@@ -4810,11 +4810,17 @@ final class DatabaseViewModel {
         defer { isAdoptingChangedCloudCache = false }
 
         let cacheURL = DatabaseListStore.cacheLocation(for: observedReference)
-        let cached = await Task.detached(priority: .userInitiated) { () -> (data: Data, sha512: Data)? in
-            guard let data = try? CoordinatedFileReader.readData(from: cacheURL) else { return nil }
-            return (data, FileDigest.sha512(data))
+        // The commit lock is held by every save that replaces the cache and
+        // publishes its head, so the bytes and the stored head read together.
+        let cached = await Task.detached(priority: .userInitiated) { () -> (data: Data, sha512: Data, stored: DatabaseReference)? in
+            try? PendingUploadQueue.withCommitLock(for: observedReference.id) {
+                guard let stored = DatabaseListStore.databases.first(where: { $0.id == observedReference.id }) else { return nil }
+                let data = try CoordinatedFileReader.readData(from: cacheURL)
+                return (data, FileDigest.sha512(data), stored)
+            }
         }.value
         guard let cached, cached.sha512 != observedOpenTimeSHA512,
+              Self.cloudIdentityMatches(cached.stored, observedReference),
               lockCycleID == expectedLockCycleID, case .unlocked = state,
               databaseReference == observedReference, openTimeSHA512 == observedOpenTimeSHA512,
               isSyncingCloud == false, isSaving == false, isDirty == false, hasUnsavedEditor == false,
@@ -4840,15 +4846,29 @@ final class DatabaseViewModel {
         }
         guard lockCycleID == expectedLockCycleID else { return false }
 
-        let currentReference = databaseReference
+        // The stored head and revision describe the adopted bytes, as on unlock.
+        var adoptedReference = databaseReference
+        adoptedReference.source = cached.stored.source
         isReplacingOpenDatabase = false
         applyReloadedDatabase(reloaded)
-        databaseReference = currentReference
+        databaseReference = adoptedReference
         state = .unlocked
         synchronizeSelections()
         refreshCredentialStoreForCurrentTreeIfNeeded()
         refreshPendingUploadState()
         return true
+    }
+
+    /// Same cloud file and master-key epoch: a rekey or relink elsewhere
+    /// needs a fresh unlock, not an adopted cache.
+    private static func cloudIdentityMatches(_ stored: DatabaseReference, _ session: DatabaseReference) -> Bool {
+        guard let storedMetadata = stored.cloudSyncMetadata, let sessionMetadata = session.cloudSyncMetadata else { return false }
+        return stored.id == session.id
+            && storedMetadata.provider == sessionMetadata.provider
+            && storedMetadata.accountId == sessionMetadata.accountId
+            && storedMetadata.fileId == sessionMetadata.fileId
+            && storedMetadata.keyEpoch == sessionMetadata.keyEpoch
+            && stored.lastMasterKeyChangeAt == session.lastMasterKeyChangeAt
     }
 
     func waitForInFlightSave() async {

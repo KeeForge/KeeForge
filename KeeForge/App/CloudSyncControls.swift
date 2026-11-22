@@ -29,7 +29,7 @@ struct CloudSyncControls: View {
         showsPendingUploadNote(for: viewModel) && viewModel.cloudSyncOutcome != .uploadsPending
     }
 
-    static var pendingUploadDetail: String { String(localized: "Changes saved through AutoFill are on this device and haven’t been uploaded yet.") }
+    static var pendingUploadDetail: String { String(localized: "Some changes are saved on this device but haven’t been uploaded yet.") }
 
     static func title(for viewModel: DatabaseViewModel) -> String {
         let providerName = viewModel.databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")

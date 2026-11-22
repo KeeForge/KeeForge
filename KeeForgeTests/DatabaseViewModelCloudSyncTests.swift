@@ -2095,8 +2095,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         await gate.open()
         await syncTask.value
         XCTAssertEqual(refreshRecorder.references.count, 2)
-        XCTAssertEqual(vm.cloudSyncOutcome, .updateWaitsForSave)
-        XCTAssertNotNil(vm.saveConflict)
+        XCTAssertEqual(vm.cloudSyncOutcome, .uploadsPending, "Remote bytes still at the save's base are no conflict")
+        XCTAssertNil(vm.saveConflict)
         XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
         XCTAssertEqual(try Data(contentsOf: cacheURL), saved)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(saved))
@@ -2214,8 +2214,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertEqual(marker.marker.predecessorOperationID, first.id)
         XCTAssertEqual(marker.marker.expectedRev, reference.expectedCloudRevision)
         XCTAssertEqual(refreshRecorder.references.count, 2)
-        XCTAssertEqual(vm.cloudSyncOutcome, .updateWaitsForSave)
-        XCTAssertNotNil(vm.saveConflict)
+        XCTAssertEqual(vm.cloudSyncOutcome, .uploadsPending, "Remote bytes still at the saves' base are no conflict")
+        XCTAssertNil(vm.saveConflict)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(saved))
         XCTAssertTrue(entryTitles(in: vm).isSuperset(of: ["Saved Mid-Sync", "Late Edit"]))
         XCTAssertTrue(try Self.entryTitles(in: saved, password: fixturePassword).isSuperset(of: ["Saved Mid-Sync", "Late Edit"]))
@@ -2606,7 +2606,10 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
         XCTAssertEqual(vm.state, .unlocked)
 
+        var phase = "autofill-save"
+        do {
         try await saveThroughAutoFill(title: "Created in AutoFill", reference: reference)
+        phase = "first-delivery"
         try await deliverPendingUploads(for: reference, to: remote)
         XCTAssertTrue(try Self.entryTitles(in: remote.currentBytes, password: fixturePassword).contains("Created in AutoFill"))
         XCTAssertFalse(entryTitles(in: vm).contains("Created in AutoFill"))
@@ -2622,13 +2625,21 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertFalse(unchanged, "An unchanged cache must not be parsed again")
 
         // The next app save builds on the AutoFill change instead of conflicting with it.
+        phase = "app-edit"
         try vm.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(vm.visibleRootGroupID),
             draft: EntryDraftPayload(title: "Saved in App", password: "p")))
+        phase = "app-save"
         try await vm.save()
         XCTAssertNil(vm.saveConflict)
+        phase = "second-delivery"
         try await deliverPendingUploads(for: reference, to: remote)
+        phase = "remote-titles"
         XCTAssertTrue(try Self.entryTitles(in: remote.currentBytes, password: fixturePassword)
             .isSuperset(of: ["Created in AutoFill", "Saved in App"]))
+        } catch {
+            XCTFail("\(phase): \(error)")
+            throw error
+        }
     }
 
     func testSessionStoreAdoptsTheAutoFillEntryWhenTheDrainReportsTheDatabase() async throws {
