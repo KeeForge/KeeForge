@@ -163,7 +163,7 @@ function contentPage({ origin = 'https://example.com', readyState = 'complete', 
     querySelectorAll: selector => withInput && selector === 'input' ? [input] : [], getElementsByTagName: () => (withInput ? [input] : []) };
   input.ownerDocument = document;
   let runtimeListener;
-  const context = { document, HTMLInputElement: Input, innerWidth: 800, innerHeight: 600, crypto, origin, location: { href: 'https://example.com/', origin },
+  const context = { document, Element: class { get shadowRoot() { return this.openRoot ?? null; } }, HTMLInputElement: Input, innerWidth: 800, innerHeight: 600, crypto, origin, location: { href: 'https://example.com/', origin },
     getComputedStyle: node => ({ display: 'block', visibility: 'visible', opacity: '1', direction: 'ltr', backgroundColor: 'rgb(255, 255, 255)', colorScheme: 'normal', color: 'rgba(0, 0, 0, 0)', ...styles.get(node) }),
     performance: { now: () => 1000 }, MutationObserver: class { constructor(fn) { this.fn = fn; observers.push(this); } observe(target, options) { this.options = options; } disconnect() { this.off = true; } },
     setTimeout: () => 1, clearTimeout() {}, setInterval: () => assert.fail('no interval'), requestAnimationFrame: callback => callbacks.push(callback),
@@ -192,13 +192,25 @@ test('classic content script contains the exact shared fill function, registers 
   assert.deepEqual(page.requests, []);
   assert.ok(page.observers[0].options.attributeFilter.includes('style'));
 });
-test('a document without inputs gets no host, observer or timer until an input appears', async () => {
+test('a document without inputs gets no host or update loop until an input appears', async () => {
   const page = contentPage({ withInput: false });
   vm.runInNewContext(await contentSource(), page.context);
   page.frames();
   assert.equal(page.html.children.length, 0);
   assert.equal(page.observers.length, 1); assert.equal(JSON.stringify(page.observers[0].options), '{"childList":true,"subtree":true}');
   page.observers[0].fn([]); assert.equal(page.html.children.length, 0);
+});
+test('an input that exists only inside an open shadow root wakes the script, and its root is observed', async () => {
+  const page = contentPage({ withInput: false });
+  const root = { querySelectorAll: () => [], querySelector: () => null }, shadowHost = { openRoot: root };
+  page.document.querySelectorAll = selector => selector === '*' ? [shadowHost] : [];
+  vm.runInNewContext(await contentSource(), page.context); page.frames();
+  // The empty root is watched by the gate; nothing is drawn yet.
+  assert.equal(page.html.children.length, 0); assert.equal(page.observers.length, 1);
+  root.querySelector = selector => selector === 'input' ? page.input : null;
+  page.fire('load'); page.frames();
+  assert.equal(page.html.children.length, 1); assert.equal(page.observers[0].off, true);
+  assert.deepEqual(page.requests, []);
 });
 test('sandboxed (opaque-origin) frames get nothing at all', async () => {
   const page = contentPage({ origin: 'null' });
@@ -256,7 +268,10 @@ test('the menu closes when its field or frame moves, its host is restyled, or it
 });
 test('outside pointerdown and Escape close the menu; Alt+Down opens it from the field', async () => {
   const { page, host, frame } = await openContentMenu();
+  assert.equal(page.context.__keeforgeTouched, undefined);
+  page.fire('keydown', { isTrusted: false, composedPath: () => [host] }); page.fire('focusin', { isTrusted: true, composedPath: () => [host] }); assert.equal(page.context.__keeforgeTouched, undefined);
   page.fire('pointerdown', { isTrusted: true, composedPath: () => [host] }); assert.equal(frame.isConnected, true);
+  assert.equal(typeof page.context.__keeforgeTouched, 'number');
   page.fire('pointerdown', { isTrusted: true, composedPath: () => [page.document.body] }); assert.equal(frame.isConnected, false);
   page.fire('keydown', { isTrusted: true, key: 'ArrowDown', altKey: true, composedPath: () => [page.input], preventDefault() {} }); await settle();
   const second = host.root.children.filter(node => node.tag === 'iframe').at(-1);

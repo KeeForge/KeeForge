@@ -53,7 +53,7 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
   const fields = inputs.filter(input => input instanceof HTMLInputElement && allowed(input) && (visible(input) || (input.type === 'password' && input.readOnly && visible(input, true))));
   let active = document.activeElement;
   while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
-  if (probing && !['fields', 'kind'].includes(mode)) return { focused: document.hasFocus() && fields.includes(active), fillable: fields.length > 0, token: globalThis[pinKey] };
+  if (probing && !['fields', 'kind'].includes(mode)) return { focused: document.hasFocus() && fields.includes(active), active: fields.includes(active), touched: globalThis.__keeforgeTouched ?? 0, fillable: fields.length > 0, token: globalThis[pinKey] };
   const hint = (input, token) => (input.autocomplete || '').toLowerCase().split(/\s+/).includes(token);
   const text = input => ['text', 'email', 'tel', ''].includes(input.type) && !hint(input, 'current-password') && !hint(input, 'new-password');
   // A user-name field with no password in its form is the first step of a two-step sign-in: it gets the user name only.

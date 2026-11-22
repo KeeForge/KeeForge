@@ -386,7 +386,26 @@ try {
   }
   await waitFor(async () => (await values(cross.session)).p === 'mock-password', 'cross-frame fill');
   check('cross-origin frame fills only that frame', (await evaluate(framed.session, `document.getElementById('same').contentDocument.getElementById('p').value`)) === '');
+  // The toolbar popup takes focus from the page; the frame whose field the user last clicked must still be the target.
+  await send('Target.activateTarget', { targetId: framed.targetId });
+  const crossField = await rect(cross.session, '#p');
+  await click(framed.session, offset[0] + (crossField.left + crossField.right) / 2 - 30, offset[1] + (crossField.top + crossField.bottom) / 2);
+  await waitFor(() => evaluate(cross.session, `document.activeElement?.id === 'p'`), 'cross-frame field focus');
+  const matchesBefore = (await requests('matches')).length;
+  await evaluate(sw, `chrome.action.openPopup()`);
+  const framePopup = await waitFor(async () => (await send('Target.getTargets')).targetInfos.find(t => t.url === extension + 'popup.html'), 'popup over frames');
+  const framePopupSession = await attach(framePopup.targetId);
+  await waitFor(async () => (await text(framePopupSession)).includes('Example'), 'popup rows for the clicked frame');
+  check('toolbar popup targets the child frame whose field was last clicked', (await requests('matches')).length > matchesBefore && (await requests('matches')).at(-1).origin === `http://localhost:${port}`, `page focus while popup is open: ${await evaluate(cross.session, 'document.hasFocus()')}`);
+  await closePopup({ targetId: framePopup.targetId });
 
+  // Fields that exist only inside an open shadow root, rendered after load, get buttons with no focus or pointer event.
+  const shadowed = await tab(`${secure}/inline-shadow.html`);
+  await waitFor(async () => (await visibleButtons(shadowed.session)).length === 2, 'buttons for a late login inside an open shadow root');
+  check('open shadow root: a login rendered after load gets its buttons without any interaction', true);
+  await waitFor(async () => (await visibleButtons(shadowed.session)).length === 3, 'button for a field added inside the shadow root later');
+  check('open shadow root: a field added later inside the root gets its button without any interaction', true);
+  await send('Target.closeTarget', { targetId: shadowed.targetId });
   // Top layer: fields in a modal dialog, a popover and a fullscreen element get working buttons (real clicks).
   const dialog = await tab(`${secure}/inline-dialog.html`);
   check('modal dialog: buttons only inside the dialog, not on the inert page behind it', !!(await buttonFor(dialog.session, '#u')) && !(await buttonFor(dialog.session, '#behind')));

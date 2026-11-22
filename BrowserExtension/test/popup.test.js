@@ -34,6 +34,9 @@ test('code fills request only ids plus code flag and failure leaves no rows', as
 test('frame choice table: focused fillable frame, otherwise top, ignoring errors and unfocused children', () => {
   const p = (frameId, focused, fillable) => ({ frameId, result: { focused, fillable } });
   for (const [probes, expected] of [[[], 0], [[p(0,false,true), p(2,false,true)],0], [[p(0,false,false),p(2,true,true)],2], [[p(0,false,true),p(2,true,false)],0], [[p(0,true,true),p(2,false,true)],0], [[{...p(2,true,true),error:'denied'}],0]]) assert.equal(chooseFrame(probes), expected);
+  const q = (frameId, touched, active, fillable = true) => ({ frameId, result: { focused: false, active, touched, fillable } });
+  // No live focus (the popup took it): the last-touched frame wins only while a field is still its active element.
+  for (const [probes, expected] of [[[q(0,5,false), q(2,9,true)],2], [[q(0,9,false), q(2,5,true)],0], [[q(0,0,false), q(2,0,true)],0], [[q(0,5,true), q(2,9,true,false)],0], [[q(0,5,true), q(2,9,false)],0], [[q(0,1,false,false), q(3,7,true), q(2,4,true)],3]]) assert.equal(chooseFrame(probes), expected);
 });
 test('fill rejection becomes a readable error, clears rows, and never closes successfully', async () => {
   const model = new PopupState(async () => { throw new Error('disconnected'); });

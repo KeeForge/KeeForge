@@ -157,7 +157,7 @@ async function cases(cdp, port) {
 
   await withTab('/login.html', async (tab, world) => {
     const probe = await world.call();
-    check('plain login: probe', { focused: false, fillable: true, token: 64 }, { ...probe, token: probe.token?.length });
+    check('plain login: probe', { focused: false, active: false, touched: 0, fillable: true, token: 64 }, { ...probe, token: probe.token?.length });
     check('plain login: fill result', login, await fill(world, probe.token));
     check('plain login: page values', { u: 'alice', p: 's3cret-pw' }, await values(tab, ['u', 'p']));
   });

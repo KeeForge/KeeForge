@@ -55,7 +55,7 @@ function fillDocument(expectedOrigin, credential, codeOnly = false, expectedToke
   const fields = inputs.filter(input => input instanceof HTMLInputElement && allowed(input) && (visible(input) || (input.type === 'password' && input.readOnly && visible(input, true))));
   let active = document.activeElement;
   while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
-  if (probing && !['fields', 'kind'].includes(mode)) return { focused: document.hasFocus() && fields.includes(active), fillable: fields.length > 0, token: globalThis[pinKey] };
+  if (probing && !['fields', 'kind'].includes(mode)) return { focused: document.hasFocus() && fields.includes(active), active: fields.includes(active), touched: globalThis.__keeforgeTouched ?? 0, fillable: fields.length > 0, token: globalThis[pinKey] };
   const hint = (input, token) => (input.autocomplete || '').toLowerCase().split(/\s+/).includes(token);
   const text = input => ['text', 'email', 'tel', ''].includes(input.type) && !hint(input, 'current-password') && !hint(input, 'new-password');
   // A user-name field with no password in its form is the first step of a two-step sign-in: it gets the user name only.
@@ -232,6 +232,7 @@ iframe{position:fixed;z-index:1;pointer-events:auto;border:0;border-radius:10px;
 }
 function scan() {
   lastScan = performance.now();
+  watchRoots(observer, OBSERVED);
   const found = fillDocument(undefined, undefined, false, undefined, 'fields');
   const layer = layerFor(found);
   fields = layer === document.documentElement || layer.matches(':popover-open') ? found : found.filter(field => inside(layer, field));
@@ -280,23 +281,53 @@ function later() { if (!throttle) throttle = setTimeout(() => { throttle = 0; sc
 function mutated(records) {
   if (records.some(record => record.type === 'childList' || relevant(record.target))) nudge(); else later();
 }
-// Pages with no input get no host, observer or timer until one appears.
+const OBSERVED = { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'hidden', 'type', 'autocomplete', 'readonly', 'disabled', 'inert', 'open', 'popover', 'dir', 'id', 'name'] };
+const shadowOf = Object.getOwnPropertyDescriptor(Element.prototype, 'shadowRoot').get;
+let watched = new WeakSet(), gateTimer = 0;
+// A document observer does not see inside open shadow roots: watch each one found (at most 100) and say whether any holds an input.
+function watchRoots(target, options) {
+  let found = false, count = 0;
+  const walk = root => {
+    for (const node of root.querySelectorAll('*')) {
+      const inner = shadowOf.call(node);
+      if (!inner || ++count > 100) continue;
+      if (!watched.has(inner)) { watched.add(inner); target.observe(inner, options); }
+      if (inner.querySelector('input')) found = true;
+      walk(inner);
+    }
+  };
+  walk(document);
+  return found;
+}
+// Pages with no input get no host or update loop until one appears.
 function activate() {
   if (active || stopped || !document.documentElement) return;
   active = true; gate?.disconnect(); createHost();
+  watched = new WeakSet();
   observer = new MutationObserver(mutated);
-  observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'hidden', 'type', 'autocomplete', 'readonly', 'disabled', 'inert', 'open', 'popover', 'dir', 'id', 'name'] });
+  observer.observe(document.documentElement, OBSERVED);
   globalThis.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', () => { lastScan = -Infinity; nudge(); });
   nudge();
 }
 function init() {
   if (active || stopped) return;
   if (inputs.length) { activate(); return; }
-  if (!gate && document.documentElement) { gate = new MutationObserver(() => { if (inputs.length) activate(); }); gate.observe(document.documentElement, { childList: true, subtree: true }); }
+  if (!document.documentElement) return;
+  const options = { childList: true, subtree: true };
+  const deep = () => { if (!active && !stopped && (inputs.length || watchRoots(gate, options))) activate(); };
+  if (!gate) {
+    // Light-DOM inputs wake at once; the walk into shadow roots runs at most twice a second.
+    gate = new MutationObserver(() => { if (inputs.length) activate(); else if (!gateTimer) gateTimer = setTimeout(() => { gateTimer = 0; deep(); }, 500); });
+    gate.observe(document.documentElement, options);
+  }
+  deep();
 }
 // Registered at document_start so these run before any listener a page adds and cannot be stopped by it.
 const on = (type, listener) => addEventListener(type, event => { if (!stopped) listener(event); }, true);
 on('DOMContentLoaded', init); on('load', init);
+// The popup's frame choice reads this: the frame the user last clicked or typed in. Script focus and synthetic events do not count.
+const touch = event => { if (event.isTrusted) globalThis.__keeforgeTouched = Date.now(); };
+on('pointerdown', touch); on('keydown', touch);
 on('focusin', event => {
   const target = event.composedPath()[0];
   if (target instanceof HTMLInputElement) { activate(); if (!buttons.has(target)) lastScan = -Infinity; }

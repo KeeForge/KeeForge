@@ -75,6 +75,8 @@ test('frame probe reports focus, fillability and an opaque token, never location
   page([input], input); document.hasFocus = () => true;
   assert.equal(probeFrame().focused, true); assert.equal(probeFrame().fillable, true);
   document.hasFocus = () => false; assert.equal(probeFrame().focused, false); assert.equal(probeFrame().fillable, true);
+  assert.equal(probeFrame().active, true); assert.equal(probeFrame().touched, 0);
+  globalThis.__keeforgeTouched = 42; assert.equal(probeFrame().touched, 42); delete globalThis.__keeforgeTouched;
   input.disabled = true; assert.equal(probeFrame().focused, false); assert.equal(probeFrame().fillable, false);
 });
 
