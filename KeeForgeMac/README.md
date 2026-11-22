@@ -369,8 +369,8 @@ Allow the pairing only when the code in the alert matches the one in the
 browser's pairing tab. Then click the key button the extension draws in a login
 or verification-code field (or press Option-Down there), or its toolbar button,
 and choose a login. Release
-builds can set up Firefox only until the Chromium store extension ID is added to
-`BrowserBridgeIdentifiers.swift`; debug builds also allow the development ID.
+builds allow the Chrome Web Store extension ID (`BrowserBridgeIdentifiers.swift`);
+debug builds also allow the development ID.
 `MacBrowserBridgeUITests` (the embedded host without a browser) and
 `MacBrowserExtensionUITests` (the extension in real headless Chrome through
 that host) pass against a development-signed build on the owner's test Mac,

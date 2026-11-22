@@ -221,12 +221,12 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
   Firefox archives under the ignored `BrowserExtension/build/`. The `browser-extension` CI job is
   not a candidate-manifest gate, and `MacBrowserBridgeUITests` and `MacBrowserExtensionUITests`
   are available on the owner's test Mac but are not release gates; making any of them a gate is an
-  owner decision. No release step publishes the archives, and no Chrome Web Store or Firefox
-  Add-ons listing exists. Release builds of the Mac app allow no Chromium extension ID
-  (`BrowserHost/BrowserBridgeIdentifiers.swift`), so Settings ▸ Browsers cannot set up Chromium
-  browsers in a candidate, an open release blocker (`KeeForgeMac/SECURITY.md`).
-  Store publication and that ID are open owner decisions; raise them at the release-content review
-  before any copy announces the extension.
+  owner decision. No release step publishes the archives. The Chrome Web Store item exists as an
+  unpublished draft (ID `jlnelpagadpmiinbcoiiakneicmdplda`, which release builds of the Mac app allow in
+  `BrowserHost/BrowserBridgeIdentifiers.swift`); no Firefox Add-ons listing exists. Publishing
+  either store listing is an owner decision; raise it at the release-content review before any
+  copy announces the extension, and do not publish the Chrome item before a release that allows
+  its ID.
 - `ITSAppUsesNonExemptEncryption=false` is declared in both `KeeForge/Info.plist` and
   `KeeForgeMac/Info.plist`; ASC may resolve the build declaration from metadata, but the actual
   platform record must be verified. Any separate legal/documentation question remains independent

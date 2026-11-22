@@ -91,7 +91,7 @@ The mock uses disposable demo credentials only; do not point it at real database
 
 ## Development ID
 
-`manifest.json` carries a `key` so an unpacked copy always loads in Chromium browsers as `pihelgeaeflnpjjdajbdmfmcpgeoefbf`; debug builds of KeeForge allow that ID. Nobody holds the private half, so it cannot sign a package, and `tools/build.sh` removes the key from the store archives. Release builds of KeeForge allow only the store-assigned ID.
+`manifest.json` carries a `key` so an unpacked copy always loads in Chromium browsers as `pihelgeaeflnpjjdajbdmfmcpgeoefbf`; debug builds of KeeForge allow that ID. Nobody holds the private half, so it cannot sign a package, and `tools/build.sh` removes the key from the store archives. Release builds of KeeForge allow only the Chrome Web Store ID, `jlnelpagadpmiinbcoiiakneicmdplda`.
 
 ## Real-browser checks
 

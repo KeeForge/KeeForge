@@ -263,6 +263,15 @@ final class BrowserHostInstallerTests: XCTestCase {
         XCTAssertNoThrow(try subject.manifest(for: .firefox))
     }
 
+    func testEveryBuildAllowsTheChromeWebStoreExtension() {
+        let store = "chrome-extension://jlnelpagadpmiinbcoiiakneicmdplda/"
+        XCTAssertEqual(BrowserBridgeIdentifiers.chromiumExtensionOrigins.first, store)
+        // A Chromium extension ID is 32 letters a–p; anything else would never match the browser's caller origin.
+        for origin in BrowserBridgeIdentifiers.chromiumExtensionOrigins {
+            XCTAssertNotNil(origin.wholeMatch(of: /chrome-extension:\/\/[a-p]{32}\//), origin)
+        }
+    }
+
     func testSymlinkedManifestNeverFollowed() async throws {
         let directory = try prepare()
         let subject = installer()

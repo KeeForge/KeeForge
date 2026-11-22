@@ -845,9 +845,9 @@ Chrome, right-to-left layouts, the menu inside a modal dialog
 as drawn, the back/forward cache and a background restart while Touch ID
 waits, store-signed extensions and a distribution-signed app (including
 whether macOS container protection prompts for or refuses an unsandboxed
-process that connects to the socket), the Chromium store extension ID (none is
-configured, so release builds refuse to set up Chromium browsers: an open
-release blocker for Chromium-family browsers until the store assigns an ID), and whether
+process that connects to the socket), a store-installed Chromium extension (release builds
+allow the Chrome Web Store ID, but the item is not published, so no store copy
+has connected), and whether
 the pairing alert comes forward over a browser. The same-user peer check has no
 test with a peer of another user.
 
