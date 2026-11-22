@@ -404,7 +404,7 @@ final class MacEntryListModelTests: XCTestCase {
         XCTAssertTrue(summary.canMove)
         XCTAssertTrue(summary.canDelete)
 
-        session.sortOrder = .unsorted
+        session.sortOrder = .databaseOrder
         let fileOrder = try XCTUnwrap(MacEntrySelectionSummary.make(session: session))
         XCTAssertEqual(fileOrder.subtitle, "Account b and Account A · Work")
         XCTAssertEqual(fileOrder.iconEntryIDs, [fixture.work.entries[0].id, fixture.work.entries[1].id])

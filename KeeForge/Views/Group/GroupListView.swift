@@ -157,9 +157,13 @@ struct GroupListView: View {
                                         }
                                     }
 
-                                    Picker("Sort Direction", selection: $viewModel.sortAscending) {
-                                        Text("Ascending").tag(true)
-                                        Text("Descending").tag(false)
+                                    // No selection under Database Order, so neither direction shows a checkmark.
+                                    Picker("Sort Direction", selection: Binding<Bool?>(
+                                        get: { viewModel.sortOrder.usesDirection ? viewModel.sortAscending : nil },
+                                        set: { if let ascending = $0 { viewModel.sortAscending = ascending } }
+                                    )) {
+                                        Text("Ascending").tag(Bool?.some(true))
+                                        Text("Descending").tag(Bool?.some(false))
                                     }
                                     .disabled(!viewModel.sortOrder.usesDirection)
                                 } label: {

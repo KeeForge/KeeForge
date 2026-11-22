@@ -24673,6 +24673,59 @@
         }
       }
     },
+    "Database Order" : {
+      "comment" : "Sort option that keeps the order stored in the database file.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbankreihenfolge"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orden de la base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordre de la base de données"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordine del database"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースの順序"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Порядок в базе данных"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库顺序"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫順序"
+          }
+        }
+      }
+    },
     "Database Permission Needed" : {
       "localizations" : {
         "de" : {
@@ -67411,6 +67464,59 @@
         }
       }
     },
+    "Shows items in the order they’re stored in the database, as in other KeePass apps." : {
+      "comment" : "Footnote under the default sort order while Database Order is selected.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeigt Elemente in der Reihenfolge, in der sie in der Datenbank gespeichert sind, wie in anderen KeePass-Apps."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muestra los elementos en el orden en que están guardados en la base de datos, como en otras apps de KeePass."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Affiche les éléments dans l'ordre où ils sont enregistrés dans la base de données, comme dans les autres apps KeePass."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostra gli elementi nell'ordine in cui sono salvati nel database, come nelle altre app KeePass."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "他の KeePass App と同様に、データベースに保存されている順序で項目を表示します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывает элементы в том порядке, в котором они хранятся в базе данных, как в других приложениях KeePass."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按项目在数据库中的存储顺序显示，与其他 KeePass App 相同。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依項目在資料庫中的儲存順序顯示，與其他 KeePass App 相同。"
+          }
+        }
+      }
+    },
     "Shows why this database needs attention" : {
       "localizations" : {
         "de" : {
@@ -85128,59 +85234,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尚未儲存的更改"
-          }
-        }
-      }
-    },
-    "Unsorted" : {
-      "comment" : "Sort option that keeps the order stored in the database file.",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unsortiert"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sin ordenar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Non trié"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Non ordinato"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "並べ替えなし"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Без сортировки"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不排序"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不排序"
           }
         }
       }

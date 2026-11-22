@@ -5,11 +5,12 @@
 ### New Features
 
 - On Mac, fill logins in your web browser with the KeeForge browser extension (#299). Turn on Settings → Browsers → "Allow browser extensions to fill from KeeForge", set up each browser there, then install the extension and pair it by checking that the code in the browser matches the one KeeForge shows. Click the key button the extension puts in a login or verification-code field (or press Option-Down there), or the extension's toolbar button, to see the logins that match the site you're on; choosing one fills it after Touch ID or your Mac password, in a prompt that names the login and the site (no prompt inside your authentication grace period). To show the key button, the extension asks to read and change pages on all secure (`https`) websites. Settings → Browsers lists paired browsers and removes them. The bridge is off until you turn it on.
-- Add an Unsorted sort option that lists groups and entries in the order the database file stores them, as KeePass's "No Sort" does.
+- Add a Database Order sort option that lists groups and entries in the order they’re stored in the database, as in other KeePass apps.
 - Retain encrypted cloud saves for recovery, queue cached changes durably, and avoid automatically resending uncertain replacement requests.
 
 ### Changes
 
+- Display settings on iPhone and iPad show the Entry List sort options before Privacy.
 - Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
 - AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
 

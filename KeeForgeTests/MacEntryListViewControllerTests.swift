@@ -180,10 +180,12 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         XCTAssertEqual(states(), DatabaseViewModel.SortOrder.allCases.map { $0 == .modifiedDate } + [false, true])
         XCTAssertTrue(header.sortDirectionItems.allSatisfy(\.isEnabled))
 
-        try perform(XCTUnwrap(header.sortOrderItems.first { $0.representedObject as? String == DatabaseViewModel.SortOrder.unsorted.rawValue }))
-        XCTAssertEqual(session.sortOrder, .unsorted)
+        try perform(XCTUnwrap(header.sortOrderItems.first { $0.representedObject as? String == DatabaseViewModel.SortOrder.databaseOrder.rawValue }))
+        XCTAssertEqual(session.sortOrder, .databaseOrder)
         await settle()
-        XCTAssertFalse(header.sortDirectionItems.contains(where: \.isEnabled), "File order has no direction")
+        XCTAssertFalse(header.sortDirectionItems.contains(where: \.isEnabled), "Database Order has no direction")
+        XCTAssertEqual(states(), DatabaseViewModel.SortOrder.allCases.map { $0 == .databaseOrder } + [false, false],
+                       "Neither disabled direction keeps a checkmark")
         session.sortOrder = .modifiedDate
         await settle()
 

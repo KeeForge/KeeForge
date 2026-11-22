@@ -120,8 +120,8 @@ final class SortOrderTests: XCTestCase {
         XCTAssertEqual(sorted.map(\.title), ["NoDate", "HasDate"])
     }
 
-    func testUnsortedKeepsTheGivenOrderInEitherDirection() {
-        viewModel.sortOrder = .unsorted
+    func testDatabaseOrderKeepsTheGivenOrderInEitherDirection() {
+        viewModel.sortOrder = .databaseOrder
         let entries = [
             KPEntry(title: "Zebra", creationTime: Date(timeIntervalSince1970: 1_000)),
             KPEntry(title: "Apple", creationTime: Date(timeIntervalSince1970: 3_000)),
@@ -136,13 +136,13 @@ final class SortOrderTests: XCTestCase {
         }
     }
 
-    func testOnlyUnsortedIgnoresTheDirection() {
-        XCTAssertEqual(DatabaseViewModel.SortOrder.allCases.filter { !$0.usesDirection }, [.unsorted])
+    func testOnlyDatabaseOrderIgnoresTheDirection() {
+        XCTAssertEqual(DatabaseViewModel.SortOrder.allCases.filter { !$0.usesDirection }, [.databaseOrder])
     }
 
-    func testUnsortedListsAnOpenDatabaseInFileOrder() async throws {
+    func testDatabaseOrderListsAnOpenDatabaseInFileOrder() async throws {
         let vm = try await makeKitchenSinkViewModel()
-        vm.sortOrder = .unsorted
+        vm.sortOrder = .databaseOrder
         let root = try XCTUnwrap(vm.visibleRootGroup)
         let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
         let tagged = try XCTUnwrap(root.groups.first { $0.name == "Tagged" })
@@ -300,10 +300,10 @@ final class SortOrderTests: XCTestCase {
         let vm2 = try! DatabaseViewModel(databaseReference: TestDatabaseSupport.makeReference(for: fixtureURL()))
         XCTAssertEqual(vm2.sortOrder, .modifiedDate)
 
-        vm2.sortOrder = .unsorted
-        XCTAssertEqual(UserDefaults.standard.string(forKey: key), "Unsorted")
+        vm2.sortOrder = .databaseOrder
+        XCTAssertEqual(UserDefaults.standard.string(forKey: key), "Database Order")
         let vm3 = try! DatabaseViewModel(databaseReference: TestDatabaseSupport.makeReference(for: fixtureURL()))
-        XCTAssertEqual(vm3.sortOrder, .unsorted)
+        XCTAssertEqual(vm3.sortOrder, .databaseOrder)
 
         // Clean up
         UserDefaults.standard.removeObject(forKey: key)

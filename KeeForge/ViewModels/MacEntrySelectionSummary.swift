@@ -17,7 +17,7 @@ struct MacEntrySelectionSummary: Equatable {
     @MainActor
     static func make(session: DatabaseViewModel) -> MacEntrySelectionSummary? {
         guard let picked = session.workspace.entrySelection, picked.isEmpty == false else { return nil }
-        // Tree order first: the picks are a set, and `.unsorted` keeps whatever order it is given.
+        // Tree order first: the picks are a set, and `.databaseOrder` keeps whatever order it is given.
         let entries = session.sortedEntries(session.allEntries.filter { picked.contains($0.id) })
         guard entries.isEmpty == false else { return nil }
         let names = ListFormatter.localizedString(byJoining: entries.map {

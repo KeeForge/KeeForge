@@ -200,6 +200,9 @@ struct MacGeneralSettingsTab: View {
                 Picker("Default sort order:", selection: $settings.sortOrder) {
                     ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { Text($0.title).tag($0) }
                 }.macSettingsPopUp()
+                if settings.sortOrder == .databaseOrder {
+                    settingsCaption("Shows items in the order they’re stored in the database, as in other KeePass apps.")
+                }
             }
             MacSettingsRow("Sort direction:") {
                 Picker("Sort Direction", selection: $settings.sortAscending) {
