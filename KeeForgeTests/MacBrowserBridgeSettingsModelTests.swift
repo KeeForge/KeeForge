@@ -174,6 +174,18 @@ final class MacBrowserBridgeSettingsModelTests: XCTestCase {
                        String(localized: "Browser extensions can’t connect because KeeForge couldn’t read its browser key from the Keychain."))
     }
 
+    func testPathTooLongUnavailabilityText() async throws {
+        let path = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(String(repeating: "b", count: 104)).path
+        controller = MacBrowserBridgeController(defaults: defaults, store: store, socketPath: path)
+        let model = makeModel()
+        model.isEnabled = true
+        controller.start()
+        await waitFor { self.controller.unavailability != nil }
+        XCTAssertEqual(controller.unavailability, .pathTooLong)
+        XCTAssertEqual(model.unavailabilityMessage,
+                       String(localized: "Browser extensions can’t connect because KeeForge’s socket path is longer than macOS allows. This can happen when the account name is long."))
+    }
+
     func testDatesUseTheInjectedClockAndLocale() async throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000 + 3 * 86_400)
         try await seed([browser("Brave", byte: 1, lastUsed: now.addingTimeInterval(-2 * 3_600)), browser("Arc", byte: 2)])

@@ -14,6 +14,7 @@
 
 ### Fixes
 
+- On Mac, the SSH agent now starts for accounts with long names (#309). When the socket path in the app's container would be longer than macOS allows, the agent uses a shorter location, and Settings → SSH Agent says when the path is still too long. Existing `~/.ssh/config` lines keep working.
 - FTP creation name conflicts keep the encrypted draft recoverable; conflict copies can try a numbered name.
 - Cloud creations that have not been sent can be discarded from Cloud Recovery.
 - Preserve encrypted cloud creation data when the outcome is uncertain instead of automatically creating another remote copy.

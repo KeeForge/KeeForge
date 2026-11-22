@@ -277,12 +277,16 @@ final class LocalSocketServer: Sendable {
         return boundFile
     }
 
+    /// Whether `path` and its terminating NUL fit in `sockaddr_un.sun_path`:
+    /// 103 bytes of path on macOS. Clients connect under the same limit.
+    static func fitsAddress(_ path: String) -> Bool {
+        path.utf8.count < MemoryLayout.size(ofValue: sockaddr_un().sun_path)
+    }
+
     private static func address(_ path: String) throws -> sockaddr_un {
+        guard fitsAddress(path) else { throw LocalSocketError.pathTooLong }
         var address = sockaddr_un()
         let pathBytes = Array(path.utf8CString)
-        guard pathBytes.count <= MemoryLayout.size(ofValue: address.sun_path) else {
-            throw LocalSocketError.pathTooLong
-        }
         address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
         address.sun_family = sa_family_t(AF_UNIX)
         withUnsafeMutableBytes(of: &address.sun_path) { destination in

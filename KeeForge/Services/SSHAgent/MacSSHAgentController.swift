@@ -63,7 +63,20 @@ final class MacSSHAgentController {
     enum Unavailability: Equatable {
         /// Another agent, such as a second copy of KeeForge, serves the path.
         case socketInUse
+        /// No candidate socket path fits a socket address; see `socketPath(home:groupContainer:)`.
+        case pathTooLong
         case failed
+
+        var message: String {
+            switch self {
+            case .socketInUse:
+                String(localized: "The SSH agent could not start because another app is already using its socket.")
+            case .pathTooLong:
+                String(localized: "The SSH agent could not start because its socket path is longer than macOS allows. This can happen when the account name is long.")
+            case .failed:
+                String(localized: "The SSH agent could not start.")
+            }
+        }
     }
 
     /// Why the socket could not be created while the agent is turned on.
@@ -93,12 +106,22 @@ final class MacSSHAgentController {
     @ObservationIgnored private var isStarted = false
     @ObservationIgnored private var observers: [any NSObjectProtocol] = []
 
-    /// Inside the App Sandbox the home directory is the app's container, which
-    /// only this user can enter, and its path has no spaces to quote.
     static var defaultSocketPath: String {
-        URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-            .appendingPathComponent("ssh-agent.sock")
-            .path
+        socketPath(home: NSHomeDirectory(), groupContainer: BrowserBridgeIdentifiers.groupContainerURL()?.path)
+    }
+
+    /// Inside the App Sandbox the home directory is the app's container, which
+    /// only this user can enter, and its path has no spaces to quote. Users
+    /// paste the path into `~/.ssh/config`, so it stays there whenever it fits
+    /// a socket address. A UUID-named container fits account names of up to 20
+    /// bytes; the team-prefixed group container with a shorter file name fits
+    /// 30. When neither fits, starting reports `pathTooLong`.
+    nonisolated static func socketPath(home: String, groupContainer: String?) -> String {
+        let homeSocket = URL(fileURLWithPath: home, isDirectory: true)
+            .appendingPathComponent("ssh-agent.sock").path
+        guard !LocalSocketServer.fitsAddress(homeSocket), let groupContainer else { return homeSocket }
+        return URL(fileURLWithPath: groupContainer, isDirectory: true)
+            .appendingPathComponent("ssh.sock").path
     }
 
     init(
@@ -263,6 +286,8 @@ final class MacSSHAgentController {
             unavailability = nil
         } catch LocalSocketError.socketInUse {
             unavailability = .socketInUse
+        } catch LocalSocketError.pathTooLong {
+            unavailability = .pathTooLong
         } catch {
             unavailability = .failed
         }

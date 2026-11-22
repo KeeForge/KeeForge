@@ -326,6 +326,14 @@ Setup:
    ```
 
    Setting `SSH_AUTH_SOCK` to the same path works too.
+
+   A socket path can be at most 103 bytes, for KeeForge and SSH clients alike.
+   With a UUID-named container that leaves room for account names of up to 20
+   bytes. With a longer name the socket is `ssh.sock` in the app's browser group
+   container instead, which fits names of up to 30 bytes:
+   `/Users/<you>/Library/Group Containers/<TeamID>.com.keevault.browser/ssh.sock`.
+   The path never changes between launches. When even that is too long, Settings
+   says the socket path is longer than macOS allows.
 3. Unlock the database and turn on each key under Keys. The choice is stored per
    database on this Mac only; it is not written into the database. While more
    than one database is unlocked, pick the one whose keys the list shows. The

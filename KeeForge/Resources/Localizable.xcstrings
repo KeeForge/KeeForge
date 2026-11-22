@@ -13130,6 +13130,58 @@
         }
       }
     },
+    "Browser extensions can’t connect because KeeForge’s socket path is longer than macOS allows. This can happen when the account name is long." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browsererweiterungen können sich nicht verbinden, weil der Socket-Pfad von KeeForge länger ist, als macOS erlaubt. Das kann passieren, wenn der Name des Benutzerkontos lang ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las extensiones del navegador no pueden conectarse porque la ruta del socket de KeeForge es más larga de lo que permite macOS. Puede ocurrir cuando el nombre de la cuenta es largo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les extensions de navigateur ne peuvent pas se connecter, car le chemin du socket de KeeForge dépasse la longueur autorisée par macOS. Cela peut arriver lorsque le nom du compte est long."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le estensioni del browser non possono collegarsi perché il percorso del socket di KeeForge è più lungo di quanto consentito da macOS. Può succedere quando il nome dell’account è lungo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge のソケットのパスが macOS の上限より長いため、ブラウザ機能拡張は接続できません。アカウント名が長い場合に起こることがあります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Расширения браузера не могут подключиться, потому что путь к сокету KeeForge длиннее, чем допускает macOS. Так бывает, если имя учётной записи длинное."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浏览器扩展无法连接，因为 KeeForge 的套接字路径超出了 macOS 允许的长度。账户名称较长时可能会出现这种情况。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "瀏覽器延伸功能無法連線，因為 KeeForge 的通訊端路徑超過 macOS 允許的長度。帳號名稱較長時可能會發生這種情況。"
+          }
+        }
+      }
+    },
     "Browser extensions can’t connect." : {
       "localizations" : {
         "de" : {
@@ -76231,6 +76283,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法啟動 SSH 代理程式，因為另一個 App 正在使用它的通訊端。"
+          }
+        }
+      }
+    },
+    "The SSH agent could not start because its socket path is longer than macOS allows. This can happen when the account name is long." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der SSH-Agent konnte nicht gestartet werden, weil sein Socket-Pfad länger ist, als macOS erlaubt. Das kann passieren, wenn der Name des Benutzerkontos lang ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo iniciar el agente SSH porque la ruta de su socket es más larga de lo que permite macOS. Puede ocurrir cuando el nombre de la cuenta es largo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'agent SSH n'a pas pu démarrer, car le chemin de son socket dépasse la longueur autorisée par macOS. Cela peut arriver lorsque le nom du compte est long."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile avviare l'agente SSH perché il percorso del suo socket è più lungo di quanto consentito da macOS. Può succedere quando il nome dell'account è lungo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソケットのパスが macOS の上限より長いため、SSH エージェントを開始できませんでした。アカウント名が長い場合に起こることがあります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось запустить SSH-агент: путь к его сокету длиннее, чем допускает macOS. Так бывает, если имя учётной записи длинное."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法启动 SSH 代理，因为它的套接字路径超出了 macOS 允许的长度。账户名称较长时可能会出现这种情况。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法啟動 SSH 代理程式，因為它的通訊端路徑超過 macOS 允許的長度。帳號名稱較長時可能會發生這種情況。"
           }
         }
       }

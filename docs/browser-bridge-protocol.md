@@ -120,7 +120,7 @@ Error codes: `bad-request`, `bad-origin`, `locked` (no unlocked database, or tha
 
 How the Mac app and its embedded host realise sections 1, 2 and 4. None of it changes what the extension sends or receives.
 
-- **Local channel:** the Unix socket `b.sock` in the container of the app group `<TeamID>.com.keevault.browser`, mode 0600. The app accepts only peers whose effective user is its own (`getpeereid`), and at most 64 connections.
+- **Local channel:** the Unix socket `b.sock` in the container of the app group `<TeamID>.com.keevault.browser`, mode 0600. Its path is 71 bytes plus the account name and must fit a 103-byte socket address, so an account name over 32 bytes leaves the bridge unavailable, which Settings says. The app accepts only peers whose effective user is its own (`getpeereid`), and at most 64 connections.
 - **Stalled peers:** a write that waits 5 seconds, or too much work queued behind a stalled write, closes the connection.
 - **Native host registration:** the host is `keeforge-browser-host` inside KeeForge.app at `Contents/MacOS/`; setting a browser up in Settings ▸ Browsers writes `com.keevault.browser.json` into that browser's per-user `NativeMessagingHosts` folder. Chromium-family browsers: every build allows the Chrome Web Store ID; debug builds also allow the unpacked development key's.
 - **App static key:** the private key is in the app's Keychain in the app's own access group (not the group shared with AutoFill), this device only.

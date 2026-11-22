@@ -14,7 +14,7 @@
 - No key export and no writing key files. Every request reads the sessions afresh, so a lock withdraws that session's keys by the next read.
 - Parsed keys never outlive their lease or the vault content that supplied them. `MacSSHAgentController` watches each supplying session separately and drops that session's keys (`removeAll(forSession:)`) inside its own change of `state`, `lockCycleID`, `isLockPending`, or `contentRevision` (observation tracking, re-armed by the next `keySources()`), when its selection changes, and at the next request once it is no longer open; the whole cache goes when the server stops. Locking or retiring one session never drops another's keys. A request also removes a cached key if its attachment bytes changed. Every removal advances the cache's generation, so a request that read the sessions before a removal covering its session cannot store that session's key afterwards.
 - A new vault-derived value in Settings ▸ SSH Agent has to honor `concealsKeyList` too.
-- Keep the default socket path stable; users paste it into `~/.ssh/config`.
+- Keep the default socket path stable; users paste it into `~/.ssh/config`. `socketPath(home:groupContainer:)` keeps `ssh-agent.sock` in the container home whenever that fits a socket address (`LocalSocketServer.fitsAddress`, 103 bytes), so a path that ever worked never moves; only otherwise is it `ssh.sock` in the browser group container. A path that fits neither reports `pathTooLong`, which Settings names.
 
 ## Tests
 

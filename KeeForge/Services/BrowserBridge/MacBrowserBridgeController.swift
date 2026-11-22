@@ -24,6 +24,8 @@ final class MacBrowserBridgeController {
         case noGroupContainer
         /// Another listener, such as a second copy of KeeForge, serves the path.
         case socketInUse
+        /// The socket path in the group container is longer than a socket address holds.
+        case pathTooLong
         /// The bridge key could not be read from or created in the Keychain.
         case bridgeKey
         case failed
@@ -260,6 +262,8 @@ final class MacBrowserBridgeController {
             isListening = true
         } catch LocalSocketError.socketInUse {
             unavailability = .socketInUse
+        } catch LocalSocketError.pathTooLong {
+            unavailability = .pathTooLong
         } catch {
             unavailability = .failed
         }
