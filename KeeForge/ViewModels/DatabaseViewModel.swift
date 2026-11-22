@@ -718,10 +718,9 @@ final class DatabaseViewModel {
     @ObservationIgnored private var fieldReferenceResolver: FieldReferenceResolver?
     private var groupIndex: [UUID: KPGroup] = [:]
     private var groupEntryCounts: [UUID: Int] = [:]
-    private var searchableEntries: [KPEntry] = []
-    private var searchableEntryText: [UUID: String] = [:]
+    private var searchIndex = EntrySearchIndex()
     /// Every entry outside the recycle bin, in tree order. Unlike
-    /// `searchableEntries` it keeps entries in groups hidden from search.
+    /// `searchIndex` it keeps entries in groups hidden from search.
     private var liveEntries: [KPEntry] = []
     /// Groups below the visible root, outside the recycle bin.
     private var liveGroupCount = 0
@@ -5232,8 +5231,7 @@ final class DatabaseViewModel {
             entryIndex = [:]
             groupIndex = [:]
             groupEntryCounts = [:]
-            searchableEntries = []
-            searchableEntryText = [:]
+            searchIndex = EntrySearchIndex()
             liveEntries = []
             liveGroupCount = 0
             tagEntryIDs = [:]
@@ -5252,8 +5250,7 @@ final class DatabaseViewModel {
         var nextEntryIndex: [UUID: KPEntry] = [:]
         var nextGroupIndex: [UUID: KPGroup] = [:]
         var nextGroupEntryCounts: [UUID: Int] = [:]
-        var nextSearchableEntries: [KPEntry] = []
-        var nextSearchableEntryText: [UUID: String] = [:]
+        var nextSearchIndex = EntrySearchIndex()
         var nextLiveEntries: [KPEntry] = []
         var nextLiveGroupCount = 0
         var nextTagEntryIDs: [String: [UUID]] = [:]
@@ -5321,8 +5318,7 @@ final class DatabaseViewModel {
                     // AutoFill; the tag index and browsing deliberately keep
                     // it, and recycle-bin state is never involved.
                     if resolvedAutoFillEnabled {
-                        nextSearchableEntries.append(entry)
-                        nextSearchableEntryText[entry.id] = Self.searchText(for: entry, tags: tags)
+                        nextSearchIndex.append(entry, tags: tags)
                     }
                     for tag in tags {
                         nextTagEntryIDs[tag, default: []].append(entry.id)
@@ -5355,8 +5351,7 @@ final class DatabaseViewModel {
         entryIndex = nextEntryIndex
         groupIndex = nextGroupIndex
         groupEntryCounts = nextGroupEntryCounts
-        searchableEntries = nextSearchableEntries
-        searchableEntryText = nextSearchableEntryText
+        searchIndex = nextSearchIndex
         liveEntries = nextLiveEntries
         liveGroupCount = nextLiveGroupCount
         tagEntryIDs = nextTagEntryIDs
@@ -5380,15 +5375,7 @@ final class DatabaseViewModel {
     /// search field. Empty while locked, because the index is.
     func entries(matching rawQuery: String) -> [KPEntry] {
         _ = contentRevision
-        let trimmedQuery = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedQuery.isEmpty == false else { return [] }
-
-        let query = trimmedQuery
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            .lowercased()
-        return searchableEntries.filter { entry in
-            searchableEntryText[entry.id]?.contains(query) == true
-        }
+        return searchIndex.entries(matching: rawQuery)
     }
 
     private func synchronizeSelections() {
@@ -5785,18 +5772,6 @@ final class DatabaseViewModel {
     /// same own-first ordering.
     private static func effectiveTags(for entry: KPEntry, inheritedGroupTags: [String]) -> [String] {
         TagNormalizer.tags(from: entry.tags + inheritedGroupTags)
-    }
-
-    private static func searchText(for entry: KPEntry, tags: [String]) -> String {
-        ([
-            entry.title,
-            entry.username,
-            entry.url,
-            entry.notes,
-        ] + entry.additionalURLs + tags)
-        .joined(separator: "\n")
-        .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        .lowercased()
     }
 
     private func makeWorkingDraft() throws -> DatabaseDraft {

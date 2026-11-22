@@ -6,21 +6,16 @@ struct AutoFillSearchResults {
     let possibleEntries: [KPEntry]
     let canShowAllEntries: Bool
 
-    init(entries: [KPEntry], searchEntries: [KPEntry], possibleEntries: [KPEntry], query: String, hasExpandedSearch: Bool) {
-        if hasExpandedSearch || !query.isEmpty {
-            let query = query.lowercased()
-            self.entries = query.isEmpty ? searchEntries : searchEntries.filter { entry in
-                entry.title.lowercased().contains(query) ||
-                entry.username.lowercased().contains(query) ||
-                CredentialMatcher.webURLs(of: entry).contains { $0.lowercased().contains(query) } ||
-                entry.notes.lowercased().contains(query)
-            }
+    init(entries: [KPEntry], searchIndex: EntrySearchIndex, possibleEntries: [KPEntry], query: String, hasExpandedSearch: Bool) {
+        let isBlank = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if hasExpandedSearch || !isBlank {
+            self.entries = isBlank ? searchIndex.entries : searchIndex.entries(matching: query)
             self.possibleEntries = []
-            canShowAllEntries = !query.isEmpty && self.entries.count < searchEntries.count
+            canShowAllEntries = !isBlank && self.entries.count < searchIndex.entries.count
         } else {
             self.entries = entries
             self.possibleEntries = possibleEntries
-            canShowAllEntries = entries.count + possibleEntries.count < searchEntries.count
+            canShowAllEntries = entries.count + possibleEntries.count < searchIndex.entries.count
         }
     }
 }
@@ -49,7 +44,6 @@ struct AutoFillEmptyStateCopy: Equatable {
 
 struct AutoFillSearchView: View {
     let entries: [KPEntry]
-    let searchEntries: [KPEntry]
     let possibleEntries: [KPEntry]
     /// The database's `Meta/CustomIcons`, for entries that use one.
     let customIcons: [UUID: Data]
@@ -77,6 +71,10 @@ struct AutoFillSearchView: View {
     @State private var searchText: String
     @State private var didEditSearch = false
     @State private var showsAllEntries = false
+    /// Built once per presentation; typing only scans it.
+    @State private var searchIndex: EntrySearchIndex
+    /// Recomputed when the query or expansion changes, never per render.
+    @State private var searchResults: AutoFillSearchResults
     @State private var entryPendingURLAddition: KPEntry?
     #if os(iOS)
     @ScaledMetric(relativeTo: .body) private var entryIconSize = Theme.Size.entryIcon
@@ -97,7 +95,6 @@ struct AutoFillSearchView: View {
         onCancel: @escaping () -> Void
     ) {
         self.entries = entries
-        self.searchEntries = searchEntries ?? entries
         self.possibleEntries = possibleEntries
         self.customIcons = customIcons
         self.initialSearchText = initialSearchText
@@ -109,12 +106,21 @@ struct AutoFillSearchView: View {
         self.urlAddition = urlAddition
         self.onCancel = onCancel
         self._searchText = State(initialValue: initialSearchText)
+        let searchIndex = EntrySearchIndex(entries: searchEntries ?? entries)
+        self._searchIndex = State(initialValue: searchIndex)
+        self._searchResults = State(initialValue: AutoFillSearchResults(
+            entries: entries,
+            searchIndex: searchIndex,
+            possibleEntries: possibleEntries,
+            query: initialSearchText,
+            hasExpandedSearch: false
+        ))
     }
 
-    private var searchResults: AutoFillSearchResults {
-        AutoFillSearchResults(
+    private func updateSearchResults() {
+        searchResults = AutoFillSearchResults(
             entries: entries,
-            searchEntries: searchEntries,
+            searchIndex: searchIndex,
             possibleEntries: possibleEntries,
             query: searchText,
             hasExpandedSearch: didEditSearch || showsAllEntries
@@ -130,6 +136,7 @@ struct AutoFillSearchView: View {
     private func showAllEntries() {
         searchText = ""
         showsAllEntries = true
+        updateSearchResults()
     }
 
     var body: some View {
@@ -380,17 +387,20 @@ struct AutoFillSearchView: View {
                         onSelect(entry)
                     }
                     #else
-                    if let urlAddition, !urlAddition.isStored(on: entry) {
-                        VStack(alignment: .leading, spacing: 8) {
+                    // A concrete row container lets List defer offscreen matches.
+                    HStack {
+                        if let urlAddition, !urlAddition.isStored(on: entry) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Button { onSelect(entry) } label: { entryRow(entry) }
+                                    .buttonStyle(.borderless)
+                                    .accessibilityIdentifier("autofill.entry.exact")
+                                addURLButton(for: entry, host: urlAddition.host)
+                                    .accessibilityIdentifier("autofill.entry.add-url")
+                            }
+                        } else {
                             Button { onSelect(entry) } label: { entryRow(entry) }
-                                .buttonStyle(.borderless)
                                 .accessibilityIdentifier("autofill.entry.exact")
-                            addURLButton(for: entry, host: urlAddition.host)
-                                .accessibilityIdentifier("autofill.entry.add-url")
                         }
-                    } else {
-                        Button { onSelect(entry) } label: { entryRow(entry) }
-                            .accessibilityIdentifier("autofill.entry.exact")
                     }
                     #endif
                 }
@@ -456,6 +466,7 @@ struct AutoFillSearchView: View {
         }
         .onChange(of: searchText) { _, _ in
             didEditSearch = true
+            updateSearchResults()
         }
     }
 

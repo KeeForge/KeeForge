@@ -14,6 +14,7 @@
 
 ### Fixes
 
+- Typing in the AutoFill picker's search no longer lags on large databases, and it now matches tags and ignores accents like the app's search (#326).
 - FTP creation name conflicts keep the encrypted draft recoverable; conflict copies can try a numbered name.
 - Cloud creations that have not been sent can be discarded from Cloud Recovery.
 - Preserve encrypted cloud creation data when the outcome is uncertain instead of automatically creating another remote copy.
