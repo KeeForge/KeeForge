@@ -390,6 +390,43 @@ final class MacEntryListModelTests: XCTestCase {
         XCTAssertFalse(snapshot.showsVerificationCodes)
     }
 
+    func testGroupsShowCodesOutsideTheRecycleBinWithoutTheCodesHint() async throws {
+        let recycled = KPEntry(title: "Recycled", totpConfig: Self.totp)
+        let inner = KPGroup(name: "Old", entries: [KPEntry(title: "Old Code", totpConfig: Self.totp)])
+        let recycleBin = KPGroup(name: "Recycle Bin", entries: [recycled], groups: [inner])
+        let work = KPGroup(name: "Work", entries: [KPEntry(title: "Code", totpConfig: Self.totp), KPEntry(title: "Plain")])
+        let plain = KPGroup(name: "Plain", entries: [KPEntry(title: "No Code")])
+        let session = try await makeSession(root: KPGroup(name: "Root", groups: [work, plain, recycleBin],
+                                                          recycleBinUUID: recycleBin.id))
+        session.sortOrder = .title
+        session.sortAscending = true
+
+        session.workspace.selectedGroupID = work.id
+        var snapshot = MacEntryListSnapshot.make(session: session)
+        XCTAssertTrue(snapshot.showsVerificationCodes)
+        XCTAssertTrue(snapshot.hasLiveVerificationCodes)
+        XCTAssertEqual(snapshot.rows.map { snapshot.showsVerificationCode(on: $0) }, [true, false])
+        XCTAssertNil(snapshot.footer, "The copy hint stays with Verification Codes")
+
+        session.workspace.selectedGroupID = plain.id
+        snapshot = MacEntryListSnapshot.make(session: session)
+        XCTAssertFalse(snapshot.hasLiveVerificationCodes, "No code rows, nothing for the timer")
+
+        for binGroupID in [recycleBin.id, inner.id] {
+            session.workspace.selectedGroupID = binGroupID
+            snapshot = MacEntryListSnapshot.make(session: session)
+            XCTAssertFalse(snapshot.showsVerificationCodes, "The recycle bin and its groups show no codes")
+            XCTAssertFalse(snapshot.rows.contains { snapshot.showsVerificationCode(on: $0) })
+        }
+
+        session.workspace.selectedCollection = .verificationCodes
+        XCTAssertEqual(MacEntryListSnapshot.make(session: session).footer, .verificationCodes)
+
+        session.workspace.selectedGroupID = work.id
+        session.lockRequest(force: true)
+        XCTAssertFalse(MacEntryListSnapshot.make(session: session).showsVerificationCodes, "no session key, no codes")
+    }
+
     func testSelectionSummaryNamesThePicksTheirSharedGroupAndItsActions() async throws {
         let fixture = try await makeFixture()
         let session = fixture.session
@@ -423,7 +460,8 @@ final class MacEntryListModelTests: XCTestCase {
         var snapshot = MacEntryListSnapshot.make(session: session)
         XCTAssertEqual(snapshot.rowIdentifier, "entry.navlink")
         XCTAssertNil(snapshot.containerIdentifier)
-        XCTAssertFalse(snapshot.showsVerificationCodes)
+        XCTAssertTrue(snapshot.showsVerificationCodes, "A group's code rows show their code")
+        XCTAssertEqual(snapshot.rows.map { snapshot.showsVerificationCode(on: $0) }, [true, false, false])
         XCTAssertNil(snapshot.resultCount)
 
         workspace.selectedCollection = .verificationCodes

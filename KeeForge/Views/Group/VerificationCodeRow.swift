@@ -2,8 +2,8 @@
 import CryptoKit
 import SwiftUI
 
-/// One row of the Verification Codes view: the entry's current code with its
-/// countdown and a copy button.
+/// An entry row with the entry's current code, its countdown and a copy
+/// button, in the Verification Codes view and in a group outside the recycle bin.
 ///
 /// The opening part and the copy button are sibling buttons rather than one
 /// `NavigationLink` around everything, because a button nested in a link's
