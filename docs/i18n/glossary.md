@@ -2,7 +2,7 @@
 
 The canonical translation of KeeForge's recurring terms in every shipped locale. It was extracted from the String Catalogs, using the majority form where translations disagreed, aligned with Apple's own platform wording.
 
-- Use these forms in new and edited strings, in the app and the AutoFill extensions alike, so the same concept reads the same everywhere.
+- Use these forms in new and edited strings, in the app, the AutoFill extensions and the browser extension's `BrowserExtension/_locales/` alike, so the same concept reads the same everywhere.
 - For a term not listed, search the catalogs for the English word and follow the majority form. If it will recur, add it here in the same change.
 - The catalogs win over this file only for a deliberate, reviewed change. Then update this file in the same change.
 
@@ -107,6 +107,8 @@ Apple renames some of these, and KeeForge follows Apple:
 | secret key (TOTP) | geheimer Schlüssel | clé secrète | clave secreta | chiave segreta | секретный ключ | シークレットキー | 密钥 | 金鑰 |
 | match / possible match | Treffer / möglicher Treffer | correspondance / correspondance possible | coincidencia / posible coincidencia | corrispondenza / possibile corrispondenza | совпадение / возможное совпадение | 一致する項目 / 一致する可能性のある項目 | 匹配项 / 可能的匹配项 | 符合項目 / 可能相符的項目 |
 | login (data) | Anmeldedaten | identifiants | inicios de sesión | credenziali | логины / данные для входа | ログイン情報 | 登录信息 | 登入資訊 |
+| browser extension | Browsererweiterung | extension de navigateur | extensión del navegador | estensione del browser | расширение браузера | ブラウザ機能拡張 | 浏览器扩展 | 瀏覽器延伸功能 |
+| pair / paired (a browser) | koppeln / gekoppelt | jumeler / jumelé | enlazar / enlazado | abbinare / abbinato | связать / связанный | ペアリング / ペアリング済み | 配对 / 已配对 | 配對 / 已配對 |
 
 In French, write `Remplissage automatique` capitalized at the start of a label and lowercase mid-sentence.
 

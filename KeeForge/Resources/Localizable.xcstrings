@@ -8234,6 +8234,58 @@
         }
       }
     },
+    "After setting up a browser, install the KeeForge extension in it and choose Pair." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installiere danach die KeeForge-Erweiterung in diesem Browser und wähle „Koppeln“."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Después de configurar un navegador, instala en él la extensión de KeeForge y elige «Enlazar»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après avoir configuré un navigateur, installez-y l’extension KeeForge et choisissez « Jumeler »."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dopo aver configurato un browser, installa l’estensione KeeForge e scegli “Abbina”."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザを設定したら、そのブラウザに KeeForge 機能拡張をインストールして「ペアリング」を選択します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "После настройки браузера установите в него расширение KeeForge и выберите «Связать»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置浏览器后，在其中安装 KeeForge 扩展并选择“配对”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定瀏覽器後，在其中安裝 KeeForge 延伸功能並選擇「配對」。"
+          }
+        }
+      }
+    },
     "After the change, the database needs this key file; clear it to unlock with the master password alone." : {
       "localizations" : {
         "de" : {
@@ -8766,6 +8818,110 @@
         }
       }
     },
+    "Allow" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consenti"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "許可"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешить"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允許"
+          }
+        }
+      }
+    },
+    "Allow browser extensions to fill from KeeForge" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browsererweiterungen das Ausfüllen aus KeeForge erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir que las extensiones del navegador rellenen desde KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser les extensions de navigateur à remplir depuis KeeForge"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consenti alle estensioni del browser di compilare da KeeForge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザ機能拡張に KeeForge からの入力を許可"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешить расширениям браузера заполнять данные из KeeForge"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许浏览器扩展从 KeeForge 填充"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允許瀏覽器延伸功能從 KeeForge 填寫"
+          }
+        }
+      }
+    },
     "Allow camera access in Settings to scan verification-code QR codes." : {
       "localizations" : {
         "de" : {
@@ -8866,6 +9022,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "允許後續聯絡"
+          }
+        }
+      }
+    },
+    "Allow only if your browser shows the same code. A paired browser can see the titles and user names of logins for the sites it asks about, and can fill a password after you confirm." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erlaube dies nur, wenn dein Browser denselben Code zeigt. Ein gekoppelter Browser kann die Titel und Benutzernamen der Anmeldedaten für die angefragten Websites sehen und nach deiner Bestätigung ein Passwort ausfüllen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite solo si tu navegador muestra el mismo código. Un navegador enlazado puede ver los títulos y nombres de usuario de los inicios de sesión de los sitios web que consulte, y rellenar una contraseña después de que confirmes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorisez uniquement si votre navigateur affiche le même code. Un navigateur jumelé peut voir les titres et noms d'utilisateur des identifiants des sites web qu'il demande, et remplir un mot de passe après votre confirmation."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consenti solo se il browser mostra lo stesso codice. Un browser abbinato può vedere i titoli e i nomi utente delle credenziali dei siti web che richiede e inserire una password dopo la tua conferma."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザに同じコードが表示されている場合にのみ許可してください。ペアリング済みのブラウザは、問い合わせた Web サイトのログイン情報のタイトルとユーザ名を参照でき、確認後にパスワードを入力できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешайте, только если браузер показывает тот же код. Связанный браузер может видеть названия и имена пользователей логинов для запрашиваемых сайтов и после вашего подтверждения заполнять пароль."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅当浏览器显示相同的代码时才允许。已配对的浏览器可以查看其所询问网站的登录信息标题和用户名，并可在你确认后填充密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅當瀏覽器顯示相同的代碼時才允許。已配對的瀏覽器可以查看其所詢問網站的登入資訊標題和使用者名稱，並可在你確認後填寫密碼。"
           }
         }
       }
@@ -9184,6 +9392,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "另一個 App 已在使用此快速鍵。請選擇其他快速鍵。"
+          }
+        }
+      }
+    },
+    "Another app’s file is in the way, so KeeForge left it unchanged." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Datei einer anderen App ist im Weg, daher hat KeeForge sie unverändert gelassen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hay un archivo de otra app en medio, así que KeeForge lo ha dejado sin cambios."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un fichier d’une autre app gêne, KeeForge l’a donc laissé intact."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un file di un’altra app è d’intralcio, quindi KeeForge l’ha lasciato invariato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の App のファイルがあるため、KeeForge はそのファイルを変更しませんでした。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мешает файл другого приложения, поэтому KeeForge оставил его без изменений."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一个 App 的文件挡住了位置，因此 KeeForge 未更改它。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一個 App 的檔案佔用了位置，因此 KeeForge 未更改它。"
           }
         }
       }
@@ -12766,6 +13026,266 @@
         }
       }
     },
+    "Browser extensions can’t connect because another copy of KeeForge is already serving them." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browsererweiterungen können sich nicht verbinden, weil bereits eine andere Kopie von KeeForge sie bedient."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las extensiones del navegador no pueden conectarse porque otra copia de KeeForge ya las está atendiendo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les extensions de navigateur ne peuvent pas se connecter, car une autre copie de KeeForge les sert déjà."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le estensioni del browser non possono collegarsi perché un’altra copia di KeeForge le sta già servendo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の KeeForge がすでにブラウザ機能拡張に応答しているため、接続できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Расширения браузера не могут подключиться, потому что их уже обслуживает другая копия KeeForge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浏览器扩展无法连接，因为另一个 KeeForge 副本已在为其服务。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "瀏覽器延伸功能無法連線，因為另一個 KeeForge 副本已在為其服務。"
+          }
+        }
+      }
+    },
+    "Browser extensions can’t connect because KeeForge couldn’t read its browser key from the Keychain." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browsererweiterungen können sich nicht verbinden, weil KeeForge seinen Browserschlüssel nicht aus dem Schlüsselbund lesen konnte."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las extensiones del navegador no pueden conectarse porque KeeForge no pudo leer su clave de navegador del llavero."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les extensions de navigateur ne peuvent pas se connecter, car KeeForge n’a pas pu lire sa clé de navigateur dans le trousseau."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le estensioni del browser non possono collegarsi perché KeeForge non è riuscito a leggere la sua chiave del browser dal portachiavi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge がキーチェーンからブラウザ用のキーを読み取れなかったため、ブラウザ機能拡張は接続できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Расширения браузера не могут подключиться, потому что KeeForge не удалось прочитать свой ключ браузера из связки ключей."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浏览器扩展无法连接，因为 KeeForge 无法从钥匙串读取其浏览器密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "瀏覽器延伸功能無法連線，因為 KeeForge 無法從鑰匙圈讀取其瀏覽器金鑰。"
+          }
+        }
+      }
+    },
+    "Browser extensions can’t connect." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browsererweiterungen können sich nicht verbinden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las extensiones del navegador no pueden conectarse."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les extensions de navigateur ne peuvent pas se connecter."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le estensioni del browser non possono collegarsi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザ機能拡張は接続できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Расширения браузера не могут подключиться."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浏览器扩展无法连接。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "瀏覽器延伸功能無法連線。"
+          }
+        }
+      }
+    },
+    "Browser extensions:" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browsererweiterungen:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extensiones del navegador:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extensions de navigateur :"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estensioni del browser:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザ機能拡張："
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Расширения браузера:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浏览器扩展："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "瀏覽器延伸功能："
+          }
+        }
+      }
+    },
+    "Browsers" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browser"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Navegadores"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Navigateurs"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browser"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Браузеры"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浏览器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "瀏覽器"
+          }
+        }
+      }
+    },
     "Built with the community" : {
       "localizations" : {
         "de" : {
@@ -15519,6 +16039,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇要新增驗證碼的資料庫。"
+          }
+        }
+      }
+    },
+    "Choose the folder KeeForge suggests, then click Grant Access." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle den Ordner, den KeeForge vorschlägt, und klicke dann auf „Zugriff erlauben“."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige la carpeta que sugiere KeeForge y haz clic en «Conceder acceso»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez le dossier proposé par KeeForge, puis cliquez sur « Autoriser l’accès »."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli la cartella suggerita da KeeForge, poi fai clic su “Consenti accesso”."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge が提示するフォルダを選択して、「アクセスを許可」をクリックしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите папку, предложенную KeeForge, и нажмите «Предоставить доступ»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择 KeeForge 建议的文件夹，然后点按“授予访问权限”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇 KeeForge 建議的資料夾，然後按一下「授予取用權限」。"
           }
         }
       }
@@ -21529,6 +22101,58 @@
         }
       }
     },
+    "Couldn’t save the pairing. Try again from the browser." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Kopplung konnte nicht gesichert werden. Versuche es im Browser erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo guardar el enlace. Vuelve a intentarlo desde el navegador."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d’enregistrer le jumelage. Réessayez depuis le navigateur."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile salvare l’abbinamento. Riprova dal browser."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ペアリングを保存できませんでした。ブラウザからもう一度お試しください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить связь. Повторите попытку из браузера."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法保存配对。请从浏览器重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法儲存配對。請從瀏覽器重試。"
+          }
+        }
+      }
+    },
     "Couldn't Send Feedback" : {
       "localizations" : {
         "de" : {
@@ -27409,6 +28033,58 @@
         }
       }
     },
+    "Don’t Allow" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No permitir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ne pas autoriser"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non consentire"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "許可しない"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не разрешать"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不允许"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不允許"
+          }
+        }
+      }
+    },
     "Don’t Save" : {
       "localizations" : {
         "de" : {
@@ -31293,6 +31969,58 @@
         }
       }
     },
+    "Every browser must pair again before it can fill from KeeForge." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeder Browser muss erneut gekoppelt werden, bevor er aus KeeForge ausfüllen kann."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todos los navegadores tendrán que volver a enlazarse antes de poder rellenar desde KeeForge."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque navigateur devra être jumelé à nouveau avant de pouvoir remplir depuis KeeForge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ogni browser dovrà essere abbinato di nuovo prima di poter compilare da KeeForge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてのブラウザで KeeForge から入力するには、もう一度ペアリングする必要があります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каждый браузер нужно будет связать снова, прежде чем он сможет заполнять данные из KeeForge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每个浏览器都必须重新配对，才能从 KeeForge 填充。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個瀏覽器都必須重新配對，才能從 KeeForge 填寫。"
+          }
+        }
+      }
+    },
     "Every entry with a verification code, across all groups. Tap an entry to open it." : {
       "localizations" : {
         "de" : {
@@ -33831,6 +34559,116 @@
         }
       }
     },
+    "Fill “%@” on %@ in your browser" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%1$@“ auf %2$@ im Browser ausfüllen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Fill “%1$@” on %2$@ in your browser"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rellenar «%1$@» en %2$@ en tu navegador"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remplir « %1$@ » sur %2$@ dans votre navigateur"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci “%1$@” su %2$@ nel browser"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザで %2$@ に「%1$@」を入力"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заполнить «%1$@» на %2$@ в браузере"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在浏览器中为 %2$@ 填充“%1$@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在瀏覽器中為 %2$@ 填寫「%1$@」"
+          }
+        }
+      }
+    },
+    "Fill a login on %@ in your browser" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anmeldedaten auf %@ im Browser ausfüllen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rellenar un inicio de sesión en %@ en tu navegador"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remplir des identifiants sur %@ dans votre navigateur"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci credenziali su %@ nel browser"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザで %@ にログイン情報を入力"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заполнить данные для входа на %@ в браузере"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在浏览器中为 %@ 填充登录信息"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在瀏覽器中為 %@ 填寫登入資訊"
+          }
+        }
+      }
+    },
     "Find" : {
       "localizations" : {
         "de" : {
@@ -35203,6 +36041,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "良好"
+          }
+        }
+      }
+    },
+    "Grant Access" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zugriff erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conceder acceso"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser l’accès"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consenti accesso"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アクセスを許可"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предоставить доступ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "授予访问权限"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "授予取用權限"
           }
         }
       }
@@ -38675,6 +39565,58 @@
         }
       }
     },
+    "KeeForge can no longer reach this browser’s folder" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge kann den Ordner dieses Browsers nicht mehr erreichen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ya no puede acceder a la carpeta de este navegador"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ne peut plus accéder au dossier de ce navigateur"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non può più accedere alla cartella di questo browser"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge はこのブラウザのフォルダにアクセスできなくなりました"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge больше не может получить доступ к папке этого браузера"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法再访问此浏览器的文件夹"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法再存取此瀏覽器的資料夾"
+          }
+        }
+      }
+    },
     "KeeForge can now open older KeePass 3.1 vaults and databases protected with Twofish — and keeps their original encryption when you save." : {
       "localizations" : {
         "de" : {
@@ -39479,6 +40421,58 @@
         }
       }
     },
+    "KeeForge couldn’t reach this browser’s folder. Try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge konnte den Ordner dieses Browsers nicht erreichen. Versuche es erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no pudo acceder a la carpeta de este navegador. Vuelve a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n’a pas pu accéder au dossier de ce navigateur. Réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non è riuscito ad accedere alla cartella di questo browser. Riprova."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge はこのブラウザのフォルダにアクセスできませんでした。もう一度お試しください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge не удалось получить доступ к папке этого браузера. Повторите попытку."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法访问此浏览器的文件夹。请重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法存取此瀏覽器的資料夾。請重試。"
+          }
+        }
+      }
+    },
     "KeeForge couldn't read that photo. Choose a different one." : {
       "localizations" : {
         "de" : {
@@ -39579,6 +40573,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 無法將此檔案辨識為有效的 KDBX 資料庫。"
+          }
+        }
+      }
+    },
+    "KeeForge couldn’t remove the pairing. Try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge konnte die Kopplung nicht entfernen. Versuche es erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no pudo quitar el enlace. Vuelve a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n’a pas pu retirer le jumelage. Réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non è riuscito a rimuovere l’abbinamento. Riprova."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge はペアリングを削除できませんでした。もう一度お試しください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge не удалось удалить связь. Повторите попытку."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法移除配对。请重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法移除配對。請重試。"
           }
         }
       }
@@ -41191,6 +42237,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "如果你之後拷貝了其他內容，KeeForge 不會變更剪貼簿。選擇「永不」時，拷貝會保留到資料庫鎖定為止。與 iOS 不同，macOS 無法將拷貝排除在「接力」的通用剪貼簿之外，因此拷貝的密碼可能會出現在你其他裝置的剪貼簿中。"
+          }
+        }
+      }
+    },
+    "KeeForge left this browser’s folder unchanged because something in it isn’t safe to replace." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge hat den Ordner dieses Browsers unverändert gelassen, weil etwas darin nicht sicher ersetzt werden kann."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ha dejado sin cambios la carpeta de este navegador porque contiene algo que no es seguro reemplazar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge a laissé le dossier de ce navigateur intact, car il contient un élément qu’il n’est pas sûr de remplacer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ha lasciato invariata la cartella di questo browser perché contiene qualcosa che non è sicuro sostituire."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このブラウザのフォルダには安全に置き換えられないものがあるため、KeeForge は変更しませんでした。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge оставил папку этого браузера без изменений, потому что в ней есть то, что небезопасно заменять."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 未更改此浏览器的文件夹，因为其中有内容无法安全替换。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 未更改此瀏覽器的資料夾，因為其中有內容無法安全取代。"
+          }
+        }
+      }
+    },
+    "KeeForge needs access to this folder to tell %@ where to find it. Click Grant Access without choosing another folder." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge braucht Zugriff auf diesen Ordner, um %@ mitzuteilen, wo KeeForge zu finden ist. Klicke auf „Zugriff erlauben“, ohne einen anderen Ordner auszuwählen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge necesita acceso a esta carpeta para indicar a %@ dónde encontrarlo. Haz clic en «Conceder acceso» sin elegir otra carpeta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge a besoin d’accéder à ce dossier pour indiquer à %@ où le trouver. Cliquez sur « Autoriser l’accès » sans choisir un autre dossier."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ha bisogno di accedere a questa cartella per indicare a %@ dove trovarlo. Fai clic su “Consenti accesso” senza scegliere un’altra cartella."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に KeeForge の場所を伝えるため、KeeForge はこのフォルダへのアクセスを必要としています。別のフォルダを選択せずに「アクセスを許可」をクリックしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge нужен доступ к этой папке, чтобы сообщить %@, где его найти. Нажмите «Предоставить доступ», не выбирая другую папку."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 需要访问此文件夹，以告诉 %@ 在哪里找到它。请点按“授予访问权限”，不要选择其他文件夹。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 需要取用此資料夾，以告訴 %@ 在哪裡找到它。請按一下「授予取用權限」，不要選擇其他資料夾。"
           }
         }
       }
@@ -43498,6 +44648,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上次同步：%@"
+          }
+        }
+      }
+    },
+    "Last used %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuletzt verwendet: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último uso: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dernière utilisation : %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ultimo uso: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最終使用：%@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последнее использование: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次使用：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次使用：%@"
           }
         }
       }
@@ -47544,6 +48746,58 @@
         }
       }
     },
+    "Needs repair" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reparatur nötig"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Necesita reparación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réparation nécessaire"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Da riparare"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修復が必要"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Требуется восстановление"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要修复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要修復"
+          }
+        }
+      }
+    },
     "Network Unavailable" : {
       "localizations" : {
         "de" : {
@@ -47696,6 +48950,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "永不過期"
+          }
+        }
+      }
+    },
+    "Never used" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie verwendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nunca usado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jamais utilisé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mai usato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未使用"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не использовался"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从未使用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從未使用"
           }
         }
       }
@@ -49422,6 +50728,58 @@
         }
       }
     },
+    "No paired browsers" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine gekoppelten Browser"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay navegadores enlazados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun navigateur jumelé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessun browser abbinato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ペアリング済みのブラウザはありません"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет связанных браузеров"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有已配对的浏览器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有已配對的瀏覽器"
+          }
+        }
+      }
+    },
     "No Passkeys" : {
       "localizations" : {
         "de" : {
@@ -49792,6 +51150,58 @@
         }
       }
     },
+    "None of the browsers KeeForge supports is installed on this Mac." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Mac ist keiner der von KeeForge unterstützten Browser installiert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay instalado en este Mac ninguno de los navegadores compatibles con KeeForge."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun des navigateurs pris en charge par KeeForge n’est installé sur ce Mac."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuno dei browser supportati da KeeForge è installato su questo Mac."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge が対応しているブラウザはこの Mac にインストールされていません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На этом Mac не установлен ни один из браузеров, поддерживаемых KeeForge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 Mac 上未安装 KeeForge 支持的任何浏览器。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 Mac 上未安裝 KeeForge 支援的任何瀏覽器。"
+          }
+        }
+      }
+    },
     "None of your databases can be opened on this Mac." : {
       "localizations" : {
         "de" : {
@@ -50152,6 +51562,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目前版本中未設定"
+          }
+        }
+      }
+    },
+    "Not set up" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht eingerichtet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin configurar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non configuré"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non configurato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не настроен"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未设置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定"
           }
         }
       }
@@ -52092,6 +53554,58 @@
         }
       }
     },
+    "Open this browser once, then try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffne diesen Browser einmal und versuche es dann erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre este navegador una vez y vuelve a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez ce navigateur une fois, puis réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri questo browser una volta, poi riprova."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このブラウザを一度開いてから、もう一度お試しください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Откройте этот браузер один раз и повторите попытку."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先打开一次此浏览器，然后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先開啟一次此瀏覽器，然後重試。"
+          }
+        }
+      }
+    },
     "Open URL" : {
       "localizations" : {
         "de" : {
@@ -52556,6 +54070,162 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "或"
+          }
+        }
+      }
+    },
+    "Pair with “%@”?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit „%@“ koppeln?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Enlazar con «%@»?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jumeler avec « %@ » ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbinare “%@”?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」とペアリングしますか？"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Связать с «%@»?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要与“%@”配对吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要與「%@」配對嗎？"
+          }
+        }
+      }
+    },
+    "Paired %@ · %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gekoppelt am %1$@ · %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enlazado el %1$@ · %2$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jumelé le %1$@ · %2$@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbinato il %1$@ · %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ にペアリング · %2$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Связан %1$@ · %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 配对 · %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 配對 · %2$@"
+          }
+        }
+      }
+    },
+    "Paired browsers:" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gekoppelte Browser:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Navegadores enlazados:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Navigateurs jumelés :"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browser abbinati:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ペアリング済みのブラウザ："
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Связанные браузеры:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已配对的浏览器："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已配對的瀏覽器："
           }
         }
       }
@@ -56243,6 +57913,58 @@
         }
       }
     },
+    "Ready" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bereit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prêt"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pronto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "準備完了"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就绪"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就緒"
+          }
+        }
+      }
+    },
     "Ready for iPhone Duo" : {
       "localizations" : {
         "de" : {
@@ -57185,6 +58907,214 @@
         }
       }
     },
+    "Remove “%@”?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Quitar «%@»?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer « %@ » ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovere “%@”?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」を削除しますか？"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить «%@»?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要移除“%@”吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要移除「%@」嗎？"
+          }
+        }
+      }
+    },
+    "Remove All" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar todo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout retirer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi tutto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてを削除"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить все"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部移除"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部移除"
+          }
+        }
+      }
+    },
+    "Remove All Browsers?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Browser entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Quitar todos los navegadores?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer tous les navigateurs ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovere tutti i browser?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてのブラウザを削除しますか？"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить все браузеры?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要移除所有浏览器吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要移除所有瀏覽器嗎？"
+          }
+        }
+      }
+    },
+    "Remove All…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle entfernen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar todo…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout retirer…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi tutto…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてを削除…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить все…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部移除…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部移除…"
+          }
+        }
+      }
+    },
     "Remove attachment %@" : {
       "localizations" : {
         "de" : {
@@ -57757,6 +59687,58 @@
         }
       }
     },
+    "Remove…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entfernen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除…"
+          }
+        }
+      }
+    },
     "Removing it from the list also removes its cached copy and saved biometric key. The file itself is not touched." : {
       "localizations" : {
         "de" : {
@@ -58227,6 +60209,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "調整欄位順序…"
+          }
+        }
+      }
+    },
+    "Repair" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reparieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reparar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réparer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ripara"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修復"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановить"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修復"
           }
         }
       }
@@ -63905,6 +65939,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定金鑰檔案"
+          }
+        }
+      }
+    },
+    "Set up a browser:" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browser einrichten:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configurar un navegador:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configurer un navigateur :"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configura un browser:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザを設定："
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настроить браузер:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置浏览器："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定瀏覽器："
+          }
+        }
+      }
+    },
+    "Set Up Again…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut einrichten …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volver a configurar…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configurer à nouveau…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configura di nuovo…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再設定…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настроить снова…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新设置…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新設定…"
           }
         }
       }
@@ -75045,6 +77183,58 @@
         }
       }
     },
+    "This browser must pair again before it can fill from KeeForge." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Browser muss erneut gekoppelt werden, bevor er aus KeeForge ausfüllen kann."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este navegador tendrá que volver a enlazarse antes de poder rellenar desde KeeForge."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce navigateur devra être jumelé à nouveau avant de pouvoir remplir depuis KeeForge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo browser dovrà essere abbinato di nuovo prima di poter compilare da KeeForge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このブラウザで KeeForge から入力するには、もう一度ペアリングする必要があります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот браузер нужно будет связать снова, прежде чем он сможет заполнять данные из KeeForge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此浏览器必须重新配对，才能从 KeeForge 填充。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此瀏覽器必須重新配對，才能從 KeeForge 填寫。"
+          }
+        }
+      }
+    },
     "This build of KeeForge is missing the cloud sync configuration it needs to open that database." : {
       "localizations" : {
         "de" : {
@@ -75319,6 +77509,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目前版本不支援此雲端服務供應商。"
+          }
+        }
+      }
+    },
+    "This copy of KeeForge isn’t signed to let browser extensions connect." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Kopie von KeeForge ist nicht so signiert, dass sich Browsererweiterungen verbinden können."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta copia de KeeForge no está firmada para permitir que se conecten extensiones del navegador."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette copie de KeeForge n’est pas signée pour permettre aux extensions de navigateur de se connecter."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa copia di KeeForge non è firmata per consentire alle estensioni del browser di collegarsi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この KeeForge は、ブラウザ機能拡張の接続を許可するように署名されていません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта копия KeeForge не подписана для подключения расширений браузера."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 KeeForge 副本未经签名，无法让浏览器扩展连接。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 KeeForge 副本未經簽署，無法讓瀏覽器延伸功能連線。"
           }
         }
       }
@@ -78543,6 +80785,58 @@
         }
       }
     },
+    "This Mac can’t ask for your login password or Touch ID, so browser extensions can fill only during the authentication grace period after you unlock a database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Mac kann nicht nach deinem Anmeldepasswort oder Touch ID fragen. Browsererweiterungen können daher nur während der Karenzzeit für die Authentifizierung nach dem Entsperren einer Datenbank ausfüllen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este Mac no puede pedir tu contraseña de inicio de sesión ni Touch ID, así que las extensiones del navegador solo pueden rellenar durante el periodo de gracia de autenticación después de desbloquear una base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce Mac ne peut pas demander votre mot de passe de session ni Touch ID : les extensions de navigateur ne peuvent donc remplir que pendant le délai de grâce d'authentification après le déverrouillage d'une base de données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo Mac non può chiedere la password di login o Touch ID, quindi le estensioni del browser possono compilare solo durante il periodo di tolleranza dell'autenticazione dopo lo sblocco di un database."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この Mac ではログインパスワードや Touch ID を求めることができないため、ブラウザ機能拡張はデータベースのロック解除後、認証の猶予時間内にのみ入力できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот Mac не может запросить пароль для входа или Touch ID, поэтому расширения браузера могут заполнять данные только в течение периода без повторной аутентификации после разблокировки базы данных."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 Mac 无法要求输入登录密码或使用触控 ID，因此浏览器扩展只能在解锁数据库后的身份验证宽限期内填充。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台 Mac 無法要求輸入登入密碼或使用觸控 ID，因此瀏覽器延伸功能只能在解鎖資料庫後的身分驗證寬限期內填寫。"
+          }
+        }
+      }
+    },
     "This name is reserved for a built-in field." : {
       "localizations" : {
         "de" : {
@@ -79331,6 +81625,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此版本已不屬於該項目。"
+          }
+        }
+      }
+    },
+    "This version of KeeForge can’t set up this browser yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Version von KeeForge kann diesen Browser noch nicht einrichten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta versión de KeeForge todavía no puede configurar este navegador."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette version de KeeForge ne peut pas encore configurer ce navigateur."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questa versione di KeeForge non può ancora configurare questo browser."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このバージョンの KeeForge では、このブラウザをまだ設定できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта версия KeeForge пока не может настроить этот браузер."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本的 KeeForge 暂时无法设置此浏览器。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本的 KeeForge 暫時無法設定此瀏覽器。"
           }
         }
       }
@@ -82671,6 +85017,59 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖…"
+          }
+        }
+      }
+    },
+    "Unnamed browser" : {
+      "comment" : "Shown for a paired browser that sent no usable name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbenannter Browser"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Navegador sin nombre"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Navigateur sans nom"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browser senza nome"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称未設定のブラウザ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Браузер без имени"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名的浏览器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名的瀏覽器"
           }
         }
       }
@@ -86913,6 +89312,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉後，此資料庫中的密碼、通行金鑰和驗證碼既不會在自動填寫中顯示為建議，也無法在其中使用。重新開啟後，下次解鎖此資料庫時建議會重新出現。"
+          }
+        }
+      }
+    },
+    "When on, a paired browser can see which logins match a site and fill one after you confirm, while a database is unlocked." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn aktiviert, kann ein gekoppelter Browser sehen, welche Anmeldedaten zu einer Website passen, und nach deiner Bestätigung eine davon ausfüllen, solange eine Datenbank entsperrt ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si está activado, un navegador enlazado puede ver qué inicios de sesión coinciden con un sitio web y rellenar uno después de que confirmes, mientras haya una base de datos desbloqueada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si cette option est activée, un navigateur jumelé peut voir quels identifiants correspondent à un site web et en remplir un après votre confirmation, tant qu'une base de données est déverrouillée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se attivata, un browser abbinato può vedere quali credenziali corrispondono a un sito web e inserirne una dopo la tua conferma, mentre un database è sbloccato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンにすると、データベースのロックが解除されている間、ペアリング済みのブラウザは Web サイトに一致するログイン情報を参照でき、確認後にそのうち 1 件を入力できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если включено, связанный браузер может видеть, какие логины подходят для сайта, и после вашего подтверждения заполнять один из них, пока база данных разблокирована."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启后，在数据库解锁期间，已配对的浏览器可以查看哪些登录信息与网站匹配，并在你确认后填充其中一项。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟後，在資料庫解鎖期間，已配對的瀏覽器可以查看哪些登入資訊與網站相符，並在你確認後填寫其中一項。"
           }
         }
       }

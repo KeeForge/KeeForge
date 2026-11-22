@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "KeeForge",
+  "name": "__MSG_extensionName__",
   "version": "0.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtHEUH54vlcLBsHjpIxKXkQT9S5BsTYP5RlKoZBKiErJmJNQRPoiSm/G1PbPtMjKJQ9w5Vkfi2ZFPyxDp5+03N3eduYnWYXRWDHN4m4RI7mImPwpHNfzjN1r/23Zkc0VEYPnQLvZ9mfTpj5S/LcbWMg8QwGIABA63b5OWYRV9/LnDkGFNSbIImEZ7XmNANLCn2ROjcvTCdWsvp3Dc1D8AvJUA7HhUcoM8yscLnk8pvSTLqU5cl/eaHvl4jxIaP18Wq/Z/qnGM0T2rE34K4EYBt4L7lzl8hA9QlIkVIYtFqm+f1K15djjvU1J268gMhPfanlRmTgEh2KEYpvQz0vk4pwIDAQAB",
   "minimum_chrome_version": "133",
   "browser_specific_settings": {
     "gecko": {
@@ -9,14 +10,82 @@
       "strict_min_version": "130.0"
     }
   },
-  "permissions": ["nativeMessaging", "activeTab", "scripting", "storage"],
-  "action": {"default_title": "KeeForge"},
+  "permissions": [
+    "nativeMessaging",
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "action": {
+    "default_title": "__MSG_actionTitle__",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "images/icon-16.png",
+      "32": "images/icon-32.png",
+      "48": "images/icon-48.png",
+      "128": "images/icon-128.png"
+    }
+  },
   "background": {
     "service_worker": "src/background.js",
-    "scripts": ["src/background.js"],
+    "scripts": [
+      "src/background.js"
+    ],
     "type": "module"
   },
   "content_security_policy": {
-    "extension_pages": "default-src 'none'; script-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'; frame-ancestors 'none'"
-  }
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'; frame-ancestors https: http://localhost:* http://127.0.0.1:* http://[::1]:*"
+  },
+  "description": "__MSG_extensionDescription__",
+  "default_locale": "en",
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      }
+    }
+  },
+  "icons": {
+    "16": "images/icon-16.png",
+    "32": "images/icon-32.png",
+    "48": "images/icon-48.png",
+    "128": "images/icon-128.png"
+  },
+  "host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://[::1]/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "http://[::1]/*"
+      ],
+      "js": [
+        "src/content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "inline.html"
+      ],
+      "matches": [
+        "https://*/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "http://[::1]/*"
+      ],
+      "use_dynamic_url": true
+    }
+  ]
 }

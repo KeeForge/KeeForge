@@ -1,0 +1,128 @@
+{
+  "extensionName": {
+    "message": "KeeForge"
+  },
+  "actionTitle": {
+    "message": "KeeForge"
+  },
+  "extensionDescription": {
+    "message": "從 KeeForge 填寫登入資訊。"
+  },
+  "loading": {
+    "message": "正在連接…"
+  },
+  "hostMissing": {
+    "message": "在 KeeForge 中設定此瀏覽器：設定、瀏覽器"
+  },
+  "appUnavailable": {
+    "message": "KeeForge 尚未執行。"
+  },
+  "openApp": {
+    "message": "開啟 KeeForge"
+  },
+  "notPaired": {
+    "message": "此瀏覽器尚未配對。"
+  },
+  "pair": {
+    "message": "與 KeeForge 配對"
+  },
+  "unlock": {
+    "message": "在 KeeForge 中解鎖"
+  },
+  "locked": {
+    "message": "KeeForge 已鎖定。"
+  },
+  "confirm": {
+    "message": "請在 KeeForge 中確認"
+  },
+  "noLogins": {
+    "message": "沒有 $1 的登入資訊"
+  },
+  "otherLogins": {
+    "message": "此網站的其他登入資訊"
+  },
+  "fillLogin": {
+    "message": "填寫 $1，$2"
+  },
+  "verificationCode": {
+    "message": "驗證碼"
+  },
+  "fillCode": {
+    "message": "填寫驗證碼"
+  },
+  "reveal": {
+    "message": "在 KeeForge 中顯示"
+  },
+  "inFrame": {
+    "message": "在此頁面的框架中"
+  },
+  "filled": {
+    "message": "已填寫。"
+  },
+  "badOrigin": {
+    "message": "無法填寫此頁面。請使用安全的網站。"
+  },
+  "noFields": {
+    "message": "此頁面沒有可見且可編輯的欄位。"
+  },
+  "noLongerMatches": {
+    "message": "此項目已不再符合此網站。"
+  },
+  "denied": {
+    "message": "確認已取消或失敗。"
+  },
+  "notOffered": {
+    "message": "請重新開啟彈出視窗以重新整理登入資訊。"
+  },
+  "rateLimited": {
+    "message": "請求過多。請稍後重試。"
+  },
+  "disabled": {
+    "message": "KeeForge 已關閉瀏覽器延伸功能填寫。請在「設定」的「瀏覽器」中開啟。"
+  },
+  "disconnected": {
+    "message": "連線已關閉。請重新開啟彈出視窗。"
+  },
+  "unavailable": {
+    "message": "KeeForge 或此項目無法使用。"
+  },
+  "timeout": {
+    "message": "請求逾時。請重試。"
+  },
+  "pairDeclined": {
+    "message": "配對已遭拒絕。"
+  },
+  "pairBusy": {
+    "message": "現在無法開始配對。請在一分鐘後重試。"
+  },
+  "paired": {
+    "message": "已與 KeeForge 配對。你可以關閉此分頁。"
+  },
+  "compareCode": {
+    "message": "確認 KeeForge 顯示相同的代碼，然後在其中按一下「允許」。"
+  },
+  "switchToApp": {
+    "message": "如果 KeeForge 沒有出現在最前面，請切換至 KeeForge。"
+  },
+  "browserLabel": {
+    "message": "瀏覽器：$1"
+  },
+  "browser": {
+    "message": "瀏覽器"
+  },
+  "tryAgain": {
+    "message": "再試一次"
+  },
+  "inlineMenu": {
+    "message": "開啟 KeeForge 自動填寫選單"
+  },
+  "fillCodeFor": {
+    "message": "填寫 $1 的驗證碼"
+  },
+  "inlineFrameTitle": {
+    "message": "KeeForge 登入資訊"
+  },
+  "confirmFill": {
+    "message": "填寫"
+  }
+}

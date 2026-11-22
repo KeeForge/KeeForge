@@ -1,0 +1,128 @@
+{
+  "extensionName": {
+    "message": "KeeForge"
+  },
+  "actionTitle": {
+    "message": "KeeForge"
+  },
+  "extensionDescription": {
+    "message": "Fill logins from KeeForge."
+  },
+  "loading": {
+    "message": "Connecting…"
+  },
+  "hostMissing": {
+    "message": "Set up this browser in KeeForge: Settings, Browsers"
+  },
+  "appUnavailable": {
+    "message": "KeeForge is not running."
+  },
+  "openApp": {
+    "message": "Open KeeForge"
+  },
+  "notPaired": {
+    "message": "This browser is not paired."
+  },
+  "pair": {
+    "message": "Pair with KeeForge"
+  },
+  "unlock": {
+    "message": "Unlock in KeeForge"
+  },
+  "locked": {
+    "message": "KeeForge is locked."
+  },
+  "confirm": {
+    "message": "Confirm in KeeForge"
+  },
+  "noLogins": {
+    "message": "No logins for $1"
+  },
+  "otherLogins": {
+    "message": "Other logins for this site"
+  },
+  "fillLogin": {
+    "message": "Fill $1, $2"
+  },
+  "verificationCode": {
+    "message": "Verification code"
+  },
+  "fillCode": {
+    "message": "Fill verification code"
+  },
+  "reveal": {
+    "message": "Show in KeeForge"
+  },
+  "inFrame": {
+    "message": "in a frame on this page"
+  },
+  "filled": {
+    "message": "Filled."
+  },
+  "badOrigin": {
+    "message": "This page cannot be filled. Use a secure website."
+  },
+  "noFields": {
+    "message": "No visible, editable fields on this page."
+  },
+  "noLongerMatches": {
+    "message": "This entry no longer matches the site."
+  },
+  "denied": {
+    "message": "Confirmation was cancelled or failed."
+  },
+  "notOffered": {
+    "message": "Reopen the popup to refresh logins."
+  },
+  "rateLimited": {
+    "message": "Too many requests. Try again shortly."
+  },
+  "disabled": {
+    "message": "Filling from browser extensions is turned off in KeeForge. Turn it on in Settings, Browsers."
+  },
+  "disconnected": {
+    "message": "The connection closed. Reopen the popup."
+  },
+  "unavailable": {
+    "message": "KeeForge or this entry is unavailable."
+  },
+  "timeout": {
+    "message": "The request timed out. Try again."
+  },
+  "pairDeclined": {
+    "message": "Pairing was declined."
+  },
+  "pairBusy": {
+    "message": "Pairing cannot start right now. Try again in a minute."
+  },
+  "paired": {
+    "message": "Paired with KeeForge. You can close this tab."
+  },
+  "compareCode": {
+    "message": "Check that KeeForge shows the same code, then click Allow there."
+  },
+  "switchToApp": {
+    "message": "If KeeForge does not come forward, switch to it."
+  },
+  "browserLabel": {
+    "message": "Browser: $1"
+  },
+  "browser": {
+    "message": "Browser"
+  },
+  "tryAgain": {
+    "message": "Try Again"
+  },
+  "inlineMenu": {
+    "message": "Open KeeForge fill menu"
+  },
+  "fillCodeFor": {
+    "message": "Fill verification code for $1"
+  },
+  "inlineFrameTitle": {
+    "message": "KeeForge logins"
+  },
+  "confirmFill": {
+    "message": "Fill"
+  }
+}

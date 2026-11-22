@@ -1,0 +1,23 @@
+/* In-page menu layout only; tokens, rows, buttons and the state block come from theme.css. */
+html, body { height: 100%; overflow: hidden; }
+/* Fills the fixed-size frame so the visibility observer sees all of it; the list scrolls inside. */
+#viewport { display: flex; flex-direction: column; height: 100vh; border: 1px solid var(--kf-border); border-radius: 10px; background: var(--kf-bg); overflow: hidden; }
+header { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px; border-bottom: 1px solid var(--kf-border); flex: none; }
+.brand { width: 20px; height: 20px; flex: none; }
+#site { margin: 0; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
+#secure { width: 11px; height: 11px; margin-inline-end: -4px; color: var(--kf-muted); mask-image: url('images/lock.svg'); }
+#panel { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+#state { padding: 22px 20px 16px; }
+#content { padding: 0 6px 6px; }
+#content:empty { display: none; }
+#content > button { display: block; margin: 0 auto 16px; }
+#content > ul + button { margin-top: 8px; }
+ul { list-style: none; margin: 0; padding: 0; }
+#content > ul:first-child { padding-top: 6px; }
+h2.kf-section { margin-top: 6px; border-top: 1px solid var(--kf-border); padding-top: 10px; }
+h2.kf-section + h3.kf-section { padding-top: 2px; }
+/* Without visibility tracking (Firefox) a fill needs a second click on a button placed at a random offset. */
+.kf-confirm { padding: 4px 4px 6px; }
+.kf-confirm .kf-primary { width: 76px; padding-inline: 4px; }
+.kf-row:has(.kf-confirm) { flex-wrap: wrap; }
+.kf-confirm { flex-basis: 100%; }

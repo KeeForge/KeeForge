@@ -90,6 +90,8 @@ KeeForge/
 ├── ViewModels/       # Список баз данных, разблокировка, сохранение, поиск, сортировка, состояние TOTP
 ├── Views/            # Экраны SwiftUI, редактор, настройки, чаевые, повторно используемые элементы управления
 AutoFillExtension/    # Поставщик учётных данных для автозаполнения, аутентификация с ключами входа, создание учётных данных
+BrowserExtension/     # Расширение для Chrome и Firefox, заполняющее данные из приложения для Mac
+BrowserHost/          # Хост native messaging, встроенный в приложение для Mac
 KeeForgeMac/          # Нативное приложение для macOS: оболочка AppKit, конфигурация и entitlements
 KeeForgeMacUITests/   # Тесты XCUITest для приложения macOS
 KeeForgeTests/        # Модульные тесты

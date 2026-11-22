@@ -645,6 +645,212 @@ requests (each one reads the session on the main thread), and the time a
 16384-bit RSA signature takes. The same-user peer check has no test with a peer of
 another user.
 
+## Browser bridge
+
+The browser bridge
+([MacBrowserBridgeController](../KeeForge/Services/BrowserBridge/MacBrowserBridgeController.swift))
+lets the KeeForge extension for Chrome-family browsers and Firefox
+([BrowserExtension](../BrowserExtension/README.md)) fill one login at a time from
+an unlocked database, from a key button in a login field or from the
+extension's toolbar popup. It is off by default (Settings ▸ Browsers). The wire
+contract is [browser-bridge-protocol.md](../docs/browser-bridge-protocol.md).
+
+The browser starts the native-messaging host `keeforge-browser-host`, which ships
+inside the app at `Contents/MacOS/` ([BrowserHost](../BrowserHost/AGENTS.md)). It
+is sandboxed with only the team-prefixed `com.keevault.browser` App Group, no
+network or file access, and relays complete frames between the browser's pipes and
+`b.sock` in that group's container. It reads each frame only to find its own
+`host` control frames, logs nothing, and can ask LaunchServices to open the app
+that contains it. The host is untrusted: sharing the group container proves
+nothing about a peer, and the app decides every pairing and release.
+
+While the bridge is on, the app listens on `b.sock`, created mode 0600, and checks
+every connection with `getpeereid` against its own user. At most 64 connections
+are open; a further one is refused rather than replacing one. A connection must
+send `hello` or `pair-commit` within 10 seconds, a peer that stops reading is
+closed after a 5-second send timeout or 64 queued blocks, and frames are capped at
+64 KiB toward the app and 1 MiB toward the extension. Turning the bridge off or
+quitting cancels every request, removes the socket, and tells each connection
+`disabled`; a credential waiting on the device-owner prompt is not sent. A socket
+another listener serves, such as a second copy of the app, is left alone and
+reported in Settings. The bridge adds no network access.
+
+Pairing registers a browser profile's X25519 public key after the user compares a
+six-digit code shown in the extension's pairing tab and in the app's alert, which
+comes up as a sheet on the Databases window. The exchange is commit-then-reveal,
+so neither side can pick its keys after seeing the other's, and the code covers
+both static and both ephemeral keys. The alert shows the browser-supplied name in
+quotation marks as plain text: control, format and line or paragraph separator
+characters are removed, whitespace is collapsed, combining marks are limited to 2
+per character, and the name is cut to 64 characters and 256 scalars. Don't Allow
+holds Return and Escape; Allow has no key equivalent, does not take the initial
+keyboard focus, and is disabled for 1.5 seconds after the alert appears. When
+macOS refuses to activate KeeForge, the Dock icon bounces until the user switches
+to it. One pairing slot is taken at `pair-commit`, before the app sends its keys:
+at most 5 attempts are admitted a minute, a pairing that ends without being
+allowed starts a 10-second cooldown, a commit must be revealed within 10 seconds,
+and an alert not answered within 120 seconds declines. A process that relays or
+impersonates the extension can compute the code of each attempt before revealing
+it, so these limits are what hold it to 5 silent guesses a minute, each a
+one-in-a-million chance. The code says nothing about which browser or extension
+is on the other end, and the name is unverified.
+
+The installation's X25519 private key is in the Keychain in the app's own
+application-identifier access group, not the group AutoFill shares,
+`WhenUnlockedThisDeviceOnly` and not synchronizable. A Keychain error leaves the
+bridge unavailable and never replaces the key. Paired browsers (client ID, public
+key, name, paired and last-used dates) are in the app's own defaults, never the
+App Group ([BrowserPairingStore](../KeeForge/Services/BrowserBridge/BrowserPairingStore.swift)).
+Removing a browser in Settings closes its connections; Remove All also deletes
+the key, so every browser must pair again.
+
+Each connection's session derives its keys from both static keys and fresh
+ephemeral keys and encrypts every request and reply with AES-256-GCM.
+[BrowserBridgeRequestHandler](../KeeForge/Services/BrowserBridge/BrowserBridgeRequestHandler.swift)
+then applies these rules:
+
+- `matches` takes an `https` origin, or `http` only for `localhost`, `127.0.0.1`
+  and `[::1]`, and returns, without a prompt, the title, resolved user name,
+  database name and whether a code exists for each entry the shared site matcher
+  offers for it: exact matches, then possible matches on related hosts of the
+  same site. It reads every open session that is unlocked, has no lock pending
+  and takes part in AutoFill, skips the Recycle Bin, expired entries and entries
+  with neither a password nor a code, and returns at most 50 rows. No password,
+  code or other field is in the reply.
+- `credential` is answered only for an entry and database that a `matches` reply
+  on the same connection offered for the same origin. It takes that session's
+  device-owner gate: it releases inside the session's grace period, which a
+  successful unlock or device-owner authentication starts and which defaults to
+  Always Ask, or after the user passes a prompt that names the entry and the
+  site (Fill “Title” on example.com in your browser). The title is sanitized
+  like a browser name and cut to 64 characters; the host is the site matcher's
+  (lowercased, without port or a leading `www.`), in punycode because the origin
+  must be printable ASCII, and a host longer than 64 characters keeps its end.
+  Unlike Copy Password, the bridge fails closed: on a Mac that cannot
+  authenticate its owner (no login password, Touch ID or Apple Watch), a request
+  outside the grace period is `denied` without a prompt, and Settings ▸ Browsers
+  says that filling works only within the grace period. Before and after the
+  prompt, and again after decrypting off the main actor, the handler checks that
+  the session is the same one, unlocked, in the same lock cycle, unchanged, and
+  that the entry still matches the origin. The reply holds the user name and
+  password, or, for a code-only request, the current code alone; the password
+  is not decrypted for a code-only request.
+- `reveal` and `unlock` bring a database window or the Databases window forward,
+  and `reveal` selects an entry this connection was offered. Neither unlocks a
+  database or shows a secret, and a window brought forward this way does not
+  count as the user's deliberate focus on a window restored at launch.
+- Per connection: 16 requests in flight, `matches` a burst of 10 then 5 a
+  second, one credential in flight and 30 a minute, and one `reveal` or
+  `unlock` a second with a burst of 3; more is `rate-limited`. The in-field
+  menu polls `matches` once a second while it is visible.
+
+Nothing the bridge does is logged. The app cannot see the browser's page, so it
+trusts the origin the extension names. A compromised paired browser or extension,
+or a same-user process holding that browser's key, can list the offered logins
+for any site it names and obtain a password after the user confirms the prompt,
+or without a prompt inside the grace period. The prompt names the entry and the
+host so the user can refuse a request for a site they are not filling. The extension keeps its key
+non-extractable in IndexedDB, which binds WebCrypto callers only; assume a
+process that can read the browser profile can recover it.
+
+The extension holds host access to every `https` page and to `http` on
+`localhost`, `127.0.0.1` and `[::1]`, and runs an isolated-world content script
+in every such frame from `document_start`. It draws a key button, in its own
+colours, at the end of user-name, password and verification-code fields and of
+a lone e-mail or user-name step; documents without inputs get nothing, and
+sandboxed frames and frames smaller than 256×196 px get no buttons (the toolbar
+popup still works there). `activeTab` is kept so the popup works where the user
+limits site access to "on click" or, in Firefox, has not granted host access. A
+compromised extension can read and change all of those pages, not only the ones
+the user fills. Until the user clicks a key button with a real (trusted) click
+or presses Option+Down in the field, the content script sends nothing to the
+extension's background or to the app, and the button looks the same on every
+site whatever the vault holds. The click opens a menu: `inline.html`, the
+extension's only web-accessible page, in an iframe inside a closed shadow root.
+The background builds the menu's session for that tab from the browser's own
+sender data (tab, frame, document, origin) with an unpredictable token and a
+new per-document pin, and asks the app for `matches` only then, for that
+frame's own origin. It accepts menu requests only from its own `inline.html` in
+the same tab while the session is current; the first menu document owns the
+session, and a second load of the menu frame closes it. Opening the toolbar
+popup closes an open menu in that tab.
+
+The menu frame sends the page nothing. It is a fixed 320×264 px card, smaller
+only when the viewport is, and it closes through the background to the
+recorded frame, so the page learns neither the extension's origin nor a handle
+to the frame. The page can see, remove or restyle the button's host element;
+it can find the buttons and the card by hit-testing, though the card's box
+depends only on the field's position and the viewport; it can tell from focus
+when the menu opens and closes; and it can read what is filled. It cannot read
+the closed root, the menu's URL or token, or the logins. A lone user-name step
+gets only the user name, but the app still releases the password to the
+extension, because the protocol has no user-name-only request.
+
+Against clickjacking, every control in the menu acts only on a trusted event
+once the menu has been fully visible without a break for 300 ms, 300 ms after
+it opened and 300 ms after its rows last changed. In Chrome it also requires
+IntersectionObserver v2's `isVisible`, so an overlay or opacity on the button
+host or the page makes it refuse; a site with full-viewport overlays can make
+it unusable. Firefox has no such detection, so there a fill needs a second
+click, at least 300 ms later, on a Fill button at a random horizontal offset in
+the row. The menu closes if it or its field moves more than 1 px (scrolling
+included), its host is restyled, or the viewport or URL changes. What remains
+is a page script moving the menu in the same animation frame as the user's
+click; the page gets no mouse-down for clicks inside the menu, so it must guess
+the timing. To let the menu load, the extension's pages allow `https` and
+loopback framing; `popup.html` and `pair.html` are not web accessible, so pages
+cannot frame or fetch them, and Chrome gives pages no usable URL for
+`inline.html`. Whatever the page does, a fill still needs an entry the app
+offered for that origin and the device-owner check above. An adversarial
+review of this surface found no way to have a credential requested for one
+origin and injected into another; the issues it did find (state leaking
+through frame messages, frame replacement, clickjacking by moving the menu, an
+invisible button, a close a page could block, and tests that passed with checks
+removed) are fixed.
+
+Setting up a browser writes `com.keevault.browser.json`, naming the host's
+absolute path and the allowed extension IDs, into that browser's
+`NativeMessagingHosts` folder after the user grants it in an open panel
+([BrowserHostInstaller](../KeeForge/Services/BrowserBridge/BrowserHostInstaller.swift)).
+A grant of the browser's own folder is used once to create `NativeMessagingHosts`
+and never bookmarked; the bookmark of `NativeMessagingHosts` itself stays in the
+app's defaults. The installer refuses a symlinked folder or manifest, never
+replaces a manifest with another `name`, and removes only one whose `path` is
+inside a `KeeForge.app`. Once per launch, the first time the bridge listens, a
+manifest that no longer matches is rewritten from the stored grant without a
+prompt, only when the app runs from `/Applications` or `~/Applications` and is
+not translocated. Release
+builds allow only store extension IDs; the development Chromium ID is in debug
+builds only. The manifest's allowed-extension list is a filter the browser
+applies, not a security boundary: any same-user process can rewrite the file or
+connect to the socket directly, and nothing verifies the browser binary.
+
+`MacBrowserBridgeUITests` passes on a development-signed, sandboxed build with
+the real embedded host, started outside the test runner's sandbox: the
+Browsers switch, the pairing alert with a matching code, Return declining and
+Allow pairing, status, matches and a credential with real fixture values,
+Remove, switching off, a locked database and its unlock, and Remove All.
+`MacBrowserExtensionUITests` passes with the shipped extension in real headless
+Chrome, which launches the embedded host itself: pairing, the key button's
+menu, a fill, the locked menu and Unlock, the toolbar popup and removal. Both
+classes run only on the owner's test Mac and launch with a five-minute
+authentication grace period, so they prove release inside it, not the prompt.
+The `browser-extension` CI job runs the extension in headless Chrome and
+Firefox against the development mock host only; in Firefox it covers the key
+button and the menu frame (no native host is registered there). Not yet
+verified: the owner prompt on screen (Touch ID or password), including through
+the in-field menu, a verification-code fill through the real app, pairing,
+filling and the two-click confirm in Firefox with a registered host, headed
+Chrome, right-to-left layouts, the menu inside a modal dialog
+as drawn, the back/forward cache and a background restart while Touch ID
+waits, store-signed extensions and a distribution-signed app (including
+whether macOS container protection prompts for or refuses an unsandboxed
+process that connects to the socket), the Chromium store extension ID (none is
+configured, so release builds refuse to set up Chromium browsers: an open
+release blocker for Chromium-family browsers until the store assigns an ID), and whether
+the pairing alert comes forward over a browser. The same-user peer check has no
+test with a peer of another user.
+
 ## Plaintext attachment files and disk encryption
 
 [AttachmentPreviewFileStore](../KeeForge/Services/AppSupport/AttachmentPreviewFileStore.swift)
@@ -687,8 +893,8 @@ here too.
 
 Both release channels use App Sandbox and Hardened Runtime. Release artifacts
 must have no `com.apple.security.cs.*` exceptions and no `get-task-allow`.
-[verify_mac_artifact.sh](../ci_scripts/verify_mac_artifact.sh) checks the app and
-nested executable bundles; [build_mac_direct.sh](../ci_scripts/build_mac_direct.sh)
+[verify_mac_artifact.sh](../ci_scripts/verify_mac_artifact.sh) checks the app,
+nested executable bundles and the embedded browser host; [build_mac_direct.sh](../ci_scripts/build_mac_direct.sh)
 also enforces this before direct-build notarization.
 
 The source entitlements in [KeeForgeMac.entitlements](KeeForgeMac.entitlements) are:
@@ -700,7 +906,7 @@ The source entitlements in [KeeForgeMac.entitlements](KeeForgeMac.entitlements) 
 | `com.apple.security.files.user-selected.read-write` | Access to files selected by the user. |
 | `com.apple.security.files.bookmarks.app-scope` | Persistent access through security-scoped bookmarks. |
 | `com.apple.security.network.client` | Outbound provider sync, opt-in favicon fetching, feedback submission, and channel-specific store/update operations. |
-| `com.apple.security.application-groups` | Shared encrypted vault caches and extension metadata in `group.com.keevault.shared`. |
+| `com.apple.security.application-groups` | Shared encrypted vault caches and extension metadata in `group.com.keevault.shared`; the browser bridge socket in the separate team-prefixed `com.keevault.browser` group, which the AutoFill extension does not have. |
 | `keychain-access-groups` | Team-prefixed `com.keevault.sharedkeychain`, shared with AutoFill. |
 
 The [direct-build entitlements](KeeForgeMacDirect.entitlements) add only
@@ -716,6 +922,13 @@ availability is defined by
 [CloudProviderKind](../KeeForge/Services/Cloud/CloudSyncModels.swift), which enables
 WebDAV and FTP on macOS. Reintroducing OneDrive requires restoring its source and
 SDK dependency, the MSAL keychain group, and matching Developer ID profiles.
+
+Both channels embed `keeforge-browser-host` in `Contents/MacOS`, signed on copy
+with [its own entitlements](../BrowserHost/BrowserHost.entitlements): App Sandbox
+and the team-prefixed `com.keevault.browser` group, nothing else. The artifact
+verifier requires exactly that set, Hardened Runtime, the app's signing team and
+a matching group in the app, and the app's version and build in the host's
+embedded Info.plist.
 
 ## AutoFill extension boundary
 

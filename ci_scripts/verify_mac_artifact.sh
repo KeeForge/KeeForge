@@ -52,6 +52,7 @@ need_command lipo
 need_command otool
 need_command strings
 need_command file
+need_command python3
 
 INFO_PLIST="${APP_PATH}/Contents/Info.plist"
 [[ -f "$INFO_PLIST" ]] || die "missing Contents/Info.plist"
@@ -110,6 +111,98 @@ bundle_hardening() {
   fi
 }
 
+verify_browser_host() {
+  local host="$1" app="$2" metadata team app_team entitlements app_entitlements
+  [[ -f "$host" && -x "$host" ]] || die "browser host executable is missing"
+  codesign --verify --strict "$host" >/dev/null 2>&1 \
+    || die "browser host signature is invalid"
+  bundle_hardening "$host"
+  metadata="$(codesign -dvv "$host" 2>&1)" || die "browser host signature is unavailable"
+  team="$(sed -n 's/^TeamIdentifier=//p' <<<"$metadata")"
+  [[ -n "$team" && "$team" != "not set" ]] || die "browser host signing team is missing"
+  entitlements="${TMP_DIR}/host-entitlements.plist"
+  codesign -d --entitlements - --xml "$host" >"$entitlements" 2>/dev/null \
+    || die "browser host entitlements are unavailable"
+  python3 - "$entitlements" "$team" <<'PYHOST' || die "browser host entitlements do not match the relay boundary"
+import plistlib, sys
+try:
+    with open(sys.argv[1], "rb") as source:
+        actual = plistlib.load(source)
+    expected = {
+        "com.apple.security.app-sandbox": True,
+        "com.apple.security.application-groups": [sys.argv[2] + ".com.keevault.browser"],
+    }
+    if actual != expected or actual["com.apple.security.app-sandbox"] is not True:
+        sys.exit(1)
+except Exception:
+    sys.exit(1)
+PYHOST
+  # The relay reaches the app only through the shared container, so both must be one team's group.
+  app_team="$(codesign -dvv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p')" || true
+  [[ "$app_team" == "$team" ]] || die "browser host and app signing teams differ"
+  app_entitlements="${TMP_DIR}/app-browser-entitlements.plist"
+  codesign -d --entitlements - --xml "$app" >"$app_entitlements" 2>/dev/null \
+    || die "app entitlements are unavailable"
+  python3 - "$app_entitlements" "$team" <<'PYAPPGROUP' || die "app entitlements do not list the browser host group"
+import plistlib, sys
+try:
+    with open(sys.argv[1], "rb") as source:
+        groups = plistlib.load(source).get("com.apple.security.application-groups")
+    browser = [g for g in groups if isinstance(g, str) and g.endswith("com.keevault.browser")]
+    if browser != [sys.argv[2] + ".com.keevault.browser"]:
+        sys.exit(1)
+except Exception:
+    sys.exit(1)
+PYAPPGROUP
+}
+
+# The tool is not a bundle, so its version lives in the __TEXT,__info_plist
+# section of every Mach-O slice.
+verify_browser_host_version() {
+  local host="$1" version="$2" build="$3"
+  python3 - "$host" "$version" "$build" <<'PYVERSION' || die "browser host version or build does not match the app"
+import plistlib, struct, sys
+
+def info_plist(data, base):
+    magic, _, _, _, ncmds, _, _, _ = struct.unpack_from("<8I", data, base)
+    if magic != 0xFEEDFACF:
+        raise ValueError("not a 64-bit Mach-O slice")
+    cursor = base + 32
+    for _ in range(ncmds):
+        cmd, cmdsize = struct.unpack_from("<2I", data, cursor)
+        if cmd == 0x19:
+            nsects = struct.unpack_from("<I", data, cursor + 64)[0]
+            for index in range(nsects):
+                section = cursor + 72 + index * 80
+                name, segment = (raw.rstrip(b"\0") for raw in struct.unpack_from("16s16s", data, section))
+                if (segment, name) == (b"__TEXT", b"__info_plist"):
+                    size, offset = struct.unpack_from("<QI", data, section + 40)
+                    return plistlib.loads(data[base + offset:base + offset + size])
+        cursor += cmdsize
+    raise ValueError("no __TEXT,__info_plist section")
+
+try:
+    data = open(sys.argv[1], "rb").read()
+    magic = struct.unpack_from(">I", data, 0)[0]
+    if magic in (0xCAFEBABE, 0xCAFEBABF):
+        count = struct.unpack_from(">I", data, 4)[0]
+        if magic == 0xCAFEBABE:
+            bases = [struct.unpack_from(">5I", data, 8 + i * 20)[2] for i in range(count)]
+        else:
+            bases = [struct.unpack_from(">2I2Q2I", data, 8 + i * 32)[2] for i in range(count)]
+    else:
+        bases = [0]
+    if not bases:
+        sys.exit(1)
+    for base in bases:
+        plist = info_plist(data, base)
+        if (plist.get("CFBundleShortVersionString"), plist.get("CFBundleVersion")) != (sys.argv[2], sys.argv[3]):
+            sys.exit(1)
+except Exception:
+    sys.exit(1)
+PYVERSION
+}
+
 codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1 \
   || die "app code signature is invalid"
 
@@ -119,6 +212,9 @@ codesign -d --entitlements - --xml "$APP_PATH" >"$ROOT_ENTITLEMENTS" 2>/dev/null
 grep -q 'com.apple.security.app-sandbox' "$ROOT_ENTITLEMENTS" \
   || die "app sandbox entitlement is missing"
 bundle_hardening "$APP_PATH"
+BROWSER_HOST="${APP_PATH}/Contents/MacOS/keeforge-browser-host"
+verify_browser_host "$BROWSER_HOST" "$APP_PATH"
+verify_browser_host_version "$BROWSER_HOST" "$VERSION" "$BUILD"
 
 while IFS= read -r nested_bundle; do
   [[ -n "$nested_bundle" ]] || continue
@@ -134,10 +230,10 @@ while IFS= read -r nested_bundle; do
   esac
 done < <(find "${APP_PATH}/Contents" -type d \( -name '*.app' -o -name '*.appex' -o -name '*.xpc' \) -print)
 
-# Check the root app and KeeForge-owned nested app/appex executables. Sparkle
+# Check the root app, browser host, and KeeForge-owned appex executables. Sparkle
 # helper apps are intentionally excluded here; they are third-party payloads,
 # not part of KeeForge's architecture/product-support promise.
-declare -a OWNED_EXECUTABLES=("$EXECUTABLE_PATH")
+declare -a OWNED_EXECUTABLES=("$EXECUTABLE_PATH" "$BROWSER_HOST")
 while IFS= read -r nested_bundle; do
   [[ -n "$nested_bundle" ]] || continue
   case "$nested_bundle" in

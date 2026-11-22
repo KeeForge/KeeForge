@@ -261,7 +261,7 @@ final class MacSSHAgentController {
             try server.start()
             self.server = server
             unavailability = nil
-        } catch SSHAgentSocketError.socketInUse {
+        } catch LocalSocketError.socketInUse {
             unavailability = .socketInUse
         } catch {
             unavailability = .failed

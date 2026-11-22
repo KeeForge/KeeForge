@@ -127,6 +127,9 @@ What the verifier checks, beyond version/build and the values above:
 
 - Code signature, hardened runtime, sandbox, nested executable bundles, channel framework/linkage
   boundaries, and exact architectures.
+- The embedded `keeforge-browser-host` tool: its signature, hardening, exact relay entitlements,
+  and the version and build in its embedded `__TEXT,__info_plist` section, which must equal the
+  app's `CFBundleShortVersionString` and `CFBundleVersion` in every architecture slice.
 - The sandbox exceptions the update channel depends on. Nothing earlier in an update fails without
   them: the feed fetch, download, and EdDSA check all succeed and only the install step is
   unreachable. A direct artifact must set `SUEnableInstallerLauncherService`, carry mach-lookup

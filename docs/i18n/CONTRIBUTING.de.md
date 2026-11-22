@@ -9,6 +9,7 @@ Danke, dass du KeeForge besser machst.
 - Öffne bei größeren Änderungen zuerst ein Issue, damit Umfang und Vorgehen besprochen werden können.
 - Lies [`AGENTS.md`](../../AGENTS.md) und danach die ordnerlokale `README.md`, die dem Code am nächsten liegt, den du ändern willst.
 - Halte Änderungen fokussiert. Sicherheitsrelevante Änderungen an Parser, Writer, Krypto, Geheimnisverwaltung und Speicherpfaden erfordern gezielte Tests.
+- Wenn du die Nachrichten zwischen der Browsererweiterung, ihrem Native-Messaging-Host und der Mac-App änderst, aktualisiere [`docs/browser-bridge-protocol.md`](../../docs/browser-bridge-protocol.md) im selben Commit. Änderst du, welche Origins akzeptiert werden oder welche Einträge zu einer Website passen, aktualisiere auch die Konformitäts-Fixtures in [`TestFixtures/browser-bridge/`](../../TestFixtures/browser-bridge/).
 
 ## Voraussetzungen
 
@@ -17,6 +18,7 @@ Danke, dass du KeeForge besser machst.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 mit Strict Concurrency
 - Swift-Package-Abhängigkeiten: [argon2](https://github.com/P-H-C/phc-winner-argon2), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), [swift-psl](https://github.com/ameshkov/swift-psl), [YubiKit](https://github.com/Yubico/yubikit-ios) und das mitgelieferte [KeeForgeTwofish](../../Vendor/KeeForgeTwofish)-Paket
+- Nur für die Browsererweiterung in `BrowserExtension/`: Node.js mit WebCrypto-X25519, Python 3 zum Paketieren sowie Chrome und Firefox für die Prüfungen in echten Browsern; keine npm-Pakete
 
 ## Aus dem Quellcode bauen
 
@@ -40,6 +42,15 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
   -destination 'platform=macOS' \
   -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
+
+Die Mac-Browsererweiterung in `BrowserExtension/` ist reines JavaScript ohne Pakete. `tools/ci.sh` führt alle ihre Prüfungen aus, auch in echtem Chrome und Firefox; ihre Node-Tests allein sind die schnelle Teilmenge:
+
+```bash
+BrowserExtension/tools/ci.sh
+cd BrowserExtension && node --test
+```
+
+Wie du sie in einen Browser lädst und was jede Prüfung abdeckt, steht in [`BrowserExtension/README.md`](../../BrowserExtension/README.md).
 
 ## Entwicklungs-Workflow
 
@@ -66,6 +77,8 @@ Drei Status-Checks müssen bestehen, bevor ein Pull Request gemergt werden kann:
 - **unit-tests** — führt die Unit-Suite `KeeForgeTests` über GitHub Actions auf einem iOS-Simulator aus.
 - **macos-unit-tests** — führt die geteilten Unit-Tests als `KeeForgeMacTests` unter macOS aus.
 - **DCO** — prüft, ob jeder Commit signiert (Sign-off) ist (siehe unten).
+
+Pull Requests führen außerdem den Check **browser-extension** aus, `BrowserExtension/tools/ci.sh` gegen einen Ersatz für die Mac-App; er ist noch nicht verpflichtend.
 
 ## Developer Certificate of Origin
 

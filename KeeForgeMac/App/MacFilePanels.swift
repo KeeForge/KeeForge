@@ -106,6 +106,19 @@ final class MacFilePanels: MacFilePanelPresenting {
         return panel
     }
 
+    /// The folder the browser host installer may write into; any other choice is refused there.
+    static func makeBrowserFolderPanel(for request: BrowserHostInstaller.FolderGrantRequest) -> NSOpenPanel {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = request.directoryToGrant
+        panel.message = String(localized: "KeeForge needs access to this folder to tell \(request.browser.displayName) where to find it. Click Grant Access without choosing another folder.")
+        panel.prompt = String(localized: "Grant Access")
+        return panel
+    }
+
     static func presentAsSheet(_ panel: NSOpenPanel, on window: NSWindow?) async -> URL? {
         guard let window else {
             return panel.runModal() == .OK ? panel.url : nil

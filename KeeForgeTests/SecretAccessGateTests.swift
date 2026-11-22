@@ -241,6 +241,10 @@ final class SecretAccessGateTests: XCTestCase {
         harness.isAuthenticationAvailable = false
 
         XCTAssertFalse(harness.gate.requiresAuthentication)
+        XCTAssertFalse(harness.gate.canAuthenticateDeviceOwner, "Fail-closed callers can tell unavailable from granted")
+        XCTAssertFalse(harness.gate.isWithinGracePeriod)
+        harness.isAuthenticationAvailable = true
+        XCTAssertTrue(harness.gate.canAuthenticateDeviceOwner)
     }
 
     private func assertPromptFails(
