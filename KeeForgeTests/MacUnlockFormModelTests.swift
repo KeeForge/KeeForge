@@ -84,6 +84,31 @@ final class MacUnlockFormModelTests: XCTestCase {
         XCTAssertFalse(model.showsHardwareKey)
     }
 
+    func testSlotStatusesAreReadOnlyWhileAUSBKeyIsChosenAndNameTheSlots() async {
+        var probes = 0
+        let (session, _, model) = makeModel(probe: {
+            probes += 1
+            return [.one: .notSetUp, .two: .setUp(needsTouch: true)]
+        })
+        let slotOne = HardwareKeyConfiguration(transport: .usb, slot: .one)
+        let slotTwo = HardwareKeyConfiguration(transport: .usb, slot: .two)
+
+        await model.refreshHardwareKeySlots()
+        XCTAssertEqual(probes, 0, "Reading slots asks for Input Monitoring, so not before a YubiKey is chosen")
+        XCTAssertEqual(model.title(for: slotOne), slotOne.title)
+
+        session.hardwareKey = slotTwo
+        await model.refreshHardwareKeySlots()
+        XCTAssertEqual(probes, 1)
+        XCTAssertEqual(model.title(for: slotOne), String(localized: "\(slotOne.title) (Not Set Up)"))
+        XCTAssertEqual(model.title(for: slotTwo), String(localized: "\(slotTwo.title) (Touch Required)"))
+
+        session.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
+        await model.refreshHardwareKeySlots()
+        XCTAssertEqual(probes, 1)
+        XCTAssertEqual(model.title(for: slotOne), slotOne.title)
+    }
+
     func testAYubiKeyAloneIsAKeyPart() async {
         let (session, _, model) = makeModel()
         XCTAssertFalse(model.canSubmit)
@@ -724,12 +749,13 @@ final class MacUnlockFormModelTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeModel(
-        readData: @escaping @Sendable (URL) async throws -> Data = { _ in Data() }
+        readData: @escaping @Sendable (URL) async throws -> Data = { _ in Data() },
+        probe: @escaping @MainActor () async -> [HardwareKeyConfiguration.Slot: YubiKeyOTPHID.SlotStatus]? = { nil }
     ) -> (FakeUnlockSession, FakeFilePicker, MacUnlockFormModel) {
         let session = FakeUnlockSession()
         let picker = FakeFilePicker()
         let model = MacUnlockFormModel(session: session, filePicker: picker,
-            keyFileSelection: UnlockKeyFileSelection(readData: readData))
+            keyFileSelection: UnlockKeyFileSelection(readData: readData), probeHardwareKeySlots: probe)
         return (session, picker, model)
     }
 }

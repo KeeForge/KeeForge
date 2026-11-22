@@ -20,7 +20,7 @@
 ### Page layout
 
 - iPhone and iPad draw the design's unlock page: the database's name, file, and storage in the navigation bar, then the password field, Key File and Hardware Key in one card, then Unlock, the biometric button, and Choose Different File.
-- The Mac unlock page follows the Unlock board: Touch ID first with an "or" divider and Unlock inline in the field while `biometricUnlockAvailability == .available`, otherwise the field with Show/Hide and an Unlock Database capsule, plus the unavailable note when a saved key exists but Touch ID cannot be used. A wrong attempt empties the field and rings it red. The key-file line, then the inactivity footer, close the page. No Hardware Key row on Mac (no transport).
+- The Mac unlock page follows the Unlock board: Touch ID first with an "or" divider and Unlock inline in the field while `biometricUnlockAvailability == .available`, otherwise the field with Show/Hide and an Unlock Database capsule, plus the unavailable note when a saved key exists but Touch ID cannot be used. A wrong attempt empties the field and rings it red. The key-file line, the Hardware Key line, then the inactivity footer, close the page.
 - While a database opens, iPhone and iPad show `DatabaseOpeningView` under the same navigation-bar title (`databaseNavigationTitle`) with its steps; the Mac shows `MacDatabaseOpeningView` with the same steps and Cancel through `cancelUnlockAttempt` while `canCancelUnlockAttempt`. Both only report progress; Cancel ends the attempt like a manual lock.
 - Locked pages scroll only when the window is too short for them (900 x 620 fits the Touch ID page with a card).
 
@@ -34,7 +34,7 @@
 ### Biometrics, hardware key
 
 - The password form and explicit biometric unlock stay available while locked. The app shell owns opt-in automatic prompting; these views never start a lifecycle prompt, and the Mac Touch ID button is the form model's only way to prompt. Button text comes from `DatabaseViewModel.biometricLabel` / `biometricCaption`.
-- The iOS Hardware Key row and the Mac Hardware Key line appear only when the device offers a transport (always USB on the Mac) or the database already has one stored. Both pickers list `HardwareKeyConfiguration.pickerOptions` under the shared `unlock.hardware-key.picker` identifier, and the choice is remembered on the database. A YubiKey alone is a valid key, so Unlock is enabled with no password or key file. On iOS, Cancel during a challenge cancels only the YubiKey request; on the Mac, the opening page's Cancel ends the attempt, which abandons the request on the key.
+- The iOS Hardware Key row and the Mac Hardware Key line appear only when the device offers a transport (always USB on the Mac) or the database already has one stored. Both pickers list `HardwareKeyConfiguration.pickerOptions` under the shared `unlock.hardware-key.picker` identifier, and the choice is remembered on the database. A YubiKey alone is a valid key, so Unlock is enabled with no password or key file. While a USB key is chosen, the Mac picker reads the plugged-in key's slot status (never before a key is chosen, since the read asks for Input Monitoring) and marks slots that are not set up or need a touch. On iOS, Cancel during a challenge cancels only the YubiKey request; on the Mac, the opening page's Cancel ends the attempt, which abandons the request on the key.
 
 ## Tests
 

@@ -40,6 +40,35 @@ enum YubiKeyOTPHID {
         }
     }
 
+    /// What the key's status report says of a slot.
+    enum SlotStatus: Sendable, Equatable {
+        case notSetUp
+        case setUp(needsTouch: Bool)
+    }
+
+    /// Each slot's status, from the status report the idle key returns
+    /// (`ykcore` `yk_get_status`: firmware version, programming sequence,
+    /// then the little-endian touch level holding per-slot flags). Sends no
+    /// command, so the key does not flash. Empty for firmware before 2.1,
+    /// which does not report slots. It cannot tell challenge-response from
+    /// another configuration.
+    static func slotStatuses(device: some YubiKeyOTPReportDevice) throws -> [HardwareKeyConfiguration.Slot: SlotStatus] {
+        let report = try readReport(device)
+        let major = report[1]
+        let minor = report[2]
+        guard (major, minor) >= (2, 1) else { return [:] }
+        let touchLevel = UInt16(report[5]) | UInt16(report[6]) << 8
+        let reportsTouch = major >= 3
+        func status(valid: UInt16, touch: UInt16) -> SlotStatus {
+            guard touchLevel & valid != 0 else { return .notSetUp }
+            return .setUp(needsTouch: reportsTouch && touchLevel & touch != 0)
+        }
+        return [
+            .one: status(valid: 0x01, touch: 0x04),
+            .two: status(valid: 0x02, touch: 0x08),
+        ]
+    }
+
     struct Timing: Sendable {
         /// How long the key may take to take one report.
         var writeTimeout: Duration = .milliseconds(1150)

@@ -118,6 +118,34 @@ final class YubiKeyOTPHIDTests: XCTestCase {
     }
 }
 
+extension YubiKeyOTPHIDTests {
+    /// `ykcore`'s status report: a reserved byte, firmware major/minor/build,
+    /// programming sequence, then the touch level (little-endian).
+    func testSlotStatusesComeFromTheTouchLevelFlags() throws {
+        // Slot 1 set up without touch, slot 2 set up with touch.
+        let both = StatusReportDevice(report: [0, 5, 4, 3, 7, 0x0B, 0, 0])
+        XCTAssertEqual(try YubiKeyOTPHID.slotStatuses(device: both), [.one: .setUp(needsTouch: false), .two: .setUp(needsTouch: true)])
+
+        let onlyTwo = StatusReportDevice(report: [0, 5, 4, 3, 7, 0x02, 0, 0])
+        XCTAssertEqual(try YubiKeyOTPHID.slotStatuses(device: onlyTwo), [.one: .notSetUp, .two: .setUp(needsTouch: false)])
+    }
+
+    func testSlotStatusesIgnoreTouchBeforeFirmware3AndAreUnknownBefore21() throws {
+        let firmware2 = StatusReportDevice(report: [0, 2, 2, 0, 1, 0x0F, 0, 0])
+        XCTAssertEqual(try YubiKeyOTPHID.slotStatuses(device: firmware2), [.one: .setUp(needsTouch: false), .two: .setUp(needsTouch: false)])
+
+        let firmware20 = StatusReportDevice(report: [0, 2, 0, 5, 1, 0x03, 0, 0])
+        XCTAssertEqual(try YubiKeyOTPHID.slotStatuses(device: firmware20), [:])
+    }
+}
+
+private final class StatusReportDevice: YubiKeyOTPReportDevice {
+    let report: [UInt8]
+    init(report: [UInt8]) { self.report = report }
+    func readFeatureReport() throws -> [UInt8] { report }
+    func writeFeatureReport(_ report: [UInt8]) throws { XCTFail("A status read writes nothing") }
+}
+
 /// A YubiKey's OTP interface as `ykcore` sees it: it takes 8-byte reports
 /// flagged `seq | 0x80`, checks the frame CRC, and answers with
 /// `0x40 | seq` reports carrying the HMAC and its complemented CRC.

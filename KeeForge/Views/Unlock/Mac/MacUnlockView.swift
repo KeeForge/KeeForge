@@ -346,14 +346,14 @@ struct MacUnlockView: View {
                 )) {
                     Text("None").tag(HardwareKeyConfiguration?.none)
                     ForEach(form.hardwareKeyOptions, id: \.self) { option in
-                        Text(option.title).tag(Optional(option))
+                        Text(form.title(for: option)).tag(Optional(option))
                     }
                 } label: {
                     EmptyView()
                 }
                 .pickerStyle(.inline)
             } label: {
-                Text(form.hardwareKey?.title ?? String(localized: "None"))
+                Text(form.hardwareKey.map(form.title(for:)) ?? String(localized: "None"))
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
@@ -364,6 +364,7 @@ struct MacUnlockView: View {
         .font(.system(size: 12))
         .foregroundStyle(.secondary)
         .lineLimit(1)
+        .task(id: form.hardwareKey) { await form.refreshHardwareKeySlots() }
     }
 }
 #endif

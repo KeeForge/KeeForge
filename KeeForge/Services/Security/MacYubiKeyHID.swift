@@ -101,12 +101,20 @@ final class MacYubiKeyConnection: Sendable {
     private let queue = DispatchQueue(label: "com.keevault.yubikey.hid", qos: .userInitiated)
     private let isBusy = Mutex(false)
 
+    /// The plugged-in key's slot statuses; nil when no key answers, or while
+    /// a challenge is in progress. Asks for Input Monitoring like a challenge.
+    func slotStatuses() async -> [HardwareKeyConfiguration.Slot: YubiKeyOTPHID.SlotStatus]? {
+        guard MacYubiKeyHIDDevice.isConnected, claim() else { return nil }
+        defer { isBusy.withLock { $0 = false } }
+        return await withCheckedContinuation { continuation in
+            queue.async {
+                continuation.resume(returning: try? YubiKeyOTPHID.slotStatuses(device: MacYubiKeyHIDDevice.openFirst()))
+            }
+        }
+    }
+
     func response(to challenge: Data, slot: HardwareKeyConfiguration.Slot) async throws -> Data {
-        guard isBusy.withLock({ busy in
-            guard busy == false else { return false }
-            busy = true
-            return true
-        }) else { throw HardwareKeyError.communicationFailed }
+        guard claim() else { throw HardwareKeyError.communicationFailed }
         defer { isBusy.withLock { $0 = false } }
 
         let cancellation = CancellationFlag()
@@ -134,6 +142,14 @@ final class MacYubiKeyConnection: Sendable {
             throw HardwareKeyError.cancelled
         }
         return response
+    }
+
+    private func claim() -> Bool {
+        isBusy.withLock { busy in
+            guard busy == false else { return false }
+            busy = true
+            return true
+        }
     }
 }
 
