@@ -47,6 +47,11 @@ final class MacAppStoreScreenshots: MacUITestCase {
         if isPickerCapture {
             arguments += ["-autofill-picker-harness", "-autofill-picker-store"]
         }
+        // The xctestrun's TestLanguage does not reach a macOS app, so a locale comes in explicitly.
+        let environment = ProcessInfo.processInfo.environment
+        if let language = environment["APPSTORE_LANGUAGE"], let locale = environment["APPSTORE_LOCALE"] {
+            arguments += ["-AppleLanguages", "(\(language))", "-AppleLocale", locale]
+        }
         let index = app.launchArguments.firstIndex(of: "-ui-testing") ?? app.launchArguments.endIndex
         app.launchArguments.insert(contentsOf: arguments, at: index)
         app.launchEnvironment["UI_TEST_HIDE_SEARCH_RESULTS_COUNT"] = "1"
@@ -150,7 +155,8 @@ final class MacAppStoreScreenshots: MacUITestCase {
         let searchField = app.textFields["autofill.search-field"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 15), "The picker did not appear")
         settle(2)
-        await snap("07-autofill-picker")
+        // The harness hosts the picker in its own window, not a database window.
+        await snapSurface(hosting: "autofill.search-field", "07-autofill-picker")
         attachCaptureReport()
     }
 
