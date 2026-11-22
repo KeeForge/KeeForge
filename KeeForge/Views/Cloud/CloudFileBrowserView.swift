@@ -5,6 +5,8 @@ import UIKit
 
 struct CloudFileBrowserView: View {
     let providerID: String
+    /// Opens straight to the WebDAV form set up for a Nextcloud server.
+    var isNextcloud = false
     let onSelect: (CloudDatabaseSelection) -> Void
     let onFailure: (Error) -> Void
 
@@ -12,13 +14,16 @@ struct CloudFileBrowserView: View {
     @State private var session: CloudFileBrowserSession
     @State private var isManualConnectPresented = false
     @State private var showsAllFiles = false
+    @State private var hasOfferedNextcloudForm = false
 
     init(
         providerID: String,
+        isNextcloud: Bool = false,
         onSelect: @escaping (CloudDatabaseSelection) -> Void,
         onFailure: @escaping (Error) -> Void
     ) {
         self.providerID = providerID
+        self.isNextcloud = isNextcloud
         self.onSelect = onSelect
         self.onFailure = onFailure
         _session = State(initialValue: CloudFileBrowserSession(providerID: providerID))
@@ -113,10 +118,15 @@ struct CloudFileBrowserView: View {
         .id(session.selectedAccountID)
         .task {
             session.refreshAccounts()
+            if isNextcloud, !hasOfferedNextcloudForm {
+                hasOfferedNextcloudForm = true
+                isManualConnectPresented = true
+            }
         }
         .sheet(isPresented: $isManualConnectPresented) {
             ManualConnectSheet(
                 provider: session.provider,
+                isNextcloud: isNextcloud,
                 onConnected: { account in
                     session.adoptManualAccount(account)
                     isManualConnectPresented = false
@@ -353,12 +363,13 @@ struct CloudFolderPickerView: View {
 /// hosted sign-in.
 private struct ManualConnectSheet: View {
     let provider: CloudProvider?
+    var isNextcloud = false
     let onConnected: (CloudAccount) -> Void
     let onCancel: () -> Void
 
     var body: some View {
         if let connector = provider as? WebDAVConnecting {
-            WebDAVConnectView(connector: connector, onConnected: onConnected, onCancel: onCancel)
+            WebDAVConnectView(connector: connector, isNextcloud: isNextcloud, onConnected: onConnected, onCancel: onCancel)
         } else if let connector = provider as? FTPConnecting {
             FTPConnectView(connector: connector, onConnected: onConnected, onCancel: onCancel)
         }

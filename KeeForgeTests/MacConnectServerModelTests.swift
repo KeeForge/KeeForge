@@ -22,6 +22,20 @@ final class MacConnectServerModelTests: XCTestCase {
         XCTAssertEqual(model.ftp.password, "")
     }
 
+    func testNextcloudChoiceIsTheWebDAVFormInNextcloudMode() {
+        let model = MacConnectServerModel(prefill: false)
+        XCTAssertEqual(model.serverChoice, .webDAV)
+        model.serverChoice = .nextcloud
+        XCTAssertEqual(model.serverType, .webDAV)
+        XCTAssertTrue(model.webDAV.isNextcloud)
+        model.serverChoice = .ftp
+        XCTAssertEqual(model.serverType, .ftp)
+        XCTAssertEqual(model.serverChoice, .ftp)
+        model.serverChoice = .webDAV
+        XCTAssertFalse(model.webDAV.isNextcloud)
+        XCTAssertEqual(model.serverChoice, .webDAV)
+    }
+
     func testDefaultFormsConnectThroughTheRegistryProviders() {
         XCTAssertTrue((MacConnectServerModel.webDAVConnector as AnyObject)
             === (CloudProviderRegistry.provider(for: CloudProviderKind.webDAV.rawValue) as AnyObject))

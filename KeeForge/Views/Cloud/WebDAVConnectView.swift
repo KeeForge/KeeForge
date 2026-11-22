@@ -13,10 +13,11 @@ struct WebDAVConnectView: View {
 
     init(
         connector: any WebDAVConnecting,
+        isNextcloud: Bool = false,
         onConnected: @escaping (CloudAccount) -> Void,
         onCancel: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: WebDAVConnectViewModel(connector: connector))
+        _viewModel = State(initialValue: WebDAVConnectViewModel(connector: connector, isNextcloud: isNextcloud))
         self.onConnected = onConnected
         self.onCancel = onCancel
     }
@@ -39,7 +40,7 @@ struct WebDAVConnectView: View {
                     TextField(
                         "Server",
                         text: $viewModel.serverURL,
-                        prompt: Text(verbatim: "https://cloud.example.com/…")
+                        prompt: Text(verbatim: viewModel.isNextcloud ? "cloud.example.com" : "https://cloud.example.com/…")
                             .foregroundColor(Color(.placeholderText))
                     )
                         .keyboardType(.URL)
@@ -53,7 +54,11 @@ struct WebDAVConnectView: View {
                 } header: {
                     Text("Server")
                 } footer: {
-                    Text("Example: https://cloud.example.com/remote.php/dav/files/USERNAME/ — for Nextcloud, use an app password")
+                    if viewModel.isNextcloud {
+                        Text("Enter the address you use to open Nextcloud in a browser, and sign in with an app password. KeeForge adds the WebDAV path for your username.")
+                    } else {
+                        Text("Example: https://cloud.example.com/remote.php/dav/files/USERNAME/ — for Nextcloud, use an app password")
+                    }
                 }
 
                 Section {
@@ -103,7 +108,7 @@ struct WebDAVConnectView: View {
                 }
             }
             .macGroupedForm()
-            .navigationTitle("Connect WebDAV")
+            .navigationTitle(viewModel.isNextcloud ? Text("Connect Nextcloud") : Text("Connect WebDAV"))
             .navigationBarTitleDisplayMode(.inline)
             .disabled(viewModel.isConnecting)
             .toolbar {

@@ -105,6 +105,90 @@ final class WebDAVConnectViewModelTests: XCTestCase {
         XCTAssertEqual(connector.lastConfiguration?.allowsUnencryptedHTTP, false)
     }
 
+    func testNextcloudFormBuildsWebDAVAddressFromPlainServerAndUsername() async {
+        let connector = MockWebDAVConnector()
+        let viewModel = WebDAVConnectViewModel(connector: connector, isNextcloud: true)
+        viewModel.serverURL = "  cloud.example.com  "
+        viewModel.username = " alex "
+        viewModel.password = "secret"
+
+        let account = await viewModel.connect()
+
+        XCTAssertNotNil(account)
+        XCTAssertEqual(connector.lastConfiguration?.serverURL, "https://cloud.example.com/remote.php/dav/files/alex/")
+        XCTAssertEqual(connector.lastConfiguration?.username, "alex")
+    }
+
+    func testNextcloudFormKeepsHTTPSRuleForExplicitHTTPAddress() async {
+        let connector = MockWebDAVConnector()
+        let viewModel = WebDAVConnectViewModel(connector: connector, isNextcloud: true)
+        viewModel.serverURL = "http://nextcloud.local"
+        viewModel.username = "alex"
+        viewModel.password = "secret"
+
+        let account = await viewModel.connect()
+
+        XCTAssertNil(account)
+        XCTAssertEqual(connector.connectCallCount, 0)
+        XCTAssertNotNil(viewModel.errorMessage)
+
+        viewModel.allowsUnencryptedHTTP = true
+        _ = await viewModel.connect()
+        XCTAssertEqual(connector.lastConfiguration?.serverURL, "http://nextcloud.local/remote.php/dav/files/alex/")
+        XCTAssertEqual(connector.lastConfiguration?.allowsUnencryptedHTTP, true)
+    }
+
+    func testNextcloudFormRejectsEmptyServerWithoutCallingProvider() async {
+        let connector = MockWebDAVConnector()
+        let viewModel = WebDAVConnectViewModel(connector: connector, isNextcloud: true)
+        viewModel.username = "alex"
+        viewModel.password = "secret"
+
+        let account = await viewModel.connect()
+
+        XCTAssertNil(account)
+        XCTAssertEqual(connector.connectCallCount, 0)
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
+    func testNextcloudAddressAddsSchemeAndUserPath() {
+        XCTAssertEqual(NextcloudAddress.webDAVURL(server: "cloud.example.com", username: "alex"),
+                       "https://cloud.example.com/remote.php/dav/files/alex/")
+        XCTAssertEqual(NextcloudAddress.webDAVURL(server: "https://cloud.example.com/", username: "alex"),
+                       "https://cloud.example.com/remote.php/dav/files/alex/")
+        XCTAssertEqual(NextcloudAddress.webDAVURL(server: "cloud.example.com:8443", username: "alex"),
+                       "https://cloud.example.com:8443/remote.php/dav/files/alex/")
+    }
+
+    func testNextcloudAddressKeepsSubdirectoryInstall() {
+        XCTAssertEqual(NextcloudAddress.webDAVURL(server: "https://example.com/nextcloud//", username: "alex"),
+                       "https://example.com/nextcloud/remote.php/dav/files/alex/")
+    }
+
+    func testNextcloudAddressStripsBrowserPagePath() {
+        XCTAssertEqual(NextcloudAddress.webDAVURL(server: "https://cloud.example.com/index.php/apps/files/?dir=/", username: "alex"),
+                       "https://cloud.example.com/remote.php/dav/files/alex/")
+        XCTAssertEqual(NextcloudAddress.webDAVURL(server: "https://example.com/nextcloud/apps/files/", username: "alex"),
+                       "https://example.com/nextcloud/remote.php/dav/files/alex/")
+    }
+
+    func testNextcloudAddressKeepsFullWebDAVAddress() {
+        let full = "https://cloud.example.com/remote.php/dav/files/alex/Vaults/"
+        XCTAssertEqual(NextcloudAddress.webDAVURL(server: full, username: "someone-else"), full)
+    }
+
+    func testNextcloudAddressPercentEncodesUsername() {
+        XCTAssertEqual(NextcloudAddress.webDAVURL(server: "cloud.example.com", username: "Alex Doe/x"),
+                       "https://cloud.example.com/remote.php/dav/files/Alex%20Doe%2Fx/")
+        XCTAssertEqual(NextcloudAddress.webDAVURL(server: "cloud.example.com", username: "alex@example.com"),
+                       "https://cloud.example.com/remote.php/dav/files/alex@example.com/")
+    }
+
+    func testNextcloudAddressKeepsExplicitHTTPScheme() {
+        XCTAssertEqual(NextcloudAddress.webDAVURL(server: "http://nextcloud.local", username: "alex"),
+                       "http://nextcloud.local/remote.php/dav/files/alex/")
+    }
+
     func testConnectAuthenticationFailureUsesCredentialSpecificMessage() async {
         let connector = MockWebDAVConnector()
         connector.result = .failure(CloudProviderError.notAuthenticated)

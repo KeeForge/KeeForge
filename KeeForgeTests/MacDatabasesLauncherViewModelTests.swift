@@ -41,7 +41,7 @@ final class MacDatabasesLauncherViewModelTests: XCTestCase {
         XCTAssertEqual(launcher.sheet, .connect(.ftp))
 
         XCTAssertTrue(launcher.canConnect)
-        XCTAssertEqual(launcher.connectCaption, "WebDAV, FTP")
+        XCTAssertEqual(launcher.connectCaption, "WebDAV, Nextcloud, FTP")
         launcher.sheet = nil
         launcher.requestConnect()
         XCTAssertEqual(launcher.sheet, .connect(.webDAV), "Connect opens its form directly")

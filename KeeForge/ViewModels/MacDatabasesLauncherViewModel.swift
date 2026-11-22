@@ -333,7 +333,8 @@ final class MacDatabasesLauncherViewModel {
 
     /// The caption under Connect to Server…: the server types it offers.
     var connectCaption: String {
-        connectProviders.map(\.displayName).joined(separator: ", ")
+        connectProviders.flatMap { $0 == .webDAV ? [$0.displayName, "Nextcloud"] : [$0.displayName] }
+            .joined(separator: ", ")
     }
 
     func requestCloudRecovery() {

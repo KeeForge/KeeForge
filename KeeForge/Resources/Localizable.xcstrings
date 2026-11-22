@@ -19281,6 +19281,58 @@
         }
       }
     },
+    "Connect Nextcloud" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Nextcloud verbinden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conectar con Nextcloud"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se connecter à Nextcloud"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collega Nextcloud"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nextcloud に接続"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключение Nextcloud"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接 Nextcloud"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連接 Nextcloud"
+          }
+        }
+      }
+    },
     "Connect to databases over FTP" : {
       "localizations" : {
         "de" : {
@@ -30819,6 +30871,58 @@
         }
       }
     },
+    "Enter the address you use to open Nextcloud in a browser, and sign in with an app password. KeeForge adds the WebDAV path for your username." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib die Adresse ein, mit der du Nextcloud im Browser öffnest, und melde dich mit einem App-Passwort an. KeeForge ergänzt den WebDAV-Pfad für deinen Benutzernamen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduce la dirección con la que abres Nextcloud en un navegador e inicia sesión con una contraseña de aplicación. KeeForge añade la ruta WebDAV de tu nombre de usuario."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez l'adresse que vous utilisez pour ouvrir Nextcloud dans un navigateur, et connectez-vous avec un mot de passe d'application. KeeForge ajoute le chemin WebDAV de votre nom d'utilisateur."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci l'indirizzo che usi per aprire Nextcloud nel browser e accedi con una password per le app. KeeForge aggiunge il percorso WebDAV per il tuo nome utente."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザで Nextcloud を開くときのアドレスを入力し、アプリパスワードでサインインしてください。ユーザ名に対応する WebDAV パスは KeeForge が追加します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите адрес, по которому вы открываете Nextcloud в браузере, и войдите с паролем приложения. KeeForge добавит путь WebDAV для вашего имени пользователя."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入你在浏览器中打开 Nextcloud 时使用的地址，并使用应用密码登录。KeeForge 会为你的用户名补全 WebDAV 路径。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入你在瀏覽器中開啟 Nextcloud 時使用的位址，並使用應用程式密碼登入。KeeForge 會為你的使用者名稱補上 WebDAV 路徑。"
+          }
+        }
+      }
+    },
     "Enter the FTP server address." : {
       "localizations" : {
         "de" : {
@@ -30971,6 +31075,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請輸入主密碼或使用生物辨識。"
+          }
+        }
+      }
+    },
+    "Enter your Nextcloud server address." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib die Adresse deines Nextcloud-Servers ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduce la dirección de tu servidor Nextcloud."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez l'adresse de votre serveur Nextcloud."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci l'indirizzo del tuo server Nextcloud."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nextcloud サーバのアドレスを入力してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите адрес вашего сервера Nextcloud."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入你的 Nextcloud 服务器地址。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入你的 Nextcloud 伺服器位址。"
           }
         }
       }

@@ -18,12 +18,12 @@ struct MacConnectServerSheet: View {
         ScrollView {
             VStack(spacing: 16) {
                 if showsTypePicker {
-                    Picker("Connect to Server", selection: $model.serverType) {
-                        ForEach(MacConnectServerModel.serverTypes) { Text($0.displayName).tag($0) }
+                    Picker("Connect to Server", selection: $model.serverChoice) {
+                        ForEach(MacConnectServerModel.ServerChoice.allCases) { Text(verbatim: $0.displayName).tag($0) }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    .frame(width: 220)
+                    .frame(width: 300)
                     .accessibilityIdentifier("connect-server.type")
                 }
                 if model.serverType == .webDAV { webDAVForm } else { ftpForm }
@@ -40,9 +40,14 @@ struct MacConnectServerSheet: View {
     private var webDAVForm: some View {
         @Bindable var form = model.webDAV
         return Form {
-            TextField("Server:", text: $form.serverURL)
+            TextField("Server:", text: $form.serverURL,
+                      prompt: form.isNextcloud ? Text(verbatim: "cloud.example.com") : nil)
                 .accessibilityIdentifier("webdav.connect.server-field")
-            caption("Example: https://cloud.example.com/remote.php/dav/files/USERNAME/ — for Nextcloud, use an app password")
+            if form.isNextcloud {
+                caption("Enter the address you use to open Nextcloud in a browser, and sign in with an app password. KeeForge adds the WebDAV path for your username.")
+            } else {
+                caption("Example: https://cloud.example.com/remote.php/dav/files/USERNAME/ — for Nextcloud, use an app password")
+            }
             Divider()
             TextField("Username:", text: $form.username)
                 .frame(width: 220)

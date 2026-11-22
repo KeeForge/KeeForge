@@ -35,6 +35,7 @@ struct DatabaseListView: View {
     @State private var showSettings = false
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var activeCloudProvider: CloudProviderKind?
+    @State private var opensNextcloudForm = false
     @State private var isDatabaseCreationPresented = false
     @State private var exportRequest: DatabaseExportRequest?
     @Environment(\.openURL) private var openURL
@@ -148,6 +149,7 @@ struct DatabaseListView: View {
         ) { provider in
             CloudFileBrowserView(
                 providerID: provider.rawValue,
+                isNextcloud: opensNextcloudForm,
                 onSelect: { selection in
                     do {
                         let reference = try viewModel.addCloudDatabase(selection: selection)
@@ -511,6 +513,7 @@ struct DatabaseListView: View {
 
         ForEach(CloudProviderRegistry.availableProviders) { providerKind in
             Button {
+                opensNextcloudForm = false
                 activeCloudProvider = providerKind
             } label: {
                 Label {
@@ -520,6 +523,21 @@ struct DatabaseListView: View {
                 }
             }
             .accessibilityIdentifier("database.add.\(providerKind.rawValue)")
+
+            if providerKind == .webDAV {
+                // Nextcloud is a WebDAV server; this entry only prefills the form's guidance.
+                Button {
+                    opensNextcloudForm = true
+                    activeCloudProvider = .webDAV
+                } label: {
+                    Label {
+                        Text(verbatim: "Nextcloud")
+                    } icon: {
+                        CloudProviderIcon(provider: .webDAV)
+                    }
+                }
+                .accessibilityIdentifier("database.add.nextcloud")
+            }
         }
     }
 

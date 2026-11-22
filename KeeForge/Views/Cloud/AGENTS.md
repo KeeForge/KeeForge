@@ -10,6 +10,7 @@
 
 - Each browser `NavigationStack` is `.id(session.selectedAccountID)`, so switching accounts drops pushed folder IDs that belong to the old account.
 - A selection callback captures the listing's account ID and resolves it through `CloudFileBrowserSession.selectionAccount(matching:)`. A pick from a superseded account's listing must not be attributed to the current one.
+- Nextcloud is not a provider: its Add Database entry (iOS) and Connect to Server segment (Mac) open the WebDAV form with `isNextcloud`, which builds the `remote.php/dav/files/<user>/` address (`NextcloudAddress`) and then applies the same HTTPS checks. The saved database is a WebDAV database.
 - Both connect forms block Cancel and interactive dismissal while connecting, and on disappearance invalidate the form and clear the password. A late provider result cannot call back into a dismissed form; credentials a provider already persisted stay.
 
 ## Tests

@@ -14,6 +14,8 @@ final class WebDAVConnectViewModel {
     var username = ""
     var password = ""
     var allowsUnencryptedHTTP = false
+    /// The server field takes a plain Nextcloud address; `connect()` adds the user's WebDAV path.
+    var isNextcloud: Bool
     private(set) var isConnecting = false
     var errorMessage: String?
 
@@ -22,9 +24,10 @@ final class WebDAVConnectViewModel {
     private let expectedAccountID: String?
     private var isCancelled = false
 
-    init(connector: any WebDAVConnecting, expectedAccountID: String? = nil) {
+    init(connector: any WebDAVConnecting, expectedAccountID: String? = nil, isNextcloud: Bool = false) {
         self.connector = connector
         self.expectedAccountID = expectedAccountID
+        self.isNextcloud = isNextcloud
     }
 
     /// Attempts to connect using the current field values. Returns the created
@@ -36,11 +39,13 @@ final class WebDAVConnectViewModel {
 
         errorMessage = nil
 
-        let trimmedServerURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let enteredServerURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard trimmedServerURL.isEmpty == false else {
-            errorMessage = String(localized: "Enter the WebDAV server address.")
+        guard enteredServerURL.isEmpty == false else {
+            errorMessage = isNextcloud
+                ? String(localized: "Enter your Nextcloud server address.")
+                : String(localized: "Enter the WebDAV server address.")
             return nil
         }
 
@@ -54,7 +59,10 @@ final class WebDAVConnectViewModel {
             return nil
         }
 
-        let lowercasedServerURL = trimmedServerURL.lowercased()
+        let webDAVServerURL = isNextcloud
+            ? NextcloudAddress.webDAVURL(server: enteredServerURL, username: trimmedUsername)
+            : enteredServerURL
+        let lowercasedServerURL = webDAVServerURL.lowercased()
         let usesHTTPS = lowercasedServerURL.hasPrefix("https://")
         let usesHTTP = lowercasedServerURL.hasPrefix("http://")
 
@@ -68,7 +76,7 @@ final class WebDAVConnectViewModel {
         }
 
         if let expectedAccountID,
-           let baseURL = try? WebDAVURL.normalizedBaseURL(from: trimmedServerURL,
+           let baseURL = try? WebDAVURL.normalizedBaseURL(from: webDAVServerURL,
                                                           allowsUnencryptedHTTP: allowsUnencryptedHTTP),
            WebDAVURL.accountId(normalizedBaseURL: baseURL, username: trimmedUsername) != expectedAccountID {
             errorMessage = String(localized: "This database was added with a different server address or username.")
@@ -79,7 +87,7 @@ final class WebDAVConnectViewModel {
         defer { isConnecting = false }
 
         let configuration = WebDAVConnectionConfiguration(
-            serverURL: trimmedServerURL,
+            serverURL: webDAVServerURL,
             username: trimmedUsername,
             password: password,
             allowsUnencryptedHTTP: allowsUnencryptedHTTP
@@ -109,4 +117,34 @@ final class WebDAVConnectViewModel {
 
         return error.localizedDescription
     }
+}
+
+/// Builds a Nextcloud user's WebDAV files address from the server address people know.
+enum NextcloudAddress {
+    /// `cloud.example.com` and `alex` give `https://cloud.example.com/remote.php/dav/files/alex/`.
+    /// A full WebDAV address is kept as entered, and an explicit scheme is never changed, so
+    /// the form's HTTPS rules still apply.
+    static func webDAVURL(server: String, username: String) -> String {
+        var address = server.trimmingCharacters(in: .whitespacesAndNewlines)
+        if address.contains("://") == false {
+            address = "https://" + address
+        }
+        if address.range(of: "/remote.php/", options: .caseInsensitive) != nil {
+            return address
+        }
+        // A browser address such as `…/index.php/apps/files/` or `…/apps/files/` names the same server.
+        for marker in ["?", "#", "/index.php", "/apps/"] {
+            if let range = address.range(of: marker, options: .caseInsensitive) {
+                address = String(address[..<range.lowerBound])
+            }
+        }
+        while address.hasSuffix("/") {
+            address.removeLast()
+        }
+        let user = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let encodedUser = user.addingPercentEncoding(withAllowedCharacters: userPathAllowed) ?? user
+        return address + "/remote.php/dav/files/" + encodedUser + "/"
+    }
+
+    private static let userPathAllowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))
 }
