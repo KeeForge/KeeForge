@@ -150,7 +150,8 @@ final class HardwareKeyUnlockTests: XCTestCase {
         let key = ChallengeResponseKey.compositeKey(
             preKey: preKey, response: YubiKeyEmulator.response(to: challenge), challenge: challenge
         )
-        let opened = try KDBXParser.parse(data: data, compositeKey: key, sessionKey: SymmetricKey(size: .bits256), kdfPolicy: .mainApp)
+        let sessionKey = SymmetricKey(size: .bits256)
+        let opened = try KDBXParser.parse(data: data, compositeKey: key, sessionKey: sessionKey, kdfPolicy: .mainApp)
         var otherSalt = opened.header
         otherSalt.kdfParameters["S"] = .bytes(Data(repeating: 9, count: 32))
 
@@ -158,8 +159,12 @@ final class HardwareKeyUnlockTests: XCTestCase {
         XCTAssertEqual(ChallengeResponseKey.kdfSaltRotation(compositeKey: preKey), .rotate)
         XCTAssertThrowsError(try KDBXWriter.write(
             rootGroup: opened.rootGroup, meta: opened.meta, compositeKey: key, header: otherSalt,
-            sessionKey: SymmetricKey(size: .bits256), kdfPolicy: .mainApp
+            sessionKey: sessionKey, kdfPolicy: .mainApp
         )) { XCTAssertEqual($0 as? HardwareKeyError, .challengeChanged) }
+        XCTAssertNoThrow(try KDBXWriter.write(
+            rootGroup: opened.rootGroup, meta: opened.meta, compositeKey: key, header: opened.header,
+            sessionKey: sessionKey, kdfPolicy: .mainApp
+        ), "The salt the key answered is written")
     }
 
     /// Changing the password keeps the YubiKey: the key answers the pinned
@@ -207,11 +212,12 @@ final class HardwareKeyUnlockTests: XCTestCase {
         XCTAssertTrue(vm.sessionUsesHardwareKey)
         XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.hardwareKey, slotTwoOverNFC)
         let updated = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
-        let passwordOnly = makeViewModel(reference: { var r = updated; r.hardwareKey = nil; return r }()) { _, _ in
-            XCTFail("No YubiKey configured"); return Data()
-        }
-        await passwordOnly.unlock(password: "with-yubikey")
-        if case .unlocked = passwordOnly.state { XCTFail("The password alone must not open it any more") }
+        let saved = try Data(contentsOf: copy)
+        XCTAssertThrowsError(try KDBXParser.parseWithMetaAndHeader(
+            data: saved,
+            compositeKey: try KDBXCrypto.compositeKey(password: "with-yubikey", keyFileData: nil),
+            sessionKey: SymmetricKey(size: .bits256)
+        ), "The password alone must not open it any more")
         let reopened = makeViewModel(reference: updated) { challenge, _ in YubiKeyEmulator.response(to: challenge) }
         await reopened.unlock(password: "with-yubikey")
         guard case .unlocked = reopened.state else {

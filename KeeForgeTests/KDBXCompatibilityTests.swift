@@ -408,6 +408,20 @@ final class KDBXCompatibilityTests: XCTestCase {
             "The add-generated-keyfile scenario must record key-file bytes for the external gate"
         )
 
+        for scenario in [
+            KDBXCompatibilitySupport.rekeyAddYubiKeyScenario(),
+            KDBXCompatibilitySupport.rekeyYubiKeyAloneScenario(),
+        ] {
+            let loaded = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: bundle)
+            let result = try collector.run(scenario, on: loaded)
+            try assertRekeyHeaderHygiene(result, loaded: loaded)
+            XCTAssertEqual(
+                try ChallengeResponseKey.challenge(forDatabase: result.written),
+                ChallengeResponseKey.pinnedChallenge(for: try XCTUnwrap(result.rekey?.compositeKey)),
+                "\(scenario.id): the file must ask the challenge the YubiKey answered"
+            )
+        }
+
         let removeKeyfile = try KDBXCompatibilitySupport.load(.passwordKeyfile, bundle: bundle)
         let removeKeyfileResult = try collector.run(
             KDBXCompatibilitySupport.rekeyRemoveKeyfileScenario(),
@@ -911,6 +925,8 @@ final class KDBXCompatibilityTests: XCTestCase {
             "aes-baseline-rekey-password-only",
             "aes-baseline-rekey-add-keyfile",
             "aes-baseline-rekey-add-generated-keyfile",
+            "aes-baseline-rekey-add-yubikey",
+            "aes-baseline-rekey-yubikey-alone",
             "password-keyfile-rekey-remove-keyfile",
             "password-keyfile-rekey-keyfile-only",
             "\(richID)-custom-field-edits",
@@ -939,7 +955,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 51)
+        XCTAssertEqual(descriptors.count, 53)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

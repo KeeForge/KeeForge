@@ -474,6 +474,8 @@ targets:
         buildPhase: resources
       - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
         buildPhase: resources
+      - path: TestFixtures/challenge-response.kdbx
+        buildPhase: resources
 
   KeeForgeTests:
     type: bundle.unit-test

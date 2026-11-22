@@ -139,6 +139,73 @@ extension YubiKeyOTPHIDTests {
     }
 }
 
+#if os(macOS)
+/// `MacYubiKeyConnection`'s queue, one-at-a-time rule and cancellation, over
+/// the emulated key in place of IOKit.
+extension YubiKeyOTPHIDTests {
+    private var connectionTiming: YubiKeyOTPHID.Timing {
+        YubiKeyOTPHID.Timing(
+            writeTimeout: .milliseconds(200),
+            responseTimeout: .milliseconds(200),
+            touchTimeout: .seconds(10),
+            pollInterval: .zero,
+            touchPollInterval: .milliseconds(1),
+            sleep: { _ in Thread.sleep(forTimeInterval: 0.001) }
+        )
+    }
+
+    func testConnectionAnswersThroughTheEmulatedKey() async throws {
+        nonisolated(unsafe) let key = EmulatedOTPKey(slots: [.two: YubiKeyEmulator.fixtureSecret])
+        let connection = MacYubiKeyConnection(isConnected: { true }, openDevice: { key }, timing: connectionTiming)
+
+        let response = try await connection.response(to: challenge, slot: .two)
+
+        XCTAssertEqual(response, YubiKeyEmulator.response(to: challenge))
+    }
+
+    func testConnectionRefusesASecondRequestAndCancelStopsTheKeyWaiting() async throws {
+        nonisolated(unsafe) let key = EmulatedOTPKey(slots: [.two: YubiKeyEmulator.fixtureSecret], touchPolls: .max)
+        let connection = MacYubiKeyConnection(isConnected: { true }, openDevice: { key }, timing: connectionTiming)
+        let challenge = challenge
+        let waiting = Task { try await connection.response(to: challenge, slot: .two) }
+        // Let the first request reach the key's touch wait.
+        try await Task.sleep(for: .milliseconds(100))
+
+        do {
+            _ = try await connection.response(to: challenge, slot: .two)
+            XCTFail("A second request while one runs must fail")
+        } catch {
+            XCTAssertEqual(error as? HardwareKeyError, .communicationFailed)
+        }
+        let busyStatuses = await connection.slotStatuses()
+        XCTAssertNil(busyStatuses, "No status read while a challenge waits for a touch")
+
+        waiting.cancel()
+        do {
+            _ = try await waiting.value
+            XCTFail("A cancelled request must not answer")
+        } catch {
+            XCTAssertEqual(error as? HardwareKeyError, .cancelled)
+        }
+        XCTAssertTrue(key.wasReset, "Cancelling stops the key waiting for a touch")
+        let freedStatuses = await connection.slotStatuses()
+        XCTAssertEqual(freedStatuses, [.one: .notSetUp, .two: .setUp(needsTouch: true)])
+    }
+
+    func testConnectionReportsNoStatusWithoutAKey() async {
+        let connection = MacYubiKeyConnection(
+            isConnected: { false },
+            openDevice: { throw HardwareKeyError.notConnected },
+            timing: connectionTiming
+        )
+
+        let statuses = await connection.slotStatuses()
+
+        XCTAssertNil(statuses)
+    }
+}
+#endif
+
 private final class StatusReportDevice: YubiKeyOTPReportDevice {
     let report: [UInt8]
     init(report: [UInt8]) { self.report = report }
@@ -189,12 +256,12 @@ private final class EmulatedOTPKey: YubiKeyOTPReportDevice {
         if staysBusy { return [0, 0, 0, 0, 0, 0, 0, 0x80] }
         switch state {
         case .idle:
-            return [0, 5, 4, 3, 1, 0, 0, 0]
+            return idleStatus
         case .touch(let remaining):
             if remaining <= 0 {
                 if touchIsMissed {
                     state = .idle
-                    return [0, 5, 4, 3, 1, 0, 0, 0]
+                    return idleStatus
                 }
                 state = .responding(pendingResponse)
                 return try readFeatureReport()
@@ -207,6 +274,15 @@ private final class EmulatedOTPKey: YubiKeyOTPReportDevice {
             state = .responding(reports)
             return report
         }
+    }
+
+    /// Firmware 5.4.3 with each configured slot flagged valid, and touch
+    /// flagged when this key waits for one.
+    private var idleStatus: [UInt8] {
+        var touchLevel: UInt8 = 0
+        if slots[.one] != nil { touchLevel |= touchPolls > 0 ? 0x05 : 0x01 }
+        if slots[.two] != nil { touchLevel |= touchPolls > 0 ? 0x0A : 0x02 }
+        return [0, 5, 4, 3, 1, touchLevel, 0, 0]
     }
 
     func writeFeatureReport(_ report: [UInt8]) throws {

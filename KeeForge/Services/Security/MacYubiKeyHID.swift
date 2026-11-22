@@ -96,19 +96,36 @@ final class MacYubiKeyHIDDevice: YubiKeyOTPReportDevice {
 /// One challenge at a time on a serial queue: a response can take as long as
 /// the key waits for a touch, which must not hold a Swift concurrency thread.
 final class MacYubiKeyConnection: Sendable {
-    static let shared = MacYubiKeyConnection()
+    static let shared = MacYubiKeyConnection(
+        isConnected: { MacYubiKeyHIDDevice.isConnected },
+        openDevice: { try MacYubiKeyHIDDevice.openFirst() }
+    )
 
     private let queue = DispatchQueue(label: "com.keevault.yubikey.hid", qos: .userInitiated)
     private let isBusy = Mutex(false)
+    private let isConnected: @Sendable () -> Bool
+    private let openDevice: @Sendable () throws -> any YubiKeyOTPReportDevice
+    private let timing: YubiKeyOTPHID.Timing
+
+    init(
+        isConnected: @escaping @Sendable () -> Bool,
+        openDevice: @escaping @Sendable () throws -> any YubiKeyOTPReportDevice,
+        timing: YubiKeyOTPHID.Timing = YubiKeyOTPHID.Timing()
+    ) {
+        self.isConnected = isConnected
+        self.openDevice = openDevice
+        self.timing = timing
+    }
 
     /// The plugged-in key's slot statuses; nil when no key answers, or while
     /// a challenge is in progress. Asks for Input Monitoring like a challenge.
     func slotStatuses() async -> [HardwareKeyConfiguration.Slot: YubiKeyOTPHID.SlotStatus]? {
-        guard MacYubiKeyHIDDevice.isConnected, claim() else { return nil }
+        guard isConnected(), claim() else { return nil }
         defer { isBusy.withLock { $0 = false } }
+        let openDevice = openDevice
         return await withCheckedContinuation { continuation in
             queue.async {
-                continuation.resume(returning: try? YubiKeyOTPHID.slotStatuses(device: MacYubiKeyHIDDevice.openFirst()))
+                continuation.resume(returning: try? YubiKeyOTPHID.slotStatuses(device: openDevice()))
             }
         }
     }
@@ -118,16 +135,18 @@ final class MacYubiKeyConnection: Sendable {
         defer { isBusy.withLock { $0 = false } }
 
         let cancellation = CancellationFlag()
+        let openDevice = openDevice
+        let timing = timing
         var response = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
                 queue.async {
                     continuation.resume(with: Result {
                         guard cancellation.isCancelled == false else { throw HardwareKeyError.cancelled }
-                        let device = try MacYubiKeyHIDDevice.openFirst()
                         return try YubiKeyOTPHID.challengeResponse(
                             challenge,
                             slot: slot,
-                            device: device,
+                            device: openDevice(),
+                            timing: timing,
                             isCancelled: { cancellation.isCancelled }
                         )
                     })

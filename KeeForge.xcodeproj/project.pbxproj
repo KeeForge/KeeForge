@@ -388,6 +388,7 @@
 		463EB91BA8FFCC2C6EAB82EF /* DatabaseReferenceMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D92FD27E759F00EDA86B1F88 /* DatabaseReferenceMigrationTests.swift */; };
 		465748E7D199E2E154316C2D /* AppRoutingCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8395F4EA28C63D966FE6721 /* AppRoutingCoordinatorTests.swift */; };
 		466ACD61E778357A956E010A /* PlatformCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB6EEC55FC21C0E0612931E /* PlatformCompat.swift */; };
+		467F81E4F5D965FDA4B10F27 /* challenge-response.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 5B94BD2DA2BDBE0CCE743B57 /* challenge-response.kdbx */; };
 		46C37BDFE49BF3B27E7C60FE /* SaveConflictMergeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B7208FC9199C3B6A619B18 /* SaveConflictMergeUITests.swift */; };
 		477A54CF5DF6848DEF0ED405 /* KDBXXML+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21AFC0F97F6F78A5A424CE57 /* KDBXXML+Localization.swift */; };
 		47D709DA14D65B13E9A5DF56 /* MacCopyFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520854DD3BE1E4E34D5088D9 /* MacCopyFeedback.swift */; };
@@ -880,6 +881,7 @@
 		A90E88B4CAED889517A11A1A /* eff_large_wordlist.txt in Resources */ = {isa = PBXBuildFile; fileRef = 811DB03990C74732FD046CBE /* eff_large_wordlist.txt */; };
 		A923F293EBF4B6B856A9C7BC /* MacConnectServerModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56BB25E3CF3866DDEBD5F1DF /* MacConnectServerModelTests.swift */; };
 		A93AC5D34330EDAD62F90D74 /* MacUnlockFormModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF6E650EC236AB1CF37E12E /* MacUnlockFormModelTests.swift */; };
+		A93F60DBC9C1CA9EA0FFCFE0 /* HardwareKeyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F372A5131A2819B2DB214A0C /* HardwareKeyUITests.swift */; };
 		A95E8EA50206CEA68549188D /* KDBXXML+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21AFC0F97F6F78A5A424CE57 /* KDBXXML+Localization.swift */; };
 		A974C7B2BE0AE30AB71C184A /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 6D8AAE0BC5540DB06342C80C /* Localizable.xcstrings */; };
 		A98AFA63703AD98F209F803F /* PasswordStrengthEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D110757CD127D7FD4DA8F9AB /* PasswordStrengthEstimator.swift */; };
@@ -2044,6 +2046,7 @@
 		F178F4027D7DB837D823C54C /* DatabaseListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseListViewModel.swift; sourceTree = "<group>"; };
 		F17ECD151BDCFAC6C487788B /* KPMeta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KPMeta.swift; sourceTree = "<group>"; };
 		F21FD5E4C5E1FD64A0CC69E1 /* MacBrowsersSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacBrowsersSettingsTab.swift; sourceTree = "<group>"; };
+		F372A5131A2819B2DB214A0C /* HardwareKeyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareKeyUITests.swift; sourceTree = "<group>"; };
 		F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */ = {isa = PBXFileReference; path = demo.kdbx; sourceTree = "<group>"; };
 		F4848101D8507FA92F1BC8E8 /* RegularDatabaseWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegularDatabaseWorkspaceView.swift; sourceTree = "<group>"; };
 		F578708349381E9C37893D91 /* MacIconPickerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacIconPickerController.swift; sourceTree = "<group>"; };
@@ -2179,6 +2182,7 @@
 				0298F6EF01194050F3D35F5A /* EntryEditUITests.swift */,
 				225F6ADE53ECA272B4721EFB /* EntryRowCopyUITests.swift */,
 				D0676F0C4E5413139552083A /* GroupEditUITests.swift */,
+				F372A5131A2819B2DB214A0C /* HardwareKeyUITests.swift */,
 				CE7FD12A463E89F62669F96C /* InheritedTagsUITests.swift */,
 				4A15836C142BB997DA70F8FE /* KeeForgeUITestCase.swift */,
 				D15DBC84769C820D86294442 /* KeyFileUITests.swift */,
@@ -3538,6 +3542,7 @@
 				FBB66D54E8F7BE1F791192BE /* autofill-store-alpha.kdbx in Resources */,
 				4276E68C6A2135FAE792903A /* autofill-store-bravo.kdbx in Resources */,
 				12710339D152AA543FFD4509 /* autofill-union.kdbx in Resources */,
+				467F81E4F5D965FDA4B10F27 /* challenge-response.kdbx in Resources */,
 				546946CF03D4BA3759BDA5F1 /* demo-keyfile.kdbx in Resources */,
 				82C95283AF20A54E1651411A /* demo-keyfile.key in Resources */,
 				115B1CF896D4326495169AF4 /* demo.kdbx in Resources */,
@@ -4548,6 +4553,7 @@
 				F73B54C1572F840DDD7889DF /* EntryEditUITests.swift in Sources */,
 				12D8828D451B1607F6400D83 /* EntryRowCopyUITests.swift in Sources */,
 				B4CC67B6F57A77DA2A01E94C /* GroupEditUITests.swift in Sources */,
+				A93F60DBC9C1CA9EA0FFCFE0 /* HardwareKeyUITests.swift in Sources */,
 				95FE2884C911B96BECA4ED23 /* InheritedTagsUITests.swift in Sources */,
 				501B38FD078785AFEBFC0125 /* KeeForgeUITestCase.swift in Sources */,
 				DB37BBC30E20632BEC1EC52E /* KeyFileUITests.swift in Sources */,

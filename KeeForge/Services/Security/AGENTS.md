@@ -59,7 +59,13 @@
 ## Tests
 
 - `KeychainServiceTests` (express item lifetime and protection too), `KeychainMigrationTests`, `QuickUnlockPasswordIntervalTests`; `DatabaseViewModelExpressUnlockTests` for what an app unlock or save reads and stores, `CredentialProviderCoordinatorTests` for AutoFill's; `SecretAccessGateTests` with `EntrySecretActionTests` for the gate's callers.
-- `HardwareKeyUnlockTests` covers the unlock flow around `HardwareKeyService`; `YubiKeyOTPHIDTests` the HID frame protocol against an emulated key. The NFC session and the IOKit device have no unit coverage: check them by hand with a physical YubiKey.
+- YubiKey coverage is layered so that only the radio and the USB device itself need a physical key. Each layer has its own seam; add a case at the lowest layer that can see the bug:
+  - Key math: `ChallengeResponseKeyTests` pins KeePassXC's KDBX 4 and 3.1 derivations against pykeepass-built fixtures and an independent re-keying of `legacy-kdbx31` (`KDBX31ChallengeResponseFixture`).
+  - Writes KeePassXC must open: the KDBX compatibility gate (`KDBXCompatibilityTests` `rekey-add-yubikey`, `rekey-yubikey-alone`, checked by `keepassxc-cli` on the Studio). KeePassXC treats `SHA256(response)` like a raw 32-byte key file, so the gate opens YubiKey files with that hash as the key file and needs no hardware.
+  - Salt pinning and the session flows (unlock, save, Sync Now, rekey, creation, lock and cancellation): `HardwareKeyUnlockTests` through `DatabaseViewModel` with `YubiKeyEmulator`; AutoFill in `CredentialProviderCoordinatorTests`.
+  - The HID protocol and `MacYubiKeyConnection`'s queue, one-at-a-time rule and cancellation: `YubiKeyOTPHIDTests` against `EmulatedOTPKey`, which checks every report as the firmware does.
+  - The screens: `HardwareKeyUITests` (iOS, run on every `rc/*` tag) drives the real unlock page with the app's DEBUG-only emulated key (`-ui-testing` plus `UI_TEST_YUBIKEY_SECRET`, compiled out of release builds).
+  - By hand, once per release that touches this area: `docs/checklists/2026-11-22-yubikey-hardware-checklist.md`, limited to what no seam reaches (Core NFC, IOKit and Input Monitoring, a real touch).
 - `PasskeyCryptoTests` (in `PasskeyTests.swift`) and `CredentialProviderRegistrationTests` for `PasskeyCrypto`.
 - `ScreenProtectionServiceTests` covers the iOS shield across capture changes, activation, launch, and the capture reports iOS sends around Face ID, Control Center, and notifications.
 - The Mac policy functions and the cover window's configuration (`makeCoverWindow(over:blockCapture:)`) are unit-tested in `SettingsServiceTests`; how the cover looks is checked by hand (`../../../KeeForgeMac/SECURITY.md`).

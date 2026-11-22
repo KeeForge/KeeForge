@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import KDBXKit
 
@@ -8,12 +9,15 @@ import KDBXKit
 @MainActor
 enum HardwareKeyService {
     static var availableTransports: [HardwareKeyConfiguration.Transport] {
+        #if DEBUG
+        if UITestYubiKey.secret != nil { return UITestYubiKey.transports }
+        #endif
         #if os(iOS) && canImport(YubiKit)
-        YubiKeyConnection.shared.availableTransports
+        return YubiKeyConnection.shared.availableTransports
         #elseif os(macOS)
-        [.usb]
+        return [.usb]
         #else
-        []
+        return []
         #endif
     }
 
@@ -32,6 +36,9 @@ enum HardwareKeyService {
         guard availableTransports.contains(configuration.transport) else {
             throw HardwareKeyError.unavailable
         }
+        #if DEBUG
+        if let secret = UITestYubiKey.secret { return UITestYubiKey.response(to: challenge, secret: secret) }
+        #endif
         #if os(iOS) && canImport(YubiKit)
         return try await YubiKeyConnection.shared.response(to: challenge, using: configuration)
         #elseif os(macOS)
@@ -41,6 +48,36 @@ enum HardwareKeyService {
         #endif
     }
 }
+
+#if DEBUG
+/// UI tests drive the YubiKey flows with an emulated key: with `-ui-testing`
+/// and `UI_TEST_YUBIKEY_SECRET` (a test HMAC secret, never a real one), every
+/// transport answers at once as a variable-length HMAC-SHA1 slot does.
+private enum UITestYubiKey {
+    static var secret: Data? {
+        guard ProcessInfo.processInfo.arguments.contains("-ui-testing"),
+              let secret = ProcessInfo.processInfo.environment["UI_TEST_YUBIKEY_SECRET"] else { return nil }
+        return Data(secret.utf8)
+    }
+
+    static var transports: [HardwareKeyConfiguration.Transport] {
+        #if os(macOS)
+        [.usb]
+        #else
+        [.nfc]
+        #endif
+    }
+
+    /// A variable-length slot drops trailing bytes equal to the last one.
+    static func response(to challenge: Data, secret: Data) -> Data {
+        var message = challenge
+        if let last = message.last {
+            while message.last == last { message.removeLast() }
+        }
+        return Data(HMAC<Insecure.SHA1>.authenticationCode(for: message, using: SymmetricKey(data: secret)))
+    }
+}
+#endif
 
 #if os(iOS) && canImport(YubiKit)
 import CoreNFC

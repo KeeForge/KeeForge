@@ -55,14 +55,6 @@ enum HardwareKeyError: Error, Equatable, Sendable {
     case communicationFailed
 }
 
-/// KeePassXC-compatible challenge-response key derivation
-/// (`CompositeKey::rawKey(transformSeed)` / `CompositeKey::transform`).
-///
-/// A composite key made here is valid only with the KDF salt it answered, so
-/// it is remembered with its challenge: a save with it keeps that salt
-/// instead of rotating it, and refuses to write any other
-/// (`kdfSaltRotation(compositeKey:)`, `checkWrite`). Otherwise the file would
-/// need a response nobody holds.
 /// The keys a YubiKey answer opens a file with. On KDBX 3.1 the response
 /// joins after the KDF, so `compositeKey` alone does not open the file and a
 /// session keeps no `kdbx3Factor`.
@@ -71,6 +63,14 @@ struct HardwareKeyUnlock: Sendable {
     let kdbx3Factor: Data?
 }
 
+/// KeePassXC-compatible challenge-response key derivation
+/// (`CompositeKey::rawKey(transformSeed)` / `CompositeKey::transform`).
+///
+/// A composite key made here is valid only with the KDF salt it answered, so
+/// it is remembered with its challenge: a save with it keeps that salt
+/// instead of rotating it, and refuses to write any other
+/// (`kdfSaltRotation(compositeKey:)`, `checkWrite`). Otherwise the file would
+/// need a response nobody holds.
 enum ChallengeResponseKey {
     private static let challengeLength = 64
     private static let pinnedChallenges = Mutex<[Data: Data]>([:])
