@@ -515,7 +515,8 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     }
 
     private func configure(_ cell: MacEntryCellView, row: MacEntryListSnapshot.Row, rowIdentifier: String) {
-        let username = session.resolvingFieldReferences(row.rawUsername)
+        let username = row.isUsernameProtected && row.rawUsername.isEmpty == false
+            ? PasswordVisualStyle.concealedText : session.resolvingFieldReferences(row.rawUsername)
         if let codeCell = cell as? MacVerificationCodeCellView {
             codeCell.configure(row, username: username, rowIdentifier: rowIdentifier,
                                display: codeClock.display(for: row.id, session: session))

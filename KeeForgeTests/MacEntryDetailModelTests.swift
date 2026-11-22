@@ -358,6 +358,45 @@ final class MacEntryDetailModelTests: XCTestCase {
                        [.plain("https://example.com"), .plain("https://plain.example")])
     }
 
+    func testProtectedStandardFieldsAreGatedInTheLiveDetailAndInAVersion() async throws {
+        let harness = SecretAccessGateHarness(gracePeriod: .alwaysAsk)
+        let protectedKeys: Set<String> = ["Title", "UserName", "URL", "Notes"]
+        let version = KPEntry(title: "Old", username: "old-user", url: "https://old.example", notes: "old note",
+                              protectedStringKeys: protectedKeys)
+        let entry = KPEntry(title: "Hidden", username: "alice", url: "https://secret.example", notes: "note",
+                            history: [version], protectedStringKeys: protectedKeys)
+        let session = try await makeSession(entries: [entry], secretAccess: harness.gate)
+        defer { session.lockRequest(force: true) }
+        var copied: [String] = []
+
+        for (source, values) in [(EntrySource.live(entry.id), ["alice", "https://secret.example", "note"]),
+                                 (.history(entryID: entry.id, index: 0), ["old-user", "https://old.example", "old note"])] {
+            let model = makeModel(source, session: session) { copied.append($0) }
+            model.appeared()
+            XCTAssertEqual(model.fields.map(\.kind), [.username, .website(0), .notes], "\(source)")
+            XCTAssertEqual(model.fields.map(\.display), [.concealed, .concealed, .concealed], "\(source)")
+            XCTAssertTrue(model.fields.allSatisfy(\.isProtected), "\(source)")
+            XCTAssertNil(model.fields[1].openableURL, "\(source): a concealed website does not open")
+            XCTAssertEqual(model.title, source == .live(entry.id) ? "Hidden" : "Old", "The title stays shown")
+
+            harness.promptSucceeds = false
+            await model.copy(.username)?.value
+            await model.copy(.website(0))?.value
+            await model.toggleReveal(.notes)?.value
+            XCTAssertEqual(copied, [], "\(source): a declined prompt discloses nothing")
+            XCTAssertEqual(display(.notes, in: model), .concealed)
+
+            harness.promptSucceeds = true
+            await model.copy(.username)?.value
+            await model.copy(.website(0))?.value
+            await model.toggleReveal(.notes)?.value
+            XCTAssertEqual(copied, Array(values.prefix(2)), "\(source): copied after the gate")
+            XCTAssertEqual(display(.notes, in: model), .revealed(values[2]))
+            copied = []
+        }
+        XCTAssertEqual(harness.promptReasons.filter { $0 == String(localized: "Copy protected field") }.count, 8)
+    }
+
     func testHeaderFooterAttachmentsAndTags() async throws {
         let created = Date(timeIntervalSince1970: 1_700_000_000)
         let entry = KPEntry(

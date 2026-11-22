@@ -1598,6 +1598,20 @@ final class DatabaseViewModel {
         fieldReferenceResolution(of: raw).value ?? PasswordVisualStyle.concealedText
     }
 
+    /// `fieldReferenceResolution(of:)` for a standard field: one the entry marks
+    /// protected needs the gate like a reference that reaches a protected value.
+    func fieldReferenceResolution(
+        of field: ProtectedStandardField, in entry: KPEntry
+    ) -> FieldReferenceResolver.Resolution {
+        entry.isProtected(field) ? .needsProtectedValue : fieldReferenceResolution(of: field.value(in: entry))
+    }
+
+    /// `resolvingFieldReferences(_:)` for a standard field; a protected one shows as the mask, an empty one as empty.
+    func resolvingFieldReferences(of field: ProtectedStandardField, in entry: KPEntry) -> String {
+        guard field.value(in: entry).isEmpty == false else { return "" }
+        return fieldReferenceResolution(of: field, in: entry).value ?? PasswordVisualStyle.concealedText
+    }
+
     /// Resolves through protected values too. Only for a disclosure that has
     /// passed the session's device-owner gate.
     func resolvingFieldReferencesIncludingProtectedValues(_ raw: String) -> String {
@@ -5787,16 +5801,13 @@ final class DatabaseViewModel {
         TagNormalizer.tags(from: entry.tags + inheritedGroupTags)
     }
 
+    /// A protected field is left out, so a search never answers whether it holds the query.
     private static func searchText(for entry: KPEntry, tags: [String]) -> String {
-        ([
-            entry.title,
-            entry.username,
-            entry.url,
-            entry.notes,
-        ] + entry.additionalURLs + tags)
-        .joined(separator: "\n")
-        .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        .lowercased()
+        let unprotected = ProtectedStandardField.allCases.filter { entry.isProtected($0) == false }
+        return ([entry.title] + unprotected.map { $0.value(in: entry) } + entry.additionalURLs + tags)
+            .joined(separator: "\n")
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
     }
 
     private func makeWorkingDraft() throws -> DatabaseDraft {

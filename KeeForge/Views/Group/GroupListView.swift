@@ -755,7 +755,7 @@ struct GroupListView: View {
     ) -> some View {
         let row = EntryRow(
             entry: entry,
-            username: viewModel.resolvingFieldReferences(entry.username),
+            username: viewModel.resolvingFieldReferences(of: .username, in: entry),
             customIconData: viewModel.customIconData(for: entry),
             folderPath: showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil,
             recycleBinDetail: recycleBinDetail(for: .entry(entry.id))
@@ -855,7 +855,7 @@ struct GroupListView: View {
     }
 
     private func verificationCodeDetail(for entry: KPEntry) -> String {
-        [viewModel.resolvingFieldReferences(entry.username), viewModel.folderPath(forEntryID: entry.id) ?? ""]
+        [viewModel.resolvingFieldReferences(of: .username, in: entry), viewModel.folderPath(forEntryID: entry.id) ?? ""]
             .filter { $0.isEmpty == false }
             .joined(separator: " · ")
     }

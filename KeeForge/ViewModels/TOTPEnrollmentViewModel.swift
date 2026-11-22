@@ -111,8 +111,9 @@ final class TOTPEnrollmentViewModel {
                 EntryCandidate(
                     id: entry.id,
                     title: entry.title,
-                    username: entry.username,
-                    url: entry.url,
+                    username: entry.isProtected(.username) && entry.username.isEmpty == false
+                        ? PasswordVisualStyle.concealedText : entry.username,
+                    url: entry.isProtected(.url) ? "" : entry.url,
                     folderPath: path.isEmpty ? nil : path.joined(separator: " / "),
                     hasTOTP: entry.hasTOTP
                 )

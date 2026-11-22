@@ -180,6 +180,15 @@ final class FieldReferenceResolverTests: XCTestCase {
         XCTAssertEqual(resolver.resolve("{REF:P@T:Empty}"), .resolved(""), "No password, nothing protected")
     }
 
+    func testAProtectedTitleStaysReadableLikeTheTitleEverySurfaceShows() throws {
+        var target = try makeTarget()
+        target.protectedStringKeys = ["Title", "URL"]
+        let resolver = FieldReferenceResolver(entries: [target], sessionKey: sessionKey)
+        XCTAssertEqual(resolver.resolve("{REF:T@I:46C9B1FFBD4ABC4BBB260BA1AB0A2E9F}"), .resolved("Mail Server"))
+        XCTAssertEqual(resolver.resolve("{REF:U@T:Mail}"), .resolved("mailbox@example.com"))
+        XCTAssertEqual(resolver.resolve("{REF:A@T:Mail Server}"), .needsProtectedValue)
+    }
+
     func testUUIDHexRoundTrip() {
         XCTAssertEqual(targetID.kdbxHexString, "46C9B1FFBD4ABC4BBB260BA1AB0A2E9F")
         XCTAssertEqual(UUID(kdbxHexString: "46C9B1FFBD4ABC4BBB260BA1AB0A2E9F"), targetID)

@@ -88,6 +88,19 @@ final class EntryVersionComparisonTests: XCTestCase {
         XCTAssertEqual(compare(version, protectedUsername).current(.username), .concealed)
     }
 
+    func testAProtectedURLIsConcealedButAProtectedTitleShowsLikeTheTitleEverywhere() throws {
+        var current = try makeEntry()
+        current.protectedStringKeys.formUnion(["Title", "URL"])
+        var version = current
+        version.title = "Old"
+        version.url = "https://old.example.com"
+
+        let comparison = compare(version, current)
+
+        XCTAssertEqual(comparison.current(.title), .text("GitHub"))
+        XCTAssertEqual(comparison.current(.website(0)), .concealed)
+    }
+
     func testWebsitesAreComparedByPositionAndMissingValuesAreNone() throws {
         let current = try makeEntry()
         var version = current

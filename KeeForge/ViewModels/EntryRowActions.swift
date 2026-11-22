@@ -49,12 +49,12 @@ struct EntryRowActions {
         entry?.hasPassword == true && session.sessionKey != nil
     }
 
-    /// A username whose field references reach a protected value waits on the
-    /// same gate as Copy Password; any other copies at once.
+    /// A protected username, or one whose field references reach a protected
+    /// value, waits on the same gate as Copy Password; any other copies at once.
     func copyUsername(using action: EntrySecretAction, copy: @escaping @MainActor (String) -> Void) {
         guard let entry else { return }
         let session = session
-        switch session.fieldReferenceResolution(of: entry.username) {
+        switch session.fieldReferenceResolution(of: .username, in: entry) {
         case .resolved(let username):
             copy(username)
         case .needsProtectedValue:

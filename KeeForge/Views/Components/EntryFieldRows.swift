@@ -42,19 +42,22 @@ struct FieldRow: View {
     }
 }
 
-/// A field that is not protected itself shows and copies as a protected one
-/// when its `{REF:…}` reaches a password or protected field: concealed, and
-/// revealed or copied only behind the device-owner gate.
+/// A field shows and copies as a protected one when the entry marks it
+/// protected or its `{REF:…}` reaches a password or protected field:
+/// concealed, and revealed or copied only behind the device-owner gate.
 struct ReferenceAwareFieldRow<Plain: View>: View {
     let label: String
     let raw: String
+    var isStoredProtected = false
     let viewModel: DatabaseViewModel
+    /// The protected row's locale-independent identifier key, as `FieldRow.accessibilityKey`.
+    var accessibilityKey: String?
     var accessibilityPrefix: String = "entry"
     let isCurrent: @MainActor () -> Bool
     @ViewBuilder let plain: (String) -> Plain
 
     var body: some View {
-        switch viewModel.fieldReferenceResolution(of: raw) {
+        switch isStoredProtected ? .needsProtectedValue : viewModel.fieldReferenceResolution(of: raw) {
         case .resolved(let value):
             plain(value)
         case .needsProtectedValue:
@@ -63,6 +66,7 @@ struct ReferenceAwareFieldRow<Plain: View>: View {
                 value: raw,
                 secretAccess: viewModel.secretAccess,
                 resolveReferences: viewModel.resolvingFieldReferencesIncludingProtectedValues,
+                accessibilityKey: accessibilityKey,
                 accessibilityPrefix: accessibilityPrefix,
                 isCurrent: isCurrent
             )
@@ -77,6 +81,7 @@ struct ProtectedFieldRow: View {
     /// Applied when the value is revealed or copied, behind the gate, so a
     /// `{REF:…}` shows and copies as what it points at.
     var resolveReferences: (String) -> String = { $0 }
+    var accessibilityKey: String?
     var accessibilityPrefix: String = "entry"
     var isCurrent: @MainActor () -> Bool
     @State private var revealed = false
@@ -140,7 +145,7 @@ struct ProtectedFieldRow: View {
     }
 
     private var normalizedLabel: String {
-        label.lowercased().replacingOccurrences(of: " ", with: "_")
+        accessibilityKey ?? label.lowercased().replacingOccurrences(of: " ", with: "_")
     }
 
     private func toggleReveal() {

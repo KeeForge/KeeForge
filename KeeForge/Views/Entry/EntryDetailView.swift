@@ -109,7 +109,9 @@ struct EntryDetailView: View {
                     EntryFieldsCard {
                         if !entry.username.isEmpty {
                             ReferenceAwareFieldRow(label: String(localized: "Username"), raw: entry.username,
-                                                   viewModel: viewModel, isCurrent: secretActionIsCurrent) { username in
+                                                   isStoredProtected: entry.isProtected(.username),
+                                                   viewModel: viewModel, accessibilityKey: "username",
+                                                   isCurrent: secretActionIsCurrent) { username in
                                 FieldRow(
                                     label: String(localized: "Username"),
                                     value: username,
@@ -130,7 +132,9 @@ struct EntryDetailView: View {
 
                         if !entry.url.isEmpty {
                             ReferenceAwareFieldRow(label: String(localized: "URL"), raw: entry.url,
-                                                   viewModel: viewModel, isCurrent: secretActionIsCurrent) { url in
+                                                   isStoredProtected: entry.isProtected(.url),
+                                                   viewModel: viewModel, accessibilityKey: "url",
+                                                   isCurrent: secretActionIsCurrent) { url in
                                 URLFieldRow(url: url)
                             }
                         }
@@ -153,7 +157,9 @@ struct EntryDetailView: View {
                     if !entry.notes.isEmpty {
                         Section("Notes") {
                             ReferenceAwareFieldRow(label: String(localized: "Notes"), raw: entry.notes,
-                                                   viewModel: viewModel, isCurrent: secretActionIsCurrent) { notes in
+                                                   isStoredProtected: entry.isProtected(.notes),
+                                                   viewModel: viewModel, accessibilityKey: "notes",
+                                                   isCurrent: secretActionIsCurrent) { notes in
                                 SelectableNotesText(notes)
                                     .accessibilityIdentifier("entry.notes")
                             }
