@@ -253,6 +253,9 @@ final class CredentialProviderCoordinator {
     /// key opens such a file without running the KDF, but every save derives
     /// under that policy and would fail.
     var kdfWriteRefusalMessage: String?
+    /// The open vault's key includes a YubiKey response, so it stays read-only:
+    /// a save rotates the KDF salt and would need a fresh response.
+    var sessionUsesHardwareKey = false
     var sessionKey: SymmetricKey?
     var compositeKey: SymmetricKey?
     var openTimeSHA512: Data?
@@ -339,6 +342,26 @@ final class CredentialProviderCoordinator {
     var biometricQuickUnlockKeys: @MainActor (DatabaseReference, String) async throws -> QuickUnlockKeys = { reference, reason in
         let context = try await BiometricService.authenticate(reason: reason)
         return try QuickUnlockKeychain.retrieve(for: reference, context: context)
+    }
+
+    /// Transports this extension can ask a YubiKey over: USB on the Mac. The
+    /// iOS extension links no YubiKey transport.
+    var hardwareKeyTransports: @MainActor () -> [HardwareKeyConfiguration.Transport] = {
+        #if os(macOS)
+        HardwareKeyService.availableTransports
+        #else
+        []
+        #endif
+    }
+
+    /// The YubiKey's response to a challenge. Injectable so tests can answer
+    /// with an emulated key.
+    var hardwareKeyResponse: @MainActor (Data, HardwareKeyConfiguration) async throws -> Data = { challenge, configuration in
+        #if os(macOS)
+        try await HardwareKeyService.response(to: challenge, using: configuration)
+        #else
+        throw HardwareKeyError.unavailable
+        #endif
     }
 
     /// Deletes a quick-unlock item whose master password is due and returns
@@ -699,7 +722,8 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        guard canUseBiometrics(for: databaseReference) else {
+        // A YubiKey needs a touch or a tap, so the interactive path opens it.
+        guard databaseReference.hardwareKey == nil, canUseBiometrics(for: databaseReference) else {
             cancelRequest(code: .userInteractionRequired)
             return
         }
@@ -899,7 +923,8 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        guard canUseBiometrics(for: databaseReference) else {
+        // A YubiKey needs a touch or a tap, so the interactive path opens it.
+        guard databaseReference.hardwareKey == nil, canUseBiometrics(for: databaseReference) else {
             cancelRequest(code: .userInteractionRequired)
             return
         }
@@ -994,7 +1019,7 @@ final class CredentialProviderCoordinator {
     /// database's (a QuickType tap may target any enabled database).
     private func canUseBiometrics(for databaseReference: DatabaseReference) -> Bool {
         // Its stored key is a pre-key that still needs the YubiKey.
-        guard databaseReference.hardwareKey == nil else { return false }
+        guard canAnswerHardwareKey(of: databaseReference) else { return false }
         guard expireQuickUnlockIfDue(databaseReference) == false else { return false }
         return hasQuickUnlockKey(databaseReference)
     }
@@ -1297,9 +1322,12 @@ final class CredentialProviderCoordinator {
         databaseReference: DatabaseReference,
         generation: Int
     ) async throws {
-        guard databaseReference.hardwareKey == nil else { throw HardwareKeyUnavailableError() }
+        guard canAnswerHardwareKey(of: databaseReference) else { throw HardwareKeyUnavailableError() }
         let keyFileData = try loadAssociatedKeyFileData(for: databaseReference)
-        let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        // With a YubiKey, the stored key is the pre-key, which still needs the key's response.
+        let compositeKey = databaseReference.hardwareKey == nil
+            ? try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+            : try KDBXCrypto.preKey(password: password, keyFileData: keyFileData)
         let expressKey = try await loadEntries(
             compositeKey: compositeKey,
             cachedExpressKey: nil,
@@ -1322,7 +1350,7 @@ final class CredentialProviderCoordinator {
         generation: Int
     ) async throws {
         // Its stored key is a pre-key that still needs the YubiKey.
-        guard databaseReference.hardwareKey == nil else { throw HardwareKeyUnavailableError() }
+        guard canAnswerHardwareKey(of: databaseReference) else { throw HardwareKeyUnavailableError() }
         let keys = try await biometricQuickUnlockKeys(databaseReference, String(localized: "Unlock KeeForge for AutoFill"))
         AutoFillDiagnostics.log("biometric auth ok, express key \(keys.expressKey != nil)")
         let expressKey = try await loadEntries(
@@ -1550,6 +1578,12 @@ final class CredentialProviderCoordinator {
         // it without the YubiKey.
         let usesExpressUnlock = databaseReference.hardwareKey == nil
         let cachedKey = usesExpressUnlock ? cachedExpressKey : nil
+        let compositeKey = if let hardwareKey = databaseReference.hardwareKey {
+            try await hardwareKeyCompositeKey(preKey: compositeKey, data: data, configuration: hardwareKey,
+                                              generation: generation)
+        } else {
+            compositeKey
+        }
         let deriveKey = keyDerivation
 
         let parsed = try await Task.detached {
@@ -1579,12 +1613,37 @@ final class CredentialProviderCoordinator {
         self.parsedMeta = parsed.meta
         self.parsedFormatVersion = parsed.header.formatVersion
         self.kdfWriteRefusalMessage = Self.kdfWriteRefusal(for: parsed.header)
+        self.sessionUsesHardwareKey = databaseReference.hardwareKey != nil
 
         let offerableEntries = parsed.rootGroup.autoFillEntries(
             excludingGroupID: parsed.rootGroup.recycleBinUUID
         )
         parsedEntries = offerableEntries.filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
         return usesExpressUnlock ? parsed.keyToStore : nil
+    }
+
+    /// Whether this extension can open the database: always without a
+    /// YubiKey, and with one only over a transport it has.
+    private func canAnswerHardwareKey(of databaseReference: DatabaseReference) -> Bool {
+        guard let hardwareKey = databaseReference.hardwareKey else { return true }
+        return hardwareKeyTransports().contains(hardwareKey.transport)
+    }
+
+    /// `preKey` combined with the YubiKey's answer to this file's challenge.
+    private func hardwareKeyCompositeKey(
+        preKey: SymmetricKey,
+        data: Data,
+        configuration: HardwareKeyConfiguration,
+        generation: Int
+    ) async throws -> SymmetricKey {
+        let challenge = try await Task.detached(priority: .userInitiated) {
+            try ChallengeResponseKey.challenge(forDatabase: data)
+        }.value
+        guard isRequestActive(generation) else { throw RequestNoLongerActive() }
+        var response = try await hardwareKeyResponse(challenge, configuration)
+        defer { SecureWipe.wipe(&response) }
+        guard isRequestActive(generation) else { throw RequestNoLongerActive() }
+        return ChallengeResponseKey.compositeKey(preKey: preKey, response: response)
     }
 
     private static func kdfWriteRefusal(for header: KDBXContainer.Header) -> String? {
@@ -2159,6 +2218,9 @@ final class CredentialProviderCoordinator {
         if parsedFormatVersion?.requiresReadOnlyMode == true {
             return String(localized: "Legacy KDBX 3.1 databases can be opened, but KeeForge only allows them in read-only mode.")
         }
+        if sessionUsesHardwareKey {
+            return String(localized: "Databases unlocked with a YubiKey open read-only for now. Saving them is not supported yet.")
+        }
         return kdfWriteRefusalMessage
     }
 
@@ -2625,7 +2687,8 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        guard canUseBiometrics(for: databaseReference) else {
+        // A YubiKey needs a touch or a tap, so the interactive path opens it.
+        guard databaseReference.hardwareKey == nil, canUseBiometrics(for: databaseReference) else {
             cancelRequest(code: .userInteractionRequired)
             return
         }
@@ -2785,6 +2848,7 @@ final class CredentialProviderCoordinator {
         parsedMeta = nil
         parsedFormatVersion = nil
         kdfWriteRefusalMessage = nil
+        sessionUsesHardwareKey = false
         sessionKey = nil
         localReadKeyPublication = nil
         compositeKey = nil
@@ -3033,8 +3097,8 @@ final class CredentialProviderCoordinator {
     }
 }
 
-/// YubiKit is linked into the iOS app alone, so a hardware-key database
-/// opens only there.
+/// The iOS extension links no YubiKey transport, and the Mac extension has
+/// USB only, so a database set up for another transport opens only in the app.
 private struct HardwareKeyUnavailableError: LocalizedError {
     var errorDescription: String? {
         String(localized: "This database needs a YubiKey, which AutoFill can't use yet. Open it in the KeeForge app instead.")

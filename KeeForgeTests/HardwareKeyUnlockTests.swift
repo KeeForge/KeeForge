@@ -24,9 +24,32 @@ final class HardwareKeyUnlockTests: XCTestCase {
         try await super.tearDown()
     }
 
-    func testHardwareKeyTransportsAreNFCOnly() {
-        XCTAssertEqual(HardwareKeyConfiguration.Transport.allCases, [.nfc])
+    func testHardwareKeyTransportsMatchThePlatform() {
+        XCTAssertEqual(HardwareKeyConfiguration.Transport.allCases, [.nfc, .usb])
+        #if os(macOS)
+        XCTAssertEqual(HardwareKeyService.availableTransports, [.usb])
+        #else
         XCTAssertTrue(HardwareKeyService.availableTransports.allSatisfy { $0 == .nfc })
+        #endif
+    }
+
+    func testPromptFollowsTheTransport() {
+        XCTAssertEqual(HardwareKeyService.prompt(for: .nfc), String(localized: "Hold your YubiKey near the top of your device."))
+        XCTAssertEqual(HardwareKeyService.prompt(for: .usb), String(localized: "Touch your YubiKey if it flashes."))
+    }
+
+    func testTransportThisDeviceLacksIsRefusedBeforeAnyRequest() async {
+        #if os(macOS)
+        let unreachable = HardwareKeyConfiguration(transport: .nfc, slot: .one)
+        #else
+        let unreachable = HardwareKeyConfiguration(transport: .usb, slot: .one)
+        #endif
+        do {
+            _ = try await HardwareKeyService.response(to: Data(count: 64), using: unreachable)
+            XCTFail("Expected unavailable")
+        } catch {
+            XCTAssertEqual(error as? HardwareKeyError, .unavailable)
+        }
     }
 
     #if os(iOS)

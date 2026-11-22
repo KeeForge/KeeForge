@@ -5612,7 +5612,7 @@ final class DatabaseViewModel {
         }.value
         guard activeUnlockAttempt == attempt else { throw HardwareKeyError.cancelled }
 
-        unlockStatusMessage = String(localized: "Hold your YubiKey near the top of your device.")
+        unlockStatusMessage = HardwareKeyService.prompt(for: configuration.transport)
         isAwaitingHardwareKey = true
         let operation = hardwareKeyResponseOperation
         let task = Task { @MainActor in try await operation(challenge, configuration) }

@@ -12,6 +12,10 @@
 	<true/>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
+	<!-- YubiKey challenge-response over USB: IOKit HID feature reports to the
+	     key's OTP interface (Services/Security/MacYubiKeyHID.swift). -->
+	<key>com.apple.security.device.usb</key>
+	<true/>
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
 	<key>com.apple.security.network.client</key>

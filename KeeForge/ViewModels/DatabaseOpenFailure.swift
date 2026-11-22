@@ -454,6 +454,14 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             title = String(localized: "YubiKey Slot Not Set Up")
             summary = String(localized: "The selected YubiKey slot isn't set up for challenge-response. Choose the other slot under Hardware Key.")
             code = "slot_not_configured"
+        case .notConnected:
+            title = String(localized: "No YubiKey Found")
+            summary = String(localized: "Plug in your YubiKey and try again. A security key without the OTP application can't answer challenge-response.")
+            code = "not_connected"
+        case .permissionDenied:
+            title = String(localized: "YubiKey Access Not Allowed")
+            summary = String(localized: "Allow KeeForge under Input Monitoring in System Settings > Privacy & Security, then try again.")
+            code = "permission_denied"
         case .timedOut:
             title = String(localized: "YubiKey Timed Out")
             summary = String(localized: "The YubiKey didn't respond in time. Try again, and touch the key when it flashes.")

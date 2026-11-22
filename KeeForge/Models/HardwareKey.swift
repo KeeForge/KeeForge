@@ -7,6 +7,8 @@ import KDBXKit
 struct HardwareKeyConfiguration: Codable, Hashable, Sendable {
     enum Transport: String, Codable, Sendable, CaseIterable {
         case nfc
+        /// The Mac's USB connection to the key's OTP (keyboard) interface.
+        case usb
 
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
@@ -15,6 +17,8 @@ struct HardwareKeyConfiguration: Codable, Hashable, Sendable {
             case "nfc", "lightning":
                 // Preserve database references saved by the 1.17 beta's removed transport.
                 self = .nfc
+            case "usb":
+                self = .usb
             default:
                 throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown hardware key transport")
             }
@@ -38,6 +42,10 @@ enum HardwareKeyError: Error, Equatable, Sendable {
     /// challenge-response KeePassXC folds in before the KDF.
     case unsupportedDatabase
     case slotNotConfigured
+    /// No YubiKey with an OTP interface is plugged in.
+    case notConnected
+    /// macOS refused access to the key's keyboard interface (Input Monitoring).
+    case permissionDenied
     case timedOut
     case disconnected
     case communicationFailed

@@ -467,9 +467,9 @@ struct UnlockView: View {
                 changeHardwareKey(option)
             } label: {
                 if viewModel.hardwareKey == option {
-                    Label(hardwareKeyTitle(option), systemImage: "checkmark")
+                    Label(option.title, systemImage: "checkmark")
                 } else {
-                    Text(hardwareKeyTitle(option))
+                    Text(option.title)
                 }
             }
         }
@@ -497,7 +497,7 @@ struct UnlockView: View {
     }
 
     private var hardwareKeyValue: some View {
-        Text(viewModel.hardwareKey.map(hardwareKeyTitle) ?? String(localized: "None"))
+        Text(viewModel.hardwareKey.map(\.title) ?? String(localized: "None"))
             .foregroundStyle(viewModel.hardwareKey == nil ? .secondary : .primary)
     }
 
@@ -507,23 +507,11 @@ struct UnlockView: View {
             .foregroundStyle(.tint)
     }
 
-    /// Every slot on each transport this device has, plus the stored choice
-    /// even when this device lacks its transport, so the picker can show it.
     private var hardwareKeyOptions: [HardwareKeyConfiguration] {
-        var options = viewModel.availableHardwareKeyTransports.flatMap { transport in
-            HardwareKeyConfiguration.Slot.allCases.map { HardwareKeyConfiguration(transport: transport, slot: $0) }
-        }
-        if let current = viewModel.hardwareKey, options.contains(current) == false {
-            options.append(current)
-        }
-        return options
-    }
-
-    private func hardwareKeyTitle(_ configuration: HardwareKeyConfiguration) -> String {
-        switch (configuration.transport, configuration.slot) {
-        case (.nfc, .one): String(localized: "YubiKey via NFC, Slot 1")
-        case (.nfc, .two): String(localized: "YubiKey via NFC, Slot 2")
-        }
+        HardwareKeyConfiguration.pickerOptions(
+            transports: viewModel.availableHardwareKeyTransports,
+            current: viewModel.hardwareKey
+        )
     }
 
     private var unavailableSection: some View {

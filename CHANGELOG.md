@@ -5,6 +5,7 @@
 ### New Features
 
 - On Mac, fill logins in your web browser with the KeeForge browser extension (#299). Turn on Settings → Browsers → "Allow browser extensions to fill from KeeForge", set up each browser there, then install the extension and pair it by checking that the code in the browser matches the one KeeForge shows. Click the key button the extension puts in a login or verification-code field (or press Option-Down there), or the extension's toolbar button, to see the logins that match the site you're on; choosing one fills it after Touch ID or your Mac password, in a prompt that names the login and the site (no prompt inside your authentication grace period). To show the key button, the extension asks to read and change pages on all secure (`https`) websites. Settings → Browsers lists paired browsers and removes them. The bridge is off until you turn it on.
+- On Mac, open databases that also need a YubiKey (#158). Plug in your YubiKey, choose its slot under Hardware Key on the unlock page, and touch the key if it flashes. This works with KDBX 4 databases and HMAC-SHA1 challenge-response, as set up by KeePassXC, in the app and in AutoFill. As on iPhone, these databases open read-only.
 - Retain encrypted cloud saves for recovery, queue cached changes durably, and avoid automatically resending uncertain replacement requests.
 
 ### Changes

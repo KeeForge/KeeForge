@@ -9026,6 +9026,58 @@
         }
       }
     },
+    "Allow KeeForge under Input Monitoring in System Settings > Privacy & Security, then try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erlaube KeeForge unter „Eingabeüberwachung“ in Systemeinstellungen > Datenschutz & Sicherheit und versuche es dann erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite KeeForge en «Monitorización de entrada» en Ajustes del Sistema > Privacidad y seguridad y vuelve a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorisez KeeForge sous « Surveillance de l’entrée » dans Réglages Système > Confidentialité et sécurité, puis réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consenti KeeForge in Monitoraggio input in Impostazioni di Sistema > Privacy e sicurezza, quindi riprova."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「システム設定」>「プライバシーとセキュリティ」の「入力監視」で KeeForge を許可してから、もう一度試してください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешите KeeForge в разделе «Мониторинг ввода» в меню «Системные настройки» > «Конфиденциальность и безопасность», затем повторите попытку."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在“系统设置”>“隐私与安全性”的“输入监控”中允许 KeeForge，然后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在「系統設定」>「隱私權與安全性」的「輸入監控」中允許 KeeForge，然後再試一次。"
+          }
+        }
+      }
+    },
     "Allow only if your browser shows the same code. A paired browser can see the titles and user names of logins for the sites it asks about, and can fill a password after you confirm." : {
       "localizations" : {
         "de" : {
@@ -36513,6 +36565,58 @@
         }
       }
     },
+    "Hardware Key:" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hardwareschlüssel:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Llave de hardware:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clé matérielle :"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiave hardware:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ハードウェアキー:"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аппаратный ключ:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "硬件密钥："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "硬體金鑰："
+          }
+        }
+      }
+    },
     "Has a passkey" : {
       "localizations" : {
         "de" : {
@@ -51098,6 +51202,58 @@
         }
       }
     },
+    "No YubiKey Found" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein YubiKey gefunden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se encontró ninguna YubiKey"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune YubiKey trouvée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna YubiKey trovata"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey が見つかりません"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey не найден"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 YubiKey"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到 YubiKey"
+          }
+        }
+      }
+    },
     "None" : {
       "localizations" : {
         "de" : {
@@ -55908,6 +56064,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請選擇 KeePass .kdbx 資料庫。"
+          }
+        }
+      }
+    },
+    "Plug in your YubiKey and try again. A security key without the OTP application can't answer challenge-response." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schließe deinen YubiKey an und versuche es erneut. Ein Sicherheitsschlüssel ohne OTP-Anwendung kann Challenge-Response nicht beantworten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conecta tu YubiKey y vuelve a intentarlo. Una llave de seguridad sin la aplicación OTP no puede responder a desafío-respuesta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Branchez votre YubiKey et réessayez. Une clé de sécurité sans l’application OTP ne peut pas répondre au défi-réponse."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collega la YubiKey e riprova. Una chiave di sicurezza senza l'applicazione OTP non può rispondere al challenge-response."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey を接続して、もう一度試してください。OTP アプリケーションのないセキュリティキーはチャレンジレスポンスに応答できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключите YubiKey и повторите попытку. Ключ безопасности без приложения OTP не поддерживает режим «запрос — ответ»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请插入 YubiKey 后重试。没有 OTP 应用的安全密钥无法响应质询-响应。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請插入 YubiKey 後再試一次。沒有 OTP 應用程式的安全金鑰無法回應挑戰-回應。"
           }
         }
       }
@@ -82721,6 +82929,58 @@
         }
       }
     },
+    "Touch your YubiKey if it flashes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Berühre deinen YubiKey, wenn er blinkt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toca tu YubiKey si parpadea."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touchez votre YubiKey si elle clignote."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tocca la YubiKey se lampeggia."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey が点滅したらタッチしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Коснитесь YubiKey, если он мигает."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果 YubiKey 闪烁，请轻触它。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果 YubiKey 閃爍，請輕觸它。"
+          }
+        }
+      }
+    },
     "Transaction could not be verified." : {
       "localizations" : {
         "de" : {
@@ -90686,6 +90946,58 @@
         }
       }
     },
+    "YubiKey Access Not Allowed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey-Zugriff nicht erlaubt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acceso a la YubiKey no permitido"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accès à la YubiKey non autorisé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accesso alla YubiKey non consentito"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey へのアクセスが許可されていません"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступ к YubiKey не разрешён"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不允许访问 YubiKey"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不允許取用 YubiKey"
+          }
+        }
+      }
+    },
     "YubiKey Disconnected" : {
       "localizations" : {
         "de" : {
@@ -91150,6 +91462,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "透過 NFC 的 YubiKey，插槽 2"
+          }
+        }
+      }
+    },
+    "YubiKey via USB, Slot 1" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey per USB, Slot 1"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey por USB, ranura 1"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey via USB, emplacement 1"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey tramite USB, slot 1"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB 経由の YubiKey、スロット 1"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey по USB, слот 1"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 USB 的 YubiKey，插槽 1"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 USB 的 YubiKey，插槽 1"
+          }
+        }
+      }
+    },
+    "YubiKey via USB, Slot 2" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey per USB, Slot 2"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey por USB, ranura 2"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey via USB, emplacement 2"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey tramite USB, slot 2"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB 経由の YubiKey、スロット 2"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey по USB, слот 2"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 USB 的 YubiKey，插槽 2"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 USB 的 YubiKey，插槽 2"
           }
         }
       }

@@ -34,7 +34,7 @@
 ### Biometrics, hardware key
 
 - The password form and explicit biometric unlock stay available while locked. The app shell owns opt-in automatic prompting; these views never start a lifecycle prompt, and the Mac Touch ID button is the form model's only way to prompt. Button text comes from `DatabaseViewModel.biometricLabel` / `biometricCaption`.
-- The iOS Hardware Key row appears only when the device offers a transport or the database already has one stored. A YubiKey alone is a valid key, so Unlock is enabled with no password or key file. Cancel during a challenge cancels only the YubiKey request.
+- The iOS Hardware Key row and the Mac Hardware Key line appear only when the device offers a transport (always USB on the Mac) or the database already has one stored. Both pickers list `HardwareKeyConfiguration.pickerOptions` under the shared `unlock.hardware-key.picker` identifier, and the choice is remembered on the database. A YubiKey alone is a valid key, so Unlock is enabled with no password or key file. On iOS, Cancel during a challenge cancels only the YubiKey request; on the Mac, the opening page's Cancel ends the attempt, which abandons the request on the key.
 
 ## Tests
 

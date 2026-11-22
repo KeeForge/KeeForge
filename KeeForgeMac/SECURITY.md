@@ -908,6 +908,7 @@ The source entitlements in [KeeForgeMac.entitlements](KeeForgeMac.entitlements) 
 | `com.apple.security.network.client` | Outbound provider sync, opt-in favicon fetching, feedback submission, and channel-specific store/update operations. |
 | `com.apple.security.application-groups` | Shared encrypted vault caches and extension metadata in `group.com.keevault.shared`; the browser bridge socket in the separate team-prefixed `com.keevault.browser` group, which the AutoFill extension does not have. |
 | `keychain-access-groups` | Team-prefixed `com.keevault.sharedkeychain`, shared with AutoFill. |
+| `com.apple.security.device.usb` | YubiKey challenge-response: HID feature reports to a plugged-in key's OTP interface ([MacYubiKeyHID](../KeeForge/Services/Security/MacYubiKeyHID.swift)). |
 
 The [direct-build entitlements](KeeForgeMacDirect.entitlements) add only
 `com.apple.security.temporary-exception.mach-lookup.global-name`, for
@@ -933,8 +934,8 @@ embedded Info.plist.
 ## AutoFill extension boundary
 
 The [Mac extension entitlements](../AutoFillExtension/AutoFillExtensionMac.entitlements)
-include only the AutoFill capability, sandbox, App Group, and shared keychain
-group. There is no `network.client`, `files.user-selected.read-write`, or
+include only the AutoFill capability, sandbox, App Group, shared keychain
+group, and `device.usb` for YubiKey challenge-response. There is no `network.client`, `files.user-selected.read-write`, or
 `files.bookmarks.app-scope` entitlement. Network sync belongs to the app.
 
 [CredentialProviderCoordinator](../AutoFillExtension/CredentialProviderCoordinator.swift)

@@ -795,6 +795,74 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.sessionKey)
     }
 
+    #if os(macOS)
+    /// Mac AutoFill asks a USB YubiKey for the file's challenge, opens the
+    /// vault read-only, and stores only the pre-key and no express key.
+    func test_hardwareKeyDatabase_unlocksOverUSBReadOnlyAndStoresOnlyThePreKey() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let fixture = KDBXTestFixture.challengeResponse
+        var reference = try seedResolvableDefaultDatabase()
+        reference.hardwareKey = HardwareKeyConfiguration(transport: .usb, slot: .two)
+        DatabaseListStore.testUpsert(reference)
+        let data = try fixture.data(in: Bundle(for: Self.self))
+        try seedDatabaseBytes(data, for: reference)
+        var requests: [(challenge: Data, configuration: HardwareKeyConfiguration)] = []
+        coordinator.hardwareKeyTransports = { [.usb] }
+        coordinator.hardwareKeyResponse = { challenge, configuration in
+            requests.append((challenge, configuration))
+            return YubiKeyEmulator.response(to: challenge)
+        }
+        let persisted = PersistedQuickUnlockKeys()
+        coordinator.persistLocalQuickUnlockKeys = { keys, _, masterKeyEntered in
+            persisted.record(keys, masterKeyEntered: masterKeyEntered)
+            return true
+        }
+
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+        coordinator.prepareCredentialList(
+            for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)]
+        )
+        let searchView = try await unlockPreparedRequestAndPresentSearch(
+            coordinator, presenter, password: fixture.password
+        )
+
+        XCTAssertEqual(requests.map(\.challenge), [try ChallengeResponseKey.challenge(forDatabase: data)])
+        XCTAssertEqual(requests.map(\.configuration), [reference.hardwareKey])
+        XCTAssertEqual(searchView.searchEntries.map(\.username), ["yubikey-user"])
+        XCTAssertTrue(coordinator.sessionUsesHardwareKey)
+        let stored = try XCTUnwrap(persisted.last)
+        let preKey = try KDBXCrypto.preKey(password: fixture.password, keyFileData: nil)
+        XCTAssertEqual(stored.storedKey.withUnsafeBytes { Data($0) }, preKey.withUnsafeBytes { Data($0) })
+        XCTAssertNil(stored.expressKey)
+    }
+
+    /// A silent fill never asks a YubiKey: a touch needs the interactive path.
+    func test_hardwareKeyDatabase_silentFillRequiresInteraction() async throws {
+        SettingsService.quickAutoFillEnabled = true
+        let (coordinator, presenter) = makeCoordinator()
+        var reference = try seedResolvableDefaultDatabase()
+        reference.hardwareKey = HardwareKeyConfiguration(transport: .usb, slot: .two)
+        DatabaseListStore.testUpsert(reference)
+        coordinator.hardwareKeyTransports = { [.usb] }
+        coordinator.hasQuickUnlockKey = { _ in true }
+        var keyReads = 0
+        coordinator.biometricQuickUnlockKeys = { _, _ in
+            keyReads += 1
+            throw CancellationError()
+        }
+        let identity = ASPasswordCredentialIdentity(
+            serviceIdentifier: githubServiceIdentifier(),
+            user: "octocat",
+            recordIdentifier: nil
+        )
+
+        coordinator.provideCredentialWithoutUserInteraction(for: identity)
+
+        XCTAssertEqual(presenter.cancelledError?.code, .userInteractionRequired)
+        XCTAssertEqual(keyReads, 0)
+    }
+    #endif
+
     // MARK: - Additional cleanup paths the pre-existing suite did not cover
 
     func test_cleanup_runsOnSearchViewCancel() throws {

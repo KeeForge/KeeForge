@@ -10,6 +10,9 @@ protocol MacUnlockSession: AnyObject {
     var biometricUnlockAvailability: DatabaseViewModel.BiometricUnlockAvailability { get }
     var canRelinkDatabaseFile: Bool { get }
     var keyFileAssociation: MacKeyFileAssociation? { get }
+    var hardwareKey: HardwareKeyConfiguration? { get }
+    var availableHardwareKeyTransports: [HardwareKeyConfiguration.Transport] { get }
+    func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?) async -> DatabaseListStore.HardwarePreferenceOutcome
     func unlock(password: String, keyFileData: Data?) async
     func unlockWithBiometrics() async -> DatabaseViewModel.BiometricUnlockOutcome
     func loadAssociatedKeyFile() async -> (data: Data, filename: String)?
@@ -80,6 +83,7 @@ final class MacUnlockFormModel {
     var selectionAlert: DocumentPickerService.SelectionAlert?
     private(set) var showsFieldError = false
     private(set) var isReconnecting = false
+    private(set) var isChangingHardwareKey = false
     /// Bumped when the password field should take focus.
     private(set) var focusRequest = 0
     private var keyFile: KeyFile?
@@ -121,8 +125,48 @@ final class MacUnlockFormModel {
         keyFileSelection.isLoading
     }
 
+    /// A YubiKey alone is a valid master key; KeePassXC allows it.
     var canSubmit: Bool {
-        (password.isEmpty == false || keyFile != nil) && isUnlocking == false && isLoadingKeyFile == false
+        (password.isEmpty == false || keyFile != nil || session.hardwareKey != nil)
+            && isUnlocking == false && isLoadingKeyFile == false && isChangingHardwareKey == false
+    }
+
+    var hardwareKey: HardwareKeyConfiguration? {
+        session.hardwareKey
+    }
+
+    /// Both slots over USB, plus a stored choice this Mac cannot reach.
+    var hardwareKeyOptions: [HardwareKeyConfiguration] {
+        HardwareKeyConfiguration.pickerOptions(
+            transports: session.availableHardwareKeyTransports,
+            current: session.hardwareKey
+        )
+    }
+
+    /// Whether the form offers the Hardware Key line at all.
+    var showsHardwareKey: Bool {
+        hardwareKeyOptions.isEmpty == false
+    }
+
+    /// Remembered on the database for every later unlock, as on iPhone.
+    func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?) async {
+        guard hardwareKey != session.hardwareKey, isUnlocking == false, isChangingHardwareKey == false else { return }
+        isChangingHardwareKey = true
+        defer { isChangingHardwareKey = false }
+        switch await session.setHardwareKey(hardwareKey) {
+        case .saved, .unchanged:
+            break
+        case .rejected, .notPublished:
+            selectionAlert = DocumentPickerService.SelectionAlert(
+                title: String(localized: "Hardware Key"),
+                message: SaveError.saveContextUnavailable.localizedDescription
+            )
+        case .visibleUnconfirmed, .keyEffectUnconfirmed:
+            selectionAlert = DocumentPickerService.SelectionAlert(
+                title: String(localized: "Hardware Key"),
+                message: CocoaError(.fileWriteUnknown).localizedDescription
+            )
+        }
     }
 
     var canUnlockWithBiometrics: Bool {

@@ -2850,6 +2850,58 @@
         }
       }
     },
+    "Databases unlocked with a YubiKey open read-only for now. Saving them is not supported yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit einem YubiKey entsperrte Datenbanken werden vorerst schreibgeschützt geöffnet. Speichern wird noch nicht unterstützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Por ahora, las bases de datos desbloqueadas con una YubiKey se abren en modo de solo lectura. Todavía no se pueden guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les bases de données déverrouillées avec une YubiKey s’ouvrent pour l’instant en lecture seule. Leur enregistrement n’est pas encore pris en charge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per ora i database sbloccati con una YubiKey si aprono in sola lettura. Il salvataggio non è ancora supportato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey でロック解除したデータベースは、現在は読み取り専用で開きます。保存にはまだ対応していません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Базы данных, разблокированные с YubiKey, пока открываются только для чтения. Их сохранение ещё не поддерживается."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 YubiKey 解锁的数据库目前以只读方式打开，暂不支持保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 YubiKey 解鎖的資料庫目前以唯讀方式開啟，暫不支援儲存。"
+          }
+        }
+      }
+    },
     "Decompression failed" : {
       "localizations" : {
         "de" : {
@@ -4784,6 +4836,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "HMAC 驗證失敗——檔案已損毀或密碼錯誤"
+          }
+        }
+      }
+    },
+    "Hold your YubiKey near the top of your device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte deinen YubiKey an die Oberseite deines Geräts."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acerca tu YubiKey a la parte superior del dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approchez votre YubiKey du haut de votre appareil."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avvicina la YubiKey alla parte superiore del dispositivo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey をデバイスの上部に近づけてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поднесите YubiKey к верхней части устройства."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 YubiKey 靠近设备顶部。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將 YubiKey 靠近裝置頂部。"
           }
         }
       }
@@ -12374,6 +12478,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "標題"
+          }
+        }
+      }
+    },
+    "Touch your YubiKey if it flashes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Berühre deinen YubiKey, wenn er blinkt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toca tu YubiKey si parpadea."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touchez votre YubiKey si elle clignote."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tocca la YubiKey se lampeggia."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey が点滅したらタッチしてください。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Коснитесь YubiKey, если он мигает."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果 YubiKey 闪烁，请轻触它。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果 YubiKey 閃爍，請輕觸它。"
           }
         }
       }

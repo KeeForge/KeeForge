@@ -28,6 +28,10 @@ struct MacUnlockView: View {
                 }
                 keyLine
                     .padding(.top, 18)
+                if form.showsHardwareKey {
+                    hardwareKeyLine
+                        .padding(.top, 8)
+                }
             }
             .frame(width: Self.columnWidth)
         } footer: {
@@ -326,6 +330,40 @@ struct MacUnlockView: View {
 
     private func chooseKeyFile() {
         Task { await form.chooseKeyFile() }
+    }
+
+    // MARK: - Hardware key
+
+    private var hardwareKeyLine: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "key.horizontal")
+                .accessibilityHidden(true)
+            Text("Hardware Key:")
+            Menu {
+                Picker(selection: Binding(
+                    get: { form.hardwareKey },
+                    set: { choice in Task { await form.setHardwareKey(choice) } }
+                )) {
+                    Text("None").tag(HardwareKeyConfiguration?.none)
+                    ForEach(form.hardwareKeyOptions, id: \.self) { option in
+                        Text(option.title).tag(Optional(option))
+                    }
+                } label: {
+                    EmptyView()
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Text(form.hardwareKey?.title ?? String(localized: "None"))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .disabled(form.isUnlocking || form.isChangingHardwareKey)
+            .accessibilityLabel(Text("Hardware Key"))
+            .accessibilityIdentifier("unlock.hardware-key.picker")
+        }
+        .font(.system(size: 12))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
     }
 }
 #endif
