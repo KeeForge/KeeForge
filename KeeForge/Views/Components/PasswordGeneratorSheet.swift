@@ -1,27 +1,41 @@
 #if os(iOS)
 import SwiftUI
 
-/// The iOS generator sheet. The Mac editor uses `MacPasswordGeneratorPopover`.
+/// The iOS generator sheet. From an editor it offers Use; opened on its own (`onUse` nil) it
+/// offers Copy instead. The Mac editor uses `MacPasswordGeneratorPopover`.
 struct PasswordGeneratorSheet: View {
     private var secondaryLabel: Color { Theme.labelSecondary }
 
-    let onUse: (String) -> Void
+    let onUse: ((String) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var model = PasswordGeneratorModel()
+    @State private var copied = false
+
+    init(onUse: ((String) -> Void)? = nil) {
+        self.onUse = onUse
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Suggested Password") {
-                    // Deliberately not selectable: the system copy path would bypass ClipboardService.
-                    PasswordDisplayText(model.suggestion, isProminent: true)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .accessibilityIdentifier("password-generator.password")
+                    if model.hasCharacters {
+                        // Deliberately not selectable: the system copy path would bypass ClipboardService.
+                        PasswordDisplayText(model.suggestion, isProminent: true)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .accessibilityIdentifier("password-generator.password")
+                    } else {
+                        Label("Every character is excluded. Remove some excluded characters to generate a password.",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Theme.State.warning)
+                            .padding(.vertical, 8)
+                            .accessibilityIdentifier("password-generator.no-characters")
+                    }
 
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: 12) {
@@ -99,6 +113,17 @@ struct PasswordGeneratorSheet: View {
                         Toggle("Exclude Ambiguous Characters", isOn: $model.options.excludeAmbiguous)
                             .accessibilityIdentifier("password-generator.charset-toggle.ambiguous")
                     }
+
+                    Section {
+                        customCharactersField("Include", text: $model.options.includedCharacters,
+                                              id: "password-generator.included-characters")
+                        customCharactersField("Exclude", text: $model.options.excludedCharacters,
+                                              id: "password-generator.excluded-characters")
+                    } header: {
+                        Text("Custom Characters")
+                    } footer: {
+                        Text("Each password contains at least one included character. Excluded characters never appear.")
+                    }
                 }
             }
             .navigationTitle("Password Generator")
@@ -116,15 +141,30 @@ struct PasswordGeneratorSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     // "Use", not "Use Password": the longer label squeezes the
                     // inline title into "Password Genera…" on 375pt screens.
-                    Button("Use") {
-                        onUse(model.suggestion)
-                        dismiss()
+                    if let onUse {
+                        Button("Use") {
+                            onUse(model.suggestion)
+                            dismiss()
+                        }
+                        .disabled(model.suggestion.isEmpty)
+                        .accessibilityIdentifier("password-generator.use")
+                    } else {
+                        Button {
+                            model.copySuggestion()
+                            copied = true
+                        } label: {
+                            copied ? Text("Copied") : Text("Copy")
+                        }
+                        .disabled(model.suggestion.isEmpty)
+                        .accessibilityIdentifier("password-generator.copy")
                     }
-                    .accessibilityIdentifier("password-generator.use")
                 }
             }
             .onAppear {
                 model.regenerate()
+            }
+            .onChange(of: model.suggestion) {
+                copied = false
             }
             .onDisappear {
                 model.close()
@@ -176,6 +216,17 @@ struct PasswordGeneratorSheet: View {
             }
         }
         .accessibilityIdentifier("password-generator.charset-toggle.\(id)")
+    }
+
+    private func customCharactersField(_ title: LocalizedStringKey, text: Binding<String>, id: String) -> some View {
+        LabeledContent(title) {
+            TextField(title, text: text, prompt: Text("None"))
+                .font(.body.monospaced())
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .multilineTextAlignment(.trailing)
+                .accessibilityIdentifier(id)
+        }
     }
 
     private func charsetBinding(_ keyPath: PasswordGeneratorModel.Charset) -> Binding<Bool> {

@@ -95,17 +95,30 @@ struct MacPasswordGeneratorControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            PasswordDisplayText(model.suggestion,
-                                font: .system(size: isPassphrase ? 17 : 20, weight: .medium, design: .monospaced))
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-                .accessibilityLabel(Text("Suggested Password"))
-                .accessibilityValue(Text(verbatim: model.suggestion))
-                .accessibilityIdentifier("password-generator.password")
+            if model.hasCharacters {
+                PasswordDisplayText(model.suggestion,
+                                    font: .system(size: isPassphrase ? 17 : 20, weight: .medium, design: .monospaced))
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                    .accessibilityLabel(Text("Suggested Password"))
+                    .accessibilityValue(Text(verbatim: model.suggestion))
+                    .accessibilityIdentifier("password-generator.password")
+            } else {
+                Label("Every character is excluded. Remove some excluded characters to generate a password.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(Theme.State.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                    .accessibilityIdentifier("password-generator.no-characters")
+            }
             MacFillingSegmentedControl(
                 selection: $model.options.mode,
                 segments: [(PasswordGenerator.Mode.characters, String(localized: "Password")),
@@ -174,6 +187,30 @@ struct MacPasswordGeneratorControls: View {
             Toggle("Exclude Look-Alike Characters", isOn: $model.options.excludeAmbiguous)
                 .toggleStyle(.checkbox)
                 .accessibilityIdentifier("password-generator.charset-toggle.ambiguous")
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
+                customCharactersRow("Include", text: $model.options.includedCharacters,
+                                    id: "password-generator.included-characters")
+                customCharactersRow("Exclude", text: $model.options.excludedCharacters,
+                                    id: "password-generator.excluded-characters")
+            }
+            Text("Each password contains at least one included character. Excluded characters never appear.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func customCharactersRow(_ title: LocalizedStringKey, text: Binding<String>, id: String) -> some View {
+        GridRow {
+            Text(title)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            TextField(title, text: text, prompt: Text("None"))
+                .textFieldStyle(.roundedBorder)
+                .labelsHidden()
+                .font(.body.monospaced())
+                .autocorrectionDisabled()
+                .accessibilityIdentifier(id)
         }
     }
 

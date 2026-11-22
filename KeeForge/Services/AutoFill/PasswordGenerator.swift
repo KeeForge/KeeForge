@@ -38,6 +38,10 @@ enum PasswordGenerator {
         var includeDigits: Bool
         var includeSymbols: Bool
         var excludeAmbiguous: Bool
+        /// Typed by the user: they join the pool as their own set, so at least one appears.
+        var includedCharacters: String
+        /// Typed by the user: never used, whichever set would supply them.
+        var excludedCharacters: String
 
         init(
             mode: Mode = .characters,
@@ -48,7 +52,9 @@ enum PasswordGenerator {
             includeLowercase: Bool = true,
             includeDigits: Bool = true,
             includeSymbols: Bool = true,
-            excludeAmbiguous: Bool = true
+            excludeAmbiguous: Bool = true,
+            includedCharacters: String = "",
+            excludedCharacters: String = ""
         ) {
             self.mode = mode
             self.wordCount = wordCount
@@ -59,6 +65,8 @@ enum PasswordGenerator {
             self.includeDigits = includeDigits
             self.includeSymbols = includeSymbols
             self.excludeAmbiguous = excludeAmbiguous
+            self.includedCharacters = includedCharacters
+            self.excludedCharacters = excludedCharacters
         }
 
         /// Decodes field by field so a stored value written before a new option
@@ -82,7 +90,11 @@ enum PasswordGenerator {
                 includeSymbols: try container.decodeIfPresent(Bool.self, forKey: .includeSymbols)
                     ?? defaults.includeSymbols,
                 excludeAmbiguous: try container.decodeIfPresent(Bool.self, forKey: .excludeAmbiguous)
-                    ?? defaults.excludeAmbiguous
+                    ?? defaults.excludeAmbiguous,
+                includedCharacters: try container.decodeIfPresent(String.self, forKey: .includedCharacters)
+                    ?? defaults.includedCharacters,
+                excludedCharacters: try container.decodeIfPresent(String.self, forKey: .excludedCharacters)
+                    ?? defaults.excludedCharacters
             )
         }
     }
@@ -109,7 +121,8 @@ enum PasswordGenerator {
             }.joined(separator: normalizedOptions.separator)
         }
         let characterSets = enabledCharacterSets(for: normalizedOptions)
-        guard characterSets.isEmpty == false else { return "" }
+        let pool = characterPool(characterSets)
+        guard pool.isEmpty == false else { return "" }
 
         let targetLength = max(normalizedOptions.length, 1)
         let requiredCharacters: [Character] = if targetLength >= characterSets.count {
@@ -118,12 +131,9 @@ enum PasswordGenerator {
             []
         }
 
-        let allCharacters = Array(characterSets.joined())
-        guard allCharacters.isEmpty == false else { return "" }
-
         var password = requiredCharacters
         while password.count < targetLength {
-            if let next = allCharacters.randomElement(using: &generator) {
+            if let next = pool.randomElement(using: &generator) {
                 password.append(next)
             }
         }
@@ -137,34 +147,92 @@ enum PasswordGenerator {
         if normalizedOptions.mode == .passphrase {
             return Double(normalizedOptions.wordCount) * log2(Double(passphraseWords.count))
         }
-        let poolSize = Double(enabledCharacterSets(for: normalizedOptions).joined().count)
+        let poolSize = Double(characterPool(enabledCharacterSets(for: normalizedOptions)).count)
         guard poolSize > 0 else { return 0 }
         return Double(max(normalizedOptions.length, 1)) * log2(poolSize)
     }
 
+    /// Whether character mode has anything left to draw from: excluded characters can empty
+    /// every enabled set. Passphrases always can.
+    static func hasCharacters(options: Options) -> Bool {
+        let normalizedOptions = normalized(options)
+        return normalizedOptions.mode == .passphrase || enabledCharacterSets(for: normalizedOptions).isEmpty == false
+    }
+
+    /// For callers with no generator UI to say the pool is empty (AutoFill): the options, or
+    /// without the exclusions when those leave nothing to draw from.
+    static func unattended(_ options: Options) -> Options {
+        guard hasCharacters(options: options) == false else { return options }
+        var options = options
+        options.excludedCharacters = ""
+        return options
+    }
+
+    /// The typed included characters the generator can use, deduplicated in typed order.
+    static func usableIncludedCharacters(_ text: String) -> [Character] {
+        var seen = Set<Character>()
+        return text.filter { isUsableCustomCharacter($0) && seen.insert($0).inserted }.map { $0 }
+    }
+
+    /// A single scalar that can never merge with a neighbor into one grapheme, so the password's
+    /// length is what was asked for whichever characters end up adjacent.
+    static func isUsableCustomCharacter(_ character: Character) -> Bool {
+        guard character.isWhitespace == false,
+              character.unicodeScalars.count == 1,
+              let scalar = character.unicodeScalars.first else { return false }
+        let properties = scalar.properties
+        switch properties.generalCategory {
+        case .control, .format, .surrogate, .privateUse, .unassigned,
+             .nonspacingMark, .spacingMark, .enclosingMark, .lineSeparator, .paragraphSeparator:
+            return false
+        default:
+            break
+        }
+        if properties.isGraphemeExtend || properties.isEmojiModifier { return false }
+        switch scalar.value {
+        case 0x1F1E6...0x1F1FF, // regional indicators pair into flags
+             0x1100...0x11FF, 0xA960...0xA97F, 0xD7B0...0xD7FF: // Hangul jamo compose into syllables
+            return false
+        default:
+            return true
+        }
+    }
+
+    /// The enabled sets after the ambiguous and excluded filters, plus the included characters as
+    /// one more set. The ambiguous filter spares included characters: the user typed them.
     private static func enabledCharacterSets(for options: Options) -> [[Character]] {
+        let excluded = Set(options.excludedCharacters)
         var sets: [[Character]] = []
         if options.includeUppercase {
-            sets.append(filtered(uppercase, excludeAmbiguous: options.excludeAmbiguous))
+            sets.append(filtered(uppercase, excludeAmbiguous: options.excludeAmbiguous, excluded: excluded))
         }
         if options.includeLowercase {
-            sets.append(filtered(lowercase, excludeAmbiguous: options.excludeAmbiguous))
+            sets.append(filtered(lowercase, excludeAmbiguous: options.excludeAmbiguous, excluded: excluded))
         }
         if options.includeDigits {
-            sets.append(filtered(digits, excludeAmbiguous: options.excludeAmbiguous))
+            sets.append(filtered(digits, excludeAmbiguous: options.excludeAmbiguous, excluded: excluded))
         }
         if options.includeSymbols {
-            sets.append(filtered(symbols, excludeAmbiguous: options.excludeAmbiguous))
+            sets.append(filtered(symbols, excludeAmbiguous: options.excludeAmbiguous, excluded: excluded))
         }
+        sets.append(usableIncludedCharacters(options.includedCharacters).filter { excluded.contains($0) == false })
         return sets.filter { $0.isEmpty == false }
+    }
+
+    /// Every distinct character once, so one also in a built-in set is not drawn twice as often.
+    private static func characterPool(_ sets: [[Character]]) -> [Character] {
+        var seen = Set<Character>()
+        return sets.joined().filter { seen.insert($0).inserted }
     }
 
     private static func filtered(
         _ characters: [Character],
-        excludeAmbiguous: Bool
+        excludeAmbiguous: Bool,
+        excluded: Set<Character>
     ) -> [Character] {
-        guard excludeAmbiguous else { return characters }
-        return characters.filter { ambiguousCharacters.contains($0) == false }
+        characters.filter {
+            excluded.contains($0) == false && (excludeAmbiguous == false || ambiguousCharacters.contains($0) == false)
+        }
     }
 
     private static func normalized(_ options: Options) -> Options {

@@ -33,6 +33,7 @@ struct DatabaseListView: View {
     @State private var renameText = ""
     @State private var detailsReference: DatabaseReference?
     @State private var showSettings = false
+    @State private var showPasswordGenerator = false
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var activeCloudProvider: CloudProviderKind?
     @State private var isDatabaseCreationPresented = false
@@ -162,6 +163,9 @@ struct DatabaseListView: View {
                 }
             )
             .macSheetFrame()
+        }
+        .sheet(isPresented: $showPasswordGenerator) {
+            PasswordGeneratorSheet()
         }
         .sheet(isPresented: $isDatabaseCreationPresented) {
             DatabaseCreationView(
@@ -296,6 +300,14 @@ struct DatabaseListView: View {
                     Image(systemName: "gearshape")
                 }
                 .accessibilityIdentifier("database.settings.button")
+
+                Button {
+                    showPasswordGenerator = true
+                } label: {
+                    Image(systemName: "wand.and.stars")
+                }
+                .accessibilityLabel(Text("Password Generator"))
+                .accessibilityIdentifier("database.password-generator.button")
 
                 Menu {
                     addDatabaseMenuContent

@@ -148,6 +148,7 @@ In French, write `Remplissage automatique` capitalized at the start of a label a
 | uppercase / lowercase | Großbuchstaben / Kleinbuchstaben | majuscules / minuscules | mayúsculas / minúsculas | maiuscole / minuscole | прописные / строчные буквы | 大文字 / 小文字 | 大写字母 / 小写字母 | 大寫字母 / 小寫字母 |
 | digits / symbols | Ziffern / Symbole | chiffres / symboles | dígitos / símbolos | cifre / simboli | цифры / символы | 数字 / 記号 | 数字 / 符号 | 數字 / 符號 |
 | separator | Trennzeichen | séparateur | separador | separatore | разделитель | 区切り文字 | 分隔符 | 分隔符號 |
+| include / exclude (characters) | einbeziehen / ausschließen | inclure / exclure | incluir / excluir | includere / escludere | включить / исключить | 含める / 除外 | 包含 / 排除 | 包含 / 排除 |
 | strength | Stärke | robustesse | seguridad | robustezza | надёжность | 強度 | 强度 | 強度 |
 
 ## Common Actions

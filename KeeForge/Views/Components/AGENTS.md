@@ -9,7 +9,7 @@
 - `GroupIconView` renders group icons on iOS: a decodable custom image takes precedence over the standard icon. The Mac sidebar draws AppKit images with the same precedence (`MacIconImages`) and supplies no custom image for the recycle bin.
 - `PasswordInputRow(usesPasswordAutoFill: false)` is for a row that only looks like a password (a TOTP setup key). The flag drives both `textContentType` applications; leaving it on lets QuickType offer to replace the value with a generated password.
 - A revealed password is never selectable; see "Secrets on screen" in `../AGENTS.md`.
-- `PasswordGeneratorSheet` is iOS only and offers Regenerate and Use, not Copy. The Mac generator is `Entry/Mac/MacPasswordGeneratorView`: the editor's popover and the Password Generator panel.
+- `PasswordGeneratorSheet` is iOS only. From an editor (`onUse` set) it offers Regenerate and Use, not Copy; opened on its own from the database list's toolbar it offers Copy (`password-generator.copy`, through `ClipboardService`) instead of Use. The Mac generator is `Entry/Mac/MacPasswordGeneratorView`: the editor's popover and the Password Generator panel.
 - `PasswordGeneratorSheet` refuses to turn off the last character set, matching `PasswordGenerator`, which would silently re-enable lowercase. `password-generator.password` sits on the plaintext leaf only, not on the row's controls.
 - `FaviconLoadModel` clears the previous image when the domain changes and ignores stale or cancelled responses, so a reused row never shows another entry's icon.
 - `SettingsSummaryRow` is a label only. The caller wraps it in the `NavigationLink` and owns the identifier. Its `needsAttention` dot (iOS) never stands alone: the summary says what needs attention.

@@ -859,7 +859,7 @@ final class CredentialProviderCoordinator {
     @available(iOS 26.2, *)
     func performWithoutUserInteraction(generatePasswordsRequest: ASGeneratePasswordsRequest) {
         beginRequest()
-        let password = PasswordGenerator.generate(options: SettingsService.passwordGeneratorOptions)
+        let password = PasswordGenerator.generate(options: PasswordGenerator.unattended(SettingsService.passwordGeneratorOptions))
         finishRequest { presenter in
             presenter.completeGeneratePasswordRequest(passwords: [password])
         }
@@ -2563,7 +2563,7 @@ final class CredentialProviderCoordinator {
     @available(iOS 26.2, *)
     private func presentGeneratePasswordPrompt(
         for request: ASGeneratePasswordsRequest,
-        password: String = PasswordGenerator.generate(options: SettingsService.passwordGeneratorOptions)
+        password: String = PasswordGenerator.generate(options: PasswordGenerator.unattended(SettingsService.passwordGeneratorOptions))
     ) {
         presenter?.presentGeneratedPassword(
             password,
@@ -2574,7 +2574,7 @@ final class CredentialProviderCoordinator {
                 self?.presentGeneratePasswordPrompt(
                     for: request,
                     password: PasswordGenerator.generate(
-                        options: SettingsService.passwordGeneratorOptions
+                        options: PasswordGenerator.unattended(SettingsService.passwordGeneratorOptions)
                     )
                 )
             },

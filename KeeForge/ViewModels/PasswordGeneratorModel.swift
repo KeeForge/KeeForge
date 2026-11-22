@@ -52,6 +52,12 @@ final class PasswordGeneratorModel {
         options[keyPath: set] = isEnabled
     }
 
+    /// False once excluded characters leave character mode nothing to draw from; the suggestion
+    /// is then empty and the surfaces say why.
+    var hasCharacters: Bool {
+        PasswordGenerator.hasCharacters(options: options)
+    }
+
     /// The most the suggestion can be worth given how it was generated; caps the estimate.
     var maximumEntropyBits: Double {
         PasswordGenerator.minimumEntropyBits(options: options)

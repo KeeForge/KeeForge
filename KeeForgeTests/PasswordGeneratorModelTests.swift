@@ -56,6 +56,29 @@ final class PasswordGeneratorModelTests: XCTestCase {
         XCTAssertTrue(model.isEnabled(\.includeDigits))
     }
 
+    func testExcludingEveryCharacterEmptiesTheSuggestionUntilOneIsAllowedAgain() {
+        var copied: [String] = []
+        let model = PasswordGeneratorModel(
+            loadOptions: {
+                PasswordGenerator.Options(includeUppercase: false, includeLowercase: false,
+                                          includeDigits: true, includeSymbols: false, excludeAmbiguous: false)
+            },
+            saveOptions: { _ in }, copy: { copied.append($0) }
+        )
+        XCTAssertTrue(model.hasCharacters)
+
+        model.options.excludedCharacters = "0123456789"
+        XCTAssertFalse(model.hasCharacters)
+        XCTAssertEqual(model.suggestion, "")
+        model.copySuggestion()
+        XCTAssertEqual(copied, [], "Nothing to copy from an empty pool")
+
+        model.options.includedCharacters = "x"
+        XCTAssertTrue(model.hasCharacters)
+        XCTAssertTrue(model.suggestion.allSatisfy { $0 == "x" })
+        XCTAssertEqual(model.suggestion.count, model.options.length)
+    }
+
     func testStrengthIsCappedByHowTheSuggestionWasGenerated() {
         let options = PasswordGenerator.Options(mode: .passphrase, wordCount: 4, separator: "a")
         let model = PasswordGeneratorModel(loadOptions: { options }, saveOptions: { _ in })

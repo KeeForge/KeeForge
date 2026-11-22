@@ -188,6 +188,16 @@ final class ViewRenderTests: XCTestCase {
 
         SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(mode: .passphrase)
         try renderScreens([("Passphrase", AnyView(PasswordGeneratorSheet(onUse: { _ in })))], named: "password-generator-passphrase")
+
+        var standalone: [(String, AnyView)] = []
+        SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(includedCharacters: "äß€", excludedCharacters: "xyz")
+        standalone.append(("Standalone, custom characters", AnyView(PasswordGeneratorSheet())))
+        SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(
+            includeUppercase: false, includeLowercase: false, includeDigits: true, includeSymbols: false,
+            excludedCharacters: "0123456789"
+        )
+        standalone.append(("Standalone, every character excluded", AnyView(PasswordGeneratorSheet())))
+        try renderScreens(standalone, named: "password-generator-standalone")
     }
 
     func testEntryEditor() throws {

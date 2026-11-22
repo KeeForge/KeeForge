@@ -52,6 +52,7 @@
 - It is skipped on macOS (the API does not exist there) and for an unlimited process, and never refuses AES-KDF or an unknown KDF. It does not cover a file too large to read.
 - `PasswordGenerator` samples passphrase words independently with Swift’s uniform integer sampling and `SystemRandomNumberGenerator`. The unchanged EFF long wordlist must be bundled in all four product targets; never substitute a smaller fallback list. The generator skips the hyphenated entries, and `PasswordStrengthEstimator` rates a phrase of those words by word count, not by its characters.
 - `PasswordGenerator.Options` is persisted App Group-wide and decodes per field, so adding an option does not reset stored ones.
+- Included characters form one more required set; excluded characters win over every set, included ones too, and the ambiguous filter spares included ones. The pool counts each distinct character once. Included characters are limited to single scalars that cannot merge with a neighbor into one grapheme, so the length holds. When exclusions empty every enabled set, character mode generates `""` and `hasCharacters` is false; the generator surfaces say so and disable Use and Copy instead of re-enabling a set. AutoFill, which has no generator UI to explain it, generates through `PasswordGenerator.unattended`, which drops the exclusions in that case.
 - `AutoFillDiagnostics` is DEBUG-only and logs event names, flags, and counts. Never pass entry data, URLs, or secrets to it.
 
 ## Tests
