@@ -1,0 +1,6 @@
+<!doctype html><html><head><meta charset="utf-8"><title>First steps</title><style>:root{color-scheme:light dark;font:16px system-ui}body{margin:60px auto;width:460px}input{box-sizing:border-box;display:block;width:340px;height:40px;margin:12px 0;padding:8px;border:1px solid GrayText;border-radius:6px}</style></head><body>
+<form id="step" action="/signin"><input id="email" type="email" name="email" placeholder="Email"><button type="button">Next</button></form>
+<form id="search" role="search"><input id="q" name="q" type="search" placeholder="Search"><input id="site-search" name="search-user" placeholder="Find a user"></form>
+<form id="newsletter" class="newsletter-signup"><input id="news" type="email" name="email" placeholder="Newsletter"></form>
+<form id="ro"><input id="ru" name="user" placeholder="User"><input id="rp" type="password" readonly placeholder="Password (readonly until focus)"></form>
+<script>document.getElementById('rp').addEventListener('focus', e => e.target.removeAttribute('readonly'));</script></body></html>

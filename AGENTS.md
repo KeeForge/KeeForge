@@ -17,7 +17,8 @@ Entry point for coding agents working on KeeForge. This file holds the repo-wide
 - Swift 6, SwiftUI, iOS 18+ / macOS 15+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`; target-membership rules live in `KeeForge/AGENTS.md`
 - On each `rc/*` tag, GitHub Actions runs the `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB` schemes and Xcode Cloud archives both App Store builds; the partition rules are in `ci_scripts/AGENTS.md`.
-- Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`
+- Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeBrowserHost` (the Mac app's embedded native-messaging host, `BrowserHost/`), `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`
+- `BrowserExtension/` is the Chrome/Firefox extension: plain JavaScript with Node tests and no Xcode target; its wire contract with the Mac app is `docs/browser-bridge-protocol.md`.
 
 ## Find The Right Doc
 
@@ -49,6 +50,7 @@ Before changing a folder, read its `AGENTS.md` and each parent's up to this file
 ### Localization
 
 - UI text uses Xcode String Catalogs (`.xcstrings`), source language `en`. Shipped locales: `en`, `de`, `fr`, `es`, `zh-Hans`, `zh-Hant`, `ja`, `it`, `ru`.
+- The browser extension's text is in its own `BrowserExtension/_locales/<locale>/messages.json`, one per shipped locale (zh-Hans as `zh_CN`, zh-Hant as `zh_TW`), checked by its Node tests rather than `LocalizationTests`, and follows the same glossary.
 - Reach user-facing strings via `String(localized:)` (or SwiftUI's automatic catalog lookup) — never hardcode display text. This includes `String` values a view renders, such as labels and captions returned by view models.
 - Translate recurring terms as [docs/i18n/glossary.md](docs/i18n/glossary.md) lists them, and follow its per-locale conventions (address form, quotes, punctuation). Add a term there when you introduce one that will recur.
 - Every English key needs a translation in each shipped locale. Run `LocalizationTests` after touching any catalog.
@@ -56,6 +58,7 @@ Before changing a folder, read its `AGENTS.md` and each parent's up to this file
 - The catalog file map is in `KeeForge/Resources/README.md`.
 - A new locale spans this repo and the website, and ships only when all of these are done:
   - All four catalogs are translated, with AutoFill keys matching the app's. `xcodegen generate` adds the locale to `knownRegions` from the catalogs.
+  - `BrowserExtension/_locales/` has the locale with every key, and `BrowserExtension/test/locales.test.js` lists it; both use Chrome's codes (`zh_TW`), which `git grep zh-Hant` misses.
   - `shippedTranslationLocales` in `LocalizationTests.swift` and every shipped-locale list in the docs name it (`git grep zh-Hant` finds them).
   - `docs/i18n/glossary.md` has a column and a conventions row for it.
   - `docs/i18n/` has `README.<locale>.md` and `CONTRIBUTING.<locale>.md`, and the language switcher row in the root files and every translation links them.
@@ -67,6 +70,7 @@ Before changing a folder, read its `AGENTS.md` and each parent's up to this file
 - Review the current PR head, the full diff, and affected callers. On re-review, verify earlier findings in code and check for new regressions; recheck the head before posting or approving.
 - Prioritize concrete correctness, data-loss, and security bugs. Trace save/sync/merge and authentication flows through cancellation, background locking, concurrent edits, partial failures, and recovery; include existing on-disk data from shipped versions.
 - Check iPhone, iPad, Mac, and AutoFill parity where affected. Shared SwiftUI and passing unit tests do not establish native layout, keyboard/focus behavior, or usable recovery actions. Check localized copy against the actual behavior.
+- For browser extension changes, check Chrome and Firefox: they differ in visibility tracking, document targeting and extension URLs (`BrowserExtension/README.md`), and Node tests do not establish real-browser behavior.
 - Use focused tests or production-code reproductions for suspected bugs. Regression tests should fail on the broken behavior and exercise relevant persistence/cache effects, not mock them away. Check KDBX interoperability when format or save behavior changes.
 - For persistent workflows, verify safety and recoverability separately: what each state protects, which supported action resolves it, and what remains usable if recovery fails. Retaining bytes or refusing a retry alone does not prove a usable recovery path.
 - Trace critical tests through the wiring used by production, including adapter retries. A patch-only re-review does not establish whole-PR acceptance after cross-cutting changes; the final reviewer must be free to challenge previously accepted code and the contract itself.
@@ -88,9 +92,13 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
   -destination 'platform=macOS' \
   -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
+
+BrowserExtension/tools/ci.sh
+cd BrowserExtension && env -u NODE_USE_SYSTEM_CA node --test
 ```
 
 - Run the smallest relevant slice, always with `-only-testing:`. Do not run the full UI suite unless explicitly asked.
+- A `BrowserExtension/` change runs `BrowserExtension/tools/ci.sh` (needs Chrome and Firefox), which is the `browser-extension` CI job; `node --test` alone is the quick subset. Both run against `tools/mock-host.mjs`, not the app: the bridge against the signed app is `MacBrowserBridgeUITests` and `MacBrowserExtensionUITests`, which never run in CI (`BrowserExtension/AGENTS.md`, `KeeForgeMacUITests/AGENTS.md`).
 
 ### macOS tests
 
@@ -104,4 +112,5 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - Composite keys live in Keychain, not raw master passwords.
 - Local saves compare the open-time SHA-512 before overwrite, create timestamped backups, and refresh the shared cached copy for AutoFill.
 - App Group and security-scoped bookmark behavior affect both the app and AutoFill extension.
-- Network egress stays limited to cloud sync (including Google OAuth, Picker and Drive on iOS), opt-in favicon fetching (DuckDuckGo, `icons.duckduckgo.com`), the user-initiated feedback form (`feedback.keeforge.com`), OS-mediated StoreKit requests for the tip jar and review prompt in App Store builds, and, in the direct Mac build only, Sparkle's daily update check (on by default; Settings → About → Updates).
+- The Mac browser bridge is off by default, lists matching logins without secrets, and releases one password, or one verification code, per request behind the device-owner gate. The extension's content script runs on every `https` and loopback page but contacts nothing before a trusted click on its key button, and its menu stays in a closed-root extension frame that sends the page nothing; the threat model's bridge rows record its limits.
+- Network egress stays limited to cloud sync (including Google OAuth, Picker and Drive on iOS), opt-in favicon fetching (DuckDuckGo, `icons.duckduckgo.com`), the user-initiated feedback form (`feedback.keeforge.com`), OS-mediated StoreKit requests for the tip jar and review prompt in App Store builds, and, in the direct Mac build only, Sparkle's daily update check (on by default; Settings → About → Updates). The browser extension and its native-messaging host make no network requests.

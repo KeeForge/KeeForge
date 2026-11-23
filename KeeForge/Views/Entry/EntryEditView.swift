@@ -150,7 +150,7 @@ struct EntryEditView: View {
                         Button("Cancel", role: .cancel) {}
                     } message: {
                         Text(isEntryInRecycleBin
-                            ? "This entry is already in the recycle bin. It will be permanently deleted."
+                            ? "This entry is already in the Recycle Bin. It will be permanently deleted."
                             : "Choose how to remove this entry.")
                     }
                 }

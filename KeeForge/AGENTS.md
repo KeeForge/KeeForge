@@ -14,8 +14,8 @@ Keep all four compiling when a shared file changes. `KeeForgeTests` also compile
 
 Exclusions in `../project.yml`:
 
-- The Mac app adds `../KeeForgeMac/App/` and omits the iOS entry point `App/KeeForgeApp.swift`, `Resources/LaunchScreen.storyboard`, `Services/Cloud/DropboxCloudProvider.swift`, and `Services/Cloud/OneDriveCloudProvider.swift`. Omitting the two providers is what lets the Mac app drop the Dropbox and MSAL packages.
-- The iOS app omits the macOS-only `Services/AppSupport/{MacLockMonitor,MacWindowCloseGuard,MacQuickAccessController,MacGlobalHotKey}.swift`, and `Services/SSHAgent/`.
+- The Mac app adds `../KeeForgeMac/App/` and `../BrowserHost/BrowserBridgeIdentifiers.swift`, embeds the `KeeForgeBrowserHost` tool (`../BrowserHost/AGENTS.md`), and omits the iOS entry point `App/KeeForgeApp.swift`, `Resources/LaunchScreen.storyboard`, `Services/Cloud/DropboxCloudProvider.swift`, and `Services/Cloud/OneDriveCloudProvider.swift`. Omitting the two providers is what lets the Mac app drop the Dropbox and MSAL packages.
+- The iOS app omits the macOS-only `Services/AppSupport/{MacLockMonitor,MacWindowCloseGuard,MacQuickAccessController,MacGlobalHotKey,LocalSocketServer}.swift`, `Services/SSHAgent/`, and `Services/BrowserBridge/`.
 - Both apps compile `../AutoFillExtension/CredentialProviderCoordinator.swift` so hosted unit tests can reach it. The Mac app also compiles the Mac AutoFill shell and its views for the same reason.
 - The iOS `Info.plist` and `KeeForge.entitlements` live here; the Mac equivalents are in `../KeeForgeMac/`.
 
@@ -45,6 +45,7 @@ Flows that span three or more folders, as the types that own each step in order.
 - AutoFill read: the app and extensions share models and selected services through `../project.yml`, App Group storage (`Services/Persistence/SharedVaultStore`, `DatabaseListStore`), cached database copies, and Keychain items. A local save must keep the shared cached copy aligned.
 - AutoFill save: `../AutoFillExtension/CredentialProviderCoordinator` -> `Services/AutoFill/AutoFillSaveCoordinator` -> `Services/Persistence/LocalDatabaseSaver` into the cache, with the saver publishing a `Services/Cloud/PendingUploadQueue` journal for cloud databases. The app's `Services/Cloud/PendingUploadDrainer`, owned by `ViewModels/DatabaseListViewModel`, uploads when the app becomes active.
 - Mac SSH agent: `../KeeForgeMac/App/AppDelegate` owns one `Services/SSHAgent/MacSSHAgentController`, which runs the opt-in agent socket (`SSHAgentSocketServer`) and answers each request (`SSHAgentRequestHandler`) from the entries chosen in `Views/Settings/MacSSHAgentSettingsTab`, read from every open, unlocked `ViewModels/DatabaseViewModel` at that moment, so a lock withdraws that session's keys. Keys come from entry attachments (`SSHAgentKey`); a parsed key is kept in memory only until that lock, and nothing is written to disk.
+- Mac browser bridge: the extension in `../BrowserExtension/` reaches the embedded `../BrowserHost/` relay through native messaging, and the relay reaches `Services/BrowserBridge/MacBrowserBridgeController`, owned by `../KeeForgeMac/App/AppDelegate`, over its opt-in socket. Its `BrowserBridgeRequestHandler` answers from every open, unlocked `ViewModels/DatabaseViewModel`, behind the session's device-owner gate; `Views/Settings/MacBrowsersSettingsTab` (through `ViewModels/MacBrowserBridgeSettingsModel`) turns it on, sets up browsers and removes pairings, and `../KeeForgeMac/App/MacBrowserBridgePrompts` asks before a pairing. The wire contract is `../docs/browser-bridge-protocol.md`.
 
 ## See also
 

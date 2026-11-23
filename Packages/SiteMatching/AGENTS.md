@@ -82,6 +82,7 @@ The known-answer suites list only these, each with its reason in the test. A vec
 
 - `Tests/SiteMatchingTests` covers the package on its own, with `@testable import SiteMatching`. Prefer independent known answers: `PublicSuffixListVectorTests` runs the list project's `test_psl.txt`, and `WHATWGHostVectorTests` runs the URL Standard's host cases. `Tests/SiteMatchingTests/Fixtures/README.md` names the sources.
 - `SpecificationTests` checks that every rule ID above names a test.
+- `BrowserBridgeSiteFixtureTests` runs `../../TestFixtures/browser-bridge/site-matching.json`, the browser bridge's language-neutral conformance cases (format in that folder's README), read from the repository by `#filePath` because the app tests and other implementations share the file. A change in matching behaviour changes that file in the same commit.
 - `scripts/coverage.sh` runs the suite and fails below its line, region, and function floors. Swift has no branch records, so region coverage is the branch measure. Raise a floor when coverage rises; never lower one to land a change. The one uncovered region is `URLComponents.string` failing after a host was parsed.
 - CI runs the script in the `macos-unit-tests` job (`../../.github/workflows/tests.yml`). Locally, run it under the repo Xcode lock.
 - App tests do not link the package; they import it and get its symbols from the host app, as for KDBXKit. `CredentialMatcherTests` covers the conversions and expiry filtering; the identity, coordinator, and save suites cover the call sites.

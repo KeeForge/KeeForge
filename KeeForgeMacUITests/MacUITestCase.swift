@@ -36,6 +36,9 @@ class MacUITestCase: XCTestCase {
         [DatabaseFixture(resourceName: "test", injectedFilename: "test.kdbx")]
     }
 
+    /// Launch arguments a subclass adds, such as a preference override.
+    var extraLaunchArguments: [String] { [] }
+
     /// A key file every unlock form starts with, as if picked (`UI_TEST_KEYFILE_BASE64`).
     var pickedKeyFile: (resourceName: String, resourceExtension: String)? { nil }
 
@@ -52,6 +55,7 @@ class MacUITestCase: XCTestCase {
             "-KeeForge.autoUnlockWithFaceID", "NO",
             "-ui-testing",
         ]
+        app.launchArguments += extraLaunchArguments
 
         let payloads = try databaseFixtures.map { fixture -> [String: String] in
             let data = try fixtureData(

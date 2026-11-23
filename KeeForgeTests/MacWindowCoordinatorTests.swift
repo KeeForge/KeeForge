@@ -623,6 +623,96 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertEqual(attempts.value, 1, "One attempt per lock cycle")
     }
 
+    // MARK: - Browser bridge shell
+
+    /// A browser's reveal or unlock fronts the window but must not choose when its held-back Touch ID prompt appears.
+    func testBridgeFrontKeepsTheRestorationHoldUntilTheUserTurnsToTheWindow() throws {
+        let (a, b) = (references[0].id, references[1].id)
+        record([(a, frame(0)), (b, frame(1))], front: b)
+        makeRestoringCoordinator()
+        start()
+        let controllerA = try XCTUnwrap(coordinator.databaseWindows[a])
+        let windowA = try XCTUnwrap(controllerA.window)
+        let ended = Counter()
+        let token = center.addObserver(forName: MacBiometricAutoUnlockController.restorationEndedNotification,
+                                       object: windowA, queue: nil) { _ in MainActor.assumeIsolated { ended.value += 1 } }
+        defer { center.removeObserver(token) }
+        let shell = MacBrowserBridgeWindowShell(coordinator: coordinator)
+        XCTAssertEqual(shell.windowState(of: a), .locked)
+
+        shell.showDatabaseWindow(a)
+        XCTAssertTrue(presenter.shown.last === windowA, "The window comes forward")
+        XCTAssertEqual(registry.registration(for: windowA)?.isRestoring, true)
+        XCTAssertFalse(registry.admitsAutomaticUnlock(for: controllerA.session, in: windowA))
+        XCTAssertEqual(ended.value, 0)
+        center.post(name: NSWindow.didBecomeKeyNotification, object: windowA)
+        XCTAssertFalse(registry.admitsAutomaticUnlock(for: controllerA.session, in: windowA),
+                       "Becoming key because the browser fronted it is not deliberate")
+
+        coordinator.noteDeliberateFocus(a)
+        XCTAssertEqual(ended.value, 1)
+        XCTAssertTrue(registry.admitsAutomaticUnlock(for: controllerA.session, in: windowA))
+        XCTAssertTrue(coordinator.showDatabaseWindow(b))
+        XCTAssertEqual(registry.registration(for: coordinator.databaseWindows[b]?.window)?.isRestoring, false,
+                       "The app's own show stays deliberate")
+    }
+
+    /// The real shell and alert queue; only the sheet and the clock are injected.
+    func testBridgePairingAlertArmsAllowOnlyAfterTheDelayFromPresentation() throws {
+        start()
+        var presented: [(alert: NSAlert, answer: @MainActor (NSApplication.ModalResponse) -> Void)] = []
+        var scheduled: [(delay: Duration, work: @MainActor () -> Void)] = []
+        let shell = MacBrowserBridgeWindowShell(coordinator: coordinator,
+            present: { alert, _, completion in presented.append((alert, completion)) },
+            schedule: { scheduled.append(($0, $1)) })
+        var answers: [Bool] = []
+        let content = MacBrowserPairingAlertContent(browserName: "Firefox", code: "123456")
+
+        shell.showPairing(content) { answers.append($0) }
+        let first = try XCTUnwrap(presented.last?.alert)
+        XCTAssertEqual(first.messageText, content.title)
+        XCTAssertFalse(first.buttons[1].isEnabled, "Allow is disabled as the alert appears")
+        XCTAssertFalse(first.window.firstResponder === first.buttons[1])
+        XCTAssertTrue(first.window.initialFirstResponder === first.buttons[0])
+        XCTAssertEqual(scheduled.map(\.delay), [.milliseconds(1500)])
+        presented.last?.answer(.alertSecondButtonReturn)
+        XCTAssertEqual(answers, [false], "Allow during the disabled window never allows")
+
+        shell.showPairing(content) { answers.append($0) }
+        let second = try XCTUnwrap(presented.last?.alert)
+        XCTAssertFalse(second === first)
+        XCTAssertFalse(second.buttons[1].isEnabled, "A replacing alert starts disabled too")
+        scheduled[0].work()
+        XCTAssertFalse(second.buttons[1].isEnabled, "The earlier alert's timer arms nothing")
+        XCTAssertEqual(scheduled.count, 2)
+        scheduled[1].work()
+        XCTAssertTrue(second.buttons[1].isEnabled)
+        XCTAssertFalse(second.buttons[1].refusesFirstResponder)
+        presented.last?.answer(.alertSecondButtonReturn)
+        XCTAssertEqual(answers, [false, true])
+    }
+
+    func testBridgePairingAlertQueuedBehindAnotherArmsFromItsOwnPresentation() throws {
+        start()
+        var presented: [(alert: NSAlert, answer: @MainActor (NSApplication.ModalResponse) -> Void)] = []
+        var scheduled: [@MainActor () -> Void] = []
+        let shell = MacBrowserBridgeWindowShell(coordinator: coordinator,
+            present: { alert, _, completion in presented.append((alert, completion)) },
+            schedule: { scheduled.append($1) })
+        shell.showPairingFailure()
+        var answers: [Bool] = []
+        shell.showPairing(MacBrowserPairingAlertContent(browserName: "Arc", code: "000111")) { answers.append($0) }
+        XCTAssertEqual(presented.count, 1, "The pairing alert waits for the failure alert")
+        XCTAssertTrue(scheduled.isEmpty, "No delay runs for an alert that is not shown")
+        presented[0].answer(.alertFirstButtonReturn)
+        XCTAssertEqual(presented.count, 2)
+        XCTAssertEqual(scheduled.count, 1)
+        XCTAssertFalse(presented[1].alert.buttons[1].isEnabled)
+        scheduled[0]()
+        presented[1].answer(.alertSecondButtonReturn)
+        XCTAssertEqual(answers, [true])
+    }
+
     func testQueuedURLForARestoredDatabaseFrontsItAndMissingDatabasesAreSkipped() throws {
         let a = references[0].id
         let missing = UUID()

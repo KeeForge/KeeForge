@@ -25,6 +25,8 @@ enum SettingsService {
         static let passwordGeneratorOptions = "KeeForge.passwordGeneratorOptions"
         static let macMenuBarQuickAccess = "KeeForge.macMenuBarQuickAccess"
         static let macQuickSearchShortcut = "KeeForge.macQuickSearchShortcut"
+        static let browserBridgeEnabled = "KeeForge.browserBridgeEnabled"
+        static let browserBridgePairings = "KeeForge.browserBridgePairings"
         static let macSSHAgentEnabled = "KeeForge.macSSHAgentEnabled"
         static let macSSHAgentSelectedEntryIDs = "KeeForge.macSSHAgentSelectedEntryIDs"
     }
@@ -584,6 +586,28 @@ enum SettingsService {
             defaults.removeObject(forKey: Key.macSSHAgentSelectedEntryIDs)
         } else {
             defaults.set(stored, forKey: Key.macSSHAgentSelectedEntryIDs)
+        }
+    }
+
+    // MARK: - Browser Bridge (macOS)
+
+    static func browserBridgeEnabled(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: Key.browserBridgeEnabled)
+    }
+
+    static func setBrowserBridgeEnabled(_ isEnabled: Bool, in defaults: UserDefaults) {
+        defaults.set(isEnabled, forKey: Key.browserBridgeEnabled)
+    }
+
+    static func browserBridgePairings(in defaults: UserDefaults) -> Data? {
+        defaults.data(forKey: Key.browserBridgePairings)
+    }
+
+    static func setBrowserBridgePairings(_ data: Data?, in defaults: UserDefaults) {
+        if let data {
+            defaults.set(data, forKey: Key.browserBridgePairings)
+        } else {
+            defaults.removeObject(forKey: Key.browserBridgePairings)
         }
     }
 }

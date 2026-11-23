@@ -9,6 +9,7 @@ Gracias por ayudar a mejorar KeeForge.
 - Para un cambio importante, abre primero una incidencia para que el alcance y el enfoque puedan discutirse.
 - Lee [`AGENTS.md`](../../AGENTS.md) y después el `README.md` local de la carpeta más cercana al código que planeas cambiar.
 - Mantén los cambios acotados. Los cambios sensibles en materia de seguridad en el analizador, el escritor, la criptografía, el manejo de secretos y las rutas de guardado requieren pruebas específicas.
+- Si cambias los mensajes que intercambian la extensión del navegador, su host de mensajería nativa y la app para Mac, actualiza [`docs/browser-bridge-protocol.md`](../../docs/browser-bridge-protocol.md) en el mismo commit. Si cambias qué orígenes se aceptan o qué entradas coinciden con un sitio, actualiza también los fixtures de conformidad de [`TestFixtures/browser-bridge/`](../../TestFixtures/browser-bridge/).
 
 ## Requisitos
 
@@ -17,6 +18,7 @@ Gracias por ayudar a mejorar KeeForge.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 con concurrencia estricta
 - Dependencias de Swift Package: [argon2](https://github.com/P-H-C/phc-winner-argon2), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), [swift-psl](https://github.com/ameshkov/swift-psl), [YubiKit](https://github.com/Yubico/yubikit-ios), y el paquete [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) incluido en el repositorio
+- Solo para la extensión del navegador en `BrowserExtension/`: Node.js con X25519 en WebCrypto, Python 3 para empaquetar, y Chrome y Firefox para las comprobaciones en navegadores reales; ningún paquete npm
 
 ## Compilar desde el código fuente
 
@@ -40,6 +42,15 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
   -destination 'platform=macOS' \
   -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
+
+La extensión del navegador para Mac en `BrowserExtension/` es JavaScript puro, sin paquetes. `tools/ci.sh` ejecuta todas sus comprobaciones, también en Chrome y Firefox reales; sus pruebas de Node por sí solas son el subconjunto rápido:
+
+```bash
+BrowserExtension/tools/ci.sh
+cd BrowserExtension && node --test
+```
+
+[`BrowserExtension/README.md`](../../BrowserExtension/README.md) explica cómo cargarla en un navegador y qué cubre cada comprobación.
 
 ## Flujo de trabajo de desarrollo
 
@@ -66,6 +77,8 @@ Tres comprobaciones de estado deben pasar antes de que una pull request pueda fu
 - **unit-tests** — ejecuta la batería de pruebas unitarias `KeeForgeTests` en un simulador de iOS mediante GitHub Actions.
 - **macos-unit-tests** — ejecuta las pruebas unitarias compartidas como `KeeForgeMacTests` en macOS.
 - **DCO** — verifica que cada commit esté firmado (consulta más abajo).
+
+Las pull requests también ejecutan la comprobación **browser-extension**, `BrowserExtension/tools/ci.sh` frente a un sustituto de la app para Mac; todavía no es obligatoria.
 
 ## Developer Certificate of Origin
 

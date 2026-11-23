@@ -88,6 +88,11 @@ targetTemplates:
       - path: TestFixtures/Merge
         type: folder
         buildPhase: resources
+      # Folder reference: the bridge's conformance fixtures keep their
+      # `browser-bridge/` directory, and a new file needs no project change.
+      - path: TestFixtures/browser-bridge
+        type: folder
+        buildPhase: resources
 
   UITestFixtures:
     sources:
@@ -142,7 +147,8 @@ targets:
       # MacLockMonitor.swift (lock
       # lifecycle), MacWindowCloseGuard.swift (window close), the menu bar
       # quick access pair MacQuickAccessController.swift / MacGlobalHotKey.swift,
-      # and the SSH agent (Services/SSHAgent) are macOS-only: members of
+      # LocalSocketServer.swift, the SSH agent (Services/SSHAgent) and the
+      # browser bridge (Services/BrowserBridge) are macOS-only: members of
       # KeeForgeMac, excluded here.
       - path: KeeForge/App
         excludes: ["README.md", "AGENTS.md"]
@@ -158,6 +164,7 @@ targets:
           - "AppSupport/MacWindowCloseGuard.swift"
           - "AppSupport/MacQuickAccessController.swift"
           - "AppSupport/MacGlobalHotKey.swift"
+          - "AppSupport/LocalSocketServer.swift"
           - "SSHAgent/*.swift"
           - "BrowserBridge/*.swift"
       - path: KeeForge/ViewModels
@@ -176,6 +183,26 @@ targets:
       - path: AutoFillExtension/AutoFillSearchView.swift
       - path: KeeForge.icon
         buildPhase: resources
+
+  KeeForgeBrowserHost:
+    type: tool
+    platform: macOS
+    productName: keeforge-browser-host
+    settings:
+      base:
+        PRODUCT_NAME: keeforge-browser-host
+        PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.browser-host
+        CREATE_INFOPLIST_SECTION_IN_BINARY: "YES"
+        GENERATE_INFOPLIST_FILE: "YES"
+        MARKETING_VERSION: "1.23.0"
+        CURRENT_PROJECT_VERSION: "87"
+        ENABLE_HARDENED_RUNTIME: "YES"
+        CODE_SIGN_ENTITLEMENTS: BrowserHost/BrowserHost.entitlements
+        SKIP_INSTALL: "YES"
+        OTHER_SWIFT_FLAGS: $(inherited) -parse-as-library
+    sources:
+      - path: BrowserHost
+        excludes: ["*.entitlements", "AGENTS.md"]
 
   KeeForgeMac:
     type: application
@@ -212,6 +239,11 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
+      - target: KeeForgeBrowserHost
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
       - target: KeeForgeMacAutoFill
         embed: true
         codeSign: true
@@ -221,6 +253,7 @@ targets:
       - package: OneTimeCodes
       - package: RemoteFileTransports
     sources:
+      - path: BrowserHost/BrowserBridgeIdentifiers.swift
       # AppKit owns Mac startup; the direct overlay inherits these sources.
       - path: KeeForgeMac/App
         excludes: ["README.md", "AGENTS.md"]
@@ -589,6 +622,8 @@ targets:
       - target: KeeForgeMac
       - package: KeeForgeTwofish
     sources:
+      - path: BrowserHost/BrowserHostRelay.swift
+      - path: BrowserHost/BrowserHostControl.swift
       # These suites import SwiftyDropbox/MSAL directly, and the Mac app no
       # longer links either. They stay covered by KeeForgeTests on iOS.
       - path: KeeForgeTests

@@ -2,12 +2,13 @@
 import CryptoKit
 import Foundation
 
-/// One owner serializes calls off the main thread and handles persistence, pairing admission and the 120-second timer.
+/// One owner serializes calls off the main thread and handles persistence, the pairing slot and its deadlines.
 final class BrowserBridgeSession {
     enum Event: Equatable {
         case pairingRequested(clientPublicKey: Data, name: String, code: String)
         case paired(clientPublicKey: Data, name: String)
         case pairingCancelled
+        case established(clientID: String)
         case request(BrowserBridgeRequest)
     }
     struct Output {
@@ -21,7 +22,7 @@ final class BrowserBridgeSession {
     private let appVersion: String
     private let lookupClient: (String) -> Data?
     private let makeEphemeral: () -> Curve25519.KeyAgreement.PrivateKey
-    private let pairingAvailable: () -> Bool
+    private let admitPairing: () -> Bool
     private var commitment: Data?
     private var name: String?
     private var ephemeral: Curve25519.KeyAgreement.PrivateKey?
@@ -30,10 +31,10 @@ final class BrowserBridgeSession {
     private var pending: [Int: BrowserBridgeRequest] = [:]
 
     init(appKey: Curve25519.KeyAgreement.PrivateKey, appVersion: String,
-         lookupClient: @escaping (String) -> Data?, pairingAvailable: @escaping () -> Bool = { true },
+         lookupClient: @escaping (String) -> Data?, admitPairing: @escaping () -> Bool = { true },
          makeEphemeral: @escaping () -> Curve25519.KeyAgreement.PrivateKey = { .init() }) {
         self.appKey = appKey; self.appVersion = appVersion; self.lookupClient = lookupClient
-        self.pairingAvailable = pairingAvailable; self.makeEphemeral = makeEphemeral
+        self.admitPairing = admitPairing; self.makeEphemeral = makeEphemeral
     }
 
     func receive(_ frame: Data) -> Output {
@@ -43,8 +44,9 @@ final class BrowserBridgeSession {
             let envelope = try BrowserBridgeJSON.decode(BrowserBridgeEnvelope.self, from: payload)
             switch (state, envelope) {
             case (.fresh, .pairCommit(let commit, let name)):
-                guard pairingAvailable() else { return fail(.pairingBusy) }
-                self.commitment = commit; self.name = name
+                // Taking the slot here, before any `pair-key`, is what limits code guesses.
+                guard admitPairing() else { return fail(.pairingBusy) }
+                self.commitment = commit; self.name = BrowserPairingStore.sanitizedName(name)
                 let ephemeral = makeEphemeral(); self.ephemeral = ephemeral
                 state = .committed
                 return try output(.pairKey(pub: appKey.publicKey.rawRepresentation, eph: ephemeral.publicKey.rawRepresentation))
@@ -67,7 +69,9 @@ final class BrowserBridgeSession {
                 cipher = BrowserBridgeCipher(sending: keys.s2c, receiving: keys.c2s)
                 clearPairing()
                 state = .established
-                return try output(.serverHello(eph: ephemeral.publicKey.rawRepresentation, app: appVersion))
+                var result = try output(.serverHello(eph: ephemeral.publicKey.rawRepresentation, app: appVersion))
+                result.events = [.established(clientID: client)]
+                return result
             case (.established, .message):
                 guard var cipher else { return fail(.badHandshake) }
                 let plaintext = try cipher.open(envelope)
@@ -116,7 +120,8 @@ final class BrowserBridgeSession {
         return Output(events: events, close: true)
     }
 
-    func disable() -> Output { fail(.disabled) }
+    /// Ends the session with `code`, such as `disabled` when the bridge is switched off.
+    func refuse(_ code: BrowserBridgeErrorCode) -> Output { fail(code) }
 
     private func clearPairing() { commitment = nil; name = nil; ephemeral = nil; pairedKey = nil }
     private func output(_ envelope: BrowserBridgeEnvelope) throws -> Output {

@@ -13,6 +13,13 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
     lazy var databaseWindowRegistry = MacDatabaseWindowRegistry(sessionStore: sessionStore)
     private lazy var macWindowCloseGuard = MacWindowCloseGuard(registry: databaseWindowRegistry)
     private let macQuickAccess = MacQuickAccessController()
+    private let macBrowserBridge = MacBrowserBridgeController()
+    private var browserBridgePrompts: MacBrowserBridgePrompts?
+    private let browserHostRepairObservation = MacObservation()
+    private lazy var browserHosts = BrowserHostInstaller { [weak self] request in
+        await MacFilePanels.presentAsSheet(MacFilePanels.makeBrowserFolderPanel(for: request),
+                                           on: self?.settingsWindowController?.window)
+    }
     private let macSSHAgent = MacSSHAgentController()
     private let appAppearance = MacAppAppearance()
     private(set) lazy var windowCoordinator: MacWindowCoordinator = {
@@ -79,6 +86,14 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         macQuickAccess.start()
         macSSHAgent.sessionsProvider = { sessionStore.openSessions }
         macSSHAgent.start()
+        macBrowserBridge.sessionsProvider = { sessionStore.openSessions }
+        let browserBridgePrompts = MacBrowserBridgePrompts(source: macBrowserBridge,
+                                                           shell: MacBrowserBridgeWindowShell(coordinator: coordinator))
+        self.browserBridgePrompts = browserBridgePrompts
+        macBrowserBridge.reveal = { [weak browserBridgePrompts] in browserBridgePrompts?.reveal(entryID: $0, databaseID: $1) }
+        macBrowserBridge.unlock = { [weak browserBridgePrompts] in browserBridgePrompts?.unlock(databaseID: $0) }
+        macBrowserBridge.start()
+        repairBrowserHostsOnceListening()
         // Database commands resolve through the coordinator while another window has focus.
         nextResponder = NSApp.nextResponder
         NSApp.nextResponder = self
@@ -90,6 +105,23 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
             whatsNewRelease: transitionNotice ? nil : WhatsNewPresentationService.releaseToPresent(),
             automaticOpenID: transitionNotice ? nil : listViewModel.databaseToAutoOpenOnLaunch()?.id
         )
+    }
+
+    /// A moved or updated app rewrites its manifests from the folder access it already has, once per
+    /// launch when its bridge first listens; this never prompts.
+    private func repairBrowserHostsOnceListening() {
+        browserHostRepairObservation.start(reading: { [macBrowserBridge] in macBrowserBridge.isListening }) { [weak self] listening in
+            guard let self, listening else { return }
+            browserHostRepairObservation.cancel()
+            guard BrowserHostInstaller.mayRepairAtLaunch(appBundle: Bundle.main.bundleURL,
+                                                         home: BrowserHostInstaller.realHomeDirectory(),
+                                                         bridgeListening: listening) else { return }
+            browserHosts.repairAll()
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        macBrowserBridge.stop()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -122,6 +154,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         if settingsWindowController == nil {
             settingsWindowController = SettingsWindowController(listViewModel: listViewModel, sessionStore: sessionStore,
                 quickAccess: macQuickAccess, sshAgent: macSSHAgent,
+                browserBridge: macBrowserBridge, browserHosts: browserHosts,
                 prepareWindow: { [screenProtectionService] in screenProtectionService.applyCapturePolicy(to: $0) })
         }
         settingsWindowController?.showWindow(sender)

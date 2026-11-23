@@ -1,0 +1,3 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Large page</title><style>:root{color-scheme:light dark;font:16px system-ui}body{margin:60px auto;width:460px}input{box-sizing:border-box;display:block;width:340px;height:40px;margin:12px 0;padding:8px;border:1px solid GrayText;border-radius:6px}</style><style>.n{display:none}</style></head><body><div id="filler"></div>
+<form><input id="u" autocomplete="username"><input id="p" type="password" autocomplete="current-password"></form>
+<script>const f = document.getElementById('filler'), frag = document.createDocumentFragment(); for (let i = 0; i < 20000; ++i) { const d = document.createElement('span'); d.className = 'n'; frag.append(d); } f.append(frag);</script></body></html>

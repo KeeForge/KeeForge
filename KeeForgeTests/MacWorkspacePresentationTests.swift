@@ -376,7 +376,7 @@ final class MacWorkspacePresentationTests: XCTestCase {
         let deletion = try XCTUnwrap(presentation.pendingDeletion)
         XCTAssertEqual(deletion.confirmationTitle, String(localized: "Delete \(2) Entries?"))
         XCTAssertEqual(deletion.confirmationTitle, "Delete 2 Entries?")
-        XCTAssertEqual(deletion.confirmationMessage, "The selected entries will be moved to the recycle bin.")
+        XCTAssertEqual(deletion.confirmationMessage, "The selected entries will be moved to the Recycle Bin.")
         XCTAssertEqual(deletion.confirmActionTitle, String(localized: "Delete"))
 
         deletion.performDeletion(viewModel: database)

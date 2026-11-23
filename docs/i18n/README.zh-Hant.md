@@ -90,6 +90,8 @@ KeeForge/
 ├── ViewModels/       # 資料庫列表、解鎖、儲存、搜尋、排序、TOTP 狀態
 ├── Views/            # SwiftUI 畫面、編輯器、設定、小費頁面、可重複使用的控制項
 AutoFillExtension/    # 自動填寫憑證提供者、通行金鑰驗證、憑證建立
+BrowserExtension/     # 從 Mac App 填寫的 Chrome 與 Firefox 延伸功能
+BrowserHost/          # 內嵌於 Mac App 的原生訊息傳遞主機
 KeeForgeMac/          # 原生 macOS App：AppKit 外殼、設定與 entitlements
 KeeForgeMacUITests/   # macOS App 的 XCUITest 覆蓋
 KeeForgeTests/        # 單元測試

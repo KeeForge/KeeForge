@@ -1,0 +1,6 @@
+<!doctype html><html><head><meta charset="utf-8"><title>SPA fixture</title><style>
+:root{color-scheme:light dark;font:16px system-ui}body{margin:0 auto;padding:40px 0;width:320px;height:2400px}input{box-sizing:border-box;display:block;width:300px;height:36px;margin:10px 0;padding:6px}#later{margin-top:20px}
+</style></head><body><p>Fields arrive later</p><div id="later"></div>
+<script>
+setTimeout(() => { document.getElementById('later').innerHTML = '<form><input id="u" autocomplete="username"><input id="p" type="password" autocomplete="current-password"></form>'; }, 600);
+</script></body></html>

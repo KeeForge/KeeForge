@@ -87,7 +87,12 @@ export class Connection {
     this.close('error', code);
   }
   async hostCommand(cmd) {
-    await this.open();
+    if (cmd === 'launch' && this.phase === 'ready') {
+      // Launching can front a running app; use a fresh local channel with no prior hello.
+      this.close();
+      await this.open({ pairing: true });
+      this.suppressHello = false;
+    } else await this.open();
     if (!this.port) return this.getState();
     requireThat(this.phase === 'unavailable' || this.phase === 'unpaired');
     this.phase = 'host-retry'; this.opening = deferred();
@@ -109,7 +114,13 @@ export class Connection {
   }
   async startPairing(name = 'Browser') {
     requireThat(typeof name === 'string' && [...name].length <= 64);
-    requireThat(this.state !== 'pairing', 'pairing-busy');
+    requireThat(!this.pairStarting && this.state !== 'pairing', 'pairing-busy');
+    this.pairStarting = true;
+    try {
+      return await this.preparePairing(name);
+    } finally { this.pairStarting = false; }
+  }
+  async preparePairing(name) {
     // A connection that has already sent hello cannot carry another session.
     if (this.port && this.phase !== 'unpaired') this.close();
     await this.open({ pairing: true });
@@ -132,7 +143,7 @@ export class Connection {
       if (frame.event === 'unavailable') {
         const opening = this.opening; this.opening = null;
         this.close('app-unavailable', frame.reason, true);
-        // A closed socket discards session keys while the relay remains available for launch.
+        // A closed local channel discards session keys while the relay remains available for launch.
         opening?.resolve(this.getState());
         return;
       }

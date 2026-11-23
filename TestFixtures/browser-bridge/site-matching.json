@@ -1,0 +1,540 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "exact host",
+      "origin": "https://example.com",
+      "entries": [
+        {"id": "plain", "urls": ["https://example.com"]},
+        {"id": "path-query", "urls": ["https://example.com/login?next=%2F#top"]},
+        {"id": "other", "urls": ["https://other.com"]}
+      ],
+      "expected": [
+        {"entry": "plain", "exact": true},
+        {"entry": "path-query", "exact": true}
+      ]
+    },
+    {
+      "name": "www on the origin is dropped",
+      "origin": "https://www.example.com",
+      "entries": [
+        {"id": "bare", "urls": ["https://example.com"]},
+        {"id": "www", "urls": ["www.example.com"]}
+      ],
+      "expected": [
+        {"entry": "bare", "exact": true},
+        {"entry": "www", "exact": true}
+      ]
+    },
+    {
+      "name": "www on the entry is dropped",
+      "origin": "https://example.com",
+      "note": "only one leading www. is dropped, so www.www.example.com is the subdomain www.example.com",
+      "entries": [
+        {"id": "www", "urls": ["https://www.example.com"]},
+        {"id": "www-www", "urls": ["https://www.www.example.com"]}
+      ],
+      "expected": [
+        {"entry": "www", "exact": true},
+        {"entry": "www-www", "exact": false}
+      ]
+    },
+    {
+      "name": "www stays when it is the registrable label",
+      "origin": "https://www.co.uk",
+      "entries": [
+        {"id": "suffix", "urls": ["https://co.uk"]},
+        {"id": "www", "urls": ["https://www.co.uk"]},
+        {"id": "below", "urls": ["https://login.www.co.uk"]}
+      ],
+      "expected": [
+        {"entry": "www", "exact": true},
+        {"entry": "below", "exact": false}
+      ]
+    },
+    {
+      "name": "only one www is dropped from the origin",
+      "origin": "https://www.www.example.com",
+      "entries": [
+        {"id": "bare", "urls": ["example.com"]},
+        {"id": "www", "urls": ["www.example.com"]},
+        {"id": "www-www", "urls": ["www.www.example.com"]}
+      ],
+      "expected": [
+        {"entry": "www-www", "exact": true},
+        {"entry": "bare", "exact": false},
+        {"entry": "www", "exact": false}
+      ]
+    },
+    {
+      "name": "subdomain entry on a parent origin is possible",
+      "origin": "https://example.com",
+      "entries": [
+        {"id": "login", "urls": ["https://login.example.com"]},
+        {"id": "deep", "urls": ["https://a.b.example.com"]}
+      ],
+      "expected": [
+        {"entry": "login", "exact": false},
+        {"entry": "deep", "exact": false}
+      ]
+    },
+    {
+      "name": "parent entry on a subdomain origin is possible",
+      "origin": "https://login.example.com",
+      "entries": [
+        {"id": "parent", "urls": ["https://example.com"]},
+        {"id": "www-parent", "urls": ["https://www.example.com"]}
+      ],
+      "expected": [
+        {"entry": "parent", "exact": false},
+        {"entry": "www-parent", "exact": false}
+      ]
+    },
+    {
+      "name": "sibling subdomain is possible",
+      "origin": "https://login.example.com",
+      "entries": [
+        {"id": "sibling", "urls": ["https://mail.example.com"]},
+        {"id": "exact", "urls": ["https://login.example.com"]}
+      ],
+      "expected": [
+        {"entry": "exact", "exact": true},
+        {"entry": "sibling", "exact": false}
+      ]
+    },
+    {
+      "name": "possible matches keep entry order, not nearness",
+      "origin": "https://login.example.com",
+      "note": "each entry is classified on its own, so the child of the requested host is not moved ahead of the parent or sibling",
+      "entries": [
+        {"id": "parent", "urls": ["https://example.com"]},
+        {"id": "sibling", "urls": ["https://mail.example.com"]},
+        {"id": "child", "urls": ["https://a.login.example.com"]}
+      ],
+      "expected": [
+        {"entry": "parent", "exact": false},
+        {"entry": "sibling", "exact": false},
+        {"entry": "child", "exact": false}
+      ]
+    },
+    {
+      "name": "exact matches come before possible ones",
+      "origin": "https://example.com",
+      "entries": [
+        {"id": "possible-1", "urls": ["https://login.example.com"]},
+        {"id": "exact-1", "urls": ["https://example.com"]},
+        {"id": "possible-2", "urls": ["https://example.com.", "https://a.example.com"]},
+        {"id": "exact-2", "urls": ["http://example.com"]}
+      ],
+      "expected": [
+        {"entry": "exact-1", "exact": true},
+        {"entry": "possible-2", "exact": true},
+        {"entry": "exact-2", "exact": true},
+        {"entry": "possible-1", "exact": false}
+      ]
+    },
+    {
+      "name": "lookalike hosts do not match",
+      "origin": "https://bank.com",
+      "entries": [
+        {"id": "prefix", "urls": ["https://mybank.com"]},
+        {"id": "suffix", "urls": ["https://bank.com.evil.net"]},
+        {"id": "hyphen", "urls": ["https://bank-com.net"]},
+        {"id": "tld", "urls": ["https://bank.co"]},
+        {"id": "cctld", "urls": ["https://bank.com.au"]}
+      ],
+      "expected": []
+    },
+    {
+      "name": "public suffix co.uk",
+      "origin": "https://bank.co.uk",
+      "entries": [
+        {"id": "suffix", "urls": ["https://co.uk"]},
+        {"id": "neighbour", "urls": ["https://other.co.uk"]},
+        {"id": "child", "urls": ["https://login.bank.co.uk"]},
+        {"id": "exact", "urls": ["https://bank.co.uk"]}
+      ],
+      "expected": [
+        {"entry": "exact", "exact": true},
+        {"entry": "child", "exact": false}
+      ]
+    },
+    {
+      "name": "private suffix github.io",
+      "origin": "https://alice.github.io",
+      "entries": [
+        {"id": "suffix", "urls": ["https://github.io"]},
+        {"id": "neighbour", "urls": ["https://bob.github.io"]},
+        {"id": "exact", "urls": ["https://alice.github.io"]},
+        {"id": "child", "urls": ["https://docs.alice.github.io"]},
+        {"id": "github", "urls": ["https://github.com"]}
+      ],
+      "expected": [
+        {"entry": "exact", "exact": true},
+        {"entry": "child", "exact": false}
+      ]
+    },
+    {
+      "name": "private suffix blogspot.com",
+      "origin": "https://alice.blogspot.com",
+      "entries": [
+        {"id": "suffix", "urls": ["https://blogspot.com"]},
+        {"id": "neighbour", "urls": ["https://bob.blogspot.com"]},
+        {"id": "www-suffix", "urls": ["https://www.blogspot.com"]},
+        {"id": "exact", "urls": ["alice.blogspot.com"]}
+      ],
+      "expected": [
+        {"entry": "exact", "exact": true}
+      ]
+    },
+    {
+      "name": "origin on a bare public suffix matches only itself",
+      "origin": "https://co.uk",
+      "entries": [
+        {"id": "suffix", "urls": ["https://co.uk"]},
+        {"id": "below", "urls": ["https://bank.co.uk"]},
+        {"id": "www", "urls": ["https://www.co.uk"]}
+      ],
+      "expected": [
+        {"entry": "suffix", "exact": true}
+      ]
+    },
+    {
+      "name": "origin on a bare private suffix matches only itself",
+      "origin": "https://github.io",
+      "entries": [
+        {"id": "suffix", "urls": ["github.io"]},
+        {"id": "below", "urls": ["alice.github.io"]}
+      ],
+      "expected": [
+        {"entry": "suffix", "exact": true}
+      ]
+    },
+    {
+      "name": "single-label host matches only itself",
+      "origin": "https://intranet",
+      "entries": [
+        {"id": "same", "urls": ["http://intranet/wiki"]},
+        {"id": "below", "urls": ["https://wiki.intranet"]},
+        {"id": "www", "urls": ["https://www.intranet"]}
+      ],
+      "expected": [
+        {"entry": "same", "exact": true}
+      ]
+    },
+    {
+      "name": "IPv4 literal",
+      "origin": "https://192.168.1.1",
+      "entries": [
+        {"id": "same", "urls": ["https://192.168.1.1"]},
+        {"id": "port-path", "urls": ["192.168.1.1:8443/admin"]},
+        {"id": "other", "urls": ["https://10.0.1.1"]},
+        {"id": "neighbour", "urls": ["https://192.168.1.2"]},
+        {"id": "prefixed", "urls": ["https://1.192.168.1.1"]}
+      ],
+      "expected": [
+        {"entry": "same", "exact": true},
+        {"entry": "port-path", "exact": true}
+      ]
+    },
+    {
+      "name": "host ending in a number is an address",
+      "origin": "https://foo.1.2.3.4",
+      "entries": [
+        {"id": "same", "urls": ["https://foo.1.2.3.4"]},
+        {"id": "sibling", "urls": ["https://bar.1.2.3.4"]},
+        {"id": "parent", "urls": ["https://1.2.3.4"]}
+      ],
+      "expected": [
+        {"entry": "same", "exact": true}
+      ]
+    },
+    {
+      "name": "IPv6 literal",
+      "origin": "https://[2001:db8::1]",
+      "note": "addresses compare as written (lowercased), so another spelling of the same address does not match",
+      "entries": [
+        {"id": "same", "urls": ["https://[2001:db8::1]"]},
+        {"id": "port", "urls": ["https://[2001:db8::1]:8443/x"]},
+        {"id": "bare", "urls": ["[2001:db8::1]"]},
+        {"id": "unbracketed", "urls": ["2001:db8::1"]},
+        {"id": "spelled-out", "urls": ["https://[2001:0db8:0:0::1]"]},
+        {"id": "upper", "urls": ["https://[2001:DB8::1]"]}
+      ],
+      "expected": [
+        {"entry": "same", "exact": true},
+        {"entry": "port", "exact": true},
+        {"entry": "bare", "exact": true},
+        {"entry": "upper", "exact": true}
+      ]
+    },
+    {
+      "name": "localhost with a port",
+      "origin": "http://localhost:3000",
+      "entries": [
+        {"id": "same", "urls": ["http://localhost:3000"]},
+        {"id": "no-port", "urls": ["http://localhost"]},
+        {"id": "https-other-port", "urls": ["https://localhost:8080"]},
+        {"id": "bare", "urls": ["localhost"]},
+        {"id": "below", "urls": ["http://dev.localhost:3000"]},
+        {"id": "loopback-ip", "urls": ["http://127.0.0.1:3000"]}
+      ],
+      "expected": [
+        {"entry": "same", "exact": true},
+        {"entry": "no-port", "exact": true},
+        {"entry": "https-other-port", "exact": true},
+        {"entry": "bare", "exact": true}
+      ]
+    },
+    {
+      "name": "127.0.0.1 with a port",
+      "origin": "http://127.0.0.1:8080",
+      "entries": [
+        {"id": "bare", "urls": ["127.0.0.1"]},
+        {"id": "same", "urls": ["http://127.0.0.1:8080/app"]},
+        {"id": "localhost", "urls": ["http://localhost:8080"]}
+      ],
+      "expected": [
+        {"entry": "bare", "exact": true},
+        {"entry": "same", "exact": true}
+      ]
+    },
+    {
+      "name": "[::1] with a port",
+      "origin": "http://[::1]:3000",
+      "entries": [
+        {"id": "same", "urls": ["http://[::1]"]},
+        {"id": "localhost", "urls": ["http://localhost:3000"]},
+        {"id": "spelled-out", "urls": ["http://[0:0:0:0:0:0:0:1]:3000"]}
+      ],
+      "expected": [
+        {"entry": "same", "exact": true}
+      ]
+    },
+    {
+      "name": "port on the origin is ignored",
+      "origin": "https://example.com:8443",
+      "entries": [
+        {"id": "none", "urls": ["https://example.com"]},
+        {"id": "other", "urls": ["https://example.com:9000"]},
+        {"id": "same", "urls": ["example.com:8443"]}
+      ],
+      "expected": [
+        {"entry": "none", "exact": true},
+        {"entry": "other", "exact": true},
+        {"entry": "same", "exact": true}
+      ]
+    },
+    {
+      "name": "port on the entry is ignored",
+      "origin": "https://example.com",
+      "entries": [
+        {"id": "port", "urls": ["https://example.com:8443/login"]},
+        {"id": "default", "urls": ["https://example.com:443"]}
+      ],
+      "expected": [
+        {"entry": "port", "exact": true},
+        {"entry": "default", "exact": true}
+      ]
+    },
+    {
+      "name": "scheme on the entry",
+      "origin": "https://example.com",
+      "entries": [
+        {"id": "http", "urls": ["http://example.com"]},
+        {"id": "none", "urls": ["example.com"]},
+        {"id": "upper", "urls": ["HTTPS://EXAMPLE.COM/"]},
+        {"id": "ftp", "urls": ["ftp://example.com"]},
+        {"id": "ssh", "urls": ["ssh://example.com"]},
+        {"id": "android", "urls": ["androidapp://com.example"]},
+        {"id": "file", "urls": ["file://example.com/x"]}
+      ],
+      "expected": [
+        {"entry": "http", "exact": true},
+        {"entry": "none", "exact": true},
+        {"entry": "upper", "exact": true}
+      ]
+    },
+    {
+      "name": "http loopback origin against https entries",
+      "origin": "http://localhost",
+      "entries": [
+        {"id": "https", "urls": ["https://localhost/"]},
+        {"id": "http", "urls": ["http://localhost"]}
+      ],
+      "expected": [
+        {"entry": "https", "exact": true},
+        {"entry": "http", "exact": true}
+      ]
+    },
+    {
+      "name": "entries that only look like URLs",
+      "origin": "https://example.com",
+      "note": "a value without :// is read as https://<value>, so mailto:user@example.com is user info on example.com",
+      "entries": [
+        {"id": "mailto", "urls": ["mailto:user@example.com"]},
+        {"id": "scheme-relative", "urls": ["//example.com"]},
+        {"id": "no-slashes", "urls": ["https:example.com"]},
+        {"id": "one-slash", "urls": ["https:/example.com"]}
+      ],
+      "expected": [
+        {"entry": "mailto", "exact": true}
+      ]
+    },
+    {
+      "name": "user info on the entry",
+      "origin": "https://example.com",
+      "entries": [
+        {"id": "userinfo", "urls": ["https://user:pass@example.com"]},
+        {"id": "user-only", "urls": ["user@example.com"]},
+        {"id": "decoy-userinfo", "urls": ["https://example.com@evil.com"]}
+      ],
+      "expected": [
+        {"entry": "userinfo", "exact": true},
+        {"entry": "user-only", "exact": true}
+      ]
+    },
+    {
+      "name": "backslash reads as a slash",
+      "origin": "https://example.com",
+      "entries": [
+        {"id": "before-at", "urls": ["https://example.com\\@evil.com"]},
+        {"id": "decoy", "urls": ["https://evil.com\\@example.com"]},
+        {"id": "double", "urls": ["https:\\\\example.com\\login"]}
+      ],
+      "expected": [
+        {"entry": "before-at", "exact": true},
+        {"entry": "double", "exact": true}
+      ]
+    },
+    {
+      "name": "trailing dots and case on the entry",
+      "origin": "https://example.com",
+      "entries": [
+        {"id": "dot", "urls": ["https://example.com."]},
+        {"id": "dots", "urls": ["https://example.com.."]},
+        {"id": "upper", "urls": ["https://EXAMPLE.com"]},
+        {"id": "mixed-www", "urls": ["WWW.Example.COM"]}
+      ],
+      "expected": [
+        {"entry": "dot", "exact": true},
+        {"entry": "dots", "exact": true},
+        {"entry": "upper", "exact": true},
+        {"entry": "mixed-www", "exact": true}
+      ]
+    },
+    {
+      "name": "trailing dot on the origin",
+      "origin": "https://example.com.",
+      "entries": [
+        {"id": "bare", "urls": ["https://example.com"]},
+        {"id": "child", "urls": ["login.example.com"]}
+      ],
+      "expected": [
+        {"entry": "bare", "exact": true},
+        {"entry": "child", "exact": false}
+      ]
+    },
+    {
+      "name": "upper case on the origin",
+      "origin": "https://EXAMPLE.COM",
+      "entries": [
+        {"id": "lower", "urls": ["https://example.com"]},
+        {"id": "www", "urls": ["https://www.example.com"]}
+      ],
+      "expected": [
+        {"entry": "lower", "exact": true},
+        {"entry": "www", "exact": true}
+      ]
+    },
+    {
+      "name": "whitespace around the entry URL is trimmed",
+      "origin": "https://example.com",
+      "entries": [
+        {"id": "spaces", "urls": ["  https://example.com  "]},
+        {"id": "newline", "urls": ["\nhttps://example.com\t"]},
+        {"id": "inner", "urls": ["https://exa mple.com"]}
+      ],
+      "expected": [
+        {"entry": "spaces", "exact": true},
+        {"entry": "newline", "exact": true}
+      ]
+    },
+    {
+      "name": "internationalized names compare in punycode",
+      "origin": "https://xn--bcher-kva.de",
+      "entries": [
+        {"id": "unicode", "urls": ["https://b\u00fccher.de"]},
+        {"id": "punycode", "urls": ["https://xn--bcher-kva.de"]},
+        {"id": "unicode-upper", "urls": ["https://B\u00dcCHER.de"]},
+        {"id": "unicode-child", "urls": ["https://login.b\u00fccher.de"]},
+        {"id": "unicode-bare", "urls": ["b\u00fccher.de/login"]}
+      ],
+      "expected": [
+        {"entry": "unicode", "exact": true},
+        {"entry": "punycode", "exact": true},
+        {"entry": "unicode-upper", "exact": true},
+        {"entry": "unicode-bare", "exact": true},
+        {"entry": "unicode-child", "exact": false}
+      ]
+    },
+    {
+      "name": "internationalized public suffix",
+      "origin": "https://xn--fiqs8s.cn",
+      "entries": [
+        {"id": "unicode", "urls": ["https://\u4e2d\u56fd.cn"]},
+        {"id": "punycode", "urls": ["xn--fiqs8s.cn"]}
+      ],
+      "expected": [
+        {"entry": "unicode", "exact": true},
+        {"entry": "punycode", "exact": true}
+      ]
+    },
+    {
+      "name": "every URL of an entry is matched",
+      "origin": "https://example.com",
+      "entries": [
+        {"id": "second", "urls": ["https://other.com", "https://example.com"]},
+        {"id": "second-possible", "urls": ["https://other.com", "https://login.example.com"]},
+        {"id": "possible-then-exact", "urls": ["https://login.example.com", "https://example.com"]},
+        {"id": "empty-first", "urls": ["", "https://example.com"]},
+        {"id": "app-first", "urls": ["androidapp://com.example", "example.com"]},
+        {"id": "none", "urls": ["https://other.com", "https://example.org"]}
+      ],
+      "expected": [
+        {"entry": "second", "exact": true},
+        {"entry": "possible-then-exact", "exact": true},
+        {"entry": "empty-first", "exact": true},
+        {"entry": "app-first", "exact": true},
+        {"entry": "second-possible", "exact": false}
+      ]
+    },
+    {
+      "name": "stored App IDs are never hosts",
+      "origin": "https://abcde12345.example.com",
+      "note": "an upper-case ten-character team ID and dotted labels with no scheme is an App ID saved from an app request",
+      "entries": [
+        {"id": "app-id", "urls": ["ABCDE12345.example.com"]},
+        {"id": "lowercase", "urls": ["abcde12345.example.com"]},
+        {"id": "parent", "urls": ["example.com"]}
+      ],
+      "expected": [
+        {"entry": "lowercase", "exact": true},
+        {"entry": "parent", "exact": false}
+      ]
+    },
+    {
+      "name": "values that name no site",
+      "origin": "https://example.com",
+      "entries": [
+        {"id": "empty", "urls": [""]},
+        {"id": "spaces", "urls": ["   "]},
+        {"id": "words", "urls": ["not a url"]},
+        {"id": "no-host", "urls": ["https://"]},
+        {"id": "dot", "urls": ["https://."]},
+        {"id": "none", "urls": []}
+      ],
+      "expected": []
+    }
+  ]
+}

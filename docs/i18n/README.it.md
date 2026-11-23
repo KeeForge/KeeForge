@@ -90,6 +90,8 @@ KeeForge/
 ├── ViewModels/       # Elenco dei database, sblocco, salvataggio, ricerca, ordinamento, stato TOTP
 ├── Views/            # Schermate SwiftUI, editor, impostazioni, barattolo delle mance, controlli riutilizzabili
 AutoFillExtension/    # Provider di credenziali per l'inserimento automatico, autenticazione con passkey, creazione di credenziali
+BrowserExtension/     # Estensione per Chrome e Firefox che compila dall'app per Mac
+BrowserHost/          # Host di messaggistica nativa incluso nell'app per Mac
 KeeForgeMac/          # App macOS nativa: interfaccia AppKit, configurazione ed entitlement
 KeeForgeMacUITests/   # Copertura XCUITest dell'app macOS
 KeeForgeTests/        # Test unitari

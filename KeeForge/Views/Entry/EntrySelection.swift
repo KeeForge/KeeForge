@@ -201,9 +201,9 @@ struct EntrySelectionChrome: ViewModifier {
                         Button("Cancel", role: .cancel) {}
                     } message: { entryIDs in
                         if entryIDs.count == 1 {
-                            Text("The entry will be moved to the recycle bin.")
+                            Text("The entry will be moved to the Recycle Bin.")
                         } else {
-                            Text("The selected entries will be moved to the recycle bin.")
+                            Text("The selected entries will be moved to the Recycle Bin.")
                         }
                     }
             } else {

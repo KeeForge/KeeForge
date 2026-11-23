@@ -1,0 +1,4 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Type swap</title></head><body>
+<form><input id="u" autocomplete="username"><input id="p" type="password" autocomplete="current-password"></form>
+<script>document.getElementById('u').addEventListener('input', () => { document.getElementById('p').type = 'text'; });</script>
+</body></html>

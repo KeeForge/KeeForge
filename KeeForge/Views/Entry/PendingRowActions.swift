@@ -100,12 +100,12 @@ extension PendingDeletion {
         switch self {
         case .entry(let action):
             action.sendToRecycleBin
-                ? String(localized: "The entry will be moved to the recycle bin.")
+                ? String(localized: "The entry will be moved to the Recycle Bin.")
                 : String(localized: "This entry will be removed immediately and cannot be restored from KeeForge.")
         case .group(let action):
             Self.groupDeletionMessage(for: action)
         case .entries:
-            String(localized: "The selected entries will be moved to the recycle bin.")
+            String(localized: "The selected entries will be moved to the Recycle Bin.")
         }
     }
 
@@ -145,9 +145,21 @@ extension PendingDeletion {
     }
 
     private static func groupDeletionMessage(for action: PendingGroupDeletion) -> String {
-        let contents = String(localized: "\(entryCountText(action.entryCount)) and \(nestedGroupCountText(action.nestedGroupCount))")
+        let entries = action.entryCount > 0 ? entryCountText(action.entryCount) : nil
+        let groups = action.nestedGroupCount > 0 ? nestedGroupCountText(action.nestedGroupCount) : nil
+        let contents: String
+        switch (entries, groups) {
+        case let (entries?, groups?):
+            contents = String(localized: "\(entries) and \(groups)")
+        case let (only?, nil), let (nil, only?):
+            contents = only
+        case (nil, nil):
+            return action.sendToRecycleBin
+                ? String(localized: "\"\(action.groupName)\" is empty. The group will be moved to the Recycle Bin.")
+                : String(localized: "\"\(action.groupName)\" is empty. The group will be removed immediately and cannot be restored from KeeForge.")
+        }
         if action.sendToRecycleBin {
-            return String(localized: "\"\(action.groupName)\" contains \(contents). The group and its contents will be moved to the recycle bin.")
+            return String(localized: "\"\(action.groupName)\" contains \(contents). The group and its contents will be moved to the Recycle Bin.")
         }
         return String(localized: "\"\(action.groupName)\" contains \(contents). The group and its contents will be removed immediately and cannot be restored from KeeForge.")
     }
