@@ -1,0 +1,128 @@
+{
+  "extensionName": {
+    "message": "KeeForge"
+  },
+  "actionTitle": {
+    "message": "KeeForge"
+  },
+  "extensionDescription": {
+    "message": "Fülle Anmeldedaten aus KeeForge aus."
+  },
+  "loading": {
+    "message": "Verbindung wird hergestellt …"
+  },
+  "hostMissing": {
+    "message": "Richte diesen Browser in KeeForge ein: Einstellungen, Browser"
+  },
+  "appUnavailable": {
+    "message": "KeeForge läuft nicht."
+  },
+  "openApp": {
+    "message": "KeeForge öffnen"
+  },
+  "notPaired": {
+    "message": "Dieser Browser ist nicht gekoppelt."
+  },
+  "pair": {
+    "message": "Mit KeeForge koppeln"
+  },
+  "unlock": {
+    "message": "In KeeForge entsperren"
+  },
+  "locked": {
+    "message": "KeeForge ist gesperrt."
+  },
+  "confirm": {
+    "message": "In KeeForge bestätigen"
+  },
+  "noLogins": {
+    "message": "Keine Anmeldedaten für $1"
+  },
+  "otherLogins": {
+    "message": "Weitere Anmeldedaten für diese Website"
+  },
+  "fillLogin": {
+    "message": "$1, $2 ausfüllen"
+  },
+  "verificationCode": {
+    "message": "Bestätigungscode"
+  },
+  "fillCode": {
+    "message": "Bestätigungscode ausfüllen"
+  },
+  "reveal": {
+    "message": "In KeeForge anzeigen"
+  },
+  "inFrame": {
+    "message": "in einem Frame auf dieser Seite"
+  },
+  "filled": {
+    "message": "Ausgefüllt."
+  },
+  "badOrigin": {
+    "message": "Diese Seite kann nicht ausgefüllt werden. Verwende eine sichere Website."
+  },
+  "noFields": {
+    "message": "Keine sichtbaren, bearbeitbaren Felder auf dieser Seite."
+  },
+  "noLongerMatches": {
+    "message": "Dieser Eintrag passt nicht mehr zur Website."
+  },
+  "denied": {
+    "message": "Die Bestätigung wurde abgebrochen oder ist fehlgeschlagen."
+  },
+  "notOffered": {
+    "message": "Öffne das Popup erneut, um die Anmeldedaten zu aktualisieren."
+  },
+  "rateLimited": {
+    "message": "Zu viele Anfragen. Versuche es gleich erneut."
+  },
+  "disabled": {
+    "message": "Das Ausfüllen durch Browsererweiterungen ist in KeeForge deaktiviert. Aktiviere es unter Einstellungen, Browser."
+  },
+  "disconnected": {
+    "message": "Die Verbindung wurde geschlossen. Öffne das Popup erneut."
+  },
+  "unavailable": {
+    "message": "KeeForge oder dieser Eintrag ist nicht verfügbar."
+  },
+  "timeout": {
+    "message": "Die Anfrage hat zu lange gedauert. Versuche es erneut."
+  },
+  "pairDeclined": {
+    "message": "Die Kopplung wurde abgelehnt."
+  },
+  "pairBusy": {
+    "message": "Die Kopplung kann gerade nicht starten. Versuche es in einer Minute erneut."
+  },
+  "paired": {
+    "message": "Mit KeeForge gekoppelt. Du kannst diesen Tab schließen."
+  },
+  "compareCode": {
+    "message": "Prüfe, ob KeeForge denselben Code zeigt, und klicke dort auf Erlauben."
+  },
+  "switchToApp": {
+    "message": "Wenn KeeForge nicht in den Vordergrund kommt, wechsle zu KeeForge."
+  },
+  "browserLabel": {
+    "message": "Browser: $1"
+  },
+  "browser": {
+    "message": "Browser"
+  },
+  "tryAgain": {
+    "message": "Erneut versuchen"
+  },
+  "inlineMenu": {
+    "message": "KeeForge-Menü zum Ausfüllen öffnen"
+  },
+  "fillCodeFor": {
+    "message": "Bestätigungscode für $1 ausfüllen"
+  },
+  "inlineFrameTitle": {
+    "message": "KeeForge-Anmeldedaten"
+  },
+  "confirmFill": {
+    "message": "Ausfüllen"
+  }
+}

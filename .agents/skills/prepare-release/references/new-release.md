@@ -85,8 +85,9 @@ Everything decided **once** for this release lands on `main` before the cut; onl
 group — they describe work already merged to `main`, and the changelog heading already commits to
 the version number, so holding the matching `MARKETING_VERSION` back buys nothing.
 
-Set `MARKETING_VERSION` to the new version string (e.g. `"1.11.0"`) on **all four** product
-targets in `project.yml` — `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`.
+Set `MARKETING_VERSION` to the new version string (e.g. `"1.11.0"`) on **all five** product
+targets in `project.yml` — `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, `KeeForgeMacAutoFill`,
+and `KeeForgeBrowserHost`.
 The Mac targets ship in lockstep with iOS (same marketing version and repo build). Leave
 `CURRENT_PROJECT_VERSION` alone here; [build-number selection](candidate.md#set-the-candidate-build-number) advances it globally for the first candidate.
 

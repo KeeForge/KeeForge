@@ -1742,6 +1742,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             ("AutoFill", "settings.tab.autofill", "07b-settings-autofill"),
             ("Quick Search", "settings.tab.quick-search", "07f-settings-quick-search"),
             ("SSH Agent", "settings.tab.ssh-agent", "07g-settings-ssh-agent"),
+            ("Browsers", "settings.tab.browsers", "07m-settings-browsers"),
             ("Appearance", "settings.tab.appearance", "07h-settings-appearance"),
             ("Servers", "settings.tab.servers", "07d-settings-servers"),
             ("About", "settings.tab.about", "07e-settings-about"),

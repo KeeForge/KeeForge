@@ -206,6 +206,10 @@ Everything else (entry conflict resolution, history union, history dedupe by `La
 - `KeeForgeTests/KDBXMergerOracleTests.swift` consumes them, enumerating scenarios from `manifest.json`.
 - They are bundled into `KeeForgeTests` / `KeeForgeMacTests` as a folder reference (`type: folder` in `../project.yml`), because every scenario directory holds the same three file names and a flat resource copy would collide. The bundle keeps the `Merge/<scenario-id>/…` structure, and a new scenario directory needs no project change. The oracle suite fails if a directory and the manifest disagree.
 
+## Browser Bridge Fixtures
+
+`browser-bridge/` holds the browser bridge's conformance cases as JSON: which origins the app accepts, which entries match an origin, and how the `matches` reply is filtered, ordered, capped and cut. Its [README](browser-bridge/README.md) defines the format for implementations in any language. The SiteMatching package tests, the app's `BrowserBridgeFixtureTests` and the extension's Node tests read the same files; the app bundles the folder as a folder reference. A change in matching or origin behaviour changes these files in the same commit.
+
 ## Key Files
 
 | File | Use |

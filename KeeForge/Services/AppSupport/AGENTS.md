@@ -12,11 +12,13 @@
 - `MacQuickAccessController`: the opt-in status item, the quick-search panel, and the global shortcut, which exists only while the status item does. The app supplies its targets: `focusedDatabaseID`, `sessionForDatabase`, `showDatabaseWindow`, `showDatabaseList`, and `reopenApp` (the Dock reopen path). A plain click on the status item toggles the panel; a right-click or Control-click shows `MacStatusItemMenu` (Open KeeForge, Quit KeeForge), whose Quit goes through `NSApp.terminate` so the unsaved-work prompts and clipboard clear still run. No service looks up a database through `NSApp`'s key, main, or first window.
 - `WhatsNewPresentationService`: the curated feature catalog. Add one case before each feature-bearing release, written from `CHANGELOG.md` as user-facing copy.
 
+- The local socket transport owns same-user Unix sockets: mode 0600, bounded length-prefixed framing with caller-selected byte order and directional limits, stale-socket replacement, refusal of live sockets or non-socket files, and device/inode-checked removal. At most 64 connections by default each have a reader thread; new peers evict the connection longest without a complete request unless the consumer selects refusal at capacity. A consumer may stop accepting while retaining existing handles to send protocol shutdown frames; final stop closes them. Per-connection handlers receive frames and exactly one close callback serially; retained handles serialize immediate or delayed sends across threads, and close interrupts blocked I/O. A consumer may set a send timeout (a send that times out closes the connection) and then abandon blocked sends on a handle, which closes it if a send is or later becomes stuck on a peer that is not reading; without a timeout sends block as before. Protocol parsing belongs to each consumer.
+
 ## Invariants
 
 ### Target membership
 
-- `MacLockMonitor`, `MacWindowCloseGuard`, `MacQuickAccessController`, and `MacGlobalHotKey` are excluded from the iOS app in `../../../project.yml`. Other Mac-only files compile everywhere behind `#if os(macOS)`.
+- `MacLockMonitor`, `MacWindowCloseGuard`, `MacQuickAccessController`, `MacGlobalHotKey`, and the local socket transport are excluded from the iOS app in both project specs (the direct spec inherits the default exclusions), and the transport stays off both AutoFill allow-lists. Other Mac-only files compile everywhere behind `#if os(macOS)`.
 - `SoftwareUpdateService` (Sparkle) compiles only with `KEEFORGE_DIRECT_DOWNLOAD`, and `StoreKitManager` only without it. `SoftwareUpdateServiceTests` therefore builds only with `project-direct.yml`.
 - `SettingsService`, `FaviconService`, and `ClipboardService` are on the AutoFill allow-lists and must stay extension-safe on both platforms. That is why `SettingsService.MacHotKey` is an AppKit-free value type.
 
@@ -26,6 +28,7 @@
 - `clipboardTimeout` is shared so the app and extension agree on expiry; its getter migrates the older app-local value on first read.
 - `AuthenticationGracePeriod` defaults to Always Ask and is bounded at five minutes; do not add an unbounded option. `../Security/SecretAccessGate` reads it.
 - The SSH agent's settings (`macSSHAgentEnabled(in:)`, `macSSHAgentSelectedEntryIDs(in:)`, and their setters) take the `UserDefaults` to use instead of reading `.standard`. `../SSHAgent/MacSSHAgentController` passes the app's own and its tests a suite of their own, so a Mac test run never changes a developer's agent.
+- The browser bridge's switch and its paired-browser records take the `UserDefaults` to use in the same way. `../BrowserBridge/BrowserPairingStore` owns the record format; none of it goes in the App Group defaults.
 
 ### Clipboard
 
@@ -76,6 +79,7 @@
 
 - `SettingsServiceTests`, `FaviconServiceTests`, `FaviconIconEncoderTests`, `FeedbackSubmissionServiceTests`, `AttachmentPreviewFileStoreTests`, `ReviewPromptServiceTests`, `WhatsNewPresentationServiceTests`, `AutoFillStatusServiceTests`.
 - Mac restoration: `MacWindowRestorationStoreTests` covers persistence, allowed JSON fields, supported-reference filtering, frame constraints with separate minimum sizes, launcher/Quick Launch/explicit-open precedence, termination snapshots, and split geometry cleanup. Wiring into real window lifetime is in `MacWindowCoordinatorTests`.
+- Local sockets: `LocalSocketServerTests` uses real sockets for lifecycle, framing, asynchronous sends, send timeouts, close callbacks, and eviction (`KeeForgeMacTests` only).
 - Mac: `MacDatabaseWindowRegistryTests`, `MacLockMonitorTests`, `MacWindowCloseGuardTests`, `MacQuickAccessControllerTests`, `MacQuickSearchViewModelTests`, `MacTransitionNoticeServiceTests` (all `KeeForgeMacTests` only).
 - `ClipboardService` has no class of its own; scrubbing on lock is covered in `AutoLockTests`.
 - UI tests suppress the AutoFill tip unless `UI_TEST_SHOW_AUTOFILL_TIP=1` and force the Mac app banner with `UI_TEST_SHOW_MAC_APP_SUGGESTION=1`.

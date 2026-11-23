@@ -4,6 +4,7 @@
 
 ### New Features
 
+- On Mac, fill logins in your web browser with the KeeForge browser extension (#299). Turn on Settings → Browsers → "Allow browser extensions to fill from KeeForge", set up each browser there, then install the extension and pair it by checking that the code in the browser matches the one KeeForge shows. Click the key button the extension puts in a login or verification-code field (or press Option-Down there), or the extension's toolbar button, to see the logins that match the site you're on; choosing one fills it after Touch ID or your Mac password, in a prompt that names the login and the site (no prompt inside your authentication grace period). To show the key button, the extension asks to read and change pages on all secure (`https`) websites. Settings → Browsers lists paired browsers and removes them. The bridge is off until you turn it on.
 - Retain encrypted cloud saves for recovery, queue cached changes durably, and avoid automatically resending uncertain replacement requests.
 
 ### Changes
@@ -22,7 +23,7 @@
 - While a cloud database opens, the Sync step is checked only when KeeForge actually reached the cloud provider. With Sync When Opening off, or offline or signed out, it now shows as not synced instead of done (#322).
 - On iPhone and iPad, a database in KeeForge's own folder in the Files app (On My iPhone or On My iPad ▸ KeeForge) that you remove from the list stays removed. Before, it came back the next time KeeForge opened. The file itself stays in the folder. It is listed again if you copy a changed version there or import it again.
 
-## v1.23.0 (2026-11-15)
+## v1.23.0 (2026-11-22)
 
 ### New Features
 

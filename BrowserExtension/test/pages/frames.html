@@ -1,0 +1,6 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Frames</title><style>iframe{width:400px;height:200px;display:block}</style></head><body>
+<p>Parent without fields</p>
+<iframe id="same" src="/frame-login.html"></iframe>
+<iframe id="cross"></iframe>
+<script>document.getElementById('cross').src = 'http://localhost:' + location.port + '/frame-login.html';</script>
+</body></html>

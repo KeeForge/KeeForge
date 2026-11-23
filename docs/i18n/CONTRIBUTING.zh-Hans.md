@@ -9,6 +9,7 @@
 - 对于较大的改动，请先开一个 issue，以便讨论范围和实现方式。
 - 先阅读 [`AGENTS.md`](../../AGENTS.md)，再阅读距离你计划修改的代码最近的文件夹内 `README.md`。
 - 保持改动聚焦。涉及安全的解析器、写入器、加密、机密处理和保存路径的改动，需要配套有针对性的测试。
+- 如果你修改了浏览器扩展、其原生消息传递宿主与 Mac 应用之间交换的消息，请在同一个提交中更新 [`docs/browser-bridge-protocol.md`](../../docs/browser-bridge-protocol.md)。如果改变了接受哪些来源或哪些条目与网站匹配，也要更新 [`TestFixtures/browser-bridge/`](../../TestFixtures/browser-bridge/) 中的一致性测试数据。
 
 ## 环境要求
 
@@ -17,6 +18,7 @@
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6，启用严格并发检查
 - Swift 包依赖：[argon2](https://github.com/P-H-C/phc-winner-argon2)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)、[swift-psl](https://github.com/ameshkov/swift-psl)、[YubiKit](https://github.com/Yubico/yubikit-ios)，以及内置的 [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) 包
+- 仅用于 `BrowserExtension/` 中的浏览器扩展：支持 WebCrypto X25519 的 Node.js、用于打包的 Python 3，以及用于真实浏览器检查的 Chrome 和 Firefox；不使用任何 npm 包
 
 ## 从源码构建
 
@@ -41,6 +43,15 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
   -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
 
+`BrowserExtension/` 中的 Mac 浏览器扩展是不依赖任何包的纯 JavaScript。`tools/ci.sh` 运行它的全部检查，包括真实的 Chrome 和 Firefox；只运行 Node 测试是快速的子集：
+
+```bash
+BrowserExtension/tools/ci.sh
+cd BrowserExtension && node --test
+```
+
+如何将其载入浏览器以及每项检查涵盖什么，见 [`BrowserExtension/README.md`](../../BrowserExtension/README.md)。
+
 ## 开发流程
 
 1. Fork 本仓库，并从 `main` 创建一个主题分支。
@@ -62,6 +73,8 @@ Pull request 合并前必须通过三项状态检查：
 - **unit-tests** —— 通过 GitHub Actions 在 iOS 模拟器上运行 `KeeForgeTests` 单元测试套件。
 - **macos-unit-tests** —— 在 macOS 上以 `KeeForgeMacTests` 运行共享单元测试。
 - **DCO** —— 验证每个提交都已签署（见下文）。
+
+Pull request 还会运行 **browser-extension** 检查，即针对 Mac 应用替身的 `BrowserExtension/tools/ci.sh`；它目前还不是必需的。
 
 ## Developer Certificate of Origin
 

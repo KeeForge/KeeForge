@@ -22,7 +22,7 @@ If that version already has an RC, continue with `respin-release` instead.
 2. Confirm the patch marketing version, then run the App Store Connect build-number preflight and
    [build-number selection](candidate.md#set-the-candidate-build-number)'s repository-floor command and apply [build-number selection](candidate.md#set-the-candidate-build-number)'s comparison and edit rules. In `project.yml`, set
    `MARKETING_VERSION` to the patch version and set the global
-   `CURRENT_PROJECT_VERSION` on all four targets to exactly `xcodeCloudNextBuild`. Never reset it
+   `CURRENT_PROJECT_VERSION` on all five targets to exactly `xcodeCloudNextBuild`. Never reset it
    to `"1"`.
 3. Add a `## v{version} ({date})` section to `CHANGELOG.md` above the previous version's section.
 4. Run [What's New review](new-release.md#review-and-fix-whats-new-content) only if the patch has a user-visible highlight worth a What's New sheet. Most patches do

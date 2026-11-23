@@ -1,8 +1,8 @@
 name: Tests
 
 # One workflow for every GitHub test lane; .github/AGENTS.md has the gate map.
-#   pull_request   unit-tests + macos-unit-tests (the required checks)
-#   rc/* tag push  macos-unit-tests + the RC test schemes (ios-rc-tests.yml)
+#   pull_request   unit-tests + macos-unit-tests (the required checks) + browser-extension
+#   rc/* tag push  macos-unit-tests + browser-extension + the RC test schemes (ios-rc-tests.yml)
 #   dispatch       the rc/* set against `ref`
 #
 # The job ids `unit-tests` and `macos-unit-tests` are the ruleset's required
@@ -236,6 +236,37 @@ jobs:
           path: |
             build/*.log
             build/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14
+
+  # The browser extension: Node tests, deterministic build, the shipped archive, icons, and real headless Chrome and
+  # Firefox against build/chrome and build/firefox. One entry point, so a developer runs exactly what CI runs.
+  # It always runs (no path filter): a skipped required job counts as passing, and the lane takes a few minutes.
+  # macOS because the extension only pairs with the Mac app, and it matches where the checks are proven locally.
+  browser-extension:
+    if: github.event_name != 'push' || github.event.deleted == false
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Record the tested commit
+        run: |
+          echo "Tested commit: $(git rev-parse HEAD)"
+
+      - name: Run the extension checks
+        run: bash BrowserExtension/tools/ci.sh
+
+      - name: Upload logs and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-extension-results
+          path: |
+            BrowserExtension/build/ci
+            BrowserExtension/build/*.zip
           if-no-files-found: warn
           retention-days: 14
 

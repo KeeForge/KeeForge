@@ -116,7 +116,8 @@ The release handoff is one state record, not a single build number:
 
 `repoBuild` is the globally monotonic `CURRENT_PROJECT_VERSION` in `project.yml`; it increases for
 every minor, major, patch, and respin candidate and is identical on `KeeForge`,
-`KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`. It is never reset for a new marketing
+`KeeForgeAutoFill`, `KeeForgeMac`, `KeeForgeMacAutoFill`, and `KeeForgeBrowserHost` (the
+`keeforge-browser-host` tool embedded in both Mac channels). It is never reset for a new marketing
 version. The direct build's `CFBundleVersion` is this repo build. Set `repoBuild` from the
 product-wide **Next Build Number** shown in App Store Connect under Xcode Cloud settings, after
 verifying that it does not trail the repository floor. Xcode Cloud may still assign separate,
@@ -151,7 +152,7 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
 
 1. **Ship exactly what was soaked.** Select the iOS and Mac App Store builds from TestFlight and
    publish the staged direct zip; never re-archive or substitute a newer build after soaking.
-2. **Every candidate has one globally increasing repo build and one immutable RC tag.** All four
+2. **Every candidate has one globally increasing repo build and one immutable RC tag.** All five
    product targets carry that repo build. Xcode Cloud's iOS and Mac TestFlight numbers may differ
    from it and from each other, so the manifest maps all three artifacts to the same SHA.
 3. **All gates are accepted before external distribution.** Accept the Xcode Cloud archive verdict, the
@@ -166,7 +167,7 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
 
 ## Channel notes
 
-- The macOS targets ship in lockstep with iOS: all four product targets carry the same
+- The macOS targets ship in lockstep with iOS: all five product targets carry the same
   `MARKETING_VERSION` and globally monotonic `CURRENT_PROJECT_VERSION`, bumped together in [release branch cut](new-release.md#commit-the-release-content-to-main-then-cut-the-branch)/[build-number selection](candidate.md#set-the-candidate-build-number)
   and every respin/patch.
 - **One release branch covers both platforms.** `release/{major}.{minor}` is not per-platform, and
@@ -215,6 +216,17 @@ unlike the soak targets in [soak guidance](soak.md#candidate-soak) they are not 
 - `KeeForgeMacUITests` cannot run on a headless runner — it needs an unlocked, active login session
   — so the Mac smoke suite stays a **local** pre-release step. The `macos-unit-tests` job of
   `.github/workflows/tests.yml` covers the Mac unit suite on each `rc/*` tag.
+- The browser extension (`BrowserExtension/`) is not a release channel yet. Its `tools/build.sh`
+  stamps the manifest with the single `MARKETING_VERSION` in `project.yml` and writes Chrome and
+  Firefox archives under the ignored `BrowserExtension/build/`. The `browser-extension` CI job is
+  not a candidate-manifest gate, and `MacBrowserBridgeUITests` and `MacBrowserExtensionUITests`
+  are available on the owner's test Mac but are not release gates; making any of them a gate is an
+  owner decision. No release step publishes the archives. The Chrome Web Store item exists as an
+  unpublished draft (ID `jlnelpagadpmiinbcoiiakneicmdplda`, which release builds of the Mac app allow in
+  `BrowserHost/BrowserBridgeIdentifiers.swift`); no Firefox Add-ons listing exists. Publishing
+  either store listing is an owner decision; raise it at the release-content review before any
+  copy announces the extension, and do not publish the Chrome item before a release that allows
+  its ID.
 - `ITSAppUsesNonExemptEncryption=false` is declared in both `KeeForge/Info.plist` and
   `KeeForgeMac/Info.plist`; ASC may resolve the build declaration from metadata, but the actual
   platform record must be verified. Any separate legal/documentation question remains independent

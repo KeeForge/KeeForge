@@ -6,7 +6,7 @@ import argparse, base64, binascii, hashlib, json, re, subprocess, sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-TARGETS = ("KeeForge", "KeeForgeAutoFill", "KeeForgeMac", "KeeForgeMacAutoFill")
+TARGETS = ("KeeForge", "KeeForgeAutoFill", "KeeForgeMac", "KeeForgeMacAutoFill", "KeeForgeBrowserHost")
 RC_RE = re.compile(r"rc/([0-9]+\.[0-9]+\.[0-9]+(?:[.-][0-9A-Za-z.-]+)?)-b([1-9][0-9]*)$")
 SHA256_RE = re.compile(r"[0-9a-f]{64}$")
 BUILD_RE = re.compile(r"[1-9][0-9]*$")
@@ -21,7 +21,7 @@ def target_versions(contents: str) -> tuple[str, int]:
     values: dict[str, dict[str, object]] = {name: {} for name in TARGETS}
     current: str | None = None
     for line in contents.splitlines():
-        match = re.match(r"^  (KeeForge|KeeForgeAutoFill|KeeForgeMac|KeeForgeMacAutoFill):$", line)
+        match = re.match(r"^  (KeeForge|KeeForgeAutoFill|KeeForgeMac|KeeForgeMacAutoFill|KeeForgeBrowserHost):$", line)
         if match: current = match.group(1); continue
         if line.startswith("  ") and not line.startswith("    "): current = None
         if current and "CURRENT_PROJECT_VERSION:" in line:
@@ -34,7 +34,7 @@ def target_versions(contents: str) -> tuple[str, int]:
             if not match: fail(f"{current} has malformed MARKETING_VERSION")
             if "version" in values[current]: fail(f"{current} has duplicate MARKETING_VERSION")
             values[current]["version"] = match.group(1)
-    if any(set(values[name]) != {"version", "build"} for name in TARGETS): fail("project.yml must have all four targets with exact version/build values")
+    if any(set(values[name]) != {"version", "build"} for name in TARGETS): fail("project.yml must have all five targets with exact version/build values")
     builds = {int(values[name]["build"]) for name in TARGETS}
     if len(builds) != 1: fail("project.yml targets do not share one CURRENT_PROJECT_VERSION")
     versions = {str(values[name]["version"]) for name in TARGETS}
@@ -387,6 +387,17 @@ def self_test(_: argparse.Namespace) -> None:
         except SystemExit:
             pass
         else: fail("self-test accepted mismatched target marketing versions")
+        project = (repo / "project.yml").read_text()
+        host = '  KeeForgeBrowserHost:\n    settings:\n      base:\n        MARKETING_VERSION: "1.2.3"\n        CURRENT_PROJECT_VERSION: "9"'
+        for name, variant in (
+            ("missing browser host target", project.replace(host, "")),
+            ("mismatched browser host version", project.replace(host, host.replace('"1.2.3"', '"1.2.4"'))),
+            ("mismatched browser host build", project.replace(host, host.replace('"9"', '"10"'))),
+        ):
+            if variant == project: fail(f"self-test fixture did not change: {name}")
+            try: target_versions(variant)
+            except SystemExit: print(f"self-test fixture rejected: {name}")
+            else: fail(f"self-test accepted {name}")
     print("self-test: immutable identity, artifact bindings, direct ZIP metadata, schema, target mismatch, and pending-evidence refusal passed")
 
 if len(sys.argv) == 2 and sys.argv[1] == "--self-test":

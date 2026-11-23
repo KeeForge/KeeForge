@@ -4,6 +4,8 @@ import Foundation
 enum BrowserBridgeFraming {
     static let maximumAppPayload = 65_536
     static let maximumExtensionPayload = 1_048_576
+    /// The largest reply plaintext whose sealed `msg` frame (tag, base64 and envelope) still fits toward the extension.
+    static let maximumReplyPlaintext = (maximumExtensionPayload - 64) / 4 * 3 - 16
 
     enum Direction { case towardApp, towardExtension
         var limit: Int { self == .towardApp ? maximumAppPayload : maximumExtensionPayload }

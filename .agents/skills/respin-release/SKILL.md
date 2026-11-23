@@ -29,7 +29,8 @@ Push the fix and merge it back promptly using
 Run the App Store Connect build-number preflight again for this respin; never reuse the observation
 from the prior candidate. Then run [build-number selection](../prepare-release/references/candidate.md#set-the-candidate-build-number)'s repository-floor command and apply [build-number selection](../prepare-release/references/candidate.md#set-the-candidate-build-number)'s comparison and edit
 rules. Set `repoBuild` to exactly the verified `xcodeCloudNextBuild` on
-**all four** targets: `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`.
+**all five** targets: `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, `KeeForgeMacAutoFill`, and
+`KeeForgeBrowserHost`.
 Never reset it; `MARKETING_VERSION` does not change. Carry both preflight values and `repoBuild`
 into the manifest after [RC tag and manifest](../prepare-release/references/candidate.md#commit-push-and-tag-the-candidate) initializes it, then rebuild iOS, MAS, and direct artifacts from the new
 RC commit.

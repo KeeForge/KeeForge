@@ -62,6 +62,18 @@ final class SettingsServiceTests: XCTestCase {
         super.tearDown()
     }
 
+    func testBrowserBridgeEnabledDefaultsOffAndPersistsInInjectedSuite() throws {
+        let suite = "SettingsServiceTests.browserBridge.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertFalse(SettingsService.browserBridgeEnabled(in: defaults))
+        SettingsService.setBrowserBridgeEnabled(true, in: defaults)
+        let reloaded = try XCTUnwrap(UserDefaults(suiteName: suite))
+        XCTAssertTrue(SettingsService.browserBridgeEnabled(in: reloaded))
+        SettingsService.setBrowserBridgeEnabled(false, in: reloaded)
+        XCTAssertFalse(SettingsService.browserBridgeEnabled(in: defaults))
+    }
+
     // MARK: - Defaults
 
     func testMacBackgroundDelayDefaultsToImmediatelyAndRoundTripsLocally() {

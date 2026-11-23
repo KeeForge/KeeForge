@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 extension_dir="$(cd "$(dirname "$0")/.." && pwd)"
+env -u NODE_USE_SYSTEM_CA node "$extension_dir/tools/sync-content.mjs" --check
 python3 - "$extension_dir" <<'PY'
 import json, pathlib, re, sys, zipfile
 root = pathlib.Path(sys.argv[1])
@@ -9,13 +10,25 @@ if len(versions) != 1:
     raise SystemExit('Expected exactly one marketing version in project.yml')
 manifest = json.loads((root / 'manifest.json').read_text())
 manifest['version'] = versions.pop()
+for artwork in sorted(set(manifest.get('icons', {}).values()) | set(manifest.get('action', {}).get('default_icon', {}).values())):
+    if not (root / artwork).is_file():
+        raise SystemExit(f'Missing {artwork}; run node tools/render-icons.mjs before packaging')
+# The key only gives an unpacked development copy a stable ID; stores assign their own.
+manifest.pop('key', None)
 files = {'manifest.json': (json.dumps(manifest, indent=2) + '\n').encode()}
-for path in sorted((root / 'src').rglob('*')):
+for path in sorted([*(root / 'src').rglob('*'), *(root / '_locales').rglob('*'), *(root / 'images').rglob('*'), root / 'popup.html', root / 'pair.html', root / 'popup.css', root / 'inline.html', root / 'inline.css', root / 'theme.css', root / 'pair.css']):
     if path.is_file():
         files[path.relative_to(root).as_posix()] = path.read_bytes()
 out = root / 'build'
 out.mkdir(exist_ok=True)
 for browser in ('chrome', 'firefox'):
+    browser_manifest = json.loads(json.dumps(manifest))
+    if browser == 'firefox':
+        for resource in browser_manifest['web_accessible_resources']:
+            resource.pop('use_dynamic_url', None)
+        for script in browser_manifest['content_scripts']:
+            script.pop('world', None)
+    files['manifest.json'] = (json.dumps(browser_manifest, indent=2) + '\n').encode()
     unpacked = out / browser
     # Only known shipped inputs are written; remove stale files from earlier builds.
     import shutil

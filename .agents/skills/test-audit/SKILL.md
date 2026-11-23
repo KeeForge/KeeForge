@@ -88,6 +88,10 @@ Preserve distinct guarantees:
 - Unit tests do not replace real focus/keyboard/window interactions or system AutoFill
   panels. Prefer headless tests where they reach the behavior; retain the smallest
   distinct UI proof. Screenshot captures are visual evidence, not assertion-free junk.
+- The Swift bridge tests and the browser extension's Node tests read the same protocol
+  vectors and conformance fixtures from opposite sides. The `browser-extension` CI job
+  checks the extension against a mock host; only the local `MacBrowserBridgeUITests` and
+  `MacBrowserExtensionUITests` reach the signed app. Each is separate evidence.
 
 Do not delete a baseline failure because it is inconvenient. Separate product defects,
 test defects, environment failures, skips, and unknown causes before recommending work.

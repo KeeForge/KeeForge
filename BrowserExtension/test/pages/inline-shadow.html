@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Shadow login</title></head><body>
+<p>Login rendered late, only inside an open shadow root</p>
+<div id="host"></div>
+<script>
+const root = document.getElementById('host').attachShadow({ mode: 'open' });
+const start = () => {
+  setTimeout(() => { root.innerHTML = '<form><input id="u" autocomplete="username"><input id="p" type="password" autocomplete="current-password"></form>'; }, 1500);
+  setTimeout(() => { const code = document.createElement('input'); code.id = 'c'; code.autocomplete = 'one-time-code'; root.append(code); }, 4000);
+};
+addEventListener('load', start);
+</script>
+</body></html>
