@@ -218,7 +218,9 @@ private struct EntryHistoryVersionFields: View {
                 }
                 if !version.username.isEmpty {
                     ReferenceAwareFieldRow(label: String(localized: "Username"), raw: version.username,
-                                           viewModel: viewModel, accessibilityPrefix: "entry-history",
+                                           isStoredProtected: version.isProtected(.username),
+                                           viewModel: viewModel, accessibilityKey: "username",
+                                           accessibilityPrefix: "entry-history",
                                            isCurrent: secretActionIsCurrent) { username in
                         FieldRow(
                             label: String(localized: "Username"),
@@ -240,7 +242,9 @@ private struct EntryHistoryVersionFields: View {
                 }
                 if !version.url.isEmpty {
                     ReferenceAwareFieldRow(label: String(localized: "URL"), raw: version.url,
-                                           viewModel: viewModel, accessibilityPrefix: "entry-history",
+                                           isStoredProtected: version.isProtected(.url),
+                                           viewModel: viewModel, accessibilityKey: "url",
+                                           accessibilityPrefix: "entry-history",
                                            isCurrent: secretActionIsCurrent) { url in
                         FieldRow(
                             label: String(localized: "URL"),
@@ -261,7 +265,9 @@ private struct EntryHistoryVersionFields: View {
             if !version.notes.isEmpty {
                 Section("Notes") {
                     ReferenceAwareFieldRow(label: String(localized: "Notes"), raw: version.notes,
-                                           viewModel: viewModel, accessibilityPrefix: "entry-history",
+                                           isStoredProtected: version.isProtected(.notes),
+                                           viewModel: viewModel, accessibilityKey: "notes",
+                                           accessibilityPrefix: "entry-history",
                                            isCurrent: secretActionIsCurrent) { notes in
                         SelectableNotesText(notes)
                     }

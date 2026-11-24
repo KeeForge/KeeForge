@@ -744,7 +744,8 @@ final class MacEntryListModelTests: XCTestCase {
     private static func rows(count: Int, immovable: Set<Int> = []) -> [MacEntryListSnapshot.Row] {
         (0..<count).map { index in
             MacEntryListSnapshot.Row(
-                id: UUID(), title: "Row \(index)", rawUsername: "", folderPath: nil, icon: .standard(0),
+                id: UUID(), title: "Row \(index)", rawUsername: "", isUsernameProtected: false, folderPath: nil,
+                icon: .standard(0),
                 faviconDomain: nil, isExpired: false, hasPasskey: false, hasVerificationCode: false,
                 hasSSHKey: false, isMovable: immovable.contains(index) == false
             )

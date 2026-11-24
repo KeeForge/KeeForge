@@ -53,10 +53,13 @@ struct EntryVersionComparison: Equatable {
     @MainActor
     init(version: KPEntry, current: KPEntry, sessionKey: SymmetricKey, displayValue: (String) -> String?) {
         var differences: [Difference] = []
-        func compareText(_ field: Field, key: String, _ old: String?, _ new: String?) {
+        /// `key` is nil for Title, which every surface shows even when the database marks it protected.
+        func compareText(_ field: Field, key: String?, _ old: String?, _ new: String?) {
             let old = old ?? "", new = new ?? ""
             guard old != new else { return }
-            let isProtected = version.protectedStringKeys.contains(key) || current.protectedStringKeys.contains(key)
+            let isProtected = key.map {
+                version.protectedStringKeys.contains($0) || current.protectedStringKeys.contains($0)
+            } ?? false
             let value: CurrentValue = if isProtected {
                 .concealed
             } else if new.isEmpty {
@@ -67,8 +70,8 @@ struct EntryVersionComparison: Equatable {
             differences.append(Difference(field: field, current: value))
         }
 
-        compareText(.title, key: "Title", version.title, current.title)
-        compareText(.username, key: "UserName", version.username, current.username)
+        compareText(.title, key: nil, version.title, current.title)
+        compareText(.username, key: ProtectedStandardField.username.key, version.username, current.username)
 
         if Self.plaintext(of: version.password, sessionKey) != Self.plaintext(of: current.password, sessionKey) {
             differences.append(Difference(field: .password, current: current.hasPassword ? .concealed : .empty))
@@ -93,7 +96,7 @@ struct EntryVersionComparison: Equatable {
                         newCustom.first { $0.key == key }?.value)
         }
 
-        compareText(.notes, key: "Notes", version.notes, current.notes)
+        compareText(.notes, key: ProtectedStandardField.notes.key, version.notes, current.notes)
 
         let oldTags = TagNormalizer.tags(from: version.tags), newTags = TagNormalizer.tags(from: current.tags)
         if Set(oldTags) != Set(newTags) {

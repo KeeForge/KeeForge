@@ -35,6 +35,8 @@ struct MacEntryListSnapshot: Equatable {
         let title: String
         /// Field references stay unresolved; the cell resolves only the rows it draws.
         let rawUsername: String
+        /// The cell shows the concealed mask in place of a username the entry marks protected.
+        let isUsernameProtected: Bool
         /// The groups' path from the Groups root, joined by `folderPathSeparator`; only when the list spans groups.
         let folderPath: String?
         let icon: MacEntryIcon
@@ -235,9 +237,11 @@ struct MacEntryListSnapshot: Equatable {
                 id: entry.id,
                 title: entry.title.isEmpty ? String(localized: "(untitled)") : entry.title,
                 rawUsername: entry.username,
+                isUsernameProtected: entry.isProtected(.username),
                 folderPath: folderPaths[entry.id],
                 icon: customIcon.map { .custom($0, standardIconID: entry.iconID) } ?? .standard(entry.iconID),
-                faviconDomain: customIcon == nil && showsWebsiteIcons ? FaviconService.extractDomain(from: entry.url) : nil,
+                faviconDomain: customIcon == nil && showsWebsiteIcons && entry.isProtected(.url) == false
+                    ? FaviconService.extractDomain(from: entry.url) : nil,
                 isExpired: entry.isExpired(at: now),
                 hasPasskey: entry.hasPasskey,
                 hasVerificationCode: entry.totpConfig != nil,

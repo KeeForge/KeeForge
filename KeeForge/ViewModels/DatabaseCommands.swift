@@ -100,7 +100,7 @@ struct DatabaseCommands {
         copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
     ) -> Task<Void, Never>? {
         guard let session, entry(withID: entryID) != nil else { return nil }
-        return Self.copyEntryField(\.username, entryID: entryID, in: session, action: passwordCopyAction,
+        return Self.copyEntryField(.username, entryID: entryID, in: session, action: passwordCopyAction,
                                    currentSession: currentSession, authenticate: authenticate, copy: copy)
     }
     @discardableResult
@@ -122,7 +122,7 @@ struct DatabaseCommands {
         copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
     ) -> Task<Void, Never>? {
         guard let session, entry(withID: entryID) != nil else { return nil }
-        return Self.copyEntryField(\.url, entryID: entryID, in: session, action: passwordCopyAction,
+        return Self.copyEntryField(.url, entryID: entryID, in: session, action: passwordCopyAction,
                                    currentSession: currentSession, authenticate: authenticate, copy: copy)
     }
     /// Not behind the device-owner gate, matching the entry detail view: the code expires on its own.
@@ -190,11 +190,11 @@ struct DatabaseCommands {
                                    value: { viewModel.resolvedPassword(for: $0) }, disclose: present)
     }
 
-    /// A plain field copies at once; one whose field references reach a protected value
-    /// takes the password's gate and rechecks. Nil when nothing waits on authentication.
+    /// A plain field copies at once; one the entry marks protected, or whose field references reach
+    /// a protected value, takes the password's gate and rechecks. Nil when nothing waits on authentication.
     @discardableResult
     static func copyEntryField(
-        _ field: KeyPath<KPEntry, String> & Sendable,
+        _ field: ProtectedStandardField,
         entryID: UUID,
         in viewModel: DatabaseViewModel,
         action: EntrySecretAction,
@@ -202,8 +202,9 @@ struct DatabaseCommands {
         authenticate: (@MainActor () async throws -> Void)? = nil,
         copy: @escaping @MainActor (String) -> Void = { ClipboardService.copy($0) }
     ) -> Task<Void, Never>? {
-        copyEntryValue(entryID: entryID, in: viewModel, action: action, isProtected: false,
-                       raw: { $0[keyPath: field] }, currentSession: currentSession,
+        copyEntryValue(entryID: entryID, in: viewModel, action: action,
+                       isProtected: viewModel.entry(withID: entryID)?.isProtected(field) == true,
+                       raw: field.value, currentSession: currentSession,
                        authenticate: authenticate, copy: copy)
     }
 

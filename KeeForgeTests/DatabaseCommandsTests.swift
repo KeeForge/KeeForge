@@ -279,6 +279,49 @@ final class DatabaseCommandsTests: XCTestCase {
         XCTAssertEqual(copied.count, 3, "A declined prompt or a window that lost its session copies nothing")
     }
 
+    func testProtectedStandardFieldsCopyOnlyThroughTheGateAndNeverShowOrMatchUngated() async throws {
+        let harness = SecretAccessGateHarness(gracePeriod: .alwaysAsk)
+        let key = SymmetricKey(size: .bits256)
+        let entry = KPEntry(title: "Hidden", username: "alice", url: "https://secret.example", notes: "vault note",
+                            protectedStringKeys: ["Title", "UserName", "URL", "Notes"])
+        let plain = KPEntry(title: "Plain", username: "bob", url: "https://plain.example", notes: "open note")
+        let session = try makeSession(root: KPGroup(name: "Root", entries: [entry, plain]), key: key,
+                                      secretAccess: harness.gate)
+        await session.unlock(password: "testpassword123")
+        try await session.reloadDiscardingDraft()
+        defer { session.lockRequest(force: true) }
+        let action = EntrySecretAction()
+        let commands = DatabaseCommands(session: session, passwordCopyAction: action)
+        var copied: [String] = []
+
+        XCTAssertEqual(session.resolvingFieldReferences(of: .username, in: entry), PasswordVisualStyle.concealedText)
+        XCTAssertEqual(session.resolvingFieldReferences(of: .username, in: plain), "bob")
+        XCTAssertEqual(session.fieldReferenceResolution(of: .url, in: entry), .needsProtectedValue)
+        XCTAssertEqual(session.entries(matching: "alice").map(\.id), [], "A protected username is not searched")
+        XCTAssertEqual(session.entries(matching: "secret.example").map(\.id), [])
+        XCTAssertEqual(session.entries(matching: "vault note").map(\.id), [])
+        XCTAssertEqual(session.entries(matching: "Hidden").map(\.id), [entry.id], "The title still matches")
+        XCTAssertEqual(session.entries(matching: "bob").map(\.id), [plain.id])
+
+        harness.promptSucceeds = false
+        await commands.copyUsername(entryID: entry.id, currentSession: { session }, copy: { copied.append($0) })?.value
+        await commands.copyURL(entryID: entry.id, currentSession: { session }, copy: { copied.append($0) })?.value
+        EntryRowActions(entryID: entry.id, session: session).copyUsername(using: action) { copied.append($0) }
+        await waitUntilIdle(action)
+        XCTAssertEqual(copied, [], "A declined prompt copies nothing")
+        XCTAssertEqual(harness.promptReasons, Array(repeating: String(localized: "Copy protected field"), count: 3))
+
+        harness.promptSucceeds = true
+        await commands.copyUsername(entryID: entry.id, currentSession: { session }, copy: { copied.append($0) })?.value
+        await commands.copyURL(entryID: entry.id, currentSession: { session }, copy: { copied.append($0) })?.value
+        EntryRowActions(entryID: entry.id, session: session).copyUsername(using: action) { copied.append($0) }
+        await waitUntilIdle(action)
+        XCTAssertNil(commands.copyUsername(entryID: plain.id, currentSession: { session }, copy: { copied.append($0) }),
+                     "An unprotected username copies at once")
+        XCTAssertEqual(copied, ["alice", "https://secret.example", "alice", "bob"])
+        XCTAssertEqual(harness.promptReasons.count, 6)
+    }
+
     func testTheSharedRowActionGatesAUsernameReachingAPassword() async throws {
         let harness = SecretAccessGateHarness(gracePeriod: .alwaysAsk)
         let key = SymmetricKey(size: .bits256)

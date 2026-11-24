@@ -13,7 +13,7 @@ import Foundation
 /// written back would replace the reference with the value it pointed at.
 ///
 /// A reference that reads or matches a protected value (a password, or a
-/// string field the entry marks protected) resolves only with
+/// string field other than Title that the entry marks protected) resolves only with
 /// `.protectedValues` clearance, which callers claim after the device-owner
 /// gate or inside AutoFill's own authentication. Without it nothing protected
 /// is decrypted or read and the whole value comes back `.needsProtectedValue`.
@@ -164,8 +164,8 @@ struct FieldReferenceResolver: Sendable {
     private func isProtected(_ code: FieldCode, in entry: KPEntry) -> Bool {
         switch code {
         case .password: return entry.hasPassword
-        case .title, .username, .url, .notes: return code.standardKey.map(entry.protectedStringKeys.contains) ?? false
-        case .uuid, .customFields: return false
+        case .username, .url, .notes: return code.protectedField.map(entry.isProtected) ?? false
+        case .title, .uuid, .customFields: return false
         }
     }
 
@@ -203,14 +203,12 @@ struct FieldReferenceResolver: Sendable {
             }
         }
 
-        /// The KDBX `<String>` key, for the standard fields.
-        var standardKey: String? {
+        var protectedField: ProtectedStandardField? {
             switch self {
-            case .title: "Title"
-            case .username: "UserName"
-            case .url: "URL"
-            case .notes: "Notes"
-            case .password, .uuid, .customFields: nil
+            case .username: .username
+            case .url: .url
+            case .notes: .notes
+            case .title, .password, .uuid, .customFields: nil
             }
         }
     }

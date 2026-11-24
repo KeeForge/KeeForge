@@ -521,6 +521,27 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         XCTAssertEqual(copied, ["twitterpass123"])
     }
 
+    func testAProtectedUsernameAndURLShowMaskedAndTheUsernameCopiesOnlyAfterAuthentication() async throws {
+        let hidden = KPEntry(title: "Hidden", username: "alice", url: "https://secret.example",
+                             protectedStringKeys: ["Title", "UserName", "URL"])
+        open(try await makeInjectedSession(rootGroup: KPGroup(name: "Root", entries: [hidden])))
+        let model = makeModel()
+        let result = try entry(titled: "Hidden", in: model)
+
+        XCTAssertEqual(model.username(for: result), PasswordVisualStyle.concealedText)
+        XCTAssertEqual(model.subtitle(for: result), PasswordVisualStyle.concealedText, "The protected URL's host is left out")
+        authenticationResult = false
+        let declined = await model.copy(.username, from: result)
+        XCTAssertFalse(declined)
+        XCTAssertTrue(copied.isEmpty)
+        XCTAssertEqual(authenticationRequests, 1)
+
+        authenticationResult = true
+        let didCopy = await model.copy(.username, from: result)
+        XCTAssertTrue(didCopy)
+        XCTAssertEqual(copied, ["alice"])
+    }
+
     func testFieldsAnEntryDoesNotHaveCannotBeCopied() async throws {
         open(try await makeUnlockedSession())
         let model = makeModel()

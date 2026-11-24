@@ -80,7 +80,7 @@ struct FaviconEntryIconView: View {
     @State private var loader = FaviconLoadModel()
 
     private var requestedDomain: String? {
-        guard customIconData == nil, SettingsService.showWebsiteIcons else { return nil }
+        guard customIconData == nil, SettingsService.showWebsiteIcons, entry.isProtected(.url) == false else { return nil }
         return FaviconService.extractDomain(from: entry.url)
     }
 

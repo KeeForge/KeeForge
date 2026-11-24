@@ -149,14 +149,14 @@ final class MacQuickSearchViewModel {
 
     /// Display values for a result row, read from the live target session.
     func username(for result: Result) -> String {
-        sourceSession(for: result)?.resolvingFieldReferences(result.entry.username) ?? ""
+        sourceSession(for: result)?.resolvingFieldReferences(of: .username, in: result.entry) ?? ""
     }
 
-    /// "username · host", leaving out whichever the entry lacks. A URL whose
-    /// field reference reaches a protected value is left out, never shown.
+    /// "username · host", leaving out whichever the entry lacks. A protected URL, or one whose
+    /// field reference reaches a protected value, is left out, never shown.
     func subtitle(for result: Result) -> String {
         guard let session = sourceSession(for: result) else { return "" }
-        let host = session.fieldReferenceResolution(of: result.entry.url).value.flatMap(Self.host(of:))
+        let host = session.fieldReferenceResolution(of: .url, in: result.entry).value.flatMap(Self.host(of:))
         return [username(for: result), host ?? ""].filter { $0.isEmpty == false }.joined(separator: " · ")
     }
 
@@ -304,11 +304,11 @@ final class MacQuickSearchViewModel {
         }
     }
 
-    /// The password, and a username whose field references reach a protected value.
+    /// The password, and a protected username or one whose field references reach a protected value.
     private static func isGated(_ field: CopyField, of entry: KPEntry, in session: DatabaseViewModel) -> Bool {
         switch field {
         case .password: true
-        case .username: session.fieldReferenceResolution(of: entry.username) == .needsProtectedValue
+        case .username: session.fieldReferenceResolution(of: .username, in: entry) == .needsProtectedValue
         case .verificationCode: false
         }
     }
@@ -330,7 +330,7 @@ final class MacQuickSearchViewModel {
             if isAuthorized {
                 value = session.resolvingFieldReferencesIncludingProtectedValues(entry.username)
             } else {
-                guard let username = session.fieldReferenceResolution(of: entry.username).value else { return nil }
+                guard let username = session.fieldReferenceResolution(of: .username, in: entry).value else { return nil }
                 value = username
             }
         case .password:

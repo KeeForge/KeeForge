@@ -173,7 +173,8 @@ final class MacEntryDetailModel {
         guard let entry else { return [] }
         var fields: [MacEntryField] = []
         if entry.username.isEmpty == false {
-            fields.append(stringField(.username, label: String(localized: "Username"), raw: entry.username))
+            fields.append(stringField(.username, label: String(localized: "Username"), raw: entry.username,
+                                      isStoredProtected: entry.isProtected(.username)))
         }
         if entry.hasPassword {
             fields.append(MacEntryField(
@@ -184,7 +185,8 @@ final class MacEntryDetailModel {
         }
         for (index, url) in websites(of: entry) {
             let label = index == 0 ? String(localized: "Website") : String(localized: "Website \(index + 1)")
-            fields.append(stringField(.website(index), label: label, raw: url))
+            fields.append(stringField(.website(index), label: label, raw: url,
+                                      isStoredProtected: Self.isStoredProtected(.website(index), in: entry)))
         }
         if entry.totpConfig != nil {
             fields.append(MacEntryField(kind: .verificationCode, label: String(localized: "Verification Code"),
@@ -200,7 +202,8 @@ final class MacEntryDetailModel {
                                       isStoredProtected: entry.protectedStringKeys.contains(key)))
         }
         if entry.notes.isEmpty == false {
-            fields.append(stringField(.notes, label: String(localized: "Notes"), raw: entry.notes))
+            fields.append(stringField(.notes, label: String(localized: "Notes"), raw: entry.notes,
+                                      isStoredProtected: entry.isProtected(.notes)))
         }
         return fields
     }
@@ -362,6 +365,9 @@ final class MacEntryDetailModel {
     private static func isStoredProtected(_ kind: MacEntryField.Kind, in entry: KPEntry) -> Bool {
         switch kind {
         case .password: true
+        case .username: entry.isProtected(.username)
+        case .website(0): entry.isProtected(.url)
+        case .notes: entry.isProtected(.notes)
         case .custom(let key): entry.protectedStringKeys.contains(key)
         default: false
         }

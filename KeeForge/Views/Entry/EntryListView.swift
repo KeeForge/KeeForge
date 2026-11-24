@@ -97,7 +97,7 @@ struct EntryListView: View {
                 EntrySelectionRow(entryID: entry.id, viewModel: viewModel, identifier: "search.entry.navlink") {
                     EntryRow(
                         entry: entry,
-                        username: viewModel.resolvingFieldReferences(entry.username),
+                        username: viewModel.resolvingFieldReferences(of: .username, in: entry),
                         customIconData: viewModel.customIconData(for: entry),
                         folderPath: viewModel.folderPath(forEntryID: entry.id)
                     )
@@ -122,7 +122,7 @@ struct EntryListView: View {
             } label: {
                 EntryRow(
                     entry: entry,
-                    username: viewModel.resolvingFieldReferences(entry.username),
+                    username: viewModel.resolvingFieldReferences(of: .username, in: entry),
                     customIconData: viewModel.customIconData(for: entry),
                     folderPath: viewModel.folderPath(forEntryID: entry.id)
                 )
