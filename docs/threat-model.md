@@ -385,3 +385,5 @@ current target/reference/epoch checks and session lifecycle guards still apply.
 Local-save recovery is exposed in iOS Database Details and native Mac Database Settings, including while locked. They share receipt-bound source export, confirmation wording, and explicit key-publication recovery. Mac export writes encrypted bytes directly to the chosen save-panel destination. A committed or unknown security-settings result replaces Save with Done; acknowledging it does not repeat encryption or replacement.
 
 Native Mac cloud-creation recovery remains reachable from the Databases window even when no reference has been registered. This opens the same phase-specific recovery surface used on iOS; reaching it does not grant retry, registration, overwrite or discard authority.
+
+An FTP creation failure before the target rename, including session setup, retains a prepared recovery record. Failures once rename starts remain uncertain because the target may have changed.
