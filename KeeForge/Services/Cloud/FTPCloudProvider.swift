@@ -511,7 +511,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
 
     private static func mapError(_ error: Error, context: OperationContext) -> Error {
         switch error {
-        case is CancellationError, is CloudProviderError, is CloudUploadFailure, is CloudCreationNotDispatched, is FTPURLError:
+        case is CancellationError, is CloudProviderError, is CloudUploadFailure, is FTPURLError:
             return error
         case FTPClientError.unexpectedReply(let reply), FTPClientError.renameRefused(let reply):
             return mapReply(reply, context: context)

@@ -122,5 +122,3 @@
 - Cancellation after recording an attempt but before dispatch restores that exact attempt to prepared; if restoration is not confirmed, it stays uncertain and retains its payload.
 
 - Numbered conflict-copy attempts share an operation batch ID. A durably completed receipt permits cleanup only of unchanged prepared siblings in that batch with the same provider, account and payload digest; uncertain attempts and unrelated batches remain owned. Recovery retries interrupted cleanup.
-
-- FTP creation errors before target rename prove no target install; restore the prepared record while retaining its ciphertext. Errors once rename starts remain uncertain.
