@@ -28,7 +28,6 @@ struct DatabaseListView: View {
     @State private var pickerState = PickerPresentationState<PickerTarget>()
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var pendingRemoval: DatabaseReference?
-    @State private var pendingRemovalKeepingRecoveryCopies: DatabaseReference?
     @State private var pendingUploadDiscardTarget: DatabaseReference?
     @State private var renameTarget: DatabaseReference?
     @State private var renameText = ""
@@ -77,17 +76,6 @@ struct DatabaseListView: View {
                 message: Text(alert.message),
                 dismissButton: .default(Text("OK"))
             )
-        }
-        .alert("Cloud Recovery", isPresented: Binding(
-            get: { pendingRemovalKeepingRecoveryCopies != nil },
-            set: { if !$0 { pendingRemovalKeepingRecoveryCopies = nil } }
-        ), presenting: pendingRemovalKeepingRecoveryCopies) { target in
-            Button("Remove from List", role: .destructive) {
-                Task { await remove(target, keepingRecoveryCopies: true) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("KeeForge will keep the encrypted copies in Cloud Recovery. While the upload remains unconfirmed, you can’t add this cloud file again.")
         }
         .alert(
             viewModel.pendingUploadAlert?.title ?? "",
@@ -397,7 +385,17 @@ struct DatabaseListView: View {
             presenting: pendingRemoval
         ) { target in
             Button("Remove", role: .destructive) {
-                Task { await remove(target) }
+                Task { @MainActor in
+                    let outcome = await viewModel.removeDatabase(target)
+                    switch outcome {
+                    case .removed, .alreadyMissing: break
+                    case .recoveryRequired, .revokedRegistryNotPublished:
+                        await Task.yield()
+                        detailsReference = target
+                    case .rejected, .notPublished, .revocationUnconfirmed, .visibleUnconfirmed:
+                        selectionAlert = .init(title: String(localized: "Databases"), message: CocoaError(.fileWriteUnknown).localizedDescription)
+                    }
+                }
                 pendingRemoval = nil
             }
             Button("Cancel", role: .cancel) {
@@ -430,22 +428,6 @@ struct DatabaseListView: View {
             }
         } message: { target in
             Text("The pending change for “\(target.displayName)” could not be uploaded because the copy in the cloud changed. KeeForge keeps a timestamped backup on this device before discarding it.")
-        }
-    }
-
-    private func remove(_ reference: DatabaseReference, keepingRecoveryCopies: Bool = false) async {
-        switch await viewModel.removeDatabase(reference, keepingUnconfirmedCloudUploads: keepingRecoveryCopies) {
-        case .removed, .alreadyMissing: break
-        case .cloudRecoveryRequired(canKeepRecoveryCopies: true) where !keepingRecoveryCopies:
-            pendingRemovalKeepingRecoveryCopies = reference
-        case .cloudRecoveryRequired:
-            selectionAlert = .init(title: String(localized: "Can’t Remove Database"),
-                message: String(localized: "This database has pending cloud changes. Open Cloud Recovery to export an encrypted copy."))
-        case .recoveryRequired, .revokedRegistryNotPublished:
-            await Task.yield()
-            detailsReference = reference
-        case .rejected, .notPublished, .revocationUnconfirmed, .visibleUnconfirmed:
-            selectionAlert = .init(title: String(localized: "Databases"), message: CocoaError(.fileWriteUnknown).localizedDescription)
         }
     }
 

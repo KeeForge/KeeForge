@@ -9,9 +9,6 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
 
     var id: String { rawValue }
 
-    /// A shared Drive file has the same ID for each account that can access it.
-    var fileIDIsAccountIndependent: Bool { self == .googleDrive }
-
     var displayName: String {
         switch self {
         case .dropbox:
