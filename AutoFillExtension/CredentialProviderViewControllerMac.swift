@@ -370,6 +370,19 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         completer.completeOneTimeCode(code: code)
     }
 
+    func presentTextInsertionFieldChoice(
+        isValid: @escaping () -> Bool,
+        entryTitle: String,
+        fields: [AutoFillTextInsertionField],
+        onSelect: @escaping (AutoFillTextInsertionField) -> Void,
+        onBack: @escaping () -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        // The system text-insertion API is unavailable on macOS.
+        assertionFailure("presentTextInsertionFieldChoice is unreachable on macOS")
+        onCancel()
+    }
+
     func completeTextInsertion(_ text: String) {
         // The system text-insertion API is unavailable on macOS.
         assertionFailure("completeTextInsertion is unreachable on macOS")

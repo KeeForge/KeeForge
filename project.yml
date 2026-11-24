@@ -175,6 +175,7 @@ targets:
       # view comes along for the DEBUG-only UI-test harness
       # (`AutoFillPickerHarnessView`).
       - path: AutoFillExtension/CredentialProviderCoordinator.swift
+      - path: AutoFillExtension/AutoFillTextInsertionField.swift
       - path: AutoFillExtension/AutoFillSearchView.swift
       - path: KeeForge.icon
         buildPhase: resources
@@ -282,6 +283,7 @@ targets:
       # too so KeeForgeMacTests (hosted by the app) can unit-test it — mirrors the
       # iOS KeeForge target. Its save/generate-password paths compile out on macOS.
       - path: AutoFillExtension/CredentialProviderCoordinator.swift
+      - path: AutoFillExtension/AutoFillTextInsertionField.swift
       # The macOS AutoFill shell (and the picker view it hosts) are compiled into
       # the app target as well so KeeForgeMacTests can exercise the shell's
       # cleanup routing (shell lifecycle tests). Both are `#if os(macOS)` / macOS-
