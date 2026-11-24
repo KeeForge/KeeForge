@@ -207,15 +207,17 @@ final class PasswordGeneratorTests: XCTestCase {
     }
 
     func testIncludedCharactersThatWouldMergeWithANeighborAreIgnored() {
-        let combiningAcute = "\u{0301}"
-        let regionalIndicator = "\u{1F1FA}"
-        let skinTone = "\u{1F3FD}"
-        let leadingJamo = "\u{1100}"
-        let zeroWidthJoiner = "\u{200D}"
-        let typed = "é😀" + combiningAcute + regionalIndicator + skinTone + leadingJamo + zeroWidthJoiner + "\t\n "
+        for usable in ["é", "😀", "€", "!"] {
+            XCTAssertTrue(PasswordGenerator.isUsableCustomCharacter(Character(usable)), usable)
+        }
+        // Each on its own: written next to another character, a combining scalar joins it.
+        let merging = ["\u{0301}", "\u{1F1FA}", "\u{1F3FD}", "\u{1100}", "\u{200D}", "e\u{0301}", "\t", " "]
+        for scalar in merging {
+            XCTAssertFalse(PasswordGenerator.isUsableCustomCharacter(Character(scalar)), scalar.debugDescription)
+        }
+        XCTAssertEqual(String(PasswordGenerator.usableIncludedCharacters("é😀é\t\n ")), "é😀")
 
-        XCTAssertEqual(String(PasswordGenerator.usableIncludedCharacters(typed)), "é😀")
-
+        let typed = "é😀" + merging.joined()
         let options = PasswordGenerator.Options(
             length: 40, includeUppercase: false, includeLowercase: false, includeDigits: true,
             includeSymbols: false, includedCharacters: typed

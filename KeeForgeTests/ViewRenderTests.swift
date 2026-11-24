@@ -35,6 +35,12 @@ final class ViewRenderTests: XCTestCase {
         }))], named: "local-save-recovery")
     }
 
+    func testDatabaseListToolbar() throws {
+        try renderScreens([("Database list", AnyView(NavigationStack {
+            DatabaseListView(viewModel: DatabaseListViewModel(), onSelectDatabase: { _ in }, onCreateDatabase: { _ in })
+        }))], named: "database-list")
+    }
+
     // MARK: Database list rows
 
     func testDatabaseListRows() throws {
@@ -179,25 +185,26 @@ final class ViewRenderTests: XCTestCase {
         let saved = SettingsService.passwordGeneratorOptions
         defer { SettingsService.passwordGeneratorOptions = saved }
 
-        var states: [(String, AnyView)] = []
+        // One render per state: the sheet's model reads the saved options when it first renders.
         SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(length: 24)
-        states.append(("Password, 24 characters", AnyView(PasswordGeneratorSheet(onUse: { _ in }))))
+        try renderScreens([("Password, 24 characters", AnyView(PasswordGeneratorSheet(onUse: { _ in })))],
+                          named: "password-generator")
         SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(length: PasswordGenerator.lengthRange.upperBound)
-        states.append(("Password, maximum length", AnyView(PasswordGeneratorSheet(onUse: { _ in }))))
-        try renderScreens(states, named: "password-generator")
+        try renderScreens([("Password, maximum length", AnyView(PasswordGeneratorSheet(onUse: { _ in })))],
+                          named: "password-generator-maximum-length")
 
         SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(mode: .passphrase)
         try renderScreens([("Passphrase", AnyView(PasswordGeneratorSheet(onUse: { _ in })))], named: "password-generator-passphrase")
 
-        var standalone: [(String, AnyView)] = []
         SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(includedCharacters: "äß€", excludedCharacters: "xyz")
-        standalone.append(("Standalone, custom characters", AnyView(PasswordGeneratorSheet())))
+        try renderScreens([("Standalone, custom characters", AnyView(PasswordGeneratorSheet()))],
+                          named: "password-generator-standalone-custom")
         SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(
             includeUppercase: false, includeLowercase: false, includeDigits: true, includeSymbols: false,
             excludedCharacters: "0123456789"
         )
-        standalone.append(("Standalone, every character excluded", AnyView(PasswordGeneratorSheet())))
-        try renderScreens(standalone, named: "password-generator-standalone")
+        try renderScreens([("Standalone, every character excluded", AnyView(PasswordGeneratorSheet()))],
+                          named: "password-generator-standalone-no-characters")
     }
 
     func testEntryEditor() throws {

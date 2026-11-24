@@ -858,11 +858,48 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         if panel.waitForExistence(timeout: 5) {
             settle(0.6)
             await snapWindow(panel, panelName)
+            await captureGeneratorCustomCharacters(in: panel)
             app.typeKey(.escape, modifierFlags: [])
             _ = panel.waitForNonExistence(timeout: 5)
         } else {
             noteSkip(panelName, reason: "Database > Password Generator opened no panel")
+            noteSkip("08l1-generator-panel-custom-characters", reason: "no panel")
+            noteSkip("08l2-generator-panel-no-characters", reason: "no panel")
         }
+    }
+
+    /// Typed included and excluded characters (`08l1`), then every remaining character excluded
+    /// (`08l2`); restores the default options afterwards, since the panel persists them.
+    private func captureGeneratorCustomCharacters(in panel: XCUIElement) async {
+        let include = panel.textFields["password-generator.included-characters"].firstMatch
+        let exclude = panel.textFields["password-generator.excluded-characters"].firstMatch
+        guard include.exists, exclude.exists else {
+            noteSkip("08l1-generator-panel-custom-characters", reason: "the custom character fields are missing")
+            noteSkip("08l2-generator-panel-no-characters", reason: "the custom character fields are missing")
+            return
+        }
+        func replace(_ field: XCUIElement, with text: String) {
+            field.click()
+            field.typeKey("a", modifierFlags: .command)
+            field.typeKey(.delete, modifierFlags: [])
+            if text.isEmpty == false { field.typeText(text) }
+        }
+        let toggles = ["uppercase", "lowercase", "symbols"].map {
+            panel.checkBoxes["password-generator.charset-toggle.\($0)"].firstMatch
+        }
+        replace(include, with: "äß")
+        replace(exclude, with: "xyz")
+        settle(0.6)
+        await snapWindow(panel, "08l1-generator-panel-custom-characters")
+
+        replace(include, with: "")
+        toggles.forEach { $0.click() }
+        replace(exclude, with: "0123456789")
+        settle(0.6)
+        await snapWindow(panel, "08l2-generator-panel-no-characters")
+
+        replace(exclude, with: "")
+        toggles.forEach { $0.click() }
     }
 
     /// Detail variants from kitchen-sink: attachments, a protected custom field, tags, Large Type,
