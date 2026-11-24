@@ -29,7 +29,7 @@
 ### Authentication
 
 - Every reveal or copy of a protected value asks its session's `SecretAccessGate`, never `BiometricService` directly. A prompt raised around the gate neither honors the grace period nor ends it on failure.
-- The grant is in memory only, on `ContinuousClock`, and never outlives the shortest period selected since it was earned. A tighter setting shortens it for good and Always Ask revokes it; lengthening needs a new authentication, so an unlocked app in someone else's hands cannot extend it.
+- The grant is in memory only, on `ContinuousClock`, and never outlives the shortest period selected since it was earned. A tighter setting shortens it for good and Always Ask revokes it; lengthening, including to Never Ask, needs a new authentication, so an unlocked app in someone else's hands cannot extend it. A Never Ask grant has no time limit, so only an invalidation ends it.
 - Whoever writes `SettingsService.authenticationGracePeriod` calls `SecretAccessGate.gracePeriodSettingDidChange()` afterwards. Each gate also tightens when asked, which covers a write that skipped the call.
 - An invalidation that lands while a prompt is up makes `authenticate(reason:)` throw `CancellationError`: the late answer grants neither the disclosure nor a grace period. When the session invalidates is in `../../ViewModels/AGENTS.md`.
 - The app's quick-unlock action evaluates `quickUnlockPolicy` (biometrics, or biometrics-or-companion on the Mac). AutoFill always passes the biometric-only default, so its prompt never offers Apple Watch.

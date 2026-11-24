@@ -360,14 +360,18 @@ A protected `KP2A_URL_*` field is a protected custom field, not a website: the
 live detail, a History version and its comparison show it concealed with gated
 reveal and copy, and it is never opened, listed as a website, used for AutoFill
 matching or published as a suggestion ([KPEntry.additionalURLFields](../KeeForge/Models/Entry.swift)). With
-the Authentication Grace Period setting at its default, Always Ask, every such
-action prompts. A longer setting (at most five minutes) skips the prompt for that
-long after an unlock or a successful authentication. The grant is held in memory
-only and belongs to its session; invalidating it leaves other sessions' grants
-intact. It ends on every lock request above, including one that unsaved work defers,
-and on a failed or cancelled prompt, and is not extended by using it. Under the
-default lock policy, switching to another app does not lock and therefore does
-not end the period either; the strict policy ends it with the lock.
+the Authentication Grace Period setting at Always Ask, every such action
+prompts. A bounded setting (30 seconds to five minutes) skips the prompt for
+that long after an unlock or a successful authentication. Never Ask, the Mac
+default while no value is stored, skips it until the grant ends, so after an
+unlock anyone at the Mac can reveal and copy every protected value of that
+database until it locks. An unreadable stored value reads as Always Ask. The
+grant is held in memory only and belongs to its session; invalidating it leaves
+other sessions' grants intact. It ends on every lock request above, including
+one that unsaved work defers, and on a failed or cancelled prompt, and is not
+extended by using it. Under the default lock policy, switching to another app
+does not lock and therefore does not end the period either; the strict policy
+ends it with the lock.
 
 A website field opens only an `http` or `https` URL with a host, or a bare host
 read as `https://<value>`, the reading AutoFill matching uses; any other value
@@ -720,9 +724,10 @@ then applies these rules:
 - `credential` is answered only for an entry and database that a `matches` reply
   on the same connection offered for the same origin. It takes that session's
   device-owner gate: it releases inside the session's grace period, which a
-  successful unlock or device-owner authentication starts and which defaults to
-  Always Ask, or after the user passes a prompt that names the entry and the
-  site (Fill “Title” on example.com in your browser). The title is sanitized
+  successful unlock or device-owner authentication starts and which under the
+  Mac default, Never Ask, lasts until the session locks, or after the user
+  passes a prompt that names the entry and the site (Fill “Title” on
+  example.com in your browser). The title is sanitized
   like a browser name and cut to 64 characters; the host is the site matcher's
   (lowercased, without port or a leading `www.`), in punycode because the origin
   must be printable ASCII, and a host longer than 64 characters keeps its end.
@@ -748,7 +753,8 @@ Nothing the bridge does is logged. The app cannot see the browser's page, so it
 trusts the origin the extension names. A compromised paired browser or extension,
 or a same-user process holding that browser's key, can list the offered logins
 for any site it names and obtain a password after the user confirms the prompt,
-or without a prompt inside the grace period. The prompt names the entry and the
+or without a prompt inside the grace period, which under the default Never Ask
+is the whole unlocked session. The prompt names the entry and the
 host so the user can refuse a request for a site they are not filling. The extension keeps its key
 non-extractable in IndexedDB, which binds WebCrypto callers only; assume a
 process that can read the browser profile can recover it.
