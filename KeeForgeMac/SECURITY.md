@@ -581,7 +581,9 @@ itself when shown, with the same best-effort limits as the other windows.
 The optional SSH agent
 ([MacSSHAgentController](../KeeForge/Services/SSHAgent/MacSSHAgentController.swift))
 is off by default. While it is on, it listens on `ssh-agent.sock` in the app's
-container home. The socket is created mode 0600 inside a container directory only
+container home, or on `ssh.sock` in the browser group container (below) when the
+container-home path does not fit the 103 bytes of a socket address, as with a
+UUID-named container and a long account name. The socket is created mode 0600 inside a container directory only
 the user can enter, and every connection is checked with `getpeereid` against the
 app's own user. At most 64 connections are open at once, since each one costs the
 app a thread; a further one takes the place of the connection that has gone longest

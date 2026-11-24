@@ -137,6 +137,12 @@ final class LocalSocketServerTests: XCTestCase {
         }
     }
 
+    func testAddressFitsPathsOfUpTo103Bytes() {
+        XCTAssertTrue(LocalSocketServer.fitsAddress("/" + String(repeating: "s", count: 102)))
+        XCTAssertFalse(LocalSocketServer.fitsAddress("/" + String(repeating: "s", count: 103)))
+        XCTAssertFalse(LocalSocketServer.fitsAddress("/" + String(repeating: "é", count: 52)))
+    }
+
     func testPathTooLongIsRefused() {
         XCTAssertThrowsError(try server("/" + String(repeating: "s", count: 108)).start()) {
             XCTAssertEqual($0 as? LocalSocketError, .pathTooLong)

@@ -782,6 +782,67 @@ final class MacSSHAgentControllerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: path))
     }
 
+    // MARK: - Socket path
+
+    /// With a UUID-named container the home path is 83 bytes plus the account
+    /// name, so a 20-byte name reaches the 103-byte limit exactly.
+    func testSocketStaysInTheContainerHomeWhileItFits() {
+        let account = String(repeating: "a", count: 20)
+
+        let path = MacSSHAgentController.socketPath(home: Self.uuidContainerHome(account), groupContainer: Self.groupContainer(account))
+
+        XCTAssertEqual(path, Self.uuidContainerHome(account) + "/ssh-agent.sock")
+        XCTAssertEqual(path.utf8.count, 103)
+    }
+
+    /// The team-prefixed group container path is 73 bytes plus the account
+    /// name, which fits names of up to 30 bytes.
+    func testALongAccountNameMovesTheSocketToTheGroupContainer() {
+        for (account, fits) in [(String(repeating: "a", count: 21), true), (String(repeating: "a", count: 30), true), (String(repeating: "a", count: 31), false)] {
+            XCTAssertFalse(LocalSocketServer.fitsAddress(Self.uuidContainerHome(account) + "/ssh-agent.sock"))
+
+            let path = MacSSHAgentController.socketPath(home: Self.uuidContainerHome(account), groupContainer: Self.groupContainer(account))
+
+            XCTAssertEqual(path, Self.groupContainer(account) + "/ssh.sock")
+            XCTAssertEqual(LocalSocketServer.fitsAddress(path), fits, account)
+        }
+    }
+
+    func testWithoutTheGroupContainerTheSocketStaysInTheHome() {
+        let account = String(repeating: "a", count: 21)
+
+        let path = MacSSHAgentController.socketPath(home: Self.uuidContainerHome(account), groupContainer: nil)
+
+        XCTAssertEqual(path, Self.uuidContainerHome(account) + "/ssh-agent.sock")
+    }
+
+    /// Nothing else tells the user why the agent stays off, so Settings names the reason.
+    func testAPathTooLongForASocketIsReportedAsSuch() throws {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("kf-ssh-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        socketDirectory = directory
+        let path = directory.appendingPathComponent(String(repeating: "s", count: max(1, 103 - directory.path.utf8.count))).path
+        XCTAssertFalse(LocalSocketServer.fitsAddress(path))
+        let controller = MacSSHAgentController(socketPath: path, defaults: try XCTUnwrap(defaults), notificationCenter: notificationCenter)
+        self.controller = controller
+
+        controller.isEnabled = true
+        controller.start()
+
+        XCTAssertEqual(controller.unavailability, .pathTooLong)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+        XCTAssertEqual(controller.unavailability?.message, String(localized: "The SSH agent could not start because its socket path is longer than macOS allows. This can happen when the account name is long."))
+    }
+
+    private static func uuidContainerHome(_ account: String) -> String {
+        "/Users/\(account)/Library/Containers/ECC6B676-0D4E-46EE-9539-F33541F8924B/Data"
+    }
+
+    private static func groupContainer(_ account: String) -> String {
+        "/Users/\(account)/Library/Group Containers/V82M9YX8BR.\(BrowserBridgeIdentifiers.groupSuffix)"
+    }
+
     // MARK: - Framing
 
     /// An empty message or one past OpenSSH's 256 KiB limit ends the

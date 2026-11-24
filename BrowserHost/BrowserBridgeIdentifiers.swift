@@ -5,12 +5,17 @@ import Security
 enum BrowserBridgeIdentifiers {
     /// Nil when this process is not entitled to the browser group, as in an unsigned build.
     static func socketURL() -> URL? {
+        groupContainerURL()?.appendingPathComponent(socketName)
+    }
+
+    /// The browser group's container, which same-user processes outside the
+    /// sandbox reach without a prompt. The Mac SSH agent falls back to it too.
+    static func groupContainerURL() -> URL? {
         // The group carries the signing team's prefix, so read it back from this process's own entitlements.
         guard let task = SecTaskCreateFromSelf(nil),
               let groups = SecTaskCopyValueForEntitlement(task, "com.apple.security.application-groups" as CFString, nil) as? [String],
               let group = groups.first(where: { $0.hasSuffix("." + groupSuffix) }) else { return nil }
-        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)?
-            .appendingPathComponent(socketName)
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)
     }
 
     static let groupSuffix = "com.keevault.browser"

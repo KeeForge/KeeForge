@@ -64,6 +64,8 @@ final class MacBrowserBridgeSettingsModel {
             String(localized: "This copy of KeeForge isn’t signed to let browser extensions connect.")
         case .socketInUse:
             String(localized: "Browser extensions can’t connect because another copy of KeeForge is already serving them.")
+        case .pathTooLong:
+            String(localized: "Browser extensions can’t connect because KeeForge’s socket path is longer than macOS allows. This can happen when the account name is long.")
         case .bridgeKey:
             String(localized: "Browser extensions can’t connect because KeeForge couldn’t read its browser key from the Keychain.")
         case .failed:
