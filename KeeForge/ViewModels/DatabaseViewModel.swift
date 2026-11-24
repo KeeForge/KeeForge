@@ -4631,6 +4631,7 @@ final class DatabaseViewModel {
 
     private func resetCloudSyncStatus() {
         isCloudRefreshPending = false
+        openingSyncReachedCloud = false
         isSyncingCloud = false
         cloudSyncOutcome = nil
         hasPendingCloudUploads = false

@@ -1931,6 +1931,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                                                   progress: nil, syncReachedCloud: vm.openingSyncReachedCloud)
             XCTAssertEqual(steps.first?.state, reachedCloud ? .done : .skipped, "\(status)")
             vm.lock()
+            XCTAssertFalse(vm.openingSyncReachedCloud, "Locking ends the open it described: \(status)")
         }
     }
 
