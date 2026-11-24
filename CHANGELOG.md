@@ -22,6 +22,7 @@
 - On iPhone, and on iPad in a narrow window, a database that locks by itself, after the Auto-Lock timeout or when you leave the app, now stays on its unlock page instead of going back to the database list, so Auto-Unlock with Face ID or Touch ID opens it again right away (#312). Locking with the Lock button still returns to the list.
 - While a cloud database opens, the Sync step is checked only when KeeForge actually reached the cloud provider. With Sync When Opening off, or offline or signed out, it now shows as not synced instead of done (#322).
 - On Mac, choosing Try Again after a wrong master password in AutoFill asks for the password again. Before, the AutoFill window stayed empty and could not be closed (#334).
+- When a passkey can't sign in from AutoFill after you unlock, for example because its private key is damaged, AutoFill now says so and closes. Before, it offered Try Again, which only asked for the master password again, and on Mac left an empty AutoFill window that could not be closed.
 - On iPhone and iPad, a database in KeeForge's own folder in the Files app (On My iPhone or On My iPad ▸ KeeForge) that you remove from the list stays removed. Before, it came back the next time KeeForge opened. The file itself stays in the folder. It is listed again if you copy a changed version there or import it again.
 
 ## v1.23.0 (2026-11-22)

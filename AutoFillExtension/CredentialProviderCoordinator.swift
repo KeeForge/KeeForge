@@ -200,6 +200,14 @@ protocol CredentialProviderPresenting: AnyObject {
         onAcknowledge: @escaping () -> Void
     )
 
+    /// Single-button notice for a passkey that cannot sign after unlock (e.g.
+    /// an unreadable private key). The coordinator cancels the request from
+    /// `onAcknowledge`: unlocking again would not change the stored key.
+    func presentPasskeySignInFailure(
+        message: String,
+        onAcknowledge: @escaping () -> Void
+    )
+
     func presentGeneratedPassword(
         _ password: String,
         onUse: @escaping () -> Void,
@@ -2909,7 +2917,7 @@ final class CredentialProviderCoordinator {
                         clientDataHash: request.clientDataHash
                     )
                 } catch {
-                    self.showErrorAndRetry(error)
+                    self.failPasskeySignIn(error)
                 }
             }
             return
@@ -2922,7 +2930,7 @@ final class CredentialProviderCoordinator {
                 clientDataHash: request.clientDataHash
             )
         } catch {
-            showErrorAndRetry(error)
+            failPasskeySignIn(error)
         }
     }
 
@@ -2934,7 +2942,18 @@ final class CredentialProviderCoordinator {
                 clientDataHash: requestParameters.clientDataHash
             )
         } catch {
-            showErrorAndRetry(error)
+            failPasskeySignIn(error)
+        }
+    }
+
+    private func failPasskeySignIn(_ error: Error) {
+        let nsError = error as NSError
+        AutoFillDiagnostics.log("passkey sign-in error \(nsError.domain)#\(nsError.code)")
+        let message = error.localizedDescription
+        presentWhenActive { [weak self] in
+            self?.presenter?.presentPasskeySignInFailure(message: message) { [weak self] in
+                self?.cancelRequest(code: .failed)
+            }
         }
     }
 
