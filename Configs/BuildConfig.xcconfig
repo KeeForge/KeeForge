@@ -3,6 +3,7 @@
 // a root-level path would name the group after the checkout directory.
 // Copy BuildConfig.local.example.xcconfig (repo root) to BuildConfig.local.xcconfig
 // and replace the placeholder values before building.
+GOOGLE_DRIVE_ENABLED = NO
 GOOGLE_DRIVE_REDIRECT_SCHEME = com.keevault.drive.unconfigured
 #include? "../BuildConfig.local.xcconfig"
 #include? "../BuildMetadata.xcconfig"

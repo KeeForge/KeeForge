@@ -644,6 +644,16 @@ struct DatabaseOpenFailure: Equatable, Sendable {
                 countsTowardFailedAttempts: false,
                 canChooseDifferentFile: false
             )
+        case .driveRevisionHistoryUnavailable:
+            return DatabaseOpenFailure(
+                title: String(localized: "Couldn't Open Cloud Database"),
+                summary: CloudProviderError.message(for: error),
+                technicalDetails: technicalDetails(for: error),
+                errorCode: "cloud.drive_revision_history_unavailable",
+                category: .cloud,
+                countsTowardFailedAttempts: false,
+                canChooseDifferentFile: false
+            )
         case .rateLimited, .serviceUnavailable:
             return DatabaseOpenFailure(
                 title: String(localized: "Cloud Service Unavailable"),

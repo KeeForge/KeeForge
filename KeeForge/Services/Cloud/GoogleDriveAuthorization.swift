@@ -91,7 +91,8 @@ struct GoogleDriveConfiguration: Sendable, Equatable {
     }
 
     static func load(bundle: Bundle = .main) -> Self? {
-        Self(clientID: bundle.object(forInfoDictionaryKey: "GoogleDriveClientID") as? String,
+        guard bundle.object(forInfoDictionaryKey: "GoogleDriveEnabled") as? String == "YES" else { return nil }
+        return Self(clientID: bundle.object(forInfoDictionaryKey: "GoogleDriveClientID") as? String,
              scheme: bundle.object(forInfoDictionaryKey: "GoogleDriveRedirectScheme") as? String)
     }
 }

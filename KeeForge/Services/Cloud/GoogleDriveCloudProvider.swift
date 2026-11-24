@@ -25,10 +25,13 @@ final class GoogleDriveCloudProvider: CloudObservedUploadProvider {
             let account = try await account(accessToken: token)
             guard expected == nil || expected?.accountId == account.id else { throw CloudProviderError.permissionDenied }
             let item = try await resource(fileID: grant.fileID, token: token)
-            _ = try item.metadata()
+            let metadata = try item.metadata()
             guard item.isWritable,
                   expected != nil || CloudFile.isListed(name: item.name, isFolder: false, includesAllFiles: false) else {
                 throw CloudProviderError.permissionDenied
+            }
+            if expected == nil {
+                try await requireRevisionHistory(path: Self.filePath(grant.fileID), token: token, head: metadata.rev)
             }
             return CloudDatabaseSelection(provider: id, account: account, file: item.file)
         }
@@ -124,9 +127,7 @@ final class GoogleDriveCloudProvider: CloudObservedUploadProvider {
             ], token: token, upload: true)
             upload.httpMethod = "PATCH"
             Self.configureBody(&upload, metadata: Data("{}".utf8), bytes: data, resumable: resumable)
-            guard try await revisionHistory(path: path, token: token).last == revision else {
-                throw CloudProviderError.serviceUnavailable
-            }
+            try await requireRevisionHistory(path: path, token: token, head: revision)
             let item = try await resource(fileID: fileId, token: token)
             guard item.isWritable else { throw CloudProviderError.permissionDenied }
             before = try item.metadata()
@@ -216,6 +217,16 @@ final class GoogleDriveCloudProvider: CloudObservedUploadProvider {
         guard current.rev == own else { throw inconclusive }
     }
 
+    private func requireRevisionHistory(path: String, token: String, head: String?) async throws {
+        do {
+            guard let head, try await revisionHistory(path: path, token: token).last == head else {
+                throw CloudProviderError.driveRevisionHistoryUnavailable
+            }
+        } catch CloudProviderError.serviceUnavailable {
+            throw CloudProviderError.driveRevisionHistoryUnavailable
+        }
+    }
+
     private func revisionHistory(path: String, token: String) async throws -> [String] {
         struct Page: Decodable {
             struct Revision: Decodable { let id: String }
@@ -229,7 +240,9 @@ final class GoogleDriveCloudProvider: CloudObservedUploadProvider {
             var query = [URLQueryItem(name: "fields", value: "nextPageToken,revisions(id)"), URLQueryItem(name: "pageSize", value: "1000")]
             if let pageToken { query.append(URLQueryItem(name: "pageToken", value: pageToken)) }
             let data = try await request(path + "/revisions", query: query, token: token)
-            let page = try JSONDecoder().decode(Page.self, from: data)
+            guard let page = try? JSONDecoder().decode(Page.self, from: data) else {
+                throw CloudProviderError.serviceUnavailable
+            }
             ids.append(contentsOf: page.revisions.map(\.id))
             guard let next = page.nextPageToken else {
                 guard Set(ids).count == ids.count else { throw CloudProviderError.serviceUnavailable }

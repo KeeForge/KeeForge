@@ -93,6 +93,29 @@ final class CloudProviderRegistryTests: XCTestCase {
     // meaningless on macOS, where the Mac Info.plist intentionally omits it;
     // the macOS MSAL auth flow lands in slice 03 of the macOS port.
     #if os(iOS)
+    func testDriveConfigurationHonorsBuildFlagWithValidOAuthSettings() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for (name, flag) in [("default", nil), ("disabled", "NO"), ("enabled", "YES")] as [(String, String?)] {
+            let url = root.appendingPathComponent(name + ".bundle")
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            var settings = [
+                "CFBundleIdentifier": "com.keevault.test." + name,
+                "GoogleDriveClientID": "synthetic.apps.googleusercontent.com",
+                "GoogleDriveRedirectScheme": "com.googleusercontent.apps.synthetic",
+            ]
+            settings["GoogleDriveEnabled"] = flag
+            let plist = try PropertyListSerialization.data(fromPropertyList: settings, format: .xml, options: 0)
+            try plist.write(to: url.appendingPathComponent("Info.plist"))
+            let bundle = try XCTUnwrap(Bundle(url: url))
+            XCTAssertEqual(GoogleDriveConfiguration.load(bundle: bundle) != nil, flag == "YES", name)
+        }
+        if Bundle.main.object(forInfoDictionaryKey: "GoogleDriveEnabled") as? String != "YES" {
+            XCTAssertFalse(CloudProviderRegistry.availableProviders.contains(.googleDrive))
+        }
+    }
+
     func testAppInfoPlistIncludesMSALBrokerQuerySchemes() throws {
         let schemes = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "LSApplicationQueriesSchemes") as? [String])
 

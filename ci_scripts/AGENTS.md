@@ -18,7 +18,7 @@
 - `ci_pre_xcodebuild.sh` repeats that validation before each `xcodebuild` action because `CI_XCODEBUILD_ACTION` is only reliably set there. Xcode Cloud workflows with an archive action must therefore carry both real values (`../.agents/skills/prepare-release/references/xcode-cloud-setup.md`).
 - The Dropbox key is interpolated into the `db-$(DROPBOX_APP_KEY)` URL scheme, so its placeholder `ciplaceholderdropboxappkey` must stay alphanumeric: App Store Connect rejects underscores (ITMS-90158). `KeeForgeTests/URLSchemeFormatTests.swift` checks the built bundle.
 - `Configs/BuildConfig.xcconfig` is a checked-in include. It lives in `Configs/` so XcodeGen gives it a stable group name rather than the checkout directory's.
-- iOS archives also require a valid `GOOGLE_DRIVE_CLIENT_ID` and matching reversed redirect scheme. CI derives the scheme from the client ID it bootstraps. Mac archives do not require it.
+- Google Drive is off by default. For iOS archives with `GOOGLE_DRIVE_ENABLED=YES`, a valid `GOOGLE_DRIVE_CLIENT_ID` and matching reversed redirect scheme are required. CI writes the flag and derives the scheme from the enabled client ID. Mac archives do not require Drive settings.
 - Local setup: copy `BuildConfig.local.example.xcconfig` to `BuildConfig.local.xcconfig` at the repo root and set `DROPBOX_APP_KEY`. `ONEDRIVE_CLIENT_ID` is optional outside archives.
 
 ## Generation-time validators

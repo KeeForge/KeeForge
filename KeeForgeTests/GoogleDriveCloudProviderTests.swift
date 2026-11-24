@@ -37,6 +37,7 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         let bytes = Data("synthetic remote".utf8)
         let transport = DriveTransport([
             .json(["user": ["permissionId": "test-account"]]), try .file(bytes, revision: "base"),
+            .json(["revisions": [["id": "base"]]]),
             try .file(bytes, revision: "base"), .body(bytes),
             .json(["user": ["permissionId": "test-account"]]), try .file(bytes, revision: "base"),
         ])
@@ -62,10 +63,36 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         XCTAssertNil(reconnected.cloudSyncMetadata?.lastSyncIssue)
         let requests = await transport.requests
         XCTAssertEqual(requests.map { $0.url?.path }, [
-            "/drive/v3/about", "/drive/v3/files/fixture-file", "/drive/v3/files/fixture-file",
-            "/drive/v3/files/fixture-file", "/drive/v3/about", "/drive/v3/files/fixture-file",
+            "/drive/v3/about", "/drive/v3/files/fixture-file", "/drive/v3/files/fixture-file/revisions",
+            "/drive/v3/files/fixture-file", "/drive/v3/files/fixture-file",
+            "/drive/v3/about", "/drive/v3/files/fixture-file",
         ])
-        XCTAssertEqual(requests[3].url?.query, "alt=media")
+        XCTAssertEqual(requests[4].url?.query, "alt=media")
+    }
+
+    func testPickerRejectsAFileWithUnavailableRevisionHistoryBeforeRegistration() async throws {
+        let vault = DriveTestCredentials()
+        let transport = DriveTransport([
+            .json(["user": ["permissionId": "test-account"]]), try .file(Data([1]), revision: "base"),
+            .body(Data(), status: 500),
+        ])
+        let provider = GoogleDriveCloudProvider(authorization: try vault.authorization(present: { _, _, _ in
+            DriveTestCredentials.grant()
+        }), transport: transport)
+        do {
+            _ = try await provider.selectDatabase(from: ASPresentationAnchor())
+            XCTFail("An unreadable history must prevent initial selection")
+        } catch {
+            XCTAssertEqual(error as? CloudProviderError, .driveRevisionHistoryUnavailable)
+            XCTAssertEqual(CloudProviderError.message(for: error),
+                String(localized: "KeeForge can’t save changes to this file because Google Drive did not provide its revision history."))
+        }
+        let requests = await transport.requests
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "GET", "GET"])
+        XCTAssertEqual(requests.last?.url?.path, "/drive/v3/files/fixture-file/revisions")
+        XCTAssertNil(vault.archive(for: "test-account"))
+        XCTAssertTrue(CloudAccountStore.accounts.isEmpty)
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
     }
 
     func testReconnectRefusesAnotherAccountAndAnotherFile() async throws {
@@ -168,6 +195,7 @@ final class GoogleDriveCloudProviderTests: XCTestCase {
         let base = Data("base".utf8)
         let transport = DriveTransport([
             .json(["user": ["permissionId": "test-account"]]), try .file(base, revision: "base"),
+            .json(["revisions": [["id": "base"]]]),
         ])
         let provider = GoogleDriveCloudProvider(authorization: try vault.authorization(present: { _, _, _ in
             await latch.grant()

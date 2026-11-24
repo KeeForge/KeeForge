@@ -135,6 +135,7 @@ enum CloudProviderError: LocalizedError, Equatable, CloudSyncIssueConvertible {
     case writeScopeRequired
     case rateLimited
     case serviceUnavailable
+    case driveRevisionHistoryUnavailable
     case insufficientSpace
     case permissionDenied
     case invalidName
@@ -154,6 +155,7 @@ enum CloudProviderError: LocalizedError, Equatable, CloudSyncIssueConvertible {
         case .writeScopeRequired: .writeScopeRequired
         case .rateLimited: .rateLimited
         case .serviceUnavailable: .serviceUnavailable
+        case .driveRevisionHistoryUnavailable: .driveRevisionHistoryUnavailable
         case .insufficientSpace: .insufficientSpace
         case .permissionDenied: .permissionDenied
         case .invalidName: .invalidName

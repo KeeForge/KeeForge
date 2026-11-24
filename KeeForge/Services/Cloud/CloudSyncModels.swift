@@ -171,6 +171,7 @@ enum CloudSyncIssue: Hashable, Sendable {
     case writeScopeRequired
     case rateLimited
     case serviceUnavailable
+    case driveRevisionHistoryUnavailable
     case insufficientSpace
     case permissionDenied
     case invalidName
@@ -202,6 +203,8 @@ enum CloudSyncIssue: Hashable, Sendable {
             String(localized: "The cloud service is busy right now. Try again in a moment.")
         case .serviceUnavailable:
             String(localized: "The cloud service is temporarily unavailable. Try again later.")
+        case .driveRevisionHistoryUnavailable:
+            String(localized: "KeeForge can’t save changes to this file because Google Drive did not provide its revision history.")
         case .insufficientSpace:
             String(localized: "There isn't enough storage space in this cloud account.")
         case .permissionDenied:
@@ -237,6 +240,7 @@ extension CloudSyncIssue: Codable {
         case .writeScopeRequired: "writeScopeRequired"
         case .rateLimited: "rateLimited"
         case .serviceUnavailable: "serviceUnavailable"
+        case .driveRevisionHistoryUnavailable: "driveRevisionHistoryUnavailable"
         case .insufficientSpace: "insufficientSpace"
         case .permissionDenied: "permissionDenied"
         case .invalidName: "invalidName"
@@ -258,6 +262,7 @@ extension CloudSyncIssue: Codable {
         case "writeScopeRequired": self = .writeScopeRequired
         case "rateLimited": self = .rateLimited
         case "serviceUnavailable": self = .serviceUnavailable
+        case "driveRevisionHistoryUnavailable": self = .driveRevisionHistoryUnavailable
         case "insufficientSpace": self = .insufficientSpace
         case "permissionDenied": self = .permissionDenied
         case "invalidName": self = .invalidName

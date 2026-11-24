@@ -39773,6 +39773,58 @@
         }
       }
     },
+    "KeeForge can’t save changes to this file because Google Drive did not provide its revision history." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge kann Änderungen an dieser Datei nicht speichern, da Google Drive den Versionsverlauf nicht bereitgestellt hat."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no puede guardar cambios en este archivo porque Google Drive no proporcionó su historial de versiones."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ne peut pas enregistrer les modifications de ce fichier, car Google Drive n’a pas fourni son historique des versions."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge non può salvare le modifiche a questo file perché Google Drive non ha fornito la cronologia delle versioni."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google Drive からこのファイルの変更履歴を取得できなかったため、KeeForge では変更を保存できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge не может сохранить изменения в этом файле, поскольку Google Drive не предоставил историю его версий."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google Drive 未提供此文件的版本记录，因此 KeeForge 无法保存对此文件的更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google Drive 未提供此檔案的版本記錄，因此 KeeForge 無法儲存此檔案的變更。"
+          }
+        }
+      }
+    },
     "KeeForge can't save this login because it contains a field reference ({REF:…})." : {
       "localizations" : {
         "de" : {

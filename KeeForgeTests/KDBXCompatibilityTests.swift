@@ -1923,6 +1923,7 @@ extension KDBXCompatibilityTests {
         let receipt = try DriveTransport.Reply.file(payload, revision: "our-write")
         let transport = DriveTransport([
             baseline, .body(Data(), status: 500),
+            baseline, .body(Data(), status: 500),
             baseline, .json(["revisions": [["id": "base"]]]), baseline, receipt,
             .json(["revisions": [["id": "base"], ["id": "our-write"]]]), receipt,
         ])
@@ -1940,10 +1941,17 @@ extension KDBXCompatibilityTests {
         let saveEnvironment = saver
         environment.deliverMarker = { try await CloudDatabaseSaver.deliver($0, reference: $1, environment: saveEnvironment) }
         let drainer = PendingUploadDrainer(environment: environment)
-        let blocked = await drainer.drain(databaseId: reference.id)
-        XCTAssertTrue(blocked.drainedDatabaseIDs.isEmpty)
+        for _ in 0..<2 {
+            let blocked = await drainer.drain(databaseId: reference.id)
+            XCTAssertTrue(blocked.drainedDatabaseIDs.isEmpty)
+            let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            XCTAssertEqual(stored.cloudSyncMetadata?.lastSyncIssue, .driveRevisionHistoryUnavailable)
+            let message = String(localized: "KeeForge can’t save changes to this file because Google Drive did not provide its revision history.")
+            XCTAssertEqual(blocked.userIssue?.message, message)
+            XCTAssertEqual(stored.cloudSyncMetadata?.warningText(isAuthenticated: true), message)
+        }
         let failedRequests = await transport.requests
-        XCTAssertEqual(failedRequests.map(\.httpMethod), ["GET", "GET"])
+        XCTAssertEqual(failedRequests.map(\.httpMethod), ["GET", "GET", "GET", "GET"])
         XCTAssertEqual(failedRequests.last?.url?.path, "/drive/v3/files/fixture-file/revisions")
         let ready = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
         XCTAssertEqual(CloudJournalDecision.state(of: ready.marker), .ready)
@@ -1961,7 +1969,9 @@ extension KDBXCompatibilityTests {
         let decoded = try KDBXParser.parseWithMetaAndHeader(data: payload, compositeKey: loaded.compositeKey,
             sessionKey: loaded.sessionKey, kdfPolicy: .mainApp)
         XCTAssertTrue(decoded.rootGroup.allEntries.contains { $0.title == title && $0.username == "fixture" })
-        XCTAssertEqual(DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata?.remoteRev, "our-write")
+        let synced = DatabaseListStore.databases.first { $0.id == reference.id }?.cloudSyncMetadata
+        XCTAssertEqual(synced?.remoteRev, "our-write")
+        XCTAssertNil(synced?.lastSyncIssue)
     }
 }
 #endif
