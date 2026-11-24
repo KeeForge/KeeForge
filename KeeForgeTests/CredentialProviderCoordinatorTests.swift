@@ -2149,6 +2149,29 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_passkeySigningFailureAfterUnlock_showsTerminalNoticeNotUnlockRetry() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        var entry = try makePasskeyEntry(privateKey: P256.Signing.PrivateKey(), sessionKey: sessionKey)
+        entry.passkeyPrivateKey = try EncryptedValue.encrypt("not a PEM key", using: sessionKey)
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        coordinator.completeInteractivePasskeyRequest(
+            makePasskeyRequest(recordIdentifier: CredentialRecordIdentifier(databaseID: UUID(), entryID: entry.id).encoded)
+        )
+
+        XCTAssertNil(presenter.unlockError, "Unlocking again cannot repair the stored key, so Try Again must not be offered")
+        let failure = try XCTUnwrap(presenter.passkeySignInFailure)
+        XCTAssertEqual(failure.message, PasskeyError.invalidPEM.errorDescription)
+        XCTAssertNil(presenter.cancelledError, "The request stays open until the notice is acknowledged")
+
+        failure.onAcknowledge()
+
+        XCTAssertEqual(presenter.cancelledError?.code, .failed)
+        XCTAssertNil(presenter.completedAssertion)
+        assertCleanedUp(coordinator)
+    }
+
     func test_passkeyResolution_recordIdentifierStillResolvesEntry() throws {
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)
@@ -3002,6 +3025,41 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         )
         XCTAssertEqual(scenario.coordinator.pendingSwitchPreviousDatabaseReference?.id, scenario.databaseA.id)
         XCTAssertEqual(scenario.coordinator.pendingSwitchSearchText, "typed", "The stash is untouched until a search presents")
+    }
+
+    func test_unlockErrorRetryBeforeFailedPasswordAttemptReturns_presentsPromptAgain() async throws {
+        try await assertSynchronousUnlockErrorRetryPresentsPrompt { $0.onSubmitPassword("wrong-password") }
+    }
+
+    func test_unlockErrorRetryBeforeFailedBiometricAttemptReturns_presentsPromptAgain() async throws {
+        try await assertSynchronousUnlockErrorRetryPresentsPrompt { $0.onChooseBiometrics() }
+    }
+
+    /// The Mac unlock error is a blocking `NSAlert.runModal()`, so Try Again
+    /// runs inside the failed attempt's task, before it returns.
+    private func assertSynchronousUnlockErrorRetryPresentsPrompt(
+        _ startAttempt: (CredentialProviderPresentingSpy.UnlockPrompt) -> Void
+    ) async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        _ = try seedResolvableDefaultDatabase()
+        coordinator.unlockWorkOverride = { throw CocoaError(.fileReadCorruptFile) }
+
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        coordinator.presentUnlockPromptIfNeeded()
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+
+        let retried = expectation(description: "Try Again chosen while the error is up")
+        presenter.onUnlockErrorPresented = {
+            presenter.onUnlockErrorPresented = nil
+            presenter.unlockPrompt = nil
+            presenter.unlockError?.onRetry()
+            retried.fulfill()
+        }
+        startAttempt(prompt)
+        await fulfillment(of: [retried], timeout: 1)
+
+        XCTAssertNotNil(presenter.unlockPrompt, "Try Again must re-present the unlock prompt")
+        XCTAssertNil(presenter.cancelledError)
     }
 
     // MARK: - Extension memory budget (issue #57)

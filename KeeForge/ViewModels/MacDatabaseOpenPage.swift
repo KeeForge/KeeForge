@@ -22,6 +22,7 @@ enum MacDatabaseOpenPage: Equatable {
     struct OpeningProgress: Equatable {
         let step: DatabaseViewModel.OpeningStep
         let syncProgress: Double?
+        let syncReachedCloud: Bool
         let status: String
         let canCancel: Bool
     }
@@ -71,6 +72,7 @@ enum MacDatabaseOpenPage: Equatable {
             opening: OpeningProgress(
                 step: session.openingStep,
                 syncProgress: session.cloudSyncProgress,
+                syncReachedCloud: session.openingSyncReachedCloud,
                 status: session.unlockStatusMessage,
                 canCancel: session.canCancelUnlockAttempt
             )
@@ -94,7 +96,8 @@ enum MacDatabaseOpenPage: Equatable {
                     step: opening.step,
                     isCloudBacked: reference.isCloudBacked,
                     provider: reference.cloudProviderKind,
-                    progress: opening.syncProgress
+                    progress: opening.syncProgress,
+                    syncReachedCloud: opening.syncReachedCloud
                 ),
                 status: opening.status,
                 canCancel: opening.canCancel

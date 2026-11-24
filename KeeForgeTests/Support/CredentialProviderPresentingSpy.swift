@@ -71,6 +71,11 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         let onAcknowledge: () -> Void
     }
 
+    struct PasskeySignInFailure {
+        let message: String
+        let onAcknowledge: () -> Void
+    }
+
     var unlockPrompt: UnlockPrompt?
     var unlockError: UnlockError?
     var readOnlyNotice: ReadOnlyNotice?
@@ -79,6 +84,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     var noEnabledDatabasesState: NoEnabledDatabasesState?
     var passkeyCreator: PasskeyCreator?
     var passkeyRegistrationFailure: PasskeyRegistrationFailure?
+    var passkeySignInFailure: PasskeySignInFailure?
 
     var completedCredential: ASPasswordCredential?
     var completedAssertion: ASPasskeyAssertionCredential?
@@ -179,6 +185,13 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         onAcknowledge: @escaping () -> Void
     ) {
         passkeyRegistrationFailure = PasskeyRegistrationFailure(message: message, onAcknowledge: onAcknowledge)
+    }
+
+    func presentPasskeySignInFailure(
+        message: String,
+        onAcknowledge: @escaping () -> Void
+    ) {
+        passkeySignInFailure = PasskeySignInFailure(message: message, onAcknowledge: onAcknowledge)
     }
 
     func presentUnlockPrompt(

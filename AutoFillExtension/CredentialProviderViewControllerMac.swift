@@ -259,6 +259,18 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onAcknowledge()
     }
 
+    func presentPasskeySignInFailure(
+        message: String,
+        onAcknowledge: @escaping () -> Void
+    ) {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Couldn't Sign In with Passkey")
+        alert.informativeText = message
+        alert.addButton(withTitle: String(localized: "OK"))
+        _ = runModalAlert(alert)
+        onAcknowledge()
+    }
+
     func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {
         let emptyStateView = AutoFillNoEnabledDatabasesView(
             onDismiss: { [weak self] in

@@ -200,6 +200,14 @@ protocol CredentialProviderPresenting: AnyObject {
         onAcknowledge: @escaping () -> Void
     )
 
+    /// Single-button notice for a passkey that cannot sign after unlock (e.g.
+    /// an unreadable private key). The coordinator cancels the request from
+    /// `onAcknowledge`: unlocking again would not change the stored key.
+    func presentPasskeySignInFailure(
+        message: String,
+        onAcknowledge: @escaping () -> Void
+    )
+
     func presentGeneratedPassword(
         _ password: String,
         onUse: @escaping () -> Void,
@@ -1234,27 +1242,23 @@ final class CredentialProviderCoordinator {
         isUnlockInProgress = true
         let generation = requestGeneration
         unlockTask = Task { [weak self] in
-            defer {
-                if self?.requestGeneration == generation {
-                    self?.isUnlockInProgress = false
-                    self?.unlockTask = nil
-                }
-            }
-            do {
-                guard let self, self.isRequestActive(generation) else { return }
-                let databaseReference = try currentDatabaseReference()
+            var failure: Error?
+            if let self, self.isRequestActive(generation) {
+                do {
+                    let databaseReference = try currentDatabaseReference()
 
-                try await runUnlockWork {
-                    try await self.unlockPasswordWork(
-                        password: password,
-                        databaseReference: databaseReference,
-                        generation: generation
-                    )
+                    try await runUnlockWork {
+                        try await self.unlockPasswordWork(
+                            password: password,
+                            databaseReference: databaseReference,
+                            generation: generation
+                        )
+                    }
+                } catch {
+                    failure = error
                 }
-            } catch {
-                guard let self, self.isRequestActive(generation) else { return }
-                self.showErrorAndRetry(error)
             }
+            self?.endUnlockAttempt(generation: generation, failure: failure)
         }
     }
 
@@ -1269,27 +1273,33 @@ final class CredentialProviderCoordinator {
         isUnlockInProgress = true
         let generation = requestGeneration
         unlockTask = Task { [weak self] in
-            defer {
-                if self?.requestGeneration == generation {
-                    self?.isUnlockInProgress = false
-                    self?.unlockTask = nil
-                }
-            }
-            do {
-                guard let self, self.isRequestActive(generation) else { return }
-                let databaseReference = try currentDatabaseReference()
+            var failure: Error?
+            if let self, self.isRequestActive(generation) {
+                do {
+                    let databaseReference = try currentDatabaseReference()
 
-                try await runUnlockWork {
-                    try await self.unlockBiometricWork(
-                        databaseReference: databaseReference,
-                        generation: generation
-                    )
+                    try await runUnlockWork {
+                        try await self.unlockBiometricWork(
+                            databaseReference: databaseReference,
+                            generation: generation
+                        )
+                    }
+                } catch {
+                    failure = error
                 }
-            } catch {
-                guard let self, self.isRequestActive(generation) else { return }
-                self.showErrorAndRetry(error)
             }
+            self?.endUnlockAttempt(generation: generation, failure: failure)
         }
+    }
+
+    /// Ends the attempt before reporting its failure: the Mac error alert is
+    /// a blocking modal, so Try Again re-prompts before this returns.
+    private func endUnlockAttempt(generation: Int, failure: Error?) {
+        guard requestGeneration == generation else { return }
+        isUnlockInProgress = false
+        unlockTask = nil
+        guard let failure, isRequestActive(generation) else { return }
+        showErrorAndRetry(failure)
     }
 
     private func unlockPasswordWork(
@@ -2907,7 +2917,7 @@ final class CredentialProviderCoordinator {
                         clientDataHash: request.clientDataHash
                     )
                 } catch {
-                    self.showErrorAndRetry(error)
+                    self.failPasskeySignIn(error)
                 }
             }
             return
@@ -2920,7 +2930,7 @@ final class CredentialProviderCoordinator {
                 clientDataHash: request.clientDataHash
             )
         } catch {
-            showErrorAndRetry(error)
+            failPasskeySignIn(error)
         }
     }
 
@@ -2932,7 +2942,18 @@ final class CredentialProviderCoordinator {
                 clientDataHash: requestParameters.clientDataHash
             )
         } catch {
-            showErrorAndRetry(error)
+            failPasskeySignIn(error)
+        }
+    }
+
+    private func failPasskeySignIn(_ error: Error) {
+        let nsError = error as NSError
+        AutoFillDiagnostics.log("passkey sign-in error \(nsError.domain)#\(nsError.code)")
+        let message = error.localizedDescription
+        presentWhenActive { [weak self] in
+            self?.presenter?.presentPasskeySignInFailure(message: message) { [weak self] in
+                self?.cancelRequest(code: .failed)
+            }
         }
     }
 

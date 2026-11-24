@@ -697,6 +697,8 @@ final class DatabaseViewModel {
     /// The open used the cached copy without checking the cloud (manual sync
     /// policy), and no Sync Now has reached the provider since.
     private(set) var isCloudRefreshPending = false
+    /// Whether the open's sync reached the provider, for the opening steps.
+    private(set) var openingSyncReachedCloud = false
     private(set) var isSyncingCloud = false
     /// A conflict reload or Sync Now is replacing the open tree. `state` reads
     /// `.unlocking` so the workspace is torn down, but the session is still
@@ -4679,6 +4681,7 @@ final class DatabaseViewModel {
 
     private func resetCloudSyncStatus() {
         isCloudRefreshPending = false
+        openingSyncReachedCloud = false
         isSyncingCloud = false
         cloudSyncOutcome = nil
         hasPendingCloudUploads = false
@@ -4785,6 +4788,7 @@ final class DatabaseViewModel {
         // key it took its snapshot from.
         state = .unlocking
         isReplacingOpenDatabase = true
+        openingSyncReachedCloud = true
         unlockStatusMessage = Self.decryptingStatusMessage
         let reloaded: ReloadedDatabase
         do {
@@ -5960,6 +5964,7 @@ final class DatabaseViewModel {
             cloudSyncBannerText = resolution.bannerMessage
             resetCloudSyncStatus()
             isCloudRefreshPending = resolution.status == .refreshSkipped
+            openingSyncReachedCloud = Self.reachedCloud(resolution.status)
             hasPendingCloudUploads = pendingUploadMarkerCheck(resolution.reference)
             unlockStatusMessage = Self.decryptingStatusMessage
             let readReference = await Task.detached { [cloudMetadataWriteIO] in

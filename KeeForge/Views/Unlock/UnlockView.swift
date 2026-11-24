@@ -695,6 +695,7 @@ struct DatabaseOpeningView: View {
     var step: DatabaseViewModel.OpeningStep = .decrypting
     var provider: CloudProviderKind? = nil
     var isCloudBacked = false
+    var syncReachedCloud = false
 
     /// Titled like the unlock page, so neither hand-over moves the name.
     var body: some View {
@@ -749,7 +750,8 @@ struct DatabaseOpeningView: View {
     }
 
     private var steps: [DatabaseOpeningSteps.Step] {
-        DatabaseOpeningSteps.make(step: step, isCloudBacked: isCloudBacked, provider: provider, progress: progress)
+        DatabaseOpeningSteps.make(step: step, isCloudBacked: isCloudBacked, provider: provider, progress: progress,
+                                  syncReachedCloud: syncReachedCloud)
     }
 }
 
@@ -763,12 +765,13 @@ extension DatabaseOpeningView {
             onCancel: onCancel,
             step: viewModel.openingStep,
             provider: viewModel.databaseReference.cloudProviderKind,
-            isCloudBacked: viewModel.databaseReference.isCloudBacked
+            isCloudBacked: viewModel.databaseReference.isCloudBacked,
+            syncReachedCloud: viewModel.openingSyncReachedCloud
         )
     }
 }
 
-/// One step of the opening screen: done, in progress, or still to come.
+/// One step of the opening screen: done, skipped, in progress, or still to come.
 private struct OpeningStepRow: View {
     let step: DatabaseOpeningSteps.Step
 
@@ -778,7 +781,7 @@ private struct OpeningStepRow: View {
                 .frame(width: 28, height: 28)
             Text(step.title)
                 .font(.body)
-                .foregroundStyle(step.state == .upcoming ? Theme.labelSecondary : Color.primary)
+                .foregroundStyle(step.state == .upcoming || step.state == .skipped ? Theme.labelSecondary : Color.primary)
             Spacer(minLength: 0)
             if let detail = step.detail {
                 Text(detail)
@@ -800,6 +803,13 @@ private struct OpeningStepRow: View {
                 .frame(width: 28, height: 28)
                 .background(Theme.State.success, in: Circle())
                 .accessibilityLabel(Text("Done"))
+        case .skipped:
+            Image(systemName: "minus")
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(Theme.labelSecondary)
+                .frame(width: 28, height: 28)
+                .background(Theme.labelSecondary.opacity(0.15), in: Circle())
+                .accessibilityLabel(Text("Not Synced"))
         case .current:
             ProgressView()
                 .controlSize(.small)

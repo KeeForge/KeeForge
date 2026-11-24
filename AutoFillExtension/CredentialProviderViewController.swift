@@ -339,6 +339,23 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         present(alert, animated: true)
     }
 
+    func presentPasskeySignInFailure(
+        message: String,
+        onAcknowledge: @escaping () -> Void
+    ) {
+        let alert = UIAlertController(
+            title: String(localized: "Couldn't Sign In with Passkey"),
+            message: message,
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in
+            onAcknowledge()
+        })
+
+        present(alert, animated: true)
+    }
+
     func presentGeneratedPassword(
         _ password: String,
         onUse: @escaping () -> Void,

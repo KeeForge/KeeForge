@@ -1865,6 +1865,7 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
             }
         )
         await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.openingSyncReachedCloud)
         let titlesBefore = entryTitles(in: vm)
         vm.workspace.selectedEntryID = vm.rootGroup?.allEntries.first?.id
         let newerTitles = try Self.entryTitles(in: newerData, password: fixturePassword)
@@ -1900,6 +1901,38 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertNotEqual(entryTitles(in: vm), titlesBefore)
         XCTAssertNil(vm.workspace.selectedEntryID, "Selection must not point into the replaced tree")
         XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertTrue(vm.openingSyncReachedCloud, "The replacement came from the provider")
+    }
+
+    /// The opening steps tick the sync only when the open reached the
+    /// provider; a cached open (sync on open off, offline, signed out) is not a sync.
+    func testTheOpeningStepsTickTheSyncOnlyWhenTheOpenReachedTheProvider() async throws {
+        let openedData = try fixtureData()
+        let statuses: [(CloudSyncResolution.Status, Bool)] = [
+            (.current, true),
+            (.downloaded, true),
+            (.refreshSkipped, false),
+            (.offlineCached, false),
+            (.disconnectedCached, false),
+            (.cachedWithError("Server error"), false),
+        ]
+        for (status, reachedCloud) in statuses {
+            let vm = DatabaseViewModel(
+                databaseReference: try makeStoredManualReference(provider: .webDAV),
+                cloudSyncOperation: { reference, _ in
+                    Self.resolution(reference, data: openedData, status: status)
+                }
+            )
+            await vm.unlock(password: fixturePassword)
+
+            XCTAssertEqual(vm.state, .unlocked, "\(status)")
+            XCTAssertEqual(vm.openingSyncReachedCloud, reachedCloud, "\(status)")
+            let steps = DatabaseOpeningSteps.make(step: .decrypting, isCloudBacked: true, provider: .webDAV,
+                                                  progress: nil, syncReachedCloud: vm.openingSyncReachedCloud)
+            XCTAssertEqual(steps.first?.state, reachedCloud ? .done : .skipped, "\(status)")
+            vm.lock()
+            XCTAssertFalse(vm.openingSyncReachedCloud, "Locking ends the open it described: \(status)")
+        }
     }
 
     func testSyncNowOfflineKeepsTheOpenCopyAndTheSkippedRefreshFlag() async throws {

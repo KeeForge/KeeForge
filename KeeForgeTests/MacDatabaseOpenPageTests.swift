@@ -168,7 +168,7 @@ final class MacDatabaseOpenPageTests: XCTestCase {
     // MARK: - Opening
 
     func testLocalOpeningListsDecryptThenOpen() {
-        let progress = Page.OpeningProgress(step: .decrypting, syncProgress: nil,
+        let progress = Page.OpeningProgress(step: .decrypting, syncProgress: nil, syncReachedCloud: true,
             status: "Decrypting your database securely...", canCancel: true)
 
         XCTAssertEqual(make(.unlocking, reference: local, opening: progress), .opening(Page.Opening(
@@ -182,24 +182,32 @@ final class MacDatabaseOpenPageTests: XCTestCase {
     }
 
     func testCloudOpeningSyncsFirstAndCarriesWhetherItCanBeCancelled() {
-        let syncing = Page.OpeningProgress(step: .syncing, syncProgress: 0.4, status: "Syncing with WebDAV...",
-            canCancel: false)
+        let syncing = Page.OpeningProgress(step: .syncing, syncProgress: 0.4, syncReachedCloud: false,
+            status: "Syncing with WebDAV...", canCancel: false)
 
         guard case .opening(let opening)? = make(.unlocking, reference: webDAV, opening: syncing) else {
             return XCTFail("An open in progress shows the opening page")
         }
         XCTAssertEqual(opening.steps, DatabaseOpeningSteps.make(step: .syncing, isCloudBacked: true, provider: .webDAV,
-            progress: 0.4))
+            progress: 0.4, syncReachedCloud: false))
         XCTAssertEqual(opening.steps.map(\.state), [.current, .upcoming, .upcoming])
         XCTAssertEqual(opening.status, "Syncing with WebDAV...")
         XCTAssertFalse(opening.canCancel)
 
-        let decrypting = Page.OpeningProgress(step: .decrypting, syncProgress: nil, status: "", canCancel: true)
+        let decrypting = Page.OpeningProgress(step: .decrypting, syncProgress: nil, syncReachedCloud: true,
+            status: "", canCancel: true)
         guard case .opening(let later)? = make(.unlocking, reference: webDAV, opening: decrypting) else {
             return XCTFail("An open in progress shows the opening page")
         }
         XCTAssertEqual(later.steps.map(\.state), [.done, .current, .upcoming])
         XCTAssertTrue(later.canCancel)
+
+        let cached = Page.OpeningProgress(step: .decrypting, syncProgress: nil, syncReachedCloud: false,
+            status: "", canCancel: true)
+        guard case .opening(let fromCache)? = make(.unlocking, reference: webDAV, opening: cached) else {
+            return XCTFail("An open in progress shows the opening page")
+        }
+        XCTAssertEqual(fromCache.steps.map(\.state), [.skipped, .current, .upcoming])
     }
 
     // MARK: - Helpers
@@ -210,8 +218,8 @@ final class MacDatabaseOpenPageTests: XCTestCase {
         hasSavedFile: Bool = true,
         canRelink: Bool = false,
         lastLockCause: DatabaseViewModel.LockCause? = nil,
-        opening: Page.OpeningProgress = Page.OpeningProgress(step: .decrypting, syncProgress: nil, status: "",
-            canCancel: false)
+        opening: Page.OpeningProgress = Page.OpeningProgress(step: .decrypting, syncProgress: nil,
+            syncReachedCloud: true, status: "", canCancel: false)
     ) -> Page? {
         Page.make(state: state, reference: reference, hasSavedFile: hasSavedFile, canRelink: canRelink,
             lastLockCause: lastLockCause, opening: opening)

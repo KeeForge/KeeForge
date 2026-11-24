@@ -79,6 +79,13 @@ private struct MacOpeningStepRow: View {
                 .frame(width: 18, height: 18)
                 .background(Color.green, in: Circle())
                 .accessibilityLabel(Text("Done"))
+        case .skipped:
+            Image(systemName: "minus")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 18, height: 18)
+                .background(Color(nsColor: .quaternaryLabelColor), in: Circle())
+                .accessibilityLabel(Text("Not Synced"))
         case .current:
             ProgressView()
                 .controlSize(.small)
