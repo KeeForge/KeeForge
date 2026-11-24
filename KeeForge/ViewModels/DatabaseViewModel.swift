@@ -4877,6 +4877,17 @@ final class DatabaseViewModel {
         }
     }
 
+    /// Sync Now's result in words. A cloud copy with nothing newer is not
+    /// "up to date" while this device still holds changes it lacks.
+    var cloudSyncOutcomeMessage: String? {
+        guard let cloudSyncOutcome else { return nil }
+        if cloudSyncOutcome == .upToDate, hasPendingCloudUploads {
+            let providerName = databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")
+            return String(localized: "No newer copy on \(providerName).")
+        }
+        return cloudSyncOutcome.message
+    }
+
     func dismissCloudSyncOutcome() {
         cloudSyncOutcome = nil
     }

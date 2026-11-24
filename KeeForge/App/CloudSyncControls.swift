@@ -36,8 +36,8 @@ struct CloudSyncControls: View {
         if viewModel.isSyncingCloud {
             return String(localized: "Checking \(providerName) for changes…")
         }
-        if let outcome = viewModel.cloudSyncOutcome {
-            return outcome.message
+        if let message = viewModel.cloudSyncOutcomeMessage {
+            return message
         }
         if let bannerText = viewModel.cloudSyncBannerText {
             return bannerText

@@ -2770,6 +2770,33 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         }
     }
 
+    func testNothingNewerWhileChangesWaitIsNotCalledUpToDate() async throws {
+        let openedData = try fixtureData()
+        let pending = PendingFlag(true)
+        let vm = makeViewModel(
+            reference: try makeStoredManualReference(),
+            openedData: openedData,
+            cloudRefreshOperation: { reference, _ in
+                Self.resolution(reference, data: openedData, status: .current)
+            },
+            pendingUploadMarkerCheck: { _ in pending.value }
+        )
+        await vm.unlock(password: fixturePassword)
+
+        await vm.syncCloudNow()
+
+        XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
+        let headline = String(localized: "No newer copy on \(CloudProviderKind.dropbox.displayName).")
+        XCTAssertEqual(vm.cloudSyncOutcomeMessage, headline)
+        XCTAssertEqual(CloudSyncControls.title(for: vm), headline)
+        XCTAssertTrue(CloudSyncControls.showsPendingUploadDetail(for: vm))
+
+        pending.value = false
+        await vm.syncCloudNow()
+        XCTAssertEqual(vm.cloudSyncOutcomeMessage, DatabaseViewModel.CloudSyncOutcome.upToDate.message)
+        XCTAssertFalse(CloudSyncControls.showsWarning(for: vm))
+    }
+
     func testSettingThePolicyFromTheSessionPersistsIt() async throws {
         let reference = try makeStoredManualReference()
         let vm = makeViewModel(reference: reference, openedData: try fixtureData())
