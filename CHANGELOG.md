@@ -20,6 +20,7 @@
 - Refusing to remove a database with pending AutoFill changes no longer permanently blocks its recovery.
 - Local saves now report a completed change with a warning when final durability cannot be confirmed, keep the correct master key, and preserve pending AutoFill snapshots for explicit recovery instead of repeating an uncertain save.
 - On iPhone, and on iPad in a narrow window, a database that locks by itself, after the Auto-Lock timeout or when you leave the app, now stays on its unlock page instead of going back to the database list, so Auto-Unlock with Face ID or Touch ID opens it again right away (#312). Locking with the Lock button still returns to the list.
+- While a cloud database opens, the Sync step is checked only when KeeForge actually reached the cloud provider. With Sync When Opening off, or offline or signed out, it now shows as not synced instead of done (#322).
 - On iPhone and iPad, a database in KeeForge's own folder in the Files app (On My iPhone or On My iPad ▸ KeeForge) that you remove from the list stays removed. Before, it came back the next time KeeForge opened. The file itself stays in the folder. It is listed again if you copy a changed version there or import it again.
 
 ## v1.23.0 (2026-11-22)

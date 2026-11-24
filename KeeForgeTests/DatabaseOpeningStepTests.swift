@@ -45,7 +45,8 @@ final class DatabaseOpeningStepTests: XCTestCase {
     }
 
     func testLocalStepsStartAtDecrypting() {
-        let steps = DatabaseOpeningSteps.make(step: .decrypting, isCloudBacked: false, provider: nil, progress: nil)
+        let steps = DatabaseOpeningSteps.make(step: .decrypting, isCloudBacked: false, provider: nil, progress: nil,
+                                              syncReachedCloud: false)
 
         XCTAssertEqual(steps, [
             .init(title: String(localized: "Decrypt Database"), state: .current, detail: nil),
@@ -54,7 +55,8 @@ final class DatabaseOpeningStepTests: XCTestCase {
     }
 
     func testCloudStepsShowTheSyncProgressWhileSyncing() {
-        let steps = DatabaseOpeningSteps.make(step: .syncing, isCloudBacked: true, provider: .dropbox, progress: 0.5)
+        let steps = DatabaseOpeningSteps.make(step: .syncing, isCloudBacked: true, provider: .dropbox, progress: 0.5,
+                                              syncReachedCloud: false)
 
         XCTAssertEqual(steps.map(\.state), [.current, .upcoming, .upcoming])
         XCTAssertEqual(steps.first?.title, String(localized: "Sync with \(CloudProviderKind.dropbox.displayName)"))
@@ -62,10 +64,21 @@ final class DatabaseOpeningStepTests: XCTestCase {
     }
 
     func testCloudStepsMarkTheSyncDoneOnceDecrypting() {
-        let steps = DatabaseOpeningSteps.make(step: .decrypting, isCloudBacked: true, provider: nil, progress: 0.5)
+        let steps = DatabaseOpeningSteps.make(step: .decrypting, isCloudBacked: true, provider: nil, progress: 0.5,
+                                              syncReachedCloud: true)
 
         XCTAssertEqual(steps.map(\.state), [.done, .current, .upcoming])
         XCTAssertEqual(steps.first?.title, String(localized: "Sync with \(String(localized: "cloud"))"))
+        XCTAssertNil(steps.first?.detail)
+    }
+
+    /// Sync on open off, offline or signed out: the open used the cached copy.
+    func testCloudStepsMarkTheSyncSkippedWhenTheOpenDidNotReachTheProvider() {
+        let steps = DatabaseOpeningSteps.make(step: .decrypting, isCloudBacked: true, provider: .webDAV, progress: nil,
+                                              syncReachedCloud: false)
+
+        XCTAssertEqual(steps.map(\.state), [.skipped, .current, .upcoming])
+        XCTAssertEqual(steps.first?.title, String(localized: "Sync with \(CloudProviderKind.webDAV.displayName)"))
         XCTAssertNil(steps.first?.detail)
     }
 }

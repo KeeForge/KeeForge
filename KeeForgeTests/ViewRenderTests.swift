@@ -86,6 +86,23 @@ final class ViewRenderTests: XCTestCase {
         try render(cards, named: "unlock-failure-cards")
     }
 
+    // MARK: Opening
+
+    func testDatabaseOpeningSteps() throws {
+        func opening(_ step: DatabaseViewModel.OpeningStep, progress: Double? = nil, reachedCloud: Bool = false) -> AnyView {
+            AnyView(NavigationStack {
+                DatabaseOpeningView(databaseName: "Personal", filename: "Personal.kdbx",
+                                    statusMessage: DatabaseViewModel.decryptingStatusMessage, progress: progress,
+                                    step: step, provider: .webDAV, isCloudBacked: true, syncReachedCloud: reachedCloud)
+            })
+        }
+        try renderScreens([
+            ("Syncing", opening(.syncing, progress: 0.4)),
+            ("Synced, decrypting", opening(.decrypting, reachedCloud: true)),
+            ("Sync skipped, decrypting", opening(.decrypting)),
+        ], named: "database-opening")
+    }
+
     // MARK: Sheets
 
     func testNewDatabaseSheet() throws {
