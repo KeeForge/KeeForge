@@ -368,8 +368,8 @@ final class DatabaseWindowController: NSWindowController, NSMenuItemValidation {
             item.state = isCommandTarget() && item.representedObject as? String == session.sortOrder.rawValue ? .on : .off
             return workspaceCommands.canSort
         case #selector(chooseSortDirection):
-            item.state = isCommandTarget() && item.representedObject as? Bool == session.sortAscending ? .on : .off
-            return workspaceCommands.canSort
+            item.state = workspaceCommands.canChooseSortDirection && item.representedObject as? Bool == session.sortAscending ? .on : .off
+            return workspaceCommands.canChooseSortDirection
         case #selector(expandAllGroups): return workspaceCommands.canExpandAllGroups
         case #selector(collapseAllGroups): return workspaceCommands.canCollapseAllGroups
         case #selector(syncNow): return workspaceCommands.canSyncNow

@@ -92,7 +92,7 @@ Name the owner before changing a workflow. Views render, collect input, and forw
 - `autoFillExcludedGroupIDs` resolves `<EnableSearching>` in the same inheritance order as `KPGroup.autoFillEntries`. Change both together or search and AutoFill disagree.
 - Entries under an excluded group leave the search corpus but stay in the tag index and browsing lists.
 - Re-including a group writes an explicit `True`, never `inherit`, or a group inside a hidden parent cannot be turned back on. An untouched `GroupEditViewModel` switch replays the stored value, because the payload is absolute.
-- `effectiveTags(for:inheritedGroupTags:)` feeds both the tag index and the searchable text; `sortedGroups(_:)` orders every folder list (recycle bin pinned last). Do not add a second path for either.
+- `effectiveTags(for:inheritedGroupTags:)` feeds both the tag index and the searchable text; `sortedGroups(_:)` orders every folder list (recycle bin pinned last). Do not add a second path for either. `SortOrder.databaseOrder` keeps KDBX file order, so callers must pass children in model order; it ignores the sort direction.
 - Menu commands that need workspace presentation only raise a `workspace` request counter. `canEditSelectedEntry` and `deletableSelection` decide both enablement and action so they cannot drift, and Delete stops at the request so the confirmation cannot be bypassed.
 
 ### Stale completions and forms

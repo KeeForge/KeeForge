@@ -44,6 +44,7 @@ Apple renames some of these, and KeeForge follows Apple:
 | cloud recovery | Cloud-Wiederherstellung | récupération cloud | recuperación en la nube | recupero cloud | восстановление облака | クラウドの復旧 | 云端恢复 | 雲端復原 |
 | snapshot | Momentaufnahme | instantané | instantánea | istantanea | снимок | スナップショット | 快照 | 快照 |
 | database file | Datenbankdatei | fichier de base de données | archivo de la base de datos | file del database | файл базы данных | データベースファイル | 数据库文件 | 資料庫檔案 |
+| Database Order (sort choice: the order stored in the file) | Datenbankreihenfolge | Ordre de la base de données | Orden de la base de datos | Ordine del database | Порядок в базе данных | データベースの順序 | 数据库顺序 | 資料庫順序 |
 | entry | Eintrag | entrée | entrada | voce | запись | エントリ | 条目 | 項目 |
 | group | Gruppe | groupe | grupo | gruppo | группа | グループ | 群组 | 群組 |
 | subgroup | Untergruppe | sous-groupe | subgrupo | sottogruppo | подгруппа | サブグループ | 子群组 | 子群組 |

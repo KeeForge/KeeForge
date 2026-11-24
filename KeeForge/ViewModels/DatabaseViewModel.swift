@@ -429,6 +429,8 @@ final class DatabaseViewModel {
         case title = "Title"
         case createdDate = "Date Created"
         case modifiedDate = "Date Modified"
+        /// The order the KDBX file stores, as KeePass 2's "No Sort".
+        case databaseOrder = "Database Order"
 
         /// Localized display text. `rawValue` is persisted in `UserDefaults`
         /// and must stay stable (English) across locales.
@@ -440,8 +442,12 @@ final class DatabaseViewModel {
                 String(localized: "Date Created")
             case .modifiedDate:
                 String(localized: "Date Modified")
+            case .databaseOrder:
+                String(localized: "Database Order")
             }
         }
+
+        var usesDirection: Bool { self != .databaseOrder }
     }
 
     typealias CloudSyncOperation = @Sendable (
@@ -5076,6 +5082,8 @@ final class DatabaseViewModel {
                 let second = $1.lastModificationTime ?? .distantPast
                 return asc ? first < second : first > second
             }
+        case .databaseOrder:
+            ordered = groups
         }
         return Self.pinningRecycleBinLast(ordered, recycleBinID: currentRootGroup?.recycleBinUUID)
     }
@@ -5117,6 +5125,8 @@ final class DatabaseViewModel {
                 let second = $1.lastModificationTime ?? .distantPast
                 return asc ? first < second : first > second
             }
+        case .databaseOrder:
+            return entries
         }
     }
 

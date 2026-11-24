@@ -120,6 +120,41 @@ final class SortOrderTests: XCTestCase {
         XCTAssertEqual(sorted.map(\.title), ["NoDate", "HasDate"])
     }
 
+    func testDatabaseOrderKeepsTheGivenOrderInEitherDirection() {
+        viewModel.sortOrder = .databaseOrder
+        let entries = [
+            KPEntry(title: "Zebra", creationTime: Date(timeIntervalSince1970: 1_000)),
+            KPEntry(title: "Apple", creationTime: Date(timeIntervalSince1970: 3_000)),
+            KPEntry(title: "Mango", creationTime: Date(timeIntervalSince1970: 2_000)),
+        ]
+        let groups = entries.map { KPGroup(name: $0.title, creationTime: $0.creationTime) }
+
+        for ascending in [true, false] {
+            viewModel.sortAscending = ascending
+            XCTAssertEqual(viewModel.sortedEntries(entries).map(\.id), entries.map(\.id), "ascending=\(ascending)")
+            XCTAssertEqual(viewModel.sortedGroups(groups).map(\.id), groups.map(\.id), "ascending=\(ascending)")
+        }
+    }
+
+    func testOnlyDatabaseOrderIgnoresTheDirection() {
+        XCTAssertEqual(DatabaseViewModel.SortOrder.allCases.filter { !$0.usesDirection }, [.databaseOrder])
+    }
+
+    func testDatabaseOrderListsAnOpenDatabaseInFileOrder() async throws {
+        let vm = try await makeKitchenSinkViewModel()
+        vm.sortOrder = .databaseOrder
+        let root = try XCTUnwrap(vm.visibleRootGroup)
+        let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
+        let tagged = try XCTUnwrap(root.groups.first { $0.name == "Tagged" })
+
+        XCTAssertEqual(vm.sortedGroups(root.groups).map(\.name), [
+            "Tagged", "Archive", "Secrets", "Icons", "Projects", "Empty Tags Group",
+            "Plain Group", "Attachments", "Round Trip", "Recycle Bin",
+        ])
+        XCTAssertEqual(vm.sortedGroups(root.groups).last?.id, recycleBinID)
+        XCTAssertEqual(vm.sortedEntries(tagged.entries).map(\.title), ["Router Admin", "Mail Account", "Untagged Entry"])
+    }
+
     // MARK: - Group Sorting
 
     func testSortGroupsByTitle() {
@@ -210,7 +245,7 @@ final class SortOrderTests: XCTestCase {
         let groups = try XCTUnwrap(vm.visibleRootGroup?.groups)
         XCTAssertTrue(groups.contains { $0.id == recycleBinID })
 
-        for order in [DatabaseViewModel.SortOrder.title, .createdDate, .modifiedDate] {
+        for order in DatabaseViewModel.SortOrder.allCases {
             for ascending in [true, false] {
                 vm.sortOrder = order
                 vm.sortAscending = ascending
@@ -264,6 +299,11 @@ final class SortOrderTests: XCTestCase {
 
         let vm2 = try! DatabaseViewModel(databaseReference: TestDatabaseSupport.makeReference(for: fixtureURL()))
         XCTAssertEqual(vm2.sortOrder, .modifiedDate)
+
+        vm2.sortOrder = .databaseOrder
+        XCTAssertEqual(UserDefaults.standard.string(forKey: key), "Database Order")
+        let vm3 = try! DatabaseViewModel(databaseReference: TestDatabaseSupport.makeReference(for: fixtureURL()))
+        XCTAssertEqual(vm3.sortOrder, .databaseOrder)
 
         // Clean up
         UserDefaults.standard.removeObject(forKey: key)

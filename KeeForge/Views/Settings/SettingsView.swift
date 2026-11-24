@@ -449,10 +449,10 @@ private struct DisplaySettingsView: View {
     var body: some View {
         Form {
             themeSection
+            sortSection
             privacySection
             displaySection
             whatsNewSection
-            sortSection
 
             if showWebsiteIcons {
                 Section {
@@ -529,7 +529,7 @@ private struct DisplaySettingsView: View {
     }
 
     private var sortSection: some View {
-        Section("Entry List") {
+        Section {
             Picker("Default Sort Order", selection: $sortOrder) {
                 ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
                     Text(order.title).tag(order)
@@ -539,6 +539,13 @@ private struct DisplaySettingsView: View {
             Picker("Sort Direction", selection: $sortAscending) {
                 Text("Ascending").tag(true)
                 Text("Descending").tag(false)
+            }
+            .disabled(!sortOrder.usesDirection)
+        } header: {
+            Text("Entry List")
+        } footer: {
+            if sortOrder == .databaseOrder {
+                Text("Shows items in the order they’re stored in the database, as in other KeePass apps.")
             }
         }
     }

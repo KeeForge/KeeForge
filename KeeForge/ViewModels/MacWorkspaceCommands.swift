@@ -110,13 +110,17 @@ struct MacWorkspaceCommands {
         return MacEntryListSnapshot.listIsEmpty(session: session) == false
     }
 
+    var canChooseSortDirection: Bool {
+        canSort && unlocked?.sortOrder.usesDirection == true
+    }
+
     func setSortOrder(_ order: DatabaseViewModel.SortOrder) {
         guard canSort, let session else { return }
         session.sortOrder = order
     }
 
     func setSortAscending(_ ascending: Bool) {
-        guard canSort, let session else { return }
+        guard canChooseSortDirection, let session else { return }
         session.sortAscending = ascending
     }
 
