@@ -26,6 +26,8 @@ function fillDocument(expectedOrigin, credential, codeOnly = false, expectedToke
     for (let node = input; node; node = parent(node)) {
       const style = getComputedStyle(node);
       if (prop(node, 'hidden') || prop(node, 'inert') || (prop(node, 'localName') === 'details' && !node.open) || style.display === 'none' || ['hidden', 'collapse'].includes(style.visibility) || style.contentVisibility === 'hidden' || Number(style.opacity) === 0) return false;
+      // display: contents generates no box: it has no size and neither clips nor paints its descendants.
+      if (style.display === 'contents') continue;
       // Reject even partial clips/masks rather than guessing at their painted geometry.
       if ([style.clipPath, style.clip, style.maskImage, style.webkitMaskImage].some(value => value && !['none', 'auto'].includes(value))) return false;
       if (node !== input && !scrollsViewport(node)) {
