@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+> **Release notice (remove before release):** Google Drive on iPhone and iPad (#329) is merged behind `GOOGLE_DRIVE_ENABLED`, which is off by default. Before enabling it, find out why Drive's revision-history request returns HTTP 500 for files uploaded outside KeeForge (KeeForge refuses those files when you choose them), and reword the missing-history message so a temporary Drive outage doesn't read as permanent. Production OAuth is tracked in #330. When Drive is enabled, add its entry under New Features.
+
 ### New Features
 
 - On Mac, fill logins in your web browser with the KeeForge browser extension (#299). Turn on Settings → Browsers → "Allow browser extensions to fill from KeeForge", set up each browser there, then install the extension and pair it by checking that the code in the browser matches the one KeeForge shows. Click the key button the extension puts in a login or verification-code field (or press Option-Down there), or the extension's toolbar button, to see the logins that match the site you're on; choosing one fills it after Touch ID or your Mac password, in a prompt that names the login and the site (no prompt inside your authentication grace period). To show the key button, the extension asks to read and change pages on all secure (`https`) websites. Settings → Browsers lists paired browsers and removes them. The bridge is off until you turn it on.
