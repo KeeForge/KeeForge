@@ -36,6 +36,27 @@ final class MacConnectServerModel {
         }
     }
 
+    /// The type picker's segments. Nextcloud is the WebDAV form set up for a Nextcloud server.
+    enum ServerChoice: Hashable, CaseIterable, Identifiable {
+        case webDAV, nextcloud, ftp
+        var id: Self { self }
+        var displayName: String {
+            switch self {
+            case .webDAV: CloudProviderKind.webDAV.displayName
+            case .nextcloud: "Nextcloud"
+            case .ftp: CloudProviderKind.ftp.displayName
+            }
+        }
+    }
+
+    var serverChoice: ServerChoice {
+        get { serverType == .ftp ? .ftp : (webDAV.isNextcloud ? .nextcloud : .webDAV) }
+        set {
+            serverType = newValue == .ftp ? .ftp : .webDAV
+            if newValue != .ftp { webDAV.isNextcloud = newValue == .nextcloud }
+        }
+    }
+
     var isConnecting: Bool { webDAV.isConnecting || ftp.isConnecting }
     var showsFTPWarnings: Bool { ftp.allowsUnencryptedFTP }
     var errorMessage: String? { serverType == .webDAV ? webDAV.errorMessage : ftp.errorMessage }
