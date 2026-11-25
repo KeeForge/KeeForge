@@ -38,9 +38,11 @@
 
 ### Hardware key and passkeys
 
-- `HardwareKeyService` works only in the iOS app: YubiKit is linked into `KeeForge` alone, the file is not on the AutoFill allow-lists, and elsewhere a request throws `unavailable`.
-- NFC is the only transport. YubiKit requires the accessory delegate callbacks, which do nothing here; do not wire them to challenge-response or restore the accessory protocol declaration.
-- A cancelled request never returns a response: cancellation stops NFC and the request re-checks cancellation after resuming.
+- `HardwareKeyService` answers over NFC in the iOS app (YubiKit is linked into `KeeForge` alone) and over USB in the Mac app and Mac AutoFill. The iOS AutoFill extension does not compile it. A configuration whose transport the process lacks throws `unavailable` before any I/O.
+- iOS has NFC only. YubiKit requires the accessory delegate callbacks, which do nothing here; do not wire them to challenge-response or restore the accessory protocol declaration.
+- The Mac transport is `YubiKeyOTPHID` (Yubico's `ykcore` frame protocol over 8-byte feature reports) on `MacYubiKeyHIDDevice` (IOKit HID, the first Yubico device whose primary usage is a keyboard). It needs `com.apple.security.device.usb` in the app, direct-build and Mac AutoFill entitlements. A denied open (Input Monitoring) maps to `permissionDenied` after asking once; no key is `notConnected`.
+- `MacYubiKeyConnection` runs one blocking exchange at a time on its own queue, never on a Swift concurrency thread, since a touch can take as long as the key waits. A second request while one runs fails instead of queueing. `slotStatuses()` reads the key's status report on the same queue: it sends no command, so the key does not flash, and it cannot tell challenge-response from another slot configuration.
+- A cancelled request never returns a response: cancellation stops NFC or abandons the HID command on the key (the `0x8F` reset), and the request re-checks cancellation after resuming.
 - NFC needs the `com.apple.developer.nfc.readersession.formats` entitlement (`KeeForge.entitlements`) plus the YubiKey OTP AIDs and `NFCReaderUsageDescription` in `../../Info.plist`.
 - `PasskeyCrypto.aaguid` (`FF55D8C0-F4FB-4016-9FDD-56DBBD251802`) identifies KeeForge to relying parties and never changes. Registration is ES256 only, with "none" attestation.
 
@@ -57,7 +59,13 @@
 ## Tests
 
 - `KeychainServiceTests` (express item lifetime and protection too), `KeychainMigrationTests`, `QuickUnlockPasswordIntervalTests`; `DatabaseViewModelExpressUnlockTests` for what an app unlock or save reads and stores, `CredentialProviderCoordinatorTests` for AutoFill's; `SecretAccessGateTests` with `EntrySecretActionTests` for the gate's callers.
-- `HardwareKeyUnlockTests` covers the unlock flow around `HardwareKeyService`; the NFC session itself has no unit coverage.
+- YubiKey coverage is layered so that only the radio and the USB device itself need a physical key. Each layer has its own seam; add a case at the lowest layer that can see the bug:
+  - Key math: `ChallengeResponseKeyTests` pins KeePassXC's KDBX 4 and 3.1 derivations against pykeepass-built fixtures and an independent re-keying of `legacy-kdbx31` (`KDBX31ChallengeResponseFixture`).
+  - Writes KeePassXC must open: the KDBX compatibility gate (`KDBXCompatibilityTests` `rekey-add-yubikey`, `rekey-yubikey-alone`, checked by `keepassxc-cli` on the Studio). KeePassXC treats `SHA256(response)` like a raw 32-byte key file, so the gate opens YubiKey files with that hash as the key file and needs no hardware.
+  - Salt pinning and the session flows (unlock, save, Sync Now, rekey, creation, lock and cancellation): `HardwareKeyUnlockTests` through `DatabaseViewModel` with `YubiKeyEmulator`; AutoFill in `CredentialProviderCoordinatorTests`.
+  - The HID protocol and `MacYubiKeyConnection`'s queue, one-at-a-time rule and cancellation: `YubiKeyOTPHIDTests` against `EmulatedOTPKey`, which checks every report as the firmware does.
+  - The screens: `HardwareKeyUITests` (iOS, run on every `rc/*` tag) drives the real unlock page with the app's DEBUG-only emulated key (`-ui-testing` plus `UI_TEST_YUBIKEY_SECRET`, compiled out of release builds).
+  - By hand, once per release that touches this area: `docs/checklists/2026-11-22-yubikey-hardware-checklist.md`, limited to what no seam reaches (Core NFC, IOKit and Input Monitoring, a real touch).
 - `PasskeyCryptoTests` (in `PasskeyTests.swift`) and `CredentialProviderRegistrationTests` for `PasskeyCrypto`.
 - `ScreenProtectionServiceTests` covers the iOS shield across capture changes, activation, launch, and the capture reports iOS sends around Face ID, Control Center, and notifications.
 - The Mac policy functions and the cover window's configuration (`makeCoverWindow(over:blockCapture:)`) are unit-tested in `SettingsServiceTests`; how the cover looks is checked by hand (`../../../KeeForgeMac/SECURITY.md`).

@@ -121,17 +121,26 @@ struct EncryptionSettingsChange: Sendable {
     var cipherID: Data?
     var kdfParameters: KDBXVariantMap?
     var compressionFlags: UInt32?
+    /// The salt a YubiKey just answered, which a master-key change writes.
+    var kdfSalt: Data?
 
     func applied(to header: KDBXContainer.Header) -> KDBXContainer.Header {
         var header = header
         if let cipherID {
             header.cipherID = cipherID
         }
-        if let kdfParameters {
+        if var kdfParameters {
+            // The writer rotates the salt anyway, unless a YubiKey key pins it.
+            if let salt = header.kdfParameters.bytes("S") {
+                kdfParameters["S"] = .bytes(salt)
+            }
             header.kdfParameters = kdfParameters
         }
         if let compressionFlags {
             header.compressionFlags = compressionFlags
+        }
+        if let kdfSalt {
+            header.kdfParameters["S"] = .bytes(kdfSalt)
         }
         return header
     }

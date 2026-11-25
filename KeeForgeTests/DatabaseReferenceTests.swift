@@ -117,6 +117,20 @@ final class DatabaseReferenceTests: XCTestCase {
         XCTAssertFalse(reencoded.contains("lightning"))
     }
 
+    func testUSBHardwareKeyRoundTrips() throws {
+        var reference = DatabaseReference(
+            id: UUID(), nickname: nil, filename: "synthetic.kdbx", bookmarkData: nil,
+            keyFileBookmarkData: nil, keyFileFilename: nil, isQuickLaunch: false,
+            lastOpenedAt: nil, addedAt: Date(timeIntervalSince1970: 10), colorTag: nil,
+            legacyKeychainFilename: nil
+        )
+        reference.hardwareKey = HardwareKeyConfiguration(transport: .usb, slot: .one)
+        let encoded = try JSONEncoder().encode(reference)
+
+        XCTAssertTrue(String(decoding: encoded, as: UTF8.self).contains("\"usb\""))
+        XCTAssertEqual(try JSONDecoder().decode(DatabaseReference.self, from: encoded), reference)
+    }
+
     func testEncodeAlwaysEmitsAutoFillEnabledKey() throws {
         let reference = DatabaseReference(
             id: UUID(),

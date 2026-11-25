@@ -60,7 +60,7 @@ final class DatabaseViewModelTests: XCTestCase {
             currentKeyFileBookmarkData: vm.databaseReference.keyFileBookmarkData,
             sessionKeyFileData: vm.sessionKeyFileData,
             loadCurrentKeyFile: { nil },
-            changeOperation: { password, data, bookmark, filename in
+            changeOperation: { password, data, bookmark, filename, _ in
                 try await vm.changeMasterKey(newPassword: password, newKeyFileData: data,
                     newKeyFileBookmarkData: bookmark, newKeyFileFilename: filename)
             }
@@ -8249,7 +8249,7 @@ final class DatabaseViewModelTests: XCTestCase {
             let form = MasterKeyChangeViewModel(currentKeyFileFilename: vm.databaseReference.keyFileFilename,
                 currentKeyFileBookmarkData: vm.databaseReference.keyFileBookmarkData, sessionKeyFileData: vm.sessionKeyFileData,
                 loadCurrentKeyFile: { XCTFail("There is no remaining key-file factor"); return nil },
-                changeOperation: { password, data, bookmark, filename in
+                changeOperation: { password, data, bookmark, filename, _ in
                     try await vm.changeMasterKey(newPassword: password, newKeyFileData: data,
                         newKeyFileBookmarkData: bookmark, newKeyFileFilename: filename)
                 })

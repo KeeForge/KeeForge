@@ -13,7 +13,7 @@ final class MacMasterKeySheetTests: XCTestCase {
     func testCommittedWarningEndsWithAcknowledgementWithoutAnotherWrite() async {
         var writes = 0
         let model = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
-            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _ in
+            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _, _ in
                 writes += 1
                 throw SaveDurabilityWarning()
             })
@@ -93,7 +93,7 @@ final class MacMasterKeySheetTests: XCTestCase {
     func testSaveIsDimmedUntilTheFormRequestsAChange() async {
         let log = EventLog()
         let model = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
-            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _ in log.events.append("change") })
+            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _, _ in log.events.append("change") })
         let sheet = MacMasterKeySheet(name: "Personal", databaseFilename: "Personal.kdbx", model: model) { _ in
             log.events.append("perform"); return false
         }
@@ -145,7 +145,7 @@ final class MacMasterKeySheetTests: XCTestCase {
     func testRemoveMasterPasswordIsTheOnlyWaySaveTurnsOnWithEmptyFields() async {
         let log = EventLog()
         let model = MasterKeyChangeViewModel(currentKeyFileFilename: "current.keyx", currentKeyFileBookmarkData: Data("bookmark".utf8),
-            loadCurrentKeyFile: { (Data("key".utf8), "current.keyx") }, changeOperation: { password, _, _, _ in
+            loadCurrentKeyFile: { (Data("key".utf8), "current.keyx") }, changeOperation: { password, _, _, _, _ in
                 XCTAssertNil(password)
                 log.events.append("change")
             })
@@ -171,7 +171,7 @@ final class MacMasterKeySheetTests: XCTestCase {
     func testFooterPromisesAuthenticationOnlyWhenTheMacCanAuthenticate() {
         func labels(canAuthenticate: Bool) -> [String] {
             let model = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
-                loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _ in })
+                loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _, _ in })
             let sheet = MacMasterKeySheet(name: "Personal", databaseFilename: "Personal.kdbx", model: model,
                 canAuthenticateDeviceOwner: canAuthenticate) { _ in false }
             defer { sheet.shell.end() }
@@ -191,7 +191,7 @@ final class MacMasterKeySheetTests: XCTestCase {
         let gate = SaveGate()
         var finishedWrite = false
         let model = MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
-            loadCurrentKeyFile: { nil }, changeOperation: { password, _, _, _ in
+            loadCurrentKeyFile: { nil }, changeOperation: { password, _, _, _, _ in
                 XCTAssertEqual(password, "new password")
                 await gate.signalStarted()
                 await gate.waitUntilOpen()
@@ -303,7 +303,7 @@ final class MacMasterKeySheetTests: XCTestCase {
     private func makeSheet(log: EventLog = EventLog(), model: MasterKeyChangeViewModel? = nil, panels: MacFilePanels = MacFilePanels(),
                            authenticate: @escaping @MainActor () async throws -> Void = {}) -> MacMasterKeySheet {
         let model = model ?? MasterKeyChangeViewModel(currentKeyFileFilename: nil, currentKeyFileBookmarkData: nil,
-            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _ in log.events.append("change") })
+            loadCurrentKeyFile: { nil }, changeOperation: { _, _, _, _, _ in log.events.append("change") })
         model.newPassword = "new password"
         model.confirmPassword = "new password"
         let sheet = MacMasterKeySheet(name: "Personal", databaseFilename: "Personal.kdbx", model: model, panels: panels) { model in

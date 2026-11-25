@@ -65,6 +65,90 @@ final class MacUnlockFormModelTests: XCTestCase {
         XCTAssertTrue(model.canSubmit, "A key file alone is a key part")
     }
 
+    // MARK: - Hardware key
+
+    func testHardwareKeyOffersBothUSBSlotsAndKeepsAStoredChoiceThisMacCannotReach() {
+        let (session, _, model) = makeModel()
+        XCTAssertTrue(model.showsHardwareKey)
+        XCTAssertEqual(model.hardwareKeyOptions, [
+            HardwareKeyConfiguration(transport: .usb, slot: .one),
+            HardwareKeyConfiguration(transport: .usb, slot: .two),
+        ])
+
+        let nfc = HardwareKeyConfiguration(transport: .nfc, slot: .two)
+        session.hardwareKey = nfc
+        XCTAssertEqual(model.hardwareKeyOptions.last, nfc)
+
+        session.availableHardwareKeyTransports = []
+        session.hardwareKey = nil
+        XCTAssertFalse(model.showsHardwareKey)
+    }
+
+    func testSlotStatusesAreReadOnlyWhileAUSBKeyIsChosenAndNameTheSlots() async {
+        var probes = 0
+        let (session, _, model) = makeModel(probe: {
+            probes += 1
+            return [.one: .notSetUp, .two: .setUp(needsTouch: true)]
+        })
+        let slotOne = HardwareKeyConfiguration(transport: .usb, slot: .one)
+        let slotTwo = HardwareKeyConfiguration(transport: .usb, slot: .two)
+
+        await model.refreshHardwareKeySlots()
+        XCTAssertEqual(probes, 0, "Reading slots asks for Input Monitoring, so not before a YubiKey is chosen")
+        XCTAssertEqual(model.title(for: slotOne), slotOne.title)
+
+        session.hardwareKey = slotTwo
+        await model.refreshHardwareKeySlots()
+        XCTAssertEqual(probes, 1)
+        XCTAssertEqual(model.title(for: slotOne), String(localized: "\(slotOne.title) (Not Set Up)"))
+        XCTAssertEqual(model.title(for: slotTwo), String(localized: "\(slotTwo.title) (Touch Required)"))
+
+        session.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
+        await model.refreshHardwareKeySlots()
+        XCTAssertEqual(probes, 1)
+        XCTAssertEqual(model.title(for: slotOne), slotOne.title)
+    }
+
+    func testAYubiKeyAloneIsAKeyPart() async {
+        let (session, _, model) = makeModel()
+        XCTAssertFalse(model.canSubmit)
+
+        await model.setHardwareKey(HardwareKeyConfiguration(transport: .usb, slot: .two))
+
+        XCTAssertEqual(session.hardwareKeyWrites, [HardwareKeyConfiguration(transport: .usb, slot: .two)])
+        XCTAssertTrue(model.canSubmit)
+        await model.submit()
+        XCTAssertEqual(session.unlockCalls.map(\.password), [""])
+        XCTAssertNil(session.unlockCalls.first?.keyFileData)
+    }
+
+    func testHardwareKeyChangeBlocksSubmitUntilStoredAndReportsAFailedWrite() async {
+        let (session, _, model) = makeModel()
+        model.password = "secret"
+        let gate = Gate()
+        session.onSetHardwareKey = { await gate.wait() }
+        session.hardwareKeyOutcome = .rejected
+
+        let change = Task { await model.setHardwareKey(HardwareKeyConfiguration(transport: .usb, slot: .one)) }
+        await gate.waitUntilWaiting()
+        XCTAssertFalse(model.canSubmit, "The choice is still being stored")
+        gate.open()
+        await change.value
+
+        XCTAssertTrue(model.canSubmit)
+        XCTAssertNil(model.hardwareKey)
+        XCTAssertEqual(model.selectionAlert?.title, String(localized: "Hardware Key"))
+    }
+
+    func testHardwareKeyIsNotChangedDuringAnOpen() async {
+        let (session, _, model) = makeModel()
+        session.state = .unlocking
+
+        await model.setHardwareKey(HardwareKeyConfiguration(transport: .usb, slot: .one))
+
+        XCTAssertTrue(session.hardwareKeyWrites.isEmpty)
+    }
+
     // MARK: - Submit
 
     func testSubmitClearsThePasswordBeforeTheOpenRuns() async {
@@ -665,12 +749,13 @@ final class MacUnlockFormModelTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeModel(
-        readData: @escaping @Sendable (URL) async throws -> Data = { _ in Data() }
+        readData: @escaping @Sendable (URL) async throws -> Data = { _ in Data() },
+        probe: @escaping @MainActor () async -> [HardwareKeyConfiguration.Slot: YubiKeyOTPHID.SlotStatus]? = { nil }
     ) -> (FakeUnlockSession, FakeFilePicker, MacUnlockFormModel) {
         let session = FakeUnlockSession()
         let picker = FakeFilePicker()
         let model = MacUnlockFormModel(session: session, filePicker: picker,
-            keyFileSelection: UnlockKeyFileSelection(readData: readData))
+            keyFileSelection: UnlockKeyFileSelection(readData: readData), probeHardwareKeySlots: probe)
         return (session, picker, model)
     }
 }
@@ -681,6 +766,11 @@ private final class FakeUnlockSession: MacUnlockSession {
     var biometricUnlockAvailability: DatabaseViewModel.BiometricUnlockAvailability = .none
     var canRelinkDatabaseFile = false
     var keyFileAssociation: MacKeyFileAssociation?
+    var hardwareKey: HardwareKeyConfiguration?
+    var availableHardwareKeyTransports: [HardwareKeyConfiguration.Transport] = [.usb]
+    var hardwareKeyOutcome: DatabaseListStore.HardwarePreferenceOutcome = .saved
+    var onSetHardwareKey: (@MainActor () async -> Void)?
+    private(set) var hardwareKeyWrites: [HardwareKeyConfiguration?] = []
     var unlockResult: DatabaseViewModel.State = .unlocked
     var biometricOutcome: DatabaseViewModel.BiometricUnlockOutcome = .cancelled
     var associatedKeyFile: (Data, String)?
@@ -698,6 +788,13 @@ private final class FakeUnlockSession: MacUnlockSession {
         state = .unlocking
         await onUnlock?()
         state = unlockResult
+    }
+
+    func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?) async -> DatabaseListStore.HardwarePreferenceOutcome {
+        hardwareKeyWrites.append(hardwareKey)
+        await onSetHardwareKey?()
+        if hardwareKeyOutcome == .saved { self.hardwareKey = hardwareKey }
+        return hardwareKeyOutcome
     }
 
     func unlockWithBiometrics() async -> DatabaseViewModel.BiometricUnlockOutcome {

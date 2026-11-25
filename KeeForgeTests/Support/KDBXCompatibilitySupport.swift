@@ -611,6 +611,8 @@ enum KDBXCompatibilitySupport {
         "rekey-password-only",
         "rekey-add-keyfile",
         "rekey-add-generated-keyfile",
+        "rekey-add-yubikey",
+        "rekey-yubikey-alone",
         "rekey-remove-keyfile",
         "rekey-keyfile-only",
         "encryption-settings-chacha20-argon2id",
@@ -714,6 +716,8 @@ enum KDBXCompatibilitySupport {
         table["rekey-password-only"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["rekey-add-keyfile"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["rekey-add-generated-keyfile"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
+        table["rekey-add-yubikey"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
+        table["rekey-yubikey-alone"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["rekey-remove-keyfile"] = [fixtureEntryPasswords[Fixture.passwordKeyfile.id]!]
         table["rekey-keyfile-only"] = [fixtureEntryPasswords[Fixture.passwordKeyfile.id]!]
         // Re-encrypted under a new cipher and KDF, a pre-existing protected
@@ -851,6 +855,8 @@ enum KDBXCompatibilitySupport {
             "rekey-password-only",
             "rekey-add-keyfile",
             "rekey-add-generated-keyfile",
+            "rekey-add-yubikey",
+            "rekey-yubikey-alone",
             "rekey-remove-keyfile",
             "rekey-keyfile-only",
             "encryption-settings-chacha20-argon2id",
@@ -2113,6 +2119,58 @@ enum KDBXCompatibilitySupport {
     }
 
     /// `.aesBaseline` (password only) rekeyed to a different password.
+    /// `.aesBaseline` rekeyed to its password plus an emulated YubiKey, the
+    /// way a master-key change adds one: a fresh KDF salt is the challenge
+    /// and the write keeps it. KeePassXC folds `SHA256(response)` into the
+    /// key exactly as it folds a raw 32-byte key file, so the gate opens the
+    /// artifact with that hash as its key file, proving KeePassXC accepts
+    /// KeeForge's YubiKey writes without a YubiKey.
+    static func rekeyAddYubiKeyScenario() -> Scenario {
+        yubiKeyRekeyScenario(id: "rekey-add-yubikey", title: "Add a YubiKey to the master key", keepsPassword: true)
+    }
+
+    /// `.aesBaseline` rekeyed to an emulated YubiKey alone.
+    static func rekeyYubiKeyAloneScenario() -> Scenario {
+        yubiKeyRekeyScenario(id: "rekey-yubikey-alone", title: "Make a YubiKey the whole master key", keepsPassword: false)
+    }
+
+    private static func yubiKeyRekeyScenario(id: String, title: String, keepsPassword: Bool) -> Scenario {
+        let salt = Data((0..<32).map { _ in UInt8.random(in: .min ... .max) })
+        return Scenario(
+            id: id,
+            title: title,
+            artifactFileName: "aes-baseline-\(id).kdbx",
+            expectedSearchTerms: ["Twitter"],
+            expectedGroupPaths: ["Social"],
+            rekey: { loaded in
+                let password = keepsPassword ? loaded.fixture.password : nil
+                let challenge = try ChallengeResponseKey.challenge(forSalt: salt)
+                let response = YubiKeyEmulator.response(to: challenge)
+                let compositeKey = ChallengeResponseKey.compositeKey(
+                    preKey: try KDBXCrypto.preKey(password: password, keyFileData: nil),
+                    response: response,
+                    challenge: challenge
+                )
+                let responseKeyFile = FileDigest.sha256(response)
+                XCTAssertEqual(
+                    compositeKey.withUnsafeBytes { Data($0) },
+                    try KDBXCrypto.compositeKey(password: password, keyFileData: responseKeyFile).withUnsafeBytes { Data($0) },
+                    "\(id): the gate's key-file stand-in must equal the YubiKey key"
+                )
+                return RekeyTarget(
+                    compositeKey: compositeKey,
+                    password: password,
+                    keyFileName: "aes-baseline-\(id)-response.key",
+                    keyFileData: responseKeyFile
+                )
+            },
+            encryptionSettings: { _ in EncryptionSettingsChange(kdfSalt: salt) },
+            assertChange: { before, after, _ in
+                try assertWholeTreeUnchanged(before: before, after: after)
+            }
+        )
+    }
+
     static func rekeyPasswordOnlyScenario() -> Scenario {
         Scenario(
             id: "rekey-password-only",
@@ -2385,6 +2443,12 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .aesBaseline, scenario: rekeyAddGeneratedKeyfileScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .aesBaseline, scenario: rekeyAddYubiKeyScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .aesBaseline, scenario: rekeyYubiKeyAloneScenario())
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .passwordKeyfile, scenario: rekeyRemoveKeyfileScenario())

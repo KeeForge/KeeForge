@@ -27,10 +27,12 @@ struct MasterKeyChangeView: View {
                 currentKeyFileFilename: reference.keyFileFilename,
                 currentKeyFileBookmarkData: reference.keyFileBookmarkData,
                 sessionKeyFileData: sessionViewModel.sessionKeyFileData,
+                hardwareKey: sessionViewModel.sessionUsesHardwareKey ? reference.hardwareKey : nil,
+                hardwareKeyTransports: sessionViewModel.availableHardwareKeyTransports,
                 loadCurrentKeyFile: { [weak sessionViewModel] in
                     await sessionViewModel?.loadAssociatedKeyFile()
                 },
-                changeOperation: { [weak sessionViewModel] password, keyFileData, bookmarkData, filename in
+                changeOperation: { [weak sessionViewModel] password, keyFileData, bookmarkData, filename, hardwareKeyChange in
                     guard let sessionViewModel else {
                         throw DatabaseViewModel.RekeyError.sessionUnavailable
                     }
@@ -38,7 +40,8 @@ struct MasterKeyChangeView: View {
                         newPassword: password,
                         newKeyFileData: keyFileData,
                         newKeyFileBookmarkData: bookmarkData,
-                        newKeyFileFilename: filename
+                        newKeyFileFilename: filename,
+                        newHardwareKey: hardwareKeyChange
                     )
                 }
             )
@@ -49,6 +52,21 @@ struct MasterKeyChangeView: View {
         Form {
             passwordSection
             keyFileSection
+            if viewModel.hardwareKeyOptions.isEmpty == false {
+                Section {
+                    Picker("Hardware Key", selection: $viewModel.hardwareKeyChoice) {
+                        Text("None").tag(HardwareKeyConfiguration?.none)
+                        ForEach(viewModel.hardwareKeyOptions, id: \.self) { option in
+                            Text(option.title).tag(Optional(option))
+                        }
+                    }
+                    .accessibilityIdentifier("master-key.hardware-key.picker")
+                } footer: {
+                    if viewModel.hardwareKeyChoice != nil {
+                        Text("Hold your YubiKey to your device when asked while the change is saved.")
+                    }
+                }
+            }
         }
         .macGroupedForm()
         .disabled(viewModel.isWorking || viewModel.hasCompleted)
@@ -65,7 +83,15 @@ struct MasterKeyChangeView: View {
         }
         .overlay {
             if viewModel.isWorking {
-                ProgressView("Changing Master Key")
+                VStack(spacing: 8) {
+                    ProgressView("Changing Master Key")
+                    if let hardwareKey = viewModel.hardwareKeyChoice {
+                        Text(HardwareKeyService.prompt(for: hardwareKey.transport))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
                     .padding()
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }

@@ -242,7 +242,7 @@ or hardware-key unlock and after a rekey that reached only the remote. A rekey
 replaces the session's key-file bytes, so a removed key file is never carried into
 the next change. They are never persisted or inferred from a key-file association. AutoFill
 participation still writes through the list model and its matching-session refresh
-bridge. KDBX 3.1 and hardware-key databases stay read-only in either settings context.
+bridge. KDBX 3.1 databases stay read-only in either settings context.
 The sheet does not edit key-file associations; the unlock page, launcher row and
 master-key change keep their own association paths. Backups remain encrypted
 copies exported through the existing exporter, without restore or plaintext export.
@@ -914,6 +914,7 @@ The source entitlements in [KeeForgeMac.entitlements](KeeForgeMac.entitlements) 
 | `com.apple.security.network.client` | Outbound provider sync, opt-in favicon fetching, feedback submission, and channel-specific store/update operations. |
 | `com.apple.security.application-groups` | Shared encrypted vault caches and extension metadata in `group.com.keevault.shared`; the browser bridge socket in the separate team-prefixed `com.keevault.browser` group, which the AutoFill extension does not have. |
 | `keychain-access-groups` | Team-prefixed `com.keevault.sharedkeychain`, shared with AutoFill. |
+| `com.apple.security.device.usb` | YubiKey challenge-response: HID feature reports to a plugged-in key's OTP interface ([MacYubiKeyHID](../KeeForge/Services/Security/MacYubiKeyHID.swift)). |
 
 The [direct-build entitlements](KeeForgeMacDirect.entitlements) add only
 `com.apple.security.temporary-exception.mach-lookup.global-name`, for
@@ -939,8 +940,8 @@ embedded Info.plist.
 ## AutoFill extension boundary
 
 The [Mac extension entitlements](../AutoFillExtension/AutoFillExtensionMac.entitlements)
-include only the AutoFill capability, sandbox, App Group, and shared keychain
-group. There is no `network.client`, `files.user-selected.read-write`, or
+include only the AutoFill capability, sandbox, App Group, shared keychain
+group, and `device.usb` for YubiKey challenge-response. There is no `network.client`, `files.user-selected.read-write`, or
 `files.bookmarks.app-scope` entitlement. Network sync belongs to the app.
 
 [CredentialProviderCoordinator](../AutoFillExtension/CredentialProviderCoordinator.swift)

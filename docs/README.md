@@ -67,6 +67,7 @@ Point-in-time security reviews; findings may have been fixed (or new issues intr
 |---|---|---|
 | 2026-07-04 | `checklists/2026-07-04-webdav-manual-e2e-checklist.md` | Manual WebDAV sync verification against real servers |
 | 2026-08-17 | `checklists/2026-08-17-ios-27-readiness-checklist.md` | iOS 27 / Xcode 27 readiness audit and preparation checklist (against beta 5) |
+| 2026-11-22 | `checklists/2026-11-22-yubikey-hardware-checklist.md` | The YubiKey checks no automated test can reach (NFC, USB, Input Monitoring, touch) |
 
 ## Adding A New Archive Doc
 

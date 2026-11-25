@@ -1,12 +1,15 @@
 import CryptoKit
 import Foundation
 import KDBXKit
+import Synchronization
 
 /// A YubiKey HMAC-SHA1 challenge-response slot that is part of a database's
 /// composite key, and how this device reaches it.
 struct HardwareKeyConfiguration: Codable, Hashable, Sendable {
     enum Transport: String, Codable, Sendable, CaseIterable {
         case nfc
+        /// The Mac's USB connection to the key's OTP (keyboard) interface.
+        case usb
 
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
@@ -15,6 +18,8 @@ struct HardwareKeyConfiguration: Codable, Hashable, Sendable {
             case "nfc", "lightning":
                 // Preserve database references saved by the 1.17 beta's removed transport.
                 self = .nfc
+            case "usb":
+                self = .usb
             default:
                 throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown hardware key transport")
             }
@@ -38,32 +43,82 @@ enum HardwareKeyError: Error, Equatable, Sendable {
     /// challenge-response KeePassXC folds in before the KDF.
     case unsupportedDatabase
     case slotNotConfigured
+    /// No YubiKey with an OTP interface is plugged in.
+    case notConnected
+    /// macOS refused access to the key's keyboard interface (Input Monitoring).
+    case permissionDenied
     case timedOut
     case disconnected
+    /// A write would give the file a KDF salt the session's YubiKey response
+    /// did not answer.
+    case challengeChanged
     case communicationFailed
+}
+
+/// The keys a YubiKey answer opens a file with. On KDBX 3.1 the response
+/// joins after the KDF, so `compositeKey` alone does not open the file and a
+/// session keeps no `kdbx3Factor`.
+struct HardwareKeyUnlock: Sendable {
+    let compositeKey: SymmetricKey
+    let kdbx3Factor: Data?
 }
 
 /// KeePassXC-compatible challenge-response key derivation
 /// (`CompositeKey::rawKey(transformSeed)` / `CompositeKey::transform`).
+///
+/// A composite key made here is valid only with the KDF salt it answered, so
+/// it is remembered with its challenge: a save with it keeps that salt
+/// instead of rotating it, and refuses to write any other
+/// (`kdfSaltRotation(compositeKey:)`, `checkWrite`). Otherwise the file would
+/// need a response nobody holds.
 enum ChallengeResponseKey {
     private static let challengeLength = 64
+    private static let pinnedChallenges = Mutex<[Data: Data]>([:])
 
     /// The challenge KeePassXC issues for `data`: the KDF salt (the AES-KDF
     /// seed), PKCS#7-padded to 64 bytes so fixed-length and variable-length
     /// slots agree.
+    /// On KDBX 3.1, KeePassXC challenges the master seed instead, which
+    /// changes on every save.
     static func challenge(forDatabase data: Data) throws -> Data {
-        guard case .kdbx4 = try KDBXContainer.parseFileVersion(from: data) else {
-            throw HardwareKeyError.unsupportedDatabase
+        let header = try KDBXContainer.readHeader(from: data)
+        guard case .kdbx4 = header.formatVersion else {
+            return try challenge(forSalt: header.masterSeed)
         }
         // KeePassXC writes KDBX 4 AES-KDF under the legacy UUID and reads it
         // back as its KDBX 4 AES-KDF, which takes the response like Argon2.
-        guard let salt = try KDBXContainer.readHeader(from: data).keyDerivation?.salt,
-              salt.isEmpty == false,
-              salt.count <= challengeLength
-        else {
+        guard let salt = header.keyDerivation?.salt else {
             throw HardwareKeyError.unsupportedDatabase
         }
+        return try challenge(forSalt: salt)
+    }
 
+    /// The keys that open `databaseData` with `response`, the answer to its
+    /// `challenge`. KeePassXC's KDBX 3.1 runs the KDF on the plain composite
+    /// key `SHA256(preKey)` and joins `SHA256(response)` after it; those keys
+    /// are not pinned, as KDBX 3.1 files are never written.
+    static func unlockKeys(
+        preKey: SymmetricKey,
+        response: Data,
+        challenge: Data,
+        databaseData: Data
+    ) throws -> HardwareKeyUnlock {
+        guard case .kdbx4 = try KDBXContainer.parseFileVersion(from: databaseData) else {
+            return HardwareKeyUnlock(
+                compositeKey: preKey.withUnsafeBytes { SymmetricKey(data: CryptoKit.SHA256.hash(data: $0)) },
+                kdbx3Factor: FileDigest.sha256(response)
+            )
+        }
+        return HardwareKeyUnlock(
+            compositeKey: compositeKey(preKey: preKey, response: response, challenge: challenge),
+            kdbx3Factor: nil
+        )
+    }
+
+    static func challenge(forSalt salt: Data) throws -> Data {
+        guard salt.isEmpty == false, salt.count <= challengeLength else {
+            throw HardwareKeyError.unsupportedDatabase
+        }
         let padding = challengeLength - salt.count
         var challenge = Data(capacity: challengeLength)
         challenge.append(salt)
@@ -72,8 +127,9 @@ enum ChallengeResponseKey {
     }
 
     /// `SHA256(preKey || SHA256(response))`, where `preKey` is
-    /// `KDBXCrypto.preKey(password:keyFileData:)`.
-    static func compositeKey(preKey: SymmetricKey, response: Data) -> SymmetricKey {
+    /// `KDBXCrypto.preKey(password:keyFileData:)` and `response` answered
+    /// `challenge`.
+    static func compositeKey(preKey: SymmetricKey, response: Data, challenge: Data) -> SymmetricKey {
         var responseHash = FileDigest.sha256(response)
         defer { SecureWipe.wipe(&responseHash) }
 
@@ -81,6 +137,42 @@ enum ChallengeResponseKey {
         defer { SecureWipe.wipe(&material) }
         preKey.withUnsafeBytes { material.append(contentsOf: $0) }
         material.append(responseHash)
-        return SymmetricKey(data: CryptoKit.SHA256.hash(data: material))
+        let key = SymmetricKey(data: CryptoKit.SHA256.hash(data: material))
+        let fingerprint = fingerprint(of: key)
+        pinnedChallenges.withLock { $0[fingerprint] = challenge }
+        return key
+    }
+
+    /// The challenge `compositeKey` answered, if it came from `compositeKey(preKey:response:challenge:)`.
+    static func pinnedChallenge(for compositeKey: SymmetricKey) -> Data? {
+        let fingerprint = fingerprint(of: compositeKey)
+        return pinnedChallenges.withLock { $0[fingerprint] }
+    }
+
+    /// Whether a save with `compositeKey` may give the file a new KDF salt.
+    static func kdfSaltRotation(compositeKey: SymmetricKey) -> KDBXContainerWriter.KDFSaltRotation {
+        pinnedChallenge(for: compositeKey) == nil ? .rotate : .keep
+    }
+
+    /// Throws unless `kdfParameters`, the ones a file is about to be written
+    /// with, still answer to a challenge-response key's challenge.
+    static func checkWrite(compositeKey: SymmetricKey, kdfParameters: KDBXVariantMap) throws {
+        guard let pinned = pinnedChallenge(for: compositeKey) else { return }
+        guard let salt = kdfParameters.bytes("S"), (try? challenge(forSalt: salt)) == pinned else {
+            throw HardwareKeyError.challengeChanged
+        }
+    }
+
+    private static func fingerprint(of key: SymmetricKey) -> Data {
+        key.withUnsafeBytes { Data(CryptoKit.SHA256.hash(data: $0)) }
+    }
+}
+
+extension HardwareKeyError: LocalizedError {
+    /// Only a save can see `challengeChanged`; unlock failures read from
+    /// `DatabaseOpenFailure`.
+    var errorDescription: String? {
+        guard self == .challengeChanged else { return nil }
+        return String(localized: "This save would need a new answer from your YubiKey, so nothing was written. Lock the database, unlock it with your YubiKey, and save again.")
     }
 }

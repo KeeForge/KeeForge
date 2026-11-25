@@ -448,12 +448,20 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             code = "unavailable"
         case .unsupportedDatabase:
             title = String(localized: "YubiKey Not Supported for This Database")
-            summary = String(localized: "KeeForge supports YubiKeys only for KDBX 4 databases. Turn off Hardware Key to open this database.")
+            summary = String(localized: "This database has no challenge a YubiKey can answer. Turn off Hardware Key to open this database.")
             code = "unsupported_database"
         case .slotNotConfigured:
             title = String(localized: "YubiKey Slot Not Set Up")
             summary = String(localized: "The selected YubiKey slot isn't set up for challenge-response. Choose the other slot under Hardware Key.")
             code = "slot_not_configured"
+        case .notConnected:
+            title = String(localized: "No YubiKey Found")
+            summary = String(localized: "Plug in your YubiKey and try again. A security key without the OTP application can't answer challenge-response.")
+            code = "not_connected"
+        case .permissionDenied:
+            title = String(localized: "YubiKey Access Not Allowed")
+            summary = String(localized: "Allow KeeForge under Input Monitoring in System Settings > Privacy & Security, then try again.")
+            code = "permission_denied"
         case .timedOut:
             title = String(localized: "YubiKey Timed Out")
             summary = String(localized: "The YubiKey didn't respond in time. Try again, and touch the key when it flashes.")
@@ -462,7 +470,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             title = String(localized: "YubiKey Disconnected")
             summary = String(localized: "The YubiKey was removed before it answered. Keep it in place until the database opens.")
             code = "disconnected"
-        case .communicationFailed:
+        case .communicationFailed, .challengeChanged:
             title = String(localized: "YubiKey Not Read")
             summary = String(localized: "KeeForge couldn't talk to the YubiKey. Try again.")
             code = "communication_failed"

@@ -15,13 +15,19 @@ enum KDBXParser {
         let header: KDBXContainer.Header
     }
 
+    /// `kdbx3ChallengeResponseKey` is a KDBX 3.1 file's YubiKey factor
+    /// (`HardwareKeyUnlock.kdbx3Factor`), which KDBX 4 files ignore.
     static func parse(
         data: Data,
         compositeKey: SymmetricKey,
         sessionKey: SymmetricKey,
-        kdfPolicy: KDFExecutionPolicy
+        kdfPolicy: KDFExecutionPolicy,
+        kdbx3ChallengeResponseKey: Data? = nil
     ) throws -> Opened {
-        try open(KDBXContainer.read(data: data, compositeKey: compositeKey, kdfPolicy: kdfPolicy), sessionKey: sessionKey)
+        let payload = try KDBXContainer.read(data: data, kdbx3ChallengeResponseKey: kdbx3ChallengeResponseKey) { kdfParameters in
+            try KDBXKeyDerivation.deriveKey(compositeKey: compositeKey, parameters: kdfParameters, policy: kdfPolicy)
+        }
+        return try open(payload, sessionKey: sessionKey)
     }
 
     /// Parses a file with the KDF output supplied by `transformedKey`, which

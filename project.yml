@@ -443,6 +443,11 @@ targets:
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
       - path: KeeForge/Extensions/PlatformCompat.swift
       # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
+      # YubiKey challenge-response over USB; HardwareKeyService compiles its
+      # macOS path here (outside the shared list: Mac only) and its YubiKit (NFC) path only in the iOS app.
+      - path: KeeForge/Services/Security/HardwareKeyService.swift
+      - path: KeeForge/Services/Security/YubiKeyOTPHID.swift
+      - path: KeeForge/Services/Security/MacYubiKeyHID.swift
 
   KeeForgeUITests:
     type: bundle.ui-testing
@@ -468,6 +473,8 @@ targets:
       - path: TestFixtures/autofill-store-bravo.kdbx
         buildPhase: resources
       - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
+        buildPhase: resources
+      - path: TestFixtures/challenge-response.kdbx
         buildPhase: resources
 
   KeeForgeTests:

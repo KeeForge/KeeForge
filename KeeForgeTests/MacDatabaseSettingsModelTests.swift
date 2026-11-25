@@ -104,7 +104,7 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
     }
 
-    func testLauncherWritesAutoFillBridgeAndHardwareKeyReadOnly() async throws {
+    func testLauncherWritesAutoFillBridgeAndLeavesAYubiKeyDatabaseEditable() async throws {
         let reference = try reference()
         DatabaseListStore.testUpsert(reference)
         let list = DatabaseListViewModel()
@@ -125,9 +125,8 @@ final class MacDatabaseSettingsModelTests: XCTestCase {
         DatabaseListStore.testUpsert(hardware)
         list.reload()
         model.setReadOnly(false)
-        XCTAssertTrue(model.fixedReadOnly)
-        XCTAssertTrue(model.current.isReadOnly)
-        XCTAssertFalse(model.canChangeSecurity)
+        XCTAssertFalse(model.fixedReadOnly)
+        XCTAssertFalse(model.current.isReadOnly)
     }
 
     func testSecuritySummaryUsesTypedComponentsAndClearsOnLock() async throws {

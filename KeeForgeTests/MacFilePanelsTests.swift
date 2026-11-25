@@ -158,6 +158,8 @@ private final class PanelSession: MacUnlockSession {
     var biometricUnlockAvailability: DatabaseViewModel.BiometricUnlockAvailability = .none
     var canRelinkDatabaseFile = false
     var keyFileAssociation: MacKeyFileAssociation?
+    var hardwareKey: HardwareKeyConfiguration?
+    var availableHardwareKeyTransports: [HardwareKeyConfiguration.Transport] = []
     private(set) var relinked: [URL] = []
     private(set) var unlockedWith: [(password: String, keyFileData: Data?)] = []
 
@@ -166,6 +168,11 @@ private final class PanelSession: MacUnlockSession {
         state = .error(DatabaseOpenFailure(title: "Couldn't Unlock Database", summary: "Wrong key", technicalDetails: "",
             errorCode: "auth.invalid_credentials", category: .authentication, countsTowardFailedAttempts: true,
             canChooseDifferentFile: false))
+    }
+
+    func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?) async -> DatabaseListStore.HardwarePreferenceOutcome {
+        self.hardwareKey = hardwareKey
+        return .saved
     }
 
     func unlockWithBiometrics() async -> DatabaseViewModel.BiometricUnlockOutcome { .cancelled }

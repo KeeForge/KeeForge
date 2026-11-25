@@ -44,6 +44,15 @@ public enum KDBXContainerWriter {
         case fresh(FreshHeaderConfiguration)
     }
 
+    /// Whether a save draws a new KDF salt. A key that includes a YubiKey
+    /// challenge-response answered the current salt and opens nothing else,
+    /// so it keeps it; the master seed, IV and inner stream key still change.
+    public enum KDFSaltRotation: Hashable, Sendable {
+        case rotate
+        /// Keeps a non-empty salt the header already has; draws one otherwise.
+        case keep
+    }
+
     private static let hmacBlockSize = 1_048_576
     private static let innerStreamKeyLength = 64
     private static let masterSeedLength = 32
@@ -60,7 +69,8 @@ public enum KDBXContainerWriter {
     /// KeePassXC's `KeePass2Writer::kdbxVersionRequired`.
     public static func prepareHeader(
         _ source: HeaderSource,
-        requiredMinorVersion: UInt16
+        requiredMinorVersion: UInt16,
+        kdfSaltRotation: KDFSaltRotation = .rotate
     ) throws -> KDBXContainer.Header {
         var header: KDBXContainer.Header
         switch source {
@@ -96,8 +106,10 @@ public enum KDBXContainerWriter {
         header.encryptionIV = try randomData(count: cipher.encryptionIVLength)
         header.innerStreamKey = try randomData(count: innerStreamKeyLength)
         let existingSaltLength = header.kdfParameters.bytes("S")?.count ?? 0
-        let saltLength = existingSaltLength > 0 ? existingSaltLength : defaultKDFSaltLength
-        header.kdfParameters["S"] = .bytes(try randomData(count: saltLength))
+        if kdfSaltRotation == .rotate || existingSaltLength == 0 {
+            let saltLength = existingSaltLength > 0 ? existingSaltLength : defaultKDFSaltLength
+            header.kdfParameters["S"] = .bytes(try randomData(count: saltLength))
+        }
         header.headerData = Data()
         return header
     }

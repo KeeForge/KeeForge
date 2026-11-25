@@ -184,11 +184,23 @@ public enum KDBXContainer {
         data: Data,
         transformedKey provideTransformedKey: (_ kdfParameters: KDBXVariantMap) throws -> Data
     ) throws -> Payload {
+        try read(data: data, kdbx3ChallengeResponseKey: nil, transformedKey: provideTransformedKey)
+    }
+
+    /// As above, for a KDBX 3.1 file whose key includes a KeePassXC YubiKey
+    /// response: `kdbx3ChallengeResponseKey` is `SHA256(response)` to the
+    /// file's master seed. A KDBX 4 file ignores it.
+    public static func read(
+        data: Data,
+        kdbx3ChallengeResponseKey: Data?,
+        transformedKey provideTransformedKey: (_ kdfParameters: KDBXVariantMap) throws -> Data
+    ) throws -> Payload {
         let data = zeroBased(data)
         var reader = DataReader(data: data)
         switch try parseVersion(from: &reader) {
         case .kdbx3_1:
-            return try readKDBX3(data: data, reader: &reader, transformedKey: provideTransformedKey)
+            return try readKDBX3(data: data, reader: &reader, challengeResponseKey: kdbx3ChallengeResponseKey,
+                                 transformedKey: provideTransformedKey)
         case .kdbx4(let minor):
             return try readKDBX4(data: data, minor: minor, reader: &reader, transformedKey: provideTransformedKey)
         }
@@ -363,12 +375,16 @@ public enum KDBXContainer {
         /// SHA-512(masterSeed || transformedKey || 0x01), the HMAC base key.
         var hmacBaseKey: Data
 
-        init(masterSeed: Data, transformedKey: Data) {
+        /// `challengeResponseKey` is KeePassXC's KDBX 3.1 YubiKey factor,
+        /// `SHA256(response)`, which it hashes between the seed and the KDF
+        /// output; KDBX 4 folds the response into the composite key instead.
+        init(masterSeed: Data, transformedKey: Data, challengeResponseKey: Data? = nil) {
             var transformedKey = transformedKey
             defer { SecureWipe.wipe(&transformedKey) }
-            var material = Data(capacity: masterSeed.count + transformedKey.count + 1)
+            var material = Data(capacity: masterSeed.count + transformedKey.count + 33)
             defer { SecureWipe.wipe(&material) }
             material.append(masterSeed)
+            if let challengeResponseKey { material.append(challengeResponseKey) }
             material.append(transformedKey)
             masterKey = KDBXCrypto.sha256(material)
             material.append(0x01)

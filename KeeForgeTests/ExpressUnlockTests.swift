@@ -337,7 +337,8 @@ final class ExpressUnlockTests: XCTestCase {
         )
 
         let written = try KDBXWriter.write(
-            rootGroup: parsed.rootGroup, meta: parsed.meta, header: parsed.header, sessionKey: sessionKey
+            rootGroup: parsed.rootGroup, meta: parsed.meta, header: parsed.header, sessionKey: sessionKey,
+            kdfSaltRotation: .rotate
         ) { _ in Data(repeating: 7, count: 32) }
 
         XCTAssertThrowsError(try KDBXParser.parseWithMetaAndHeader(
@@ -776,9 +777,11 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         let fixture = KDBXTestFixture.challengeResponse
         let data = try fixture.data(in: bundle)
         let preKey = try KDBXCrypto.preKey(password: fixture.password, keyFileData: nil)
+        let challenge = try ChallengeResponseKey.challenge(forDatabase: data)
         let fullKey = ChallengeResponseKey.compositeKey(
             preKey: preKey,
-            response: YubiKeyEmulator.response(to: try ChallengeResponseKey.challenge(forDatabase: data))
+            response: YubiKeyEmulator.response(to: challenge),
+            challenge: challenge
         )
         let workingExpressKey = try expressKey(for: data, compositeKey: fullKey)
         let persisted = PersistedKeys()
@@ -809,9 +812,11 @@ final class DatabaseViewModelExpressUnlockTests: XCTestCase {
         let fixture = KDBXTestFixture.challengeResponse
         let data = try fixture.data(in: bundle)
         let preKey = try KDBXCrypto.preKey(password: fixture.password, keyFileData: nil)
+        let challenge = try ChallengeResponseKey.challenge(forDatabase: data)
         let fullKey = ChallengeResponseKey.compositeKey(
             preKey: preKey,
-            response: YubiKeyEmulator.response(to: try ChallengeResponseKey.challenge(forDatabase: data))
+            response: YubiKeyEmulator.response(to: challenge),
+            challenge: challenge
         )
         let workingExpressKey = try expressKey(for: data, compositeKey: fullKey)
         let persisted = PersistedKeys()

@@ -77,8 +77,7 @@ final class MacDatabaseSettingsModel {
     }
     var hasDestination: Bool { session?.state == .unlocked && session?.autoFillDestinationGroup != nil }
     var fixedReadOnly: Bool {
-        session?.isFormatReadOnly == true || fileInfo?.summary?.formatVersion.requiresReadOnlyMode == true ||
-        session?.sessionUsesHardwareKey == true || current.hardwareKey != nil
+        session?.isFormatReadOnly == true || fileInfo?.summary?.formatVersion.requiresReadOnlyMode == true
     }
     var isReadOnly: Bool { fixedReadOnly || current.isReadOnly || session?.isReadOnly == true }
     var canChangeSecurity: Bool { session?.state == .unlocked && !isReadOnly && session?.isSaving == false && !isLoading && fileInfo?.summary != nil }
@@ -109,9 +108,6 @@ final class MacDatabaseSettingsModel {
     var readOnlyCaption: String {
         if session?.isFormatReadOnly == true || fileInfo?.summary?.formatVersion.requiresReadOnlyMode == true {
             return String(localized: "Legacy KDBX 3.1 databases can be opened, but KeeForge intentionally keeps them read-only.")
-        }
-        if session?.sessionUsesHardwareKey == true || current.hardwareKey != nil {
-            return String(localized: "Databases unlocked with a YubiKey open read-only, because saving them is not supported yet.")
         }
         return String(localized: "You can still open this database, but create, edit, and delete actions stay blocked until you turn editing back on.")
     }

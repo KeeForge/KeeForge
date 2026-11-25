@@ -28,6 +28,7 @@ Base commands and repo-wide policy (`-only-testing:` always, no full UI suite un
 | `UI_TEST_DATABASE_READ_ONLY=1` | Opens the database read-only. |
 | `-ui-testing-layout-switch` | DEBUG only: shows `ui-testing.switch-layout` at the top of the window, which switches between the compact and regular layouts the way an iPhone Duo opening or closing does. |
 | `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1` | Re-arms the reveal/copy gate with an authentication that never completes, to assert nothing is disclosed before it succeeds. |
+| `UI_TEST_YUBIKEY_SECRET=<secret>` | DEBUG builds answer every YubiKey request at once with an emulated variable-length HMAC-SHA1 slot holding this test secret, and offer the platform's transport (NFC on iOS, USB on Mac). |
 | `UI_TEST_ENABLE_QUICK_LAUNCH=1` | Turns Quick Launch on; never rely on the single-database default. |
 | `UI_TEST_SHOW_WHATS_NEW=1`, `UI_TEST_SHOW_AUTOFILL_TIP=1`, `UI_TEST_SHOW_MAC_APP_SUGGESTION=1` | Force a surface that `-ui-testing` otherwise hides. |
 | `UI_TEST_LOCAL_SAVE_CONFLICT_COUNT=<n>`, `UI_TEST_LOCAL_SAVE_CONFLICT_DIVERGES_POOL=1` | Inject real save conflicts; see below. |
@@ -129,6 +130,7 @@ A test selects a bundled fixture by overriding `databaseFixtureName`, or `databa
 | `autofill-union.kdbx` | `testpassword123` | `TOTPSmokeUITests`, `TOTPEnrollmentUITests`, `TOTPEnrollmentDeepLinkUITests` |
 | `autofill-store-alpha.kdbx`, `autofill-store-bravo.kdbx` | `testpassword123` | `AutoFillStoreUITests` |
 | `compatibility/legacy-kdbx31.kdbx` | `testpassword123` | `UnlockedDatabaseBrowseAndDetailUITests` read-only KDBX 3.1 case |
+| `challenge-response.kdbx` | `challenge-response` + the YubiKey emulated through `UI_TEST_YUBIKEY_SECRET` | `HardwareKeyUITests` |
 
 - Only these are bundled. `test`, `demo`, `demo-keyfile` (database and key), and `kitchen-sink` come from the `UITestFixtures` template in `project.yml`, shared with `KeeForgeMacUITests`; the rest are this target's extras. To use another fixture, add it to the fitting list and run `xcodegen generate`.
 - `test.kdbx` has only groups at its root, so a test enters `Social` or `Work` before opening an entry.

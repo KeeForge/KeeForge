@@ -92,6 +92,26 @@ final class KDBXContainerWriterTests: XCTestCase {
         XCTAssertNotEqual(reused.kdfParameters.bytes("S"), first.kdfParameters.bytes("S"))
     }
 
+    func testKeptSaltSurvivesWhileTheOtherSecretsRotate() throws {
+        let first = try fresh()
+
+        let kept = try Writer.prepareHeader(.reuse(first), requiredMinorVersion: 0, kdfSaltRotation: .keep)
+
+        XCTAssertEqual(kept.kdfParameters.bytes("S"), first.kdfParameters.bytes("S"))
+        XCTAssertNotEqual(kept.masterSeed, first.masterSeed)
+        XCTAssertNotEqual(kept.encryptionIV, first.encryptionIV)
+        XCTAssertNotEqual(kept.innerStreamKey, first.innerStreamKey)
+    }
+
+    func testKeepingASaltThatIsMissingDrawsOne() throws {
+        var source = try fresh()
+        source.kdfParameters["S"] = nil
+
+        let kept = try Writer.prepareHeader(.reuse(source), requiredMinorVersion: 0, kdfSaltRotation: .keep)
+
+        XCTAssertEqual(kept.kdfParameters.bytes("S")?.count, 32)
+    }
+
     func testReuseKeepsEverythingButTheSecrets() throws {
         let source = try B.read(Fixture.data("unknown-inner-header.kdbx"), transformedKey: Fixture.unknownInnerHeaderTransformedKey).header
         var withOuter = source

@@ -173,7 +173,7 @@ class KeeForgeUITestCase: XCTestCase {
         waitForVaultToUnlock(file: file, line: line)
     }
 
-    private enum UnlockOutcome {
+    enum UnlockOutcome {
         case unlocked
         case failed
     }
@@ -181,7 +181,7 @@ class KeeForgeUITestCase: XCTestCase {
     /// Polls until the vault unlocks (a `lock.button` appears), a non-empty
     /// unlock error surfaces, or `timeout` elapses. Non-asserting so callers
     /// can retry; `waitForVaultToUnlock` remains the asserting variant.
-    private func pollUnlockOutcome(timeout: TimeInterval) -> UnlockOutcome {
+    func pollUnlockOutcome(timeout: TimeInterval) -> UnlockOutcome {
         let lockButtonQuery = app.buttons.matching(identifier: "lock.button")
         let errorLabel = app.staticTexts["unlock.error.label"]
         let deadline = Date().addingTimeInterval(timeout)

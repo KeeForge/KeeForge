@@ -56,9 +56,14 @@ final class DatabaseCreationViewModel {
     typealias PreparationOperation = @Sendable (
         DatabasePreparationRequest, DatabaseCreationService.Environment
     ) async throws -> PreparedDatabase
+    typealias HardwareKeyResponseOperation = @MainActor (
+        _ challenge: Data,
+        _ configuration: HardwareKeyConfiguration
+    ) async throws -> Data
 
     private let environment: DatabaseCreationService.Environment
     private let preparationOperation: PreparationOperation
+    private let hardwareKeyResponse: HardwareKeyResponseOperation
     private var isCancelled = false
     private var creationLifetime: CloudCreationLifetime?
 
@@ -66,10 +71,16 @@ final class DatabaseCreationViewModel {
         environment: DatabaseCreationService.Environment = .live,
         preparationOperation: @escaping PreparationOperation = { request, environment in
             try await DatabaseCreationService.prepare(request: request, environment: environment)
+        },
+        hardwareKeyTransports: [HardwareKeyConfiguration.Transport] = HardwareKeyService.availableTransports,
+        hardwareKeyResponse: @escaping HardwareKeyResponseOperation = { challenge, configuration in
+            try await HardwareKeyService.response(to: challenge, using: configuration)
         }
     ) {
         self.environment = environment
         self.preparationOperation = preparationOperation
+        self.hardwareKeyOptions = HardwareKeyConfiguration.pickerOptions(transports: hardwareKeyTransports, current: nil)
+        self.hardwareKeyResponse = hardwareKeyResponse
     }
 
     var databaseName = ""
@@ -81,6 +92,12 @@ final class DatabaseCreationViewModel {
     private(set) var keyFileData: Data?
     private(set) var keyFileBookmarkData: Data?
     private(set) var keyFileFilename: String?
+    /// A YubiKey the new database needs besides, or instead of, the password and key file.
+    var hardwareKeyChoice: HardwareKeyConfiguration? {
+        didSet { if hardwareKeyChoice != oldValue { clearDisplayedErrors() } }
+    }
+    let hardwareKeyOptions: [HardwareKeyConfiguration]
+    private(set) var isAwaitingHardwareKey = false
     private(set) var preparedDatabase: PreparedDatabase?
     private(set) var isCreating = false
     var validationError: String?
@@ -153,6 +170,8 @@ final class DatabaseCreationViewModel {
         }
 
         do {
+            let hardwareKey = try await answerHardwareKey()
+            guard isCancelled == false, Task.isCancelled == false else { return false }
             let prepared = try await preparationOperation(
                 DatabasePreparationRequest(
                     displayName: databaseName,
@@ -161,7 +180,8 @@ final class DatabaseCreationViewModel {
                     keyFileBookmarkData: keyFileBookmarkData,
                     keyFileFilename: keyFileFilename,
                     cipher: cipher,
-                    kdfPreset: kdfPreset
+                    kdfPreset: kdfPreset,
+                    hardwareKey: hardwareKey
                 ),
                 environment
             )
@@ -171,7 +191,7 @@ final class DatabaseCreationViewModel {
             return true
         } catch {
             guard isCancelled == false, Task.isCancelled == false else { return false }
-            creationError = error.localizedDescription
+            creationError = Self.message(for: error)
             return false
         }
     }
@@ -189,6 +209,8 @@ final class DatabaseCreationViewModel {
         defer { isCreating = false }
         do {
             try DatabaseListStore.validateCreatedLocalDestination(url)
+            let hardwareKey = try await answerHardwareKey()
+            guard !isCancelled, !Task.isCancelled else { return nil }
             let prepared = try await preparationOperation(
                 DatabasePreparationRequest(
                     displayName: databaseName,
@@ -197,7 +219,8 @@ final class DatabaseCreationViewModel {
                     keyFileBookmarkData: keyFileBookmarkData,
                     keyFileFilename: keyFileFilename,
                     cipher: cipher,
-                    kdfPreset: kdfPreset
+                    kdfPreset: kdfPreset,
+                    hardwareKey: hardwareKey
                 ), environment)
             guard !isCancelled, !Task.isCancelled else { return nil }
             preparedDatabase = prepared
@@ -210,7 +233,7 @@ final class DatabaseCreationViewModel {
         } catch {
             preparedDatabase = nil
             guard !isCancelled, !Task.isCancelled else { return nil }
-            creationError = error.localizedDescription
+            creationError = Self.message(for: error)
             return nil
         }
     }
@@ -253,6 +276,8 @@ final class DatabaseCreationViewModel {
         }
 
         do {
+            let hardwareKey = try await answerHardwareKey()
+            guard isCancelled == false, Task.isCancelled == false else { return nil }
             let created = try await DatabaseCreationService.create(
                 request: DatabaseCreationRequest(
                     displayName: databaseName,
@@ -267,6 +292,7 @@ final class DatabaseCreationViewModel {
                     keyFileFilename: keyFileFilename,
                     cipher: cipher,
                     kdfPreset: kdfPreset,
+                    hardwareKey: hardwareKey,
                     operationID: operationID,
                     lifetime: lifetime
                 ),
@@ -278,7 +304,7 @@ final class DatabaseCreationViewModel {
             return created
         } catch {
             guard isCancelled == false, Task.isCancelled == false else { return nil }
-            creationError = cloudCreationMessage(for: error)
+            creationError = Self.cloudCreationMessage(for: error)
             return nil
         }
     }
@@ -315,7 +341,7 @@ final class DatabaseCreationViewModel {
             return false
         }
 
-        guard password.isEmpty == false || keyFileData != nil else {
+        guard password.isEmpty == false || keyFileData != nil || hardwareKeyChoice != nil else {
             validationError = DatabaseCreationService.CreationError.missingKeyComponent.localizedDescription
             return false
         }
@@ -323,12 +349,27 @@ final class DatabaseCreationViewModel {
         return true
     }
 
-    private func cloudCreationMessage(for error: Error) -> String {
+    /// The chosen YubiKey's answer to the challenge of a salt drawn for the new file.
+    private func answerHardwareKey() async throws -> CreationHardwareKey? {
+        guard let configuration = hardwareKeyChoice else { return nil }
+        let salt = try SecureRandom.data(count: DatabaseCreationDefaults.kdfSaltByteCount)
+        isAwaitingHardwareKey = true
+        defer { isAwaitingHardwareKey = false }
+        let response = try await hardwareKeyResponse(try ChallengeResponseKey.challenge(forSalt: salt), configuration)
+        return CreationHardwareKey(configuration: configuration, salt: salt, response: response)
+    }
+
+    private static func message(for error: Error) -> String {
+        guard error is HardwareKeyError else { return error.localizedDescription }
+        return DatabaseOpenFailure.classify(error, isCloudBacked: false).summary
+    }
+
+    private static func cloudCreationMessage(for error: Error) -> String {
         if case CloudProviderError.conflict = error {
             return String(localized: "A database with this name already exists in this cloud folder.")
         }
 
-        return error.localizedDescription
+        return message(for: error)
     }
 
     private func clearDisplayedErrors() {

@@ -1,30 +1,83 @@
+import CryptoKit
 import Foundation
 import KDBXKit
 
 /// Answers a YubiKey HMAC-SHA1 challenge over the transport a database is
-/// configured for. Backed by YubiKit, which the iOS app target alone links:
-/// the Mac app and both AutoFill extensions report no transports and refuse.
+/// configured for: NFC through YubiKit, which the iOS app target alone links,
+/// and USB through IOKit HID in the Mac app and Mac AutoFill. The iOS AutoFill
+/// extension does not compile this file.
 @MainActor
 enum HardwareKeyService {
     static var availableTransports: [HardwareKeyConfiguration.Transport] {
-        #if os(iOS) && canImport(YubiKit)
-        YubiKeyConnection.shared.availableTransports
-        #else
-        []
+        #if DEBUG
+        if UITestYubiKey.secret != nil { return UITestYubiKey.transports }
         #endif
+        #if os(iOS) && canImport(YubiKit)
+        return YubiKeyConnection.shared.availableTransports
+        #elseif os(macOS)
+        return [.usb]
+        #else
+        return []
+        #endif
+    }
+
+    /// What to tell the user while the key is asked.
+    static func prompt(for transport: HardwareKeyConfiguration.Transport) -> String {
+        switch transport {
+        case .nfc: String(localized: "Hold your YubiKey near the top of your device.")
+        case .usb: String(localized: "Touch your YubiKey if it flashes.")
+        }
     }
 
     static func response(
         to challenge: Data,
         using configuration: HardwareKeyConfiguration
     ) async throws -> Data {
+        guard availableTransports.contains(configuration.transport) else {
+            throw HardwareKeyError.unavailable
+        }
+        #if DEBUG
+        if let secret = UITestYubiKey.secret { return UITestYubiKey.response(to: challenge, secret: secret) }
+        #endif
         #if os(iOS) && canImport(YubiKit)
-        try await YubiKeyConnection.shared.response(to: challenge, using: configuration)
+        return try await YubiKeyConnection.shared.response(to: challenge, using: configuration)
+        #elseif os(macOS)
+        return try await MacYubiKeyConnection.shared.response(to: challenge, slot: configuration.slot)
         #else
         throw HardwareKeyError.unavailable
         #endif
     }
 }
+
+#if DEBUG
+/// UI tests drive the YubiKey flows with an emulated key: with `-ui-testing`
+/// and `UI_TEST_YUBIKEY_SECRET` (a test HMAC secret, never a real one), every
+/// transport answers at once as a variable-length HMAC-SHA1 slot does.
+private enum UITestYubiKey {
+    static var secret: Data? {
+        guard ProcessInfo.processInfo.arguments.contains("-ui-testing"),
+              let secret = ProcessInfo.processInfo.environment["UI_TEST_YUBIKEY_SECRET"] else { return nil }
+        return Data(secret.utf8)
+    }
+
+    static var transports: [HardwareKeyConfiguration.Transport] {
+        #if os(macOS)
+        [.usb]
+        #else
+        [.nfc]
+        #endif
+    }
+
+    /// A variable-length slot drops trailing bytes equal to the last one.
+    static func response(to challenge: Data, secret: Data) -> Data {
+        var message = challenge
+        if let last = message.last {
+            while message.last == last { message.removeLast() }
+        }
+        return Data(HMAC<Insecure.SHA1>.authenticationCode(for: message, using: SymmetricKey(data: secret)))
+    }
+}
+#endif
 
 #if os(iOS) && canImport(YubiKit)
 import CoreNFC
@@ -104,9 +157,7 @@ private final class YubiKeyConnection: NSObject {
                     continuation: continuation
                 )
                 YubiKitManager.shared.delegate = self
-                YubiKitExternalLocalization.nfcScanAlertMessage = String(
-                    localized: "Hold your YubiKey near the top of your device."
-                )
+                YubiKitExternalLocalization.nfcScanAlertMessage = HardwareKeyService.prompt(for: .nfc)
                 YubiKitManager.shared.startNFCConnection()
             }
         } onCancel: {

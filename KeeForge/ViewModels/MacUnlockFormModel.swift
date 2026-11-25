@@ -10,6 +10,9 @@ protocol MacUnlockSession: AnyObject {
     var biometricUnlockAvailability: DatabaseViewModel.BiometricUnlockAvailability { get }
     var canRelinkDatabaseFile: Bool { get }
     var keyFileAssociation: MacKeyFileAssociation? { get }
+    var hardwareKey: HardwareKeyConfiguration? { get }
+    var availableHardwareKeyTransports: [HardwareKeyConfiguration.Transport] { get }
+    func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?) async -> DatabaseListStore.HardwarePreferenceOutcome
     func unlock(password: String, keyFileData: Data?) async
     func unlockWithBiometrics() async -> DatabaseViewModel.BiometricUnlockOutcome
     func loadAssociatedKeyFile() async -> (data: Data, filename: String)?
@@ -80,6 +83,9 @@ final class MacUnlockFormModel {
     var selectionAlert: DocumentPickerService.SelectionAlert?
     private(set) var showsFieldError = false
     private(set) var isReconnecting = false
+    private(set) var isChangingHardwareKey = false
+    /// The plugged-in YubiKey's slots, while a USB key is chosen; nil when unknown.
+    private(set) var hardwareKeySlotStatuses: [HardwareKeyConfiguration.Slot: YubiKeyOTPHID.SlotStatus]?
     /// Bumped when the password field should take focus.
     private(set) var focusRequest = 0
     private var keyFile: KeyFile?
@@ -94,15 +100,20 @@ final class MacUnlockFormModel {
     private let session: any MacUnlockSession
     private let filePicker: any MacUnlockFilePicking
     private let keyFileSelection: UnlockKeyFileSelection
+    private let probeHardwareKeySlots: @MainActor () async -> [HardwareKeyConfiguration.Slot: YubiKeyOTPHID.SlotStatus]?
 
     init(
         session: any MacUnlockSession,
         filePicker: any MacUnlockFilePicking,
-        keyFileSelection: UnlockKeyFileSelection = UnlockKeyFileSelection()
+        keyFileSelection: UnlockKeyFileSelection = UnlockKeyFileSelection(),
+        probeHardwareKeySlots: @escaping @MainActor () async -> [HardwareKeyConfiguration.Slot: YubiKeyOTPHID.SlotStatus]? = {
+            await MacYubiKeyConnection.shared.slotStatuses()
+        }
     ) {
         self.session = session
         self.filePicker = filePicker
         self.keyFileSelection = keyFileSelection
+        self.probeHardwareKeySlots = probeHardwareKeySlots
     }
 
     var layout: Layout {
@@ -121,8 +132,70 @@ final class MacUnlockFormModel {
         keyFileSelection.isLoading
     }
 
+    /// A YubiKey alone is a valid master key; KeePassXC allows it.
     var canSubmit: Bool {
-        (password.isEmpty == false || keyFile != nil) && isUnlocking == false && isLoadingKeyFile == false
+        (password.isEmpty == false || keyFile != nil || session.hardwareKey != nil)
+            && isUnlocking == false && isLoadingKeyFile == false && isChangingHardwareKey == false
+    }
+
+    var hardwareKey: HardwareKeyConfiguration? {
+        session.hardwareKey
+    }
+
+    /// Both slots over USB, plus a stored choice this Mac cannot reach.
+    var hardwareKeyOptions: [HardwareKeyConfiguration] {
+        HardwareKeyConfiguration.pickerOptions(
+            transports: session.availableHardwareKeyTransports,
+            current: session.hardwareKey
+        )
+    }
+
+    /// Whether the form offers the Hardware Key line at all.
+    var showsHardwareKey: Bool {
+        hardwareKeyOptions.isEmpty == false
+    }
+
+    /// `option`'s name, with what the plugged-in key reports of its slot.
+    func title(for option: HardwareKeyConfiguration) -> String {
+        guard option.transport == .usb, let status = hardwareKeySlotStatuses?[option.slot] else { return option.title }
+        switch status {
+        case .notSetUp: return String(localized: "\(option.title) (Not Set Up)")
+        case .setUp(needsTouch: true): return String(localized: "\(option.title) (Touch Required)")
+        case .setUp(needsTouch: false): return option.title
+        }
+    }
+
+    /// Reads the plugged-in key's slots while a USB key is chosen. Never
+    /// before, as the read asks for Input Monitoring.
+    func refreshHardwareKeySlots() async {
+        guard session.hardwareKey?.transport == .usb else {
+            hardwareKeySlotStatuses = nil
+            return
+        }
+        let statuses = await probeHardwareKeySlots()
+        guard session.hardwareKey?.transport == .usb else { return }
+        hardwareKeySlotStatuses = statuses
+    }
+
+    /// Remembered on the database for every later unlock, as on iPhone.
+    func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?) async {
+        guard hardwareKey != session.hardwareKey, isUnlocking == false, isChangingHardwareKey == false else { return }
+        isChangingHardwareKey = true
+        defer { isChangingHardwareKey = false }
+        switch await session.setHardwareKey(hardwareKey) {
+        case .saved, .unchanged:
+            break
+        case .rejected, .notPublished:
+            selectionAlert = DocumentPickerService.SelectionAlert(
+                title: String(localized: "Hardware Key"),
+                message: SaveError.saveContextUnavailable.localizedDescription
+            )
+        case .visibleUnconfirmed, .keyEffectUnconfirmed:
+            selectionAlert = DocumentPickerService.SelectionAlert(
+                title: String(localized: "Hardware Key"),
+                message: CocoaError(.fileWriteUnknown).localizedDescription
+            )
+        }
     }
 
     var canUnlockWithBiometrics: Bool {
