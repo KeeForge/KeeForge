@@ -101,6 +101,133 @@ final class PasswordGeneratorTests: XCTestCase {
         XCTAssertTrue(password.allSatisfy { "Il1O0|`'\"".contains($0) == false })
     }
 
+    func testIncludedCharactersAlwaysAppearAndJoinThePool() {
+        let options = PasswordGenerator.Options(
+            length: 8, includeUppercase: false, includeLowercase: false, includeDigits: true,
+            includeSymbols: false, excludeAmbiguous: false, includedCharacters: "äß"
+        )
+        for seed in 0..<200 {
+            var generator = SeededGenerator(seed: UInt64(seed))
+            let password = PasswordGenerator.generate(options: options, using: &generator)
+            XCTAssertEqual(password.count, 8)
+            XCTAssertTrue(password.contains(where: { "äß".contains($0) }), "One included character is required")
+            XCTAssertTrue(password.allSatisfy { $0.isNumber || "äß".contains($0) })
+        }
+        XCTAssertEqual(PasswordGenerator.minimumEntropyBits(options: options), 8 * log2(12), accuracy: 0.0001)
+    }
+
+    func testIncludedCharactersAlreadyInASetAreNotCountedTwice() {
+        let options = PasswordGenerator.Options(
+            length: 10, includeUppercase: false, includeLowercase: false, includeDigits: true,
+            includeSymbols: false, excludeAmbiguous: false, includedCharacters: "0123x x"
+        )
+
+        XCTAssertEqual(PasswordGenerator.minimumEntropyBits(options: options), 10 * log2(11), accuracy: 0.0001,
+                       "Duplicates and whitespace are dropped; digits typed again add nothing")
+    }
+
+    func testIncludedCharactersSurviveTheAmbiguousFilter() {
+        var generator = SeededGenerator(seed: 5)
+        let password = PasswordGenerator.generate(
+            options: PasswordGenerator.Options(
+                length: 8, includeUppercase: false, includeLowercase: true, includeDigits: false,
+                includeSymbols: false, excludeAmbiguous: true, includedCharacters: "0"
+            ),
+            using: &generator
+        )
+
+        XCTAssertTrue(password.contains("0"))
+    }
+
+    func testExcludedCharactersNeverAppear() {
+        let excluded = "aeiouAEIOU0123456789#$%"
+        let options = PasswordGenerator.Options(length: 128, excludeAmbiguous: false, excludedCharacters: excluded)
+        for seed in 0..<50 {
+            var generator = SeededGenerator(seed: UInt64(seed))
+            let password = PasswordGenerator.generate(options: options, using: &generator)
+            XCTAssertEqual(password.count, 128)
+            XCTAssertTrue(password.allSatisfy { excluded.contains($0) == false })
+        }
+    }
+
+    func testExcludedCharactersOverrideIncludedOnes() {
+        var generator = SeededGenerator(seed: 9)
+        let password = PasswordGenerator.generate(
+            options: PasswordGenerator.Options(
+                length: 32, includeUppercase: false, includeLowercase: true, includeDigits: false,
+                includeSymbols: false, includedCharacters: "!?", excludedCharacters: "!"
+            ),
+            using: &generator
+        )
+
+        XCTAssertFalse(password.contains("!"))
+        XCTAssertTrue(password.contains("?"))
+    }
+
+    func testExcludingAWholeSetDropsItWithoutStallingGeneration() {
+        let options = PasswordGenerator.Options(
+            length: 12, includeUppercase: false, includeLowercase: true, includeDigits: true,
+            includeSymbols: false, excludeAmbiguous: false, excludedCharacters: "0123456789"
+        )
+        var generator = SeededGenerator(seed: 3)
+        let password = PasswordGenerator.generate(options: options, using: &generator)
+
+        XCTAssertEqual(password.count, 12)
+        XCTAssertTrue(password.allSatisfy(\.isLowercase))
+        XCTAssertTrue(PasswordGenerator.hasCharacters(options: options))
+        XCTAssertEqual(PasswordGenerator.minimumEntropyBits(options: options), 12 * log2(26), accuracy: 0.0001)
+    }
+
+    func testExcludingEveryEnabledCharacterLeavesNothingToGenerate() {
+        let options = PasswordGenerator.Options(
+            includeUppercase: false, includeLowercase: false, includeDigits: true, includeSymbols: false,
+            excludeAmbiguous: false, includedCharacters: "x", excludedCharacters: "0123456789x"
+        )
+
+        XCTAssertFalse(PasswordGenerator.hasCharacters(options: options))
+        XCTAssertEqual(PasswordGenerator.generate(options: options), "")
+        XCTAssertEqual(PasswordGenerator.minimumEntropyBits(options: options), 0)
+
+        var passphrase = options
+        passphrase.mode = .passphrase
+        XCTAssertTrue(PasswordGenerator.hasCharacters(options: passphrase), "Passphrases ignore character options")
+        XCTAssertFalse(PasswordGenerator.generate(options: passphrase).isEmpty)
+    }
+
+    func testUnattendedGenerationDropsExclusionsOnlyWhenTheyLeaveNothing() {
+        let empty = PasswordGenerator.Options(
+            includeUppercase: false, includeLowercase: false, includeDigits: true, includeSymbols: false,
+            excludeAmbiguous: false, excludedCharacters: "0123456789"
+        )
+        XCTAssertEqual(PasswordGenerator.unattended(empty).excludedCharacters, "")
+        XCTAssertEqual(PasswordGenerator.generate(options: PasswordGenerator.unattended(empty)).count, empty.length)
+
+        let usable = PasswordGenerator.Options(excludedCharacters: "abc")
+        XCTAssertEqual(PasswordGenerator.unattended(usable), usable)
+    }
+
+    func testIncludedCharactersThatWouldMergeWithANeighborAreIgnored() {
+        for usable in ["é", "😀", "€", "!"] {
+            XCTAssertTrue(PasswordGenerator.isUsableCustomCharacter(Character(usable)), usable)
+        }
+        // Each on its own: written next to another character, a combining scalar joins it.
+        let merging = ["\u{0301}", "\u{1F1FA}", "\u{1F3FD}", "\u{1100}", "\u{200D}", "e\u{0301}", "\t", " "]
+        for scalar in merging {
+            XCTAssertFalse(PasswordGenerator.isUsableCustomCharacter(Character(scalar)), scalar.debugDescription)
+        }
+        XCTAssertEqual(String(PasswordGenerator.usableIncludedCharacters("é😀é\t\n ")), "é😀")
+
+        let typed = "é😀" + merging.joined()
+        let options = PasswordGenerator.Options(
+            length: 40, includeUppercase: false, includeLowercase: false, includeDigits: true,
+            includeSymbols: false, includedCharacters: typed
+        )
+        for seed in 0..<50 {
+            var generator = SeededGenerator(seed: UInt64(seed))
+            XCTAssertEqual(PasswordGenerator.generate(options: options, using: &generator).count, 40)
+        }
+    }
+
     func testGenerateIsHighEntropy() {
         let entropy = PasswordGenerator.minimumEntropyBits()
 

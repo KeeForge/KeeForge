@@ -495,7 +495,9 @@ final class SettingsServiceTests: XCTestCase {
             includeLowercase: true,
             includeDigits: true,
             includeSymbols: false,
-            excludeAmbiguous: false
+            excludeAmbiguous: false,
+            includedCharacters: "äß",
+            excludedCharacters: "xyz"
         )
 
         SettingsService.passwordGeneratorOptions = options
@@ -533,6 +535,8 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(options.mode, .characters)
         XCTAssertEqual(options.wordCount, 6)
         XCTAssertEqual(options.separator, "-")
+        XCTAssertEqual(options.includedCharacters, "")
+        XCTAssertEqual(options.excludedCharacters, "")
     }
 
     // MARK: - Screen Protection Policy (macOS)

@@ -96,7 +96,7 @@ struct AutoFillEntryCreatorView: View {
                                 actions: {
                                     Button {
                                         draft.password = PasswordGenerator.generate(
-                                            options: SettingsService.passwordGeneratorOptions
+                                            options: PasswordGenerator.unattended(SettingsService.passwordGeneratorOptions)
                                         )
                                     } label: {
                                         Image(systemName: "wand.and.stars")

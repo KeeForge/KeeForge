@@ -27,7 +27,7 @@ enum AutoFillSaveCoordinator {
 
         static let live = Environment(
             generatePassword: {
-                PasswordGenerator.generate(options: SettingsService.passwordGeneratorOptions)
+                PasswordGenerator.generate(options: PasswordGenerator.unattended(SettingsService.passwordGeneratorOptions))
             },
             saveDraft: { draft, reference, compositeKey, openTimeSHA512 in
                 let result = try await LocalDatabaseSaver.save(
