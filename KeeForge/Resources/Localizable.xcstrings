@@ -51878,6 +51878,58 @@
         }
       }
     },
+    "Not synced since opening" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seit dem Öffnen nicht synchronisiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin sincronizar desde que se abrió"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non synchronisée depuis l'ouverture"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non sincronizzato dall'apertura"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開いてから同期していません"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не синхронизировано с момента открытия"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开后尚未同步"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟後尚未同步"
+          }
+        }
+      }
+    },
     "Note: Dropbox may warn that KeeForge has low number of users. That is normal for an indie app. KeeForge is open source and will only use the database file you choose to open or create." : {
       "localizations" : {
         "de" : {

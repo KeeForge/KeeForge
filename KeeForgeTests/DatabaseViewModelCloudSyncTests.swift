@@ -1807,6 +1807,16 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertTrue(vm.canSyncCloudNow)
     }
 
+    func testTheRootRowShortensOnlyTheSkippedCheckNotice() async throws {
+        let vm = makeViewModel(reference: try makeStoredManualReference(provider: .webDAV), openedData: try fixtureData())
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertTrue(vm.isCloudRefreshPending)
+        XCTAssertEqual(CloudSyncControls.title(for: vm, compact: true), String(localized: "Not synced since opening"))
+        XCTAssertEqual(CloudSyncControls.title(for: vm), String(localized: "Opened without checking \("WebDAV") for changes."),
+            "The status popover and VoiceOver keep the full notice")
+    }
+
     func testSyncNowWithUnchangedCopyReportsUpToDateAndKeepsTheOpenTree() async throws {
         let openedData = try fixtureData()
         let reference = try makeStoredManualReference()
@@ -2627,6 +2637,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertEqual(vm.cloudSyncBannerText, CloudSyncResolution.offlineCachedBannerMessage)
         XCTAssertTrue(CloudSyncControls.showsWarning(for: vm))
         XCTAssertEqual(CloudSyncControls.title(for: vm), CloudSyncResolution.offlineCachedBannerMessage)
+        XCTAssertEqual(CloudSyncControls.title(for: vm, compact: true), CloudSyncResolution.offlineCachedBannerMessage,
+            "A failed check keeps its full wording in the root row")
     }
 
     func testSyncShortcutSurvivesChangingPolicyAfterACheckedOpen() async throws {

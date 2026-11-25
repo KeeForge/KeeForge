@@ -12,6 +12,7 @@
 ### Changes
 
 - The Authentication Grace Period has a new Never Ask option, and it is the default on Mac: after you unlock a database, revealing and copying passwords, and filling them in your browser, no longer asks for Touch ID or your password again until the database locks (#337). A period you already picked, including Always Ask, is kept. iPhone and iPad still default to Always Ask, and there leaving KeeForge also ends the grace period. Change it in Settings → Security.
+- On iPhone, the notice at the top of a cloud database that opened without checking for changes takes less room: it now reads "Not synced since opening" above the last sync time, beside a round Sync Now button (#332). Tap the notice for the full details.
 - Unsaved local changes can be exported as an encrypted snapshot from Database Details, including during save recovery.
 - AutoFill changes waiting for a local database can be exported as their original encrypted snapshots in Database Details. Removing a database preserves these changes until you explicitly discard them.
 
