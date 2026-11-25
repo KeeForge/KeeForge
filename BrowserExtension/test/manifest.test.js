@@ -22,7 +22,8 @@ test('manifest content script, web-accessible resources and CSP are exact', () =
 
 test('manifest browser versions, ids, background and action', () => {
   assert.equal(manifest.minimum_chrome_version, '133');
-  assert.deepEqual(manifest.browser_specific_settings, { gecko: { id: 'browser-extension@keeforge.com', strict_min_version: '130.0' } });
+  // AMO requires the data-collection declaration for new add-ons; Firefox shows it at install from 140 on.
+  assert.deepEqual(manifest.browser_specific_settings, { gecko: { id: 'browser-extension@keeforge.com', strict_min_version: '140.0', data_collection_permissions: { required: ['authenticationInfo', 'browsingActivity'] } } });
   // The build stamps project.yml's MARKETING_VERSION; the source keeps a placeholder.
   assert.equal(manifest.version, '0.0.0');
   assert.match(manifest.key, /^MIIBIjAN/);

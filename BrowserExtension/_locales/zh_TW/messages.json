@@ -6,7 +6,7 @@
     "message": "KeeForge"
   },
   "extensionDescription": {
-    "message": "從 KeeForge 填寫登入資訊。"
+    "message": "從 KeeForge（適用於 Mac 的 KeePass 密碼管理工具）填寫登入資訊和驗證碼。"
   },
   "loading": {
     "message": "正在連接…"

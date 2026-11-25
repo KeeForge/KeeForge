@@ -6,7 +6,7 @@
     "message": "KeeForge"
   },
   "extensionDescription": {
-    "message": "KeeForge からログイン情報を入力します。"
+    "message": "Mac 用 KeePass パスワードマネージャ KeeForge から、ログイン情報と確認コードを入力します。"
   },
   "loading": {
     "message": "接続中…"

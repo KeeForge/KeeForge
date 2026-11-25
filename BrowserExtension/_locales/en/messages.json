@@ -6,7 +6,7 @@
     "message": "KeeForge"
   },
   "extensionDescription": {
-    "message": "Fill logins from KeeForge."
+    "message": "Fill logins and verification codes from KeeForge, the KeePass password manager for Mac."
   },
   "loading": {
     "message": "Connecting…"

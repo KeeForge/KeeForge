@@ -6,7 +6,7 @@
     "message": "KeeForge"
   },
   "extensionDescription": {
-    "message": "Inserisci le credenziali da KeeForge."
+    "message": "Inserisci credenziali e codici di verifica da KeeForge, il gestore di password KeePass per Mac."
   },
   "loading": {
     "message": "Connessione…"

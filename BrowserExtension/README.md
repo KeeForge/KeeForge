@@ -1,6 +1,6 @@
 # KeeForge browser extension
 
-Manifest V3, plain JavaScript (classic content script, ES modules elsewhere), no packages. Requires Chrome-family 133+ or Firefox 130+ (WebCrypto X25519). Run `env -u NODE_USE_SYSTEM_CA node --test` here; `tools/build.sh` reads the marketing version in `../project.yml` and writes deterministic `build/chrome.zip`, `build/firefox.zip` and unpacked directories. Python 3 and Node with WebCrypto X25519 are needed for development. The root `.gitignore` already ignores `build/` directories.
+Manifest V3, plain JavaScript (classic content script, ES modules elsewhere), no packages. Requires Chrome-family 133+ (WebCrypto X25519) or Firefox 140+ (the built-in data-collection consent, which declares that the extension handles authentication information and sends the current site to the local app). Run `env -u NODE_USE_SYSTEM_CA node --test` here; `tools/build.sh` reads the marketing version in `../project.yml` and writes deterministic `build/chrome.zip`, `build/firefox.zip` and unpacked directories. Python 3 and Node with WebCrypto X25519 are needed for development. The root `.gitignore` already ignores `build/` directories.
 
 ## Load for development
 
