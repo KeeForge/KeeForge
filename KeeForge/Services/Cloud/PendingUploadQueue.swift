@@ -736,7 +736,7 @@ enum PendingUploadQueue {
         let directory = environment.appGroupContainerURL().appendingPathComponent("pending-upload-locks", isDirectory: true)
         try environment.createDirectory(directory)
         let lockURL = directory.appendingPathComponent(databaseID.uuidString + ".delivery.lock")
-        let fd = Darwin.open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        let fd = Darwin.open(lockURL.path, O_CREAT | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)
         guard fd >= 0 else { throw POSIXError(.EIO) }
         guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
             let error = errno
@@ -950,9 +950,11 @@ enum PendingUploadQueue {
         }
     }
 
-    /// A remote divergence affects the whole local lineage, including descendants not attempted yet.
-    static func markDatabaseConflicted(for databaseID: UUID, environment: Environment = .live) throws {
-        for stored in try readJournal(for: databaseID, environment: environment) where !stored.marker.isConflicted {
+    /// Use the inspected generations so a stale probe cannot overwrite a delivery attempt or receipt.
+    static func markConflictedLineage(_ snapshots: [StoredMarker], environment: Environment = .live) throws {
+        for stored in snapshots where !stored.marker.isConflicted {
+            let state = CloudJournalDecision.state(of: stored.marker)
+            guard state != .attempting, state != .confirmed else { continue }
             _ = try markConflicted(stored, environment: environment)
         }
     }

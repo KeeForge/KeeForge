@@ -678,13 +678,6 @@ enum CloudDatabaseSaver {
         _ snapshot: PendingUploadQueue.StoredMarker, reference: DatabaseReference,
         environment: Environment = .live
     ) async throws -> PendingUploadPushResult? {
-        let deliveryLock: Int32
-        do {
-            deliveryLock = try PendingUploadQueue.acquireDeliveryLock(for: reference.id, environment: environment.queue)
-        } catch let error as POSIXError where error.code == .EWOULDBLOCK {
-            return .retained(updatedReference: reference)
-        }
-        defer { Darwin.close(deliveryLock) }
         do { return try await deliverJournal(snapshot, reference: reference, environment: environment) }
         catch { recordIssue(error, reference: reference); throw error }
     }
@@ -745,7 +738,7 @@ enum CloudDatabaseSaver {
         case .reconcile: return try recoverConfirmed(stored, reference: reference, environment: environment)
         case .retain: return .retained(updatedReference: reference)
         case .conflict:
-            try PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
+            try PendingUploadQueue.markConflictedLineage(all, environment: environment.queue)
             return .conflict(remoteRev: nil)
         case .dispatch: break
         }
@@ -763,7 +756,7 @@ enum CloudDatabaseSaver {
                     stored.marker.isConflicted = true
                     _ = try PendingUploadQueue.update(stored, environment: environment.queue)
                 } else {
-                    try PendingUploadQueue.markDatabaseConflicted(for: reference.id, environment: environment.queue)
+                    try PendingUploadQueue.markConflictedLineage(all, environment: environment.queue)
                 }
                 return .conflict(remoteRev: remoteMetadata.rev)
             }
@@ -776,6 +769,13 @@ enum CloudDatabaseSaver {
         guard let dispatch = CloudJournalDecision.transition(from: CloudJournalDecision.state(of: stored.marker), on: .dispatch) else {
             return .retained(updatedReference: reference)
         }
+        let deliveryLock: Int32
+        do {
+            deliveryLock = try PendingUploadQueue.acquireDeliveryLock(for: reference.id, environment: environment.queue)
+        } catch let error as POSIXError where error.code == .EWOULDBLOCK {
+            return .retained(updatedReference: reference)
+        }
+        defer { Darwin.close(deliveryLock) }
         var response: CloudFileMetadata?
         do {
             for effect in dispatch.effects {

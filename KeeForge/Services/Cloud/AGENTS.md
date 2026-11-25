@@ -46,7 +46,7 @@
 
 ### Durable cloud journal
 
-- Delivery holds a per-database lock through provider IO and acknowledgement. Removal tries the same lock before changing the registry or detaching a journal.
+- Delivery holds a per-database lock from attempt publication through upload acknowledgement; read-only preflight runs outside it. Removal tries the same lock before changing the registry or detaching a journal.
 
 - App saves publish an immutable encrypted payload and durable intent before replacing the shared cache. A successful local save means cached and queued, not remote delivery. Local/AutoFill replacement truth and revocation remain owned by the local saver.
 - Explicit creation discard accepts only the exact prepared snapshot under target and operation locks. It durably removes the record before cleaning its ciphertext; attempting or changed records remain untouched.
