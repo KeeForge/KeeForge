@@ -15,6 +15,12 @@ import SwiftUI
 /// metadata, file header, cloud sync — is identical, which is why this view
 /// exists instead of two that drift apart.
 struct DatabaseDetailsView: View {
+    /// A closure-destination link keeps its pushed view's `@State` across pops; a route pushes a fresh one.
+    private enum Route: Hashable {
+        case encryption
+        case encryptionSettings
+    }
+
     let reference: DatabaseReference
     /// Non-nil only when opened from an unlocked database. Nickname and
     /// read-only changes route through it so the open session refreshes its
@@ -88,6 +94,19 @@ struct DatabaseDetailsView: View {
             .macGroupedForm()
             .navigationTitle("Database Details")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .encryption:
+                    page("Encryption") {
+                        encryptionFactsSection
+                        encryptionSection
+                    }
+                case .encryptionSettings:
+                    if let sessionViewModel, let summary = fileInfo?.summary {
+                        EncryptionSettingsView(sessionViewModel: sessionViewModel, current: summary)
+                    }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") {
@@ -283,12 +302,7 @@ struct DatabaseDetailsView: View {
             }
             .accessibilityIdentifier("database-details.master-key.link")
 
-            NavigationLink {
-                page("Encryption") {
-                    encryptionFactsSection
-                    encryptionSection
-                }
-            } label: {
+            NavigationLink(value: Route.encryption) {
                 SettingsSummaryRow(
                     title: "Encryption",
                     systemImage: "lock",
@@ -539,11 +553,7 @@ struct DatabaseDetailsView: View {
     private var encryptionSection: some View {
         if let sessionViewModel {
             Section {
-                NavigationLink {
-                    if let summary = fileInfo?.summary {
-                        EncryptionSettingsView(sessionViewModel: sessionViewModel, current: summary)
-                    }
-                } label: {
+                NavigationLink(value: Route.encryptionSettings) {
                     Text("Change Encryption Settings…")
                 }
                 .disabled(isReadOnly || fileInfo?.summary == nil)

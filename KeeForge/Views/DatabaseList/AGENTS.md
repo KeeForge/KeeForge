@@ -25,6 +25,7 @@
 
 - Importers, sheets, the export presenter, and the file-facts task hang off the `NavigationStack`, not the hub: the hub leaves the screen while a page is pushed, which cancels its tasks and leaves it unable to present.
 - That task is keyed on the session's `openTimeSHA512`, which every write through the session replaces, so file facts and backups refresh while the sheet stays open.
+- The Encryption page and Encryption Settings are pushed as typed routes, so each push of the form starts from the file. A closure-destination link keeps its pushed view's `@State` across pops, and a route link does nothing on a page a closure link pushed.
 - The read-only toggle is disabled for KDBX 3.1 and for a database with a hardware key configured, in both contexts; the savers reject both.
 - The master-key, encryption and import sheets register cancellation with their shell so teardown clears pending work synchronously.
 - `MasterKeyChangeView` is pushed inside the details sheet, never a nested sheet. Its back button is hidden so Cancel is the only way out and the edge-swipe cannot abort mid-edit. Cancel and `onDisappear` call `cancelPendingChange()`, so a dismissal during authentication aborts instead of rekeying with cleared fields.
