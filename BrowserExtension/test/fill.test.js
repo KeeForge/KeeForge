@@ -111,6 +111,8 @@ test('probe and fill share conservative visibility table for fields and ancestor
     { box: { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0 } }
   ];
   for (const ancestor of [false, true]) for (const properties of hidden) {
+    // An empty ancestor box hides its children only when it clips; the clip cases below cover that.
+    if (ancestor && properties.box) continue;
     const input = new Input({ type: 'password', ...(ancestor ? { parentElement: new Input(properties) } : properties) });
     page([input], input);
     assert.equal(probeFrame().fillable, false, JSON.stringify({ ancestor, properties }));
@@ -127,6 +129,11 @@ test('probe and fill share conservative visibility table for fields and ancestor
   assert.equal(probeFrame().fillable, true); assert.equal(fill().password, true);
   // A display:contents wrapper has an empty box and clips nothing; its own ancestors still count.
   const empty = { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0 };
+  // An empty box that does not clip leaves positioned children painted; overflow or paint containment hides them.
+  for (const [style, fillable] of [[{}, true], [{ overflow: 'hidden' }, false], [{ contain: 'paint' }, false], [{ contain: 'strict' }, false], [{ contain: 'layout style' }, true]]) {
+    const input = new Input({ type: 'password', parentElement: new Input({ style, box: empty, clientWidth: 0, clientHeight: 0 }) }); page([input]);
+    assert.equal(probeFrame().fillable, fillable, JSON.stringify(style)); assert.equal(fill().password, fillable);
+  }
   const wrapped = new Input({ type: 'password', parentElement: new Input({ style: { display: 'contents', overflow: 'hidden' }, box: empty, clientWidth: 0, clientHeight: 0 }) }); page([wrapped]);
   assert.equal(probeFrame().fillable, true); assert.equal(fill().password, true);
   const underTransparent = new Input({ type: 'password', parentElement: new Input({ style: { display: 'contents' }, box: empty, parentElement: new Input({ style: { opacity: '0' } }) }) }); page([underTransparent]);

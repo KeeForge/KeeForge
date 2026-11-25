@@ -32,9 +32,10 @@ function fillDocument(expectedOrigin, credential, codeOnly = false, expectedToke
       if ([style.clipPath, style.clip, style.maskImage, style.webkitMaskImage].some(value => value && !['none', 'auto'].includes(value))) return false;
       if (node !== input && !scrollsViewport(node)) {
         box = call(node, 'getBoundingClientRect');
-        if (box.width <= 0 || box.height <= 0) return false;
-        const clipsX = ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowX || style.overflow);
-        const clipsY = ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowY || style.overflow);
+        // An empty box hides nothing by itself (positioned children paint outside it); overflow and paint containment clip.
+        const contained = /\b(paint|strict|content)\b/.test(style.contain || '');
+        const clipsX = contained || ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowX || style.overflow);
+        const clipsY = contained || ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowY || style.overflow);
         if (clipsX || clipsY) {
           const clipLeft = box.left + prop(node, 'clientLeft'), clipTop = box.top + prop(node, 'clientTop');
           if (clipsX) { left = Math.max(left, clipLeft); right = Math.min(right, clipLeft + prop(node, 'clientWidth')); }

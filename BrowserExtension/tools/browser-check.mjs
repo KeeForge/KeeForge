@@ -204,7 +204,7 @@ async function cases(cdp, port) {
     const probe = await world.call();
     check('login below the fold, not scrolled (viewport rule)', { fillable: false }, { fillable: probe.fillable });
   });
-  for (const technique of ['display-none', 'visibility-hidden', 'opacity-0', 'offscreen', 'clip-path', 'zero-size', 'inert', 'closed-details', 'sr-only-clip', 'content-visibility', 'contents-in-opacity-0']) {
+  for (const technique of ['display-none', 'visibility-hidden', 'opacity-0', 'offscreen', 'clip-path', 'zero-size', 'inert', 'closed-details', 'sr-only-clip', 'content-visibility', 'zero-size-contain-paint', 'contents-in-opacity-0']) {
     await withTab(`/hidden.html?h=${technique}`, async (tab, world) => {
       const probe = await world.call();
       check(`hidden ${technique}: hidden empty, visible fills`, [login, { hu: '', hp: '', vu: 'alice', vp: 's3cret-pw' }], [await fill(world, probe.token), await values(tab, ['hu', 'hp', 'vu', 'vp'])]);
@@ -226,7 +226,7 @@ async function cases(cdp, port) {
   });
   await withTab('/contents.html', async (tab, world) => {
     const probe = await world.call();
-    check('login under display:contents wrappers in a clipped card: fills', [true, login, { u: 'alice', p: 's3cret-pw' }], [probe.fillable, await fill(world, probe.token), await values(tab, ['u', 'p'])]);
+    check('login under display:contents wrappers and an empty positioned layer: fills', [true, login, { u: 'alice', p: 's3cret-pw' }], [probe.fillable, await fill(world, probe.token), await values(tab, ['u', 'p'])]);
   });
   await withTab('/shadow-open.html', async (tab, world) => {
     const probe = await world.call();
