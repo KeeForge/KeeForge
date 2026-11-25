@@ -305,6 +305,31 @@ struct GroupListView: View {
                 .accessibilityIdentifier("vault.more.sync")
             }
 
+            if isRoot {
+                Divider()
+
+                // A hidden tile's only other way in is gone, so the menu opens it.
+                ForEach(viewModel.hiddenVaultTilesInOrder, id: \.self) { collection in
+                    Button(collection.title, systemImage: collection.systemImage) {
+                        openRoute(.collection(collection))
+                    }
+                    .accessibilityIdentifier("vault.more.open.\(collection.rawValue)")
+                }
+
+                Menu {
+                    ForEach(DatabaseCollection.vaultTiles, id: \.self) { collection in
+                        Toggle(collection.title, systemImage: collection.systemImage, isOn: Binding(
+                            get: { viewModel.hiddenVaultTiles.contains(collection) == false },
+                            set: { viewModel.setVaultTile(collection, isVisible: $0) }
+                        ))
+                        .accessibilityIdentifier("vault.more.tiles.\(collection.rawValue)")
+                    }
+                } label: {
+                    Label("Show Tiles", systemImage: "square.grid.2x2")
+                }
+                .accessibilityIdentifier("vault.more.tiles")
+            }
+
             Divider()
 
             Button("Database Details", systemImage: "doc.text") {
@@ -382,12 +407,15 @@ struct GroupListView: View {
                 .accessibilityIdentifier("database.read-only-indicator")
             }
         }
-        Section {
-            VaultHomeTiles(counts: viewModel.collectionCounts, isInSidebar: onOpenRoute != nil) { collection in
-                openRoute(.collection(collection))
+        let tiles = viewModel.visibleVaultTiles
+        if tiles.isEmpty == false {
+            Section {
+                VaultHomeTiles(tiles: tiles, counts: viewModel.collectionCounts, isInSidebar: onOpenRoute != nil) { collection in
+                    openRoute(.collection(collection))
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
         }
     }
 

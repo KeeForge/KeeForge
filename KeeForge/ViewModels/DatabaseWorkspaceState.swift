@@ -24,6 +24,10 @@ enum DatabaseCollection: String, Hashable, Sendable {
     /// The vault root's tiles, in order.
     static let vaultTiles: [DatabaseCollection] = [.allEntries, .verificationCodes, .tags, .recycleBin]
 
+    static func vaultTiles(hiding hidden: Set<DatabaseCollection>) -> [DatabaseCollection] {
+        vaultTiles.filter { hidden.contains($0) == false }
+    }
+
     /// The shorter name on the root's tile.
     var tileTitle: String {
         switch self {
@@ -83,6 +87,27 @@ struct DatabaseCollectionCounts: Equatable, Sendable {
         case .passkeys: passkeys
         case .tags: tags
         case .recycleBin: recycleBin
+        }
+    }
+}
+
+/// The vault tiles the user hid from the root, stored as raw values.
+/// Unknown values and collections that have no tile are dropped on read.
+enum HiddenVaultTilesStore {
+    static let defaultsKey = "KeeForge.hiddenVaultTiles"
+
+    static func load(from defaults: UserDefaults = .standard) -> Set<DatabaseCollection> {
+        let raw = defaults.stringArray(forKey: defaultsKey) ?? []
+        return Set(raw.compactMap(DatabaseCollection.init(rawValue:)))
+            .intersection(DatabaseCollection.vaultTiles)
+    }
+
+    static func save(_ hidden: Set<DatabaseCollection>, to defaults: UserDefaults = .standard) {
+        let raw = DatabaseCollection.vaultTiles.filter(hidden.contains).map(\.rawValue)
+        if raw.isEmpty {
+            defaults.removeObject(forKey: defaultsKey)
+        } else {
+            defaults.set(raw, forKey: defaultsKey)
         }
     }
 }

@@ -589,6 +589,29 @@ final class DatabaseViewModel {
             updateSearchResults()
         }
     }
+    /// Root tiles the user hid on iPhone and iPad; each stays reachable from
+    /// the root's More menu.
+    var hiddenVaultTiles: Set<DatabaseCollection> = HiddenVaultTilesStore.load() {
+        didSet { HiddenVaultTilesStore.save(hiddenVaultTiles) }
+    }
+
+    var visibleVaultTiles: [DatabaseCollection] {
+        DatabaseCollection.vaultTiles(hiding: hiddenVaultTiles)
+    }
+
+    /// The hidden tiles in tile order.
+    var hiddenVaultTilesInOrder: [DatabaseCollection] {
+        DatabaseCollection.vaultTiles.filter(hiddenVaultTiles.contains)
+    }
+
+    func setVaultTile(_ collection: DatabaseCollection, isVisible: Bool) {
+        guard DatabaseCollection.vaultTiles.contains(collection) else { return }
+        if isVisible {
+            hiddenVaultTiles.remove(collection)
+        } else {
+            hiddenVaultTiles.insert(collection)
+        }
+    }
 
     private(set) var failedAttempts = 0
     private(set) var lockoutUntil: Date?
