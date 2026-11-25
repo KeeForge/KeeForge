@@ -14431,58 +14431,6 @@
         }
       }
     },
-    "Changes saved through AutoFill are still waiting to upload." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Über AutoFill gesicherte Änderungen warten noch auf das Hochladen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Los cambios guardados mediante el autorrelleno aún están pendientes de cargar."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les modifications enregistrées via le Remplissage automatique sont encore en attente d'envoi."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le modifiche salvate tramite l'inserimento automatico sono ancora in attesa di caricamento."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動入力で保存された変更はまだアップロードを待っています。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Изменения, сохранённые через автозаполнение, всё ещё ждут отправки."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通过自动填充保存的更改仍在等待上传。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "透過自動填寫儲存的變更仍在等待上傳。"
-          }
-        }
-      }
-    },
     "Changes the entry icon" : {
       "localizations" : {
         "de" : {
@@ -50780,6 +50728,58 @@
         }
       }
     },
+    "No newer copy on %@." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine neuere Kopie auf %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay una copia más reciente en %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune copie plus récente sur %@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna copia più recente su %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に新しいコピーはありません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В %@ нет более новой копии."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 上没有更新的副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 上沒有更新的副本。"
+          }
+        }
+      }
+    },
     "No paired browsers" : {
       "localizations" : {
         "de" : {
@@ -68147,6 +68147,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "通訊端："
+          }
+        }
+      }
+    },
+    "Some changes are saved on this device but haven’t been uploaded yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einige Änderungen sind auf diesem Gerät gespeichert, wurden aber noch nicht hochgeladen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algunos cambios están guardados en este dispositivo, pero aún no se han cargado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certaines modifications sont enregistrées sur cet appareil, mais n'ont pas encore été envoyées."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alcune modifiche sono salvate su questo dispositivo, ma non sono ancora state caricate."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部の変更はこのデバイスに保存されていますが、まだアップロードされていません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некоторые изменения сохранены на этом устройстве, но ещё не отправлены."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分更改已保存在此设备上，但尚未上传。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分變更已儲存在此裝置上，但尚未上傳。"
+          }
+        }
+      }
+    },
+    "Some changes couldn’t be uploaded yet. They’re still saved on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einige Änderungen konnten noch nicht hochgeladen werden. Sie sind weiterhin auf diesem Gerät gespeichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algunos cambios aún no se han podido cargar. Siguen guardados en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certaines modifications n'ont pas encore pu être envoyées. Elles restent enregistrées sur cet appareil."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non è stato ancora possibile caricare alcune modifiche. Restano salvate su questo dispositivo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部の変更はまだアップロードできていません。変更はこのデバイスに保存されたままです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некоторые изменения пока не удалось отправить. Они по-прежнему сохранены на этом устройстве."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分更改尚未能上传。这些更改仍保存在此设备上。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分變更尚未能上傳。這些變更仍儲存在此裝置上。"
           }
         }
       }

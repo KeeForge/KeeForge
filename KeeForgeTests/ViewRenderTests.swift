@@ -103,6 +103,60 @@ final class ViewRenderTests: XCTestCase {
         ], named: "database-opening")
     }
 
+    // MARK: Cloud sync status
+
+    /// The vault root's sync row while a change saved through AutoFill waits
+    /// to upload, after the open and after Sync Now.
+    func testCloudSyncStatusAutoFillPending() async throws {
+        DatabaseListStore.clearAll()
+        defer { DatabaseListStore.clearAll() }
+        let data = try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
+        let file = CloudFile(id: "/Passwords.kdbx", name: "Passwords.kdbx", path: "/Passwords.kdbx",
+            isFolder: false, modifiedDate: Date(timeIntervalSince1970: 100), size: Int64(data.count))
+        var stored = try DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue, accountId: "account", file: file)
+        stored.cloudSyncPolicy = .manual
+        stored.updateCloudSyncMetadata { $0.lastSyncedAt = .now.addingTimeInterval(-9) }
+        DatabaseListStore.testUpsert(stored)
+        let reference = stored
+        var queued = PendingUploadQueue.Marker(databaseId: reference.id, encryptedBytesCacheURL: "render",
+            openTimeSHA512: FileDigest.sha512(data), expectedRev: nil, createdAt: .now)
+        queued.remoteBaseSHA512 = FileDigest.sha512(data)
+        let source = PendingUploadQueue.StoredMarker(id: UUID(), fileURL: URL(fileURLWithPath: "/render.json"), marker: queued)
+
+        func unlockedSession(syncWithQueuedSource: Bool?) async -> DatabaseViewModel {
+            let cached: DatabaseViewModel.CloudSyncOperation = { reference, _ in
+                CloudSyncResolution(reference: reference, localURL: URL(fileURLWithPath: "/render.kdbx"), data: data, status: .refreshSkipped)
+            }
+            let refresh: DatabaseViewModel.CloudSyncOperation = { reference, _ in
+                var resolution = CloudSyncResolution(reference: reference, localURL: URL(fileURLWithPath: "/render.kdbx"),
+                    data: data, status: syncWithQueuedSource == true ? .downloaded : .current)
+                if syncWithQueuedSource == true { resolution.pendingUploadSources = [source] }
+                return resolution
+            }
+            let session = DatabaseViewModel(databaseReference: reference, cloudSyncOperation: cached,
+                cloudRefreshOperation: refresh, pendingUploadMarkerCheck: { _ in true })
+            await session.unlock(password: "testpassword123")
+            if syncWithQueuedSource != nil { await session.syncCloudNow() }
+            return session
+        }
+
+        let opened = await unlockedSession(syncWithQueuedSource: nil)
+        let syncedWhileQueued = await unlockedSession(syncWithQueuedSource: true)
+        let syncedWithNothingNewer = await unlockedSession(syncWithQueuedSource: false)
+        defer { [opened, syncedWhileQueued, syncedWithNothingNewer].forEach { $0.lock() } }
+        try render([
+            RenderedState(caption: "Opened from the cache, AutoFill change waiting") {
+                CloudSyncStatusRow(viewModel: opened)
+            },
+            RenderedState(caption: "Sync Now while the AutoFill upload is queued\(syncedWhileQueued.saveConflict == nil ? "" : " + Save Conflict alert")") {
+                CloudSyncStatusRow(viewModel: syncedWhileQueued)
+            },
+            RenderedState(caption: "Sync Now, nothing newer, change still waiting") {
+                CloudSyncStatusRow(viewModel: syncedWithNothingNewer)
+            },
+        ], named: "cloud-sync-autofill-pending")
+    }
+
     // MARK: Sheets
 
     func testNewDatabaseSheet() throws {

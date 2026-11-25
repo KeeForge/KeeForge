@@ -189,7 +189,7 @@ final class MacDatabaseSettingsModel {
     /// Why Sync Now is unavailable, or what the last sync did.
     var syncNowNote: String? {
         guard let session, session.state == .unlocked else { return String(localized: "Unlock this database to sync it.") }
-        if let outcome = session.cloudSyncOutcome { return outcome.message }
+        if let message = session.cloudSyncOutcomeMessage { return message }
         if session.isDirty || session.hasUnsavedEditor { return String(localized: "Save your changes before syncing.") }
         return nil
     }

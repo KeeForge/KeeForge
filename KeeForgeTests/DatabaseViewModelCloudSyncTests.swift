@@ -2096,8 +2096,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         await gate.open()
         await syncTask.value
         XCTAssertEqual(refreshRecorder.references.count, 2)
-        XCTAssertEqual(vm.cloudSyncOutcome, .updateWaitsForSave)
-        XCTAssertNotNil(vm.saveConflict)
+        XCTAssertEqual(vm.cloudSyncOutcome, .uploadsPending, "Remote bytes still at the save's base are no conflict")
+        XCTAssertNil(vm.saveConflict)
         XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
         XCTAssertEqual(try Data(contentsOf: cacheURL), saved)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(saved))
@@ -2215,8 +2215,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertEqual(marker.marker.predecessorOperationID, first.id)
         XCTAssertEqual(marker.marker.expectedRev, reference.expectedCloudRevision)
         XCTAssertEqual(refreshRecorder.references.count, 2)
-        XCTAssertEqual(vm.cloudSyncOutcome, .updateWaitsForSave)
-        XCTAssertNotNil(vm.saveConflict)
+        XCTAssertEqual(vm.cloudSyncOutcome, .uploadsPending, "Remote bytes still at the saves' base are no conflict")
+        XCTAssertNil(vm.saveConflict)
         XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(saved))
         XCTAssertTrue(entryTitles(in: vm).isSuperset(of: ["Saved Mid-Sync", "Late Edit"]))
         XCTAssertTrue(try Self.entryTitles(in: saved, password: fixturePassword).isSuperset(of: ["Saved Mid-Sync", "Late Edit"]))
@@ -2595,6 +2595,207 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         pending.value = false
         await vm.syncCloudNow()
         XCTAssertFalse(vm.hasPendingCloudUploads)
+    }
+
+    func testAutoFillEntryReachesTheOpenSessionOnceItsUploadDrains() async throws {
+        let openedData = try fixtureData()
+        let reference = try makeStoredManualReference()
+        try DatabaseListStore.cacheDatabaseCopy(openedData, for: reference)
+        let remote = InMemoryRemoteProvider(bytes: openedData, rev: "rev-A")
+        let vm = makeViewModelOnTheRealCache(reference: reference, remote: remote)
+        defer { vm.lock() }
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.state, .unlocked)
+
+        var phase = "autofill-save"
+        do {
+        try await saveThroughAutoFill(title: "Created in AutoFill", reference: reference)
+        phase = "first-delivery"
+        try await deliverPendingUploads(for: reference, to: remote)
+        XCTAssertTrue(try Self.entryTitles(in: remote.currentBytes, password: fixturePassword).contains("Created in AutoFill"))
+        XCTAssertFalse(entryTitles(in: vm).contains("Created in AutoFill"))
+
+        let adopted = await vm.adoptChangedCloudCacheIfPossible()
+
+        XCTAssertTrue(adopted)
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertTrue(entryTitles(in: vm).contains("Created in AutoFill"))
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        XCTAssertEqual(vm.openTimeSHA512, FileDigest.sha512(try Data(contentsOf: cacheURL)))
+        let unchanged = await vm.adoptChangedCloudCacheIfPossible()
+        XCTAssertFalse(unchanged, "An unchanged cache must not be parsed again")
+
+        // The next app save builds on the AutoFill change instead of conflicting with it.
+        phase = "app-edit"
+        try vm.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(vm.visibleRootGroupID),
+            draft: EntryDraftPayload(title: "Saved in App", password: "p")))
+        phase = "app-save"
+        try await vm.save()
+        XCTAssertNil(vm.saveConflict)
+        phase = "second-delivery"
+        try await deliverPendingUploads(for: reference, to: remote)
+        phase = "remote-titles"
+        XCTAssertTrue(try Self.entryTitles(in: remote.currentBytes, password: fixturePassword)
+            .isSuperset(of: ["Created in AutoFill", "Saved in App"]))
+        } catch {
+            XCTFail("\(phase): \(error)")
+            throw error
+        }
+    }
+
+    func testSessionStoreAdoptsTheAutoFillEntryWhenTheDrainReportsTheDatabase() async throws {
+        let openedData = try fixtureData()
+        let reference = try makeStoredManualReference()
+        try DatabaseListStore.cacheDatabaseCopy(openedData, for: reference)
+        let remote = InMemoryRemoteProvider(bytes: openedData, rev: "rev-A")
+        let vm = makeViewModelOnTheRealCache(reference: reference, remote: remote)
+        defer { vm.lock() }
+        let store = DatabaseSessionStore()
+        store.adopt(vm)
+        await vm.unlock(password: fixturePassword)
+        try await saveThroughAutoFill(title: "Created in AutoFill", reference: reference)
+
+        store.refreshPendingUploads(for: [reference.id])
+
+        for _ in 0..<300 where !entryTitles(in: vm).contains("Created in AutoFill") {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertTrue(entryTitles(in: vm).contains("Created in AutoFill"))
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertTrue(vm.hasPendingCloudUploads, "The change is open here but still queued for upload")
+    }
+
+    func testSyncNowWithAQueuedAutoFillChangeReportsItWaitingInsteadOfAConflict() async throws {
+        let openedData = try fixtureData()
+        let reference = try makeStoredManualReference()
+        try DatabaseListStore.cacheDatabaseCopy(openedData, for: reference)
+        let remote = InMemoryRemoteProvider(bytes: openedData, rev: "rev-A")
+        let vm = makeViewModelOnTheRealCache(reference: reference, remote: remote)
+        defer { vm.lock() }
+        await vm.unlock(password: fixturePassword)
+        try await saveThroughAutoFill(title: "Created in AutoFill", reference: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let autoFillBytes = try Data(contentsOf: cacheURL)
+
+        await vm.syncCloudNow()
+
+        XCTAssertNil(vm.saveConflict, "A queued upload on an unchanged cloud copy is not a conflict")
+        XCTAssertEqual(vm.cloudSyncOutcome, .uploadsPending)
+        XCTAssertTrue(entryTitles(in: vm).contains("Created in AutoFill"))
+        XCTAssertEqual(try Data(contentsOf: cacheURL), autoFillBytes)
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).count, 1)
+        XCTAssertEqual(remote.currentBytes, openedData)
+        XCTAssertTrue(CloudSyncControls.showsWarning(for: vm))
+        XCTAssertFalse(CloudSyncControls.showsPendingUploadDetail(for: vm), "The result already says it is waiting")
+        try await deliverPendingUploads(for: reference, to: remote)
+        XCTAssertEqual(remote.currentBytes, autoFillBytes)
+    }
+
+    func testSyncNowHandsAQueuedAutoFillChangeToTheDrainerAndOpensIt() async throws {
+        let openedData = try fixtureData()
+        let reference = try makeStoredManualReference()
+        try DatabaseListStore.cacheDatabaseCopy(openedData, for: reference)
+        let remote = InMemoryRemoteProvider(bytes: openedData, rev: "rev-A")
+        let vm = makeViewModelOnTheRealCache(reference: reference, remote: remote)
+        defer { vm.lock() }
+        vm.pendingUploadDrain = { [unowned self] reference in
+            try? await self.deliverPendingUploads(for: reference, to: remote)
+        }
+        await vm.unlock(password: fixturePassword)
+        try await saveThroughAutoFill(title: "Created in AutoFill", reference: reference)
+
+        await vm.syncCloudNow()
+
+        XCTAssertNil(vm.saveConflict)
+        XCTAssertEqual(vm.cloudSyncOutcome, .updated)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertTrue(try Self.entryTitles(in: remote.currentBytes, password: fixturePassword).contains("Created in AutoFill"))
+        XCTAssertTrue(entryTitles(in: vm).contains("Created in AutoFill"))
+        XCTAssertFalse(vm.hasPendingCloudUploads)
+    }
+
+    func testChangedCacheNeverReplacesUnsavedWork() async throws {
+        let openedData = try fixtureData()
+        let reference = try makeStoredManualReference()
+        try DatabaseListStore.cacheDatabaseCopy(openedData, for: reference)
+        let remote = InMemoryRemoteProvider(bytes: openedData, rev: "rev-A")
+        let vm = makeViewModelOnTheRealCache(reference: reference, remote: remote)
+        defer { vm.lock() }
+        await vm.unlock(password: fixturePassword)
+        try await saveThroughAutoFill(title: "Created in AutoFill", reference: reference)
+        try vm.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(vm.visibleRootGroupID),
+            draft: EntryDraftPayload(title: "Unsaved", password: "p")))
+
+        let adopted = await vm.adoptChangedCloudCacheIfPossible()
+
+        XCTAssertFalse(adopted)
+        XCTAssertTrue(vm.isDirty)
+        XCTAssertTrue(vm.currentRootGroup?.allEntries.contains { $0.title == "Unsaved" } == true)
+        XCTAssertFalse(vm.currentRootGroup?.allEntries.contains { $0.title == "Created in AutoFill" } == true)
+    }
+
+    /// Saves a new entry the way the AutoFill extension does: into the shared
+    /// cached copy, queueing its upload.
+    private func saveThroughAutoFill(title: String, reference: DatabaseReference) async throws {
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        let cacheData = try Data(contentsOf: DatabaseListStore.cacheLocation(for: stored))
+        let key = try KDBXTestFixture.test.compositeKey(in: Bundle(for: Self.self))
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: cacheData, compositeKey: key, sessionKey: sessionKey)
+        var environment = AutoFillSaveCoordinator.Environment.live
+        environment.populateCredentialStore = { _, _ in }
+        let result = try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: EntryDraftPayload(title: title, username: "autofill", password: "secret", url: "https://example.com"),
+            reference: stored, rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: sessionKey,
+            compositeKey: key, openTimeSHA512: FileDigest.sha512(cacheData), environment: environment)
+        guard case .saved(let outcome) = result, outcome.enqueuedPendingUpload else {
+            XCTFail("The AutoFill save must land in the cache with a queued upload: \(result)")
+            throw SaveError.saveContextUnavailable
+        }
+        XCTAssertEqual(try PendingUploadQueue.readJournal(for: reference.id).count, 1)
+    }
+
+    private func deliverPendingUploads(for reference: DatabaseReference, to remote: InMemoryRemoteProvider) async throws {
+        var delivery = CloudDatabaseSaver.Environment.live
+        delivery.beginBackgroundTask = { _ in .invalid }
+        delivery.endBackgroundTask = { _ in }
+        delivery.getMetadata = { _ in remote.currentMetadata }
+        delivery.downloadRemoteData = { _ in remote.currentBytes }
+        delivery.upload = { _, data, rev, _ in try remote.store(data, expectedRev: rev) }
+        for marker in try PendingUploadQueue.readJournal(for: reference.id) {
+            let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+            guard case .saved? = try await CloudDatabaseSaver.deliver(marker, reference: stored, environment: delivery) else {
+                XCTFail("The queued upload must deliver")
+                throw SaveError.saveContextUnavailable
+            }
+        }
+    }
+
+    func testNothingNewerWhileChangesWaitIsNotCalledUpToDate() async throws {
+        let openedData = try fixtureData()
+        let pending = PendingFlag(true)
+        let vm = makeViewModel(
+            reference: try makeStoredManualReference(),
+            openedData: openedData,
+            cloudRefreshOperation: { reference, _ in
+                Self.resolution(reference, data: openedData, status: .current)
+            },
+            pendingUploadMarkerCheck: { _ in pending.value }
+        )
+        await vm.unlock(password: fixturePassword)
+
+        await vm.syncCloudNow()
+
+        XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
+        let headline = String(localized: "No newer copy on \(CloudProviderKind.dropbox.displayName).")
+        XCTAssertEqual(vm.cloudSyncOutcomeMessage, headline)
+        XCTAssertEqual(CloudSyncControls.title(for: vm), headline)
+        XCTAssertTrue(CloudSyncControls.showsPendingUploadDetail(for: vm))
+
+        pending.value = false
+        await vm.syncCloudNow()
+        XCTAssertEqual(vm.cloudSyncOutcomeMessage, DatabaseViewModel.CloudSyncOutcome.upToDate.message)
+        XCTAssertFalse(CloudSyncControls.showsWarning(for: vm))
     }
 
     func testSettingThePolicyFromTheSessionPersistsIt() async throws {

@@ -9,6 +9,7 @@ final class DatabaseSessionStore {
     var activeSessionID: UUID?
 
     @ObservationIgnored private let makeSession: @MainActor (DatabaseReference) -> DatabaseViewModel
+    @ObservationIgnored private var pendingUploadDrain: (@MainActor (DatabaseReference) async -> Void)?
 
     init(
         makeSession: @escaping @MainActor (DatabaseReference) -> DatabaseViewModel = {
@@ -27,6 +28,10 @@ final class DatabaseSessionStore {
             self?.session(for: id)?.populateCredentialStoreIfUnlocked()
         }
         list.pendingUploadsDidChange = { [weak self] ids in self?.refreshPendingUploads(for: ids) }
+        pendingUploadDrain = { [weak list] reference in
+            _ = await list?.pushPendingChanges(for: reference, presentsAlert: false)
+        }
+        for session in sessionsByID.values { session.pendingUploadDrain = pendingUploadDrain }
         if list.registryReadError == nil {
             retireSessionsMissingFromDatabaseList(list.databases.map(\.id))
             reconcileReferences(list.databases)
@@ -64,12 +69,17 @@ final class DatabaseSessionStore {
             session.handleSceneDidBecomeActive()
             #endif
             session.refreshSharedDatabaseCacheIfPossible()
+            Task { await session.adoptChangedCloudCacheIfPossible() }
         }
     }
 
+    /// A drain runs after AutoFill saved, so the shared cache may now hold a
+    /// change the open session lacks.
     func refreshPendingUploads(for databaseIDs: Set<UUID>) {
         for id in databaseIDs {
-            sessionsByID[id]?.refreshPendingUploadState()
+            guard let session = sessionsByID[id] else { continue }
+            session.refreshPendingUploadState()
+            Task { await session.adoptChangedCloudCacheIfPossible() }
         }
     }
 
@@ -122,6 +132,7 @@ final class DatabaseSessionStore {
         let id = session.databaseReference.id
         precondition(sessionsByID[id] == nil || sessionsByID[id] === session)
         if sessionsByID[id] == nil {
+            session.pendingUploadDrain = pendingUploadDrain
             sessionsByID[id] = session
             openingOrder.append(id)
         }

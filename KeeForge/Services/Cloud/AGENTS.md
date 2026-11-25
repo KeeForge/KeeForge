@@ -8,7 +8,7 @@
 - `CloudSyncModels`: the persisted shapes. Concurrency uses one opaque `rev`; each provider maps its own validator onto it (Dropbox rev, OneDrive cTag/eTag, WebDAV ETag, FTP `sha256:` of the bytes).
 - Pure journal decisions gate delivery and confirmed reconciliation; the saver executes their declared effects against actual storage and provider observations.
 - `CloudSyncCoordinator`: when an open contacts the provider, and every replacement of a cloud cache file (`downloadLatestCopy` and confirmed journal recovery).
-- `PendingUploadQueue` (compiled into the extensions): marker storage. `PendingUploadDrainer` (app only): the only uploader of markers. Draining goes through `DatabaseListViewModel.drainPendingUploadsOnAppActive()`; the second instance the app owner holds (`KeeForgeApp` on iOS, `AppDelegate` on Mac) only observes the AutoFill notification. `PendingUploadRecovery`: finds a conflicted marker's bytes for a merge.
+- `PendingUploadQueue` (compiled into the extensions): marker storage. `PendingUploadDrainer` (app only): the only uploader of markers. Draining goes through `DatabaseListViewModel.drainPendingUploadsOnAppActive()` and `pushPendingChanges(for:)`, which Sync Now calls first; the second instance the app owner holds (`KeeForgeApp` on iOS, `AppDelegate` on Mac) only observes the AutoFill notification. `PendingUploadRecovery`: finds a conflicted marker's bytes for a merge.
 
 ## Invariants
 

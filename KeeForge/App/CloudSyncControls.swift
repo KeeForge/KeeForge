@@ -24,13 +24,20 @@ struct CloudSyncControls: View {
         viewModel.hasPendingCloudUploads && viewModel.hasPendingUploadConflict == false
     }
 
+    /// The note under the title, unless Sync Now's result already says it.
+    static func showsPendingUploadDetail(for viewModel: DatabaseViewModel) -> Bool {
+        showsPendingUploadNote(for: viewModel) && viewModel.cloudSyncOutcome != .uploadsPending
+    }
+
+    static var pendingUploadDetail: String { String(localized: "Some changes are saved on this device but haven’t been uploaded yet.") }
+
     static func title(for viewModel: DatabaseViewModel) -> String {
         let providerName = viewModel.databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")
         if viewModel.isSyncingCloud {
             return String(localized: "Checking \(providerName) for changes…")
         }
-        if let outcome = viewModel.cloudSyncOutcome {
-            return outcome.message
+        if let message = viewModel.cloudSyncOutcomeMessage {
+            return message
         }
         if let bannerText = viewModel.cloudSyncBannerText {
             return bannerText
@@ -159,8 +166,8 @@ struct CloudSyncStatusRow: View {
 
     /// The second line: changes still waiting, else when it last synced.
     private var detail: String? {
-        if CloudSyncControls.showsPendingUploadNote(for: viewModel) {
-            return String(localized: "Changes saved through AutoFill are still waiting to upload.")
+        if CloudSyncControls.showsPendingUploadDetail(for: viewModel) {
+            return CloudSyncControls.pendingUploadDetail
         }
         guard let lastSyncedAt = viewModel.databaseReference.cloudSyncMetadata?.lastSyncedAt else { return nil }
         return String(localized: "Last synced \(lastSyncedAt, format: .relative(presentation: .named))")
@@ -188,8 +195,8 @@ private struct CloudSyncDetails: View {
                     .foregroundStyle(.secondary)
             }
 
-            if CloudSyncControls.showsPendingUploadNote(for: viewModel) {
-                Text("Changes saved through AutoFill are still waiting to upload.")
+            if CloudSyncControls.showsPendingUploadDetail(for: viewModel) {
+                Text(CloudSyncControls.pendingUploadDetail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
