@@ -151,17 +151,17 @@ final class CredentialMatcherTests: XCTestCase {
         let sibling = makeEntry(title: "Sibling", url: "https://other.cvmd.com.ar")
         let hostless = makeEntry(title: "No URL", url: "")
         let corpus = [sibling, hostless]
-        let initial = AutoFillSearchResults(entries: [], searchEntries: corpus, possibleEntries: [sibling], query: "", hasExpandedSearch: false)
+        let initial = AutoFillSearchResults(entries: [], searchIndex: EntrySearchIndex(entries: corpus), possibleEntries: [sibling], query: "", hasExpandedSearch: false)
         XCTAssertTrue(initial.entries.isEmpty)
         XCTAssertEqual(initial.possibleEntries.map(\.id), [sibling.id])
         XCTAssertTrue(initial.canShowAllEntries)
 
-        let expanded = AutoFillSearchResults(entries: [], searchEntries: corpus, possibleEntries: [sibling], query: "", hasExpandedSearch: true)
+        let expanded = AutoFillSearchResults(entries: [], searchIndex: EntrySearchIndex(entries: corpus), possibleEntries: [sibling], query: "", hasExpandedSearch: true)
         XCTAssertEqual(expanded.entries.map(\.id), corpus.map(\.id))
         XCTAssertTrue(expanded.possibleEntries.isEmpty)
         XCTAssertFalse(expanded.canShowAllEntries)
 
-        let searched = AutoFillSearchResults(entries: [], searchEntries: corpus, possibleEntries: [sibling], query: "No URL", hasExpandedSearch: true)
+        let searched = AutoFillSearchResults(entries: [], searchIndex: EntrySearchIndex(entries: corpus), possibleEntries: [sibling], query: "No URL", hasExpandedSearch: true)
         XCTAssertEqual(searched.entries.map(\.id), [hostless.id])
         XCTAssertTrue(searched.possibleEntries.isEmpty)
         XCTAssertTrue(searched.canShowAllEntries)
@@ -170,10 +170,10 @@ final class CredentialMatcherTests: XCTestCase {
     func testNoMatchesStillOffersExpansionAndSearchIncludesAdditionalURLs() {
         let entry = makeEntry(title: "Other", url: "https://unrelated.example",
                               customFields: ["KP2A_URL_1": "https://vt.cvmd.com.ar/login"])
-        let empty = AutoFillSearchResults(entries: [], searchEntries: [entry], possibleEntries: [], query: "", hasExpandedSearch: false)
+        let empty = AutoFillSearchResults(entries: [], searchIndex: EntrySearchIndex(entries: [entry]), possibleEntries: [], query: "", hasExpandedSearch: false)
         XCTAssertTrue(empty.entries.isEmpty)
         XCTAssertTrue(empty.canShowAllEntries)
-        let searched = AutoFillSearchResults(entries: [], searchEntries: [entry], possibleEntries: [], query: "vt.cvmd.com.ar", hasExpandedSearch: true)
+        let searched = AutoFillSearchResults(entries: [], searchIndex: EntrySearchIndex(entries: [entry]), possibleEntries: [], query: "vt.cvmd.com.ar", hasExpandedSearch: true)
         XCTAssertEqual(searched.entries.map(\.id), [entry.id])
     }
 
