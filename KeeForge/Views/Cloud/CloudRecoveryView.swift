@@ -60,6 +60,9 @@ struct CloudRecoveryView: View {
             }
             ForEach(uploads, id: \.id) { stored in
                 Section(references[stored.marker.databaseId]?.displayName ?? String(localized: "Cloud")) {
+                    if let issue = CloudJournalDecision.driveUploadRecoveryIssue(for: stored.marker) {
+                        Text(issue.localizedDescription)
+                    }
                     Button("Export Encrypted Copy") {
                         let reference = references[stored.marker.databaseId]
                         perform {
