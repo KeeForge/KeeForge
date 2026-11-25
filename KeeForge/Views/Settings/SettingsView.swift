@@ -76,6 +76,7 @@ struct SettingsView: View {
                     authenticationGracePeriod: $settings.authenticationGracePeriod,
                     quickUnlockPasswordInterval: $settings.quickUnlockPasswordInterval,
                     autoUnlockWithFaceID: $settings.autoUnlockWithFaceID,
+                    blockScreenCapture: $settings.blockScreenCapture,
                     biometricType: biometricType
                 )
             } label: {
@@ -192,6 +193,7 @@ struct SecuritySettingsView: View {
     @Binding var authenticationGracePeriod: SettingsService.AuthenticationGracePeriod
     @Binding var quickUnlockPasswordInterval: SettingsService.QuickUnlockPasswordInterval
     @Binding var autoUnlockWithFaceID: Bool
+    @Binding var blockScreenCapture: Bool
     let biometricType: BiometricService.BiometricType
 
     var body: some View {
@@ -252,6 +254,13 @@ struct SecuritySettingsView: View {
                 .accessibilityIdentifier("settings.security.authentication-grace-picker")
             } footer: {
                 Text("Sets how long passwords and protected fields can be shown and copied without asking again after you unlock a database or authenticate. Never Ask has no time limit. Locking the database or leaving KeeForge ends it either way. AutoFill is not affected.")
+            }
+
+            Section {
+                Toggle("Hide During Screen Recording and Sharing", isOn: $blockScreenCapture)
+                    .accessibilityIdentifier("settings.block-screen-capture.toggle")
+            } footer: {
+                Text("Covers KeeForge while your screen is recorded, shared, mirrored, or shown with AirPlay. When off, anything KeeForge shows can be recorded or seen on the other screen. KeeForge stays covered in the app switcher either way.")
             }
         }
         .navigationTitle("Security")

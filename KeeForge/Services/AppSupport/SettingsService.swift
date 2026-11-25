@@ -509,12 +509,11 @@ enum SettingsService {
         }
     }
 
-    // MARK: - Block Screen Capture (macOS)
+    // MARK: - Block Screen Capture
     //
-    // macOS-only in the UI, but the key exists cross-platform so the setting
-    // round-trips in shared tests; iOS shields via `UIScreen.isCaptured`
-    // instead. App-local defaults, not the App Group — a per-device UI
-    // preference, not extension state.
+    // macOS keeps windows out of capture; iOS covers the app while
+    // `UIScreen.isCaptured`. App-local defaults, not the App Group — a
+    // per-device UI preference, not extension state.
 
     static var blockScreenCapture: Bool {
         get {

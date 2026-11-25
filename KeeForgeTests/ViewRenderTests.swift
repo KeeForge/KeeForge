@@ -176,7 +176,7 @@ final class ViewRenderTests: XCTestCase {
     }
 
     func testSecuritySettings() throws {
-        let states = [SettingsService.AuthenticationGracePeriod.never, .fiveMinutes].map { period in
+        let states = [(SettingsService.AuthenticationGracePeriod.never, true), (.fiveMinutes, false)].map { period, blockScreenCapture in
             (period.title, AnyView(NavigationStack {
                 SecuritySettingsView(
                     autoLockTimeout: .constant(.fiveMinutes),
@@ -185,6 +185,7 @@ final class ViewRenderTests: XCTestCase {
                     authenticationGracePeriod: .constant(period),
                     quickUnlockPasswordInterval: .constant(.never),
                     autoUnlockWithFaceID: .constant(false),
+                    blockScreenCapture: .constant(blockScreenCapture),
                     biometricType: .faceID
                 )
             }))

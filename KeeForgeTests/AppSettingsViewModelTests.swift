@@ -143,6 +143,18 @@ final class AppSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(observedPolicies, [newValue])
     }
 
+    func testCapturePolicyChangeTellsTheLiveScreenProtection() {
+        let model = AppSettingsViewModel()
+        let notified = expectation(forNotification: ScreenProtectionService.captureBlockingDidChangeNotification, object: nil)
+        notified.expectedFulfillmentCount = 2
+
+        // Toggled back so the test host's live service ends where it started.
+        model.blockScreenCapture.toggle()
+        model.blockScreenCapture.toggle()
+
+        wait(for: [notified], timeout: 1)
+    }
+
     func testGracePeriodPersistsBeforeTellingTheLiveGatesAndUnchangedValuesDoNothing() {
         var observedPeriods: [SettingsService.AuthenticationGracePeriod] = []
         let model = AppSettingsViewModel(authenticationGracePeriodDidChange: {
