@@ -116,20 +116,30 @@ enum SettingsService {
     // MARK: - Authentication Grace Period
 
     /// How long after an unlock or a device-owner authentication a protected
-    /// value can be revealed or copied without another prompt. Deliberately
-    /// bounded: there is no "never ask" case.
+    /// value can be revealed or copied without another prompt.
     enum AuthenticationGracePeriod: String, CaseIterable, Sendable {
         case alwaysAsk
         case thirtySeconds
         case oneMinute
         case fiveMinutes
+        case never
 
+        /// Used until the user picks a period.
+        #if os(macOS)
+        static let defaultValue = AuthenticationGracePeriod.never
+        #else
+        static let defaultValue = AuthenticationGracePeriod.alwaysAsk
+        #endif
+
+        /// How long a grant lasts. Always Ask's lasts no time at all; Never
+        /// Ask's has no time limit and ends only when the session ends it.
         var duration: Duration? {
             switch self {
-            case .alwaysAsk: nil
+            case .alwaysAsk: .zero
             case .thirtySeconds: .seconds(30)
             case .oneMinute: .seconds(60)
             case .fiveMinutes: .seconds(300)
+            case .never: nil
             }
         }
 
@@ -139,6 +149,7 @@ enum SettingsService {
             case .thirtySeconds: String(localized: "30 Seconds")
             case .oneMinute: String(localized: "1 Minute")
             case .fiveMinutes: String(localized: "5 Minutes")
+            case .never: String(localized: "Never Ask")
             }
         }
     }
@@ -322,8 +333,9 @@ enum SettingsService {
     static var authenticationGracePeriod: AuthenticationGracePeriod {
         get {
             guard let raw = UserDefaults.standard.string(forKey: Key.authenticationGracePeriod) else {
-                return .alwaysAsk
+                return .defaultValue
             }
+            // An unreadable stored value fails closed rather than to the default.
             return AuthenticationGracePeriod(rawValue: raw) ?? .alwaysAsk
         }
         set {

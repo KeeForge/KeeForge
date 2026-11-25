@@ -156,6 +156,19 @@ final class AppSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(observedPeriods, [.oneMinute, .alwaysAsk])
     }
 
+    /// The picker shows the period in force when the user never chose one,
+    /// and opening Settings stores nothing.
+    func testUnsetGracePeriodShowsThePlatformDefaultWithoutStoringIt() {
+        let model = AppSettingsViewModel()
+
+        #if os(macOS)
+        XCTAssertEqual(model.authenticationGracePeriod, .never)
+        #else
+        XCTAssertEqual(model.authenticationGracePeriod, .alwaysAsk)
+        #endif
+        XCTAssertNil(UserDefaults.standard.object(forKey: "KeeForge.authenticationGracePeriod"))
+    }
+
     /// Saved keys that a stricter interval makes due must go when the setting
     /// changes, not at their next use.
     func testPasswordIntervalPersistsBeforeExpiringDueKeys() {
