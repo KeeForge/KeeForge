@@ -124,5 +124,14 @@
   },
   "confirmFill": {
     "message": "Remplir"
+  },
+  "contextFillUsername": {
+    "message": "Remplir le nom d'utilisateur"
+  },
+  "contextFillPassword": {
+    "message": "Remplir le mot de passe"
+  },
+  "fieldUnusable": {
+    "message": "Ce champ ne peut pas être rempli."
   }
 }

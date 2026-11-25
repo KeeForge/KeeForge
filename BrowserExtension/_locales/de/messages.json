@@ -124,5 +124,14 @@
   },
   "confirmFill": {
     "message": "Ausfüllen"
+  },
+  "contextFillUsername": {
+    "message": "Benutzernamen ausfüllen"
+  },
+  "contextFillPassword": {
+    "message": "Passwort ausfüllen"
+  },
+  "fieldUnusable": {
+    "message": "Dieses Feld kann nicht ausgefüllt werden."
   }
 }

@@ -7,7 +7,7 @@ function fillDocument(expectedOrigin, credential, codeOnly = false, expectedToke
   const pinKey = '__keeforgeDocumentPin';
   const probing = expectedOrigin === undefined;
   if (probing) {
-    if (!['fields', 'visible', 'kind'].includes(mode)) globalThis[pinKey] = [...crypto.getRandomValues(new Uint8Array(32))].map(n => n.toString(16).padStart(2, '0')).join('');
+    if (!['fields', 'visible', 'kind', 'forced'].includes(mode)) globalThis[pinKey] = [...crypto.getRandomValues(new Uint8Array(32))].map(n => n.toString(16).padStart(2, '0')).join('');
   } else if (!expectedToken || globalThis[pinKey] !== expectedToken) return result;
   // A form's named controls (e.g. <input name="hidden">) shadow its DOM members; read them from the prototypes.
   const prototypes = ['HTMLElement', 'Element', 'Node'].map(name => globalThis[name]?.prototype).filter(Boolean);
@@ -46,6 +46,26 @@ function fillDocument(expectedOrigin, credential, codeOnly = false, expectedToke
     return right > left && bottom > top;
   };
   if (mode === 'visible') return visible(candidate, candidate?.type === 'password');
+  // A field the user right-clicked and named: only its own state counts, not the ancestor walk, because detection missed it.
+  const forcedTypes = { username: ['text', 'email', 'tel', ''], password: ['password'], code: ['text', 'tel', 'number', ''] };
+  const usable = (input, kind) => {
+    if (!(input instanceof HTMLInputElement) || !forcedTypes[kind]?.includes(input.type) || !input.isConnected || input.ownerDocument !== document || input.disabled || input.matches(':disabled') || (input.readOnly && kind !== 'password')) return false;
+    const style = getComputedStyle(input);
+    return style.visibility === 'visible' && Number(style.opacity) > 0 && [...input.getClientRects()].some(r => r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight);
+  };
+  if (mode === 'forced') {
+    if (probing) return usable(candidate, expectedFieldKind);
+    const field = globalThis.__keeforgeInlineField, value = credential?.[{ username: 'username', password: 'password', code: 'totp' }[expectedFieldKind]];
+    if (!usable(field, expectedFieldKind) || typeof value !== 'string') return result;
+    if (field.readOnly) call(field, 'focus');
+    if (field.readOnly || !usable(field, expectedFieldKind) || globalThis[pinKey] !== expectedToken || location.origin !== expectedOrigin || globalThis.origin !== expectedOrigin) return result;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (!setter) return result;
+    setter.call(field, value);
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+    return { ...result, [{ username: 'username', password: 'password', code: 'totp' }[expectedFieldKind]]: true };
+  }
   const allowed = input => ['text', 'email', 'tel', 'password', 'number', 'search', 'url', ''].includes(input.type);
   // Cap the inputs examined, not the elements visited, so large pages still get their login fields.
   const inputs = [], shadowGetter = member('shadowRoot')?.get;
@@ -60,9 +80,20 @@ function fillDocument(expectedOrigin, credential, codeOnly = false, expectedToke
   while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
   if (probing && !['fields', 'kind'].includes(mode)) return { focused: document.hasFocus() && fields.includes(active), active: fields.includes(active), touched: globalThis.__keeforgeTouched ?? 0, fillable: fields.length > 0, token: globalThis[pinKey] };
   const hint = (input, token) => (input.autocomplete || '').toLowerCase().split(/\s+/).includes(token);
+  // Many sites omit the one-time-code hint; the field's name, label or placeholder still says what it is.
+  const labelsOf = Object.getOwnPropertyDescriptor(globalThis.HTMLInputElement?.prototype ?? {}, 'labels')?.get;
+  const describe = input => {
+    const read = name => (member('getAttribute')?.value ?? input.getAttribute)?.call(input, name) ?? '';
+    let labels = '';
+    try { labels = [...((labelsOf ? labelsOf.call(input) : input.labels) ?? [])].map(label => label.textContent).join(' '); } catch {}
+    return `${['id', 'name', 'placeholder', 'aria-label'].map(read).join(' ')} ${labels}`.toLowerCase();
+  };
+  const codeWords = /one[\s_-]?time|(^|[^a-z])t?otp([^a-z]|$)|2fa|two[\s_-]?factor|(^|[^a-z])mfa([^a-z]|$)|(verification|authentication|authenticator|auth|login|sign[\s_-]?in)[\s_-]?code|passcode/;
+  const isCode = input => hint(input, 'one-time-code') || (['text', 'tel', 'number', ''].includes(input.type) && !['username', 'email', 'current-password', 'new-password'].some(token => hint(input, token))
+    && codeWords.test(describe(input)) && !/card|cvv|cvc|csc|coupon|promo|gift|zip|postal/.test(describe(input)));
   const text = input => ['text', 'email', 'tel', ''].includes(input.type) && !hint(input, 'current-password') && !hint(input, 'new-password');
   // A user-name field with no password in its form is the first step of a two-step sign-in: it gets the user name only.
-  const kindOf = input => hint(input, 'one-time-code') ? 'code' : input.type !== 'password' && !fields.some(other => other.type === 'password' && other.form === input.form) ? 'username' : 'login';
+  const kindOf = input => isCode(input) ? 'code' : input.type !== 'password' && !fields.some(other => other.type === 'password' && other.form === input.form) ? 'username' : 'login';
   if (mode === 'kind') return fields.includes(candidate) ? kindOf(candidate) : null;
   const preferred = mode === 'inline' ? globalThis.__keeforgeInlineField : null;
   if (mode === 'inline' && (!fields.includes(preferred) || (expectedFieldKind && (kindOf(preferred) !== expectedFieldKind)))) return result;
@@ -73,12 +104,12 @@ function fillDocument(expectedOrigin, credential, codeOnly = false, expectedToke
     const attributes = node => node ? ['id', 'name', 'class', 'action'].map(name => (getAttribute ?? node.getAttribute)?.call(node, name) ?? '').join(' ') : '';
     const closest = (node, selector) => (member('closest')?.value ?? node.closest)?.call(node, selector);
     const words = input => `${attributes(input)} ${input.autocomplete || ''}`.toLowerCase();
-    const firstStep = input => text(input) && !hint(input, 'one-time-code') && (input.type === 'email' || /user|login|e-?mail|account|identifier/.test(words(input)))
+    const firstStep = input => text(input) && !isCode(input) && (input.type === 'email' || /user|login|e-?mail|account|identifier/.test(words(input)))
       && !/search|query|newsletter|subscri|coupon|promo/.test(`${words(input)} ${attributes(input.form).toLowerCase()}`) && !closest(input, '[role=search], search')
-      && !fields.some(other => other !== input && other.form === input.form && (other.type === 'password' || (text(other) && !hint(other, 'one-time-code'))));
-    const selected = new Set(fields.filter(input => input.type === 'password' || (text(input) && hint(input, 'username')) || (['text', 'tel', 'number', ''].includes(input.type) && hint(input, 'one-time-code')) || firstStep(input)));
+      && !fields.some(other => other !== input && other.form === input.form && (other.type === 'password' || (text(other) && !isCode(other))));
+    const selected = new Set(fields.filter(input => input.type === 'password' || (text(input) && hint(input, 'username')) || (['text', 'tel', 'number', ''].includes(input.type) && isCode(input)) || firstStep(input)));
     for (const password of fields.filter(input => input.type === 'password')) {
-      const before = fields.slice(0, fields.indexOf(password)).filter(input => input.form === password.form && text(input) && !hint(input, 'one-time-code'));
+      const before = fields.slice(0, fields.indexOf(password)).filter(input => input.form === password.form && text(input) && !isCode(input));
       const username = before.find(input => hint(input, 'username')) || before.at(-1);
       if (username) selected.add(username);
     }
@@ -87,10 +118,10 @@ function fillDocument(expectedOrigin, credential, codeOnly = false, expectedToke
   const candidates = focused ? fields.filter(input => input.form === focused.form) : fields;
   const password = (focused?.type === 'password' ? focused : null) || candidates.find(input => input.type === 'password' && hint(input, 'current-password')) || candidates.find(input => input.type === 'password');
   const sameForm = password ? fields.filter(input => input.form === password.form) : candidates;
-  const before = password ? sameForm.slice(0, sameForm.indexOf(password)).filter(input => text(input) && !hint(input, 'one-time-code')) : [];
-  const username = (focused && text(focused) && !hint(focused, 'one-time-code') ? focused : null) || sameForm.find(input => hint(input, 'username') && text(input)) || before.at(-1);
+  const before = password ? sameForm.slice(0, sameForm.indexOf(password)).filter(input => text(input) && !isCode(input)) : [];
+  const username = (focused && text(focused) && !isCode(focused) ? focused : null) || sameForm.find(input => hint(input, 'username') && text(input)) || before.at(-1);
   const codes = candidates.filter(input => ['text', 'tel', 'number', ''].includes(input.type));
-  const code = (focused && codes.includes(focused) && hint(focused, 'one-time-code') ? focused : null) || codes.find(input => hint(input, 'one-time-code')) || (codes.includes(focused) ? focused : null);
+  const code = (focused && codes.includes(focused) && isCode(focused) ? focused : null) || codes.find(input => isCode(input)) || (codes.includes(focused) ? focused : null);
   let stopped = false;
   const set = (input, value, types) => {
     if (stopped || !input || typeof value !== 'string') return false;
@@ -121,6 +152,8 @@ const HOST_STYLE = 'all:initial!important;position:fixed!important;top:0!importa
 const inlineURL = chrome.runtime.getURL('inline.html');
 const inputs = document.getElementsByTagName('input');
 let host = null, shadow = null, hostStyle = '', observer = null, gate = null, active = false;
+// The last field the user right-clicked, and where: the browser's KeeForge menu item acts on it.
+let contextTarget = null, contextPoint = null;
 let buttons = new Map(), menu = null, scheduled = false, burst = 0, lastScan = -Infinity, pendingScan = 0, throttle = 0, fields = [], generation = 0, stopped = false;
 // After an extension update or removal this copy is orphaned; remove its UI instead of leaving dead buttons.
 const alive = () => { try { return Boolean(chrome.runtime?.id); } catch { return false; } };
@@ -131,8 +164,9 @@ function message(request) {
   if (!alive()) { stop(); return Promise.reject(new Error('orphaned')); }
   return chrome.runtime.sendMessage(request);
 }
-globalThis.__keeforgePrepareInline = () => {
+globalThis.__keeforgePrepareInline = forced => {
   const field = globalThis.__keeforgeInlineField;
+  if (forced) return { ...fillDocument(), kind: forced, usable: fillDocument(undefined, undefined, false, undefined, 'forced', forced, field) };
   const kind = fillDocument(undefined, undefined, false, undefined, 'kind', undefined, field);
   if (!kind || !fillDocument(undefined, undefined, false, undefined, 'fields').includes(field)) return null;
   return { ...fillDocument(), kind };
@@ -160,8 +194,8 @@ function close(notify = true, refocus = false) {
   ++generation;
   const previous = menu; menu = null;
   if (!previous) return;
-  previous.frame.remove(); buttons.get(previous.field)?.setAttribute('aria-expanded', 'false');
-  if (refocus && previous.field.isConnected) previous.field.focus({ preventScroll: true });
+  previous.frame.remove(); if (previous.field) buttons.get(previous.field)?.setAttribute('aria-expanded', 'false');
+  if (refocus && previous.field?.isConnected) previous.field.focus({ preventScroll: true });
   if (notify) message({ type: 'closeInlineMenu', token: previous.token }).catch(() => {});
 }
 // Anything that moves the menu or its field after opening could slide a row under the cursor: close instead.
@@ -169,8 +203,9 @@ function check() {
   if (!menu) return;
   let replaced = false;
   if (menu.loads) { try { const doc = menu.frame.contentDocument; replaced = !!doc && doc.URL.split('#')[0] !== inlineURL; } catch {} }
+  const fieldGone = menu.forced ? menu.usable && !fillDocument(undefined, undefined, false, undefined, 'forced', menu.forced, menu.field) : !fillDocument(undefined, undefined, false, undefined, 'visible', undefined, menu.field);
   if (replaced || location.href !== menu.href || innerWidth !== menu.viewport[0] || innerHeight !== menu.viewport[1] || host.style.cssText !== hostStyle || !menu.frame.isConnected
-    || !fillDocument(undefined, undefined, false, undefined, 'visible', undefined, menu.field) || moved(box(menu.field), menu.fieldBox) || moved(box(menu.frame), menu.frameBox)) close();
+    || fieldGone || (menu.field && moved(box(menu.field), menu.fieldBox)) || moved(box(menu.frame), menu.frameBox)) close();
 }
 function watch() { if (!menu || stopped) return; check(); if (menu) requestAnimationFrame(watch); }
 async function open(event, field) {
@@ -180,24 +215,39 @@ async function open(event, field) {
   close();
   if (wasOpen) return;
   field.focus({ preventScroll: true }); globalThis.__keeforgeInlineField = field;
+  await show(field);
+}
+// From the browser's context menu: the field may be one discovery rejected; without a usable one the menu says why.
+async function openForced(kind) {
+  if (stopped || !contextPoint) return;
+  close();
+  const field = contextTarget?.isConnected ? contextTarget : null;
+  const usable = !!field && fillDocument(undefined, undefined, false, undefined, 'forced', kind, field);
+  if (usable) field.focus({ preventScroll: true });
+  globalThis.__keeforgeInlineField = usable ? field : null;
+  activate();
+  const point = contextPoint;
+  await show(usable ? field : null, kind, usable, point);
+}
+async function show(field, forced, usable, point) {
   const current = generation;
   try {
-    const reply = await message({ type: 'openInlineMenu' });
-    if (typeof reply?.token !== 'string' || stopped) return;
+    const reply = await message({ type: 'openInlineMenu', ...(forced ? { forced } : {}) });
+    if (typeof reply?.token !== 'string' || stopped || !shadow) return;
     if (current !== generation) { message({ type: 'closeInlineMenu', token: reply.token }).catch(() => {}); return; }
-    const r = field.getBoundingClientRect(), width = Math.min(MENU.width, innerWidth - 2 * MENU.margin), height = Math.min(MENU.height, innerHeight - 2 * MENU.margin);
+    const r = field ? field.getBoundingClientRect() : { left: point.x, right: point.x, top: point.y, bottom: point.y }, width = Math.min(MENU.width, innerWidth - 2 * MENU.margin), height = Math.min(MENU.height, innerHeight - 2 * MENU.margin);
     const below = innerHeight - r.bottom - MENU.gap - MENU.margin, above = r.top - MENU.gap - MENU.margin;
     const top = below >= height ? r.bottom + MENU.gap : above >= height ? r.top - MENU.gap - height : Math.max(MENU.margin, innerHeight - MENU.margin - height);
-    const rtl = getComputedStyle(field).direction === 'rtl';
+    const rtl = field ? getComputedStyle(field).direction === 'rtl' : document.dir === 'rtl';
     const left = Math.max(MENU.margin, Math.min(rtl ? r.right - width : r.left, innerWidth - width - MENU.margin));
     const frame = document.createElement('iframe');
     frame.title = chrome.i18n.getMessage('inlineFrameTitle');
     frame.src = inlineURL + '#' + reply.token;
     Object.assign(frame.style, { width: width + 'px', height: height + 'px', left: left + 'px', top: top + 'px' });
-    menu = { field, frame, token: reply.token, loads: 0, href: location.href, viewport: [innerWidth, innerHeight] };
+    menu = { field, frame, token: reply.token, loads: 0, href: location.href, viewport: [innerWidth, innerHeight], ...(forced ? { forced, usable } : {}) };
     shadow.append(frame);
-    menu.fieldBox = box(field); menu.frameBox = box(frame);
-    buttons.get(field)?.setAttribute('aria-expanded', 'true');
+    menu.fieldBox = field && box(field); menu.frameBox = box(frame);
+    if (field) buttons.get(field)?.setAttribute('aria-expanded', 'true');
     // The frame loads once; a second load means something navigated it.
     frame.addEventListener('load', () => { if (menu?.frame !== frame) return; if (++menu.loads > 1) close(); else frame.focus(); });
     watch();
@@ -340,7 +390,13 @@ on('scroll', nudge); on('resize', nudge);
 on('transitionrun', event => { if (relevant(event.target)) nudge(); });
 on('animationstart', event => { if (relevant(event.target)) nudge(); });
 on('toggle', () => { lastScan = -Infinity; nudge(); }); on('fullscreenchange', () => { lastScan = -Infinity; nudge(); });
-on('pagehide', () => close()); on('popstate', () => close()); on('hashchange', () => close());
+on('contextmenu', event => {
+  if (!event.isTrusted) return;
+  const target = event.composedPath()[0];
+  contextTarget = target instanceof HTMLInputElement ? target : null; contextPoint = { x: event.clientX, y: event.clientY };
+});
+const forget = () => { contextTarget = null; contextPoint = null; };
+on('pagehide', () => { close(); forget(); }); on('popstate', () => { close(); forget(); }); on('hashchange', () => { close(); forget(); });
 on('keydown', event => {
   if (!event.isTrusted) return;
   if (event.key === 'Escape' && menu) { close(true, true); return; }
@@ -349,6 +405,10 @@ on('keydown', event => {
   if (event.key === 'ArrowDown' && event.altKey && !event.ctrlKey && !event.metaKey && buttons.get(field)?.style.display === 'grid') void open(event, field);
 });
 on('pointerdown', event => { if (event.isTrusted && menu && !event.composedPath().includes(host)) close(); });
-chrome.runtime.onMessage.addListener(request => { if (!stopped && request?.type === 'closeInlineMenu' && request.token === menu?.token) close(false, request.refocus === true); });
+chrome.runtime.onMessage.addListener((request, sender) => {
+  if (stopped || sender?.id !== chrome.runtime.id) return;
+  if (request?.type === 'closeInlineMenu' && request.token === menu?.token) close(false, request.refocus === true);
+  if (request?.type === 'contextFill' && ['username', 'password', 'code'].includes(request.kind)) void openForced(request.kind);
+});
 if (document.readyState !== 'loading') init();
 })();

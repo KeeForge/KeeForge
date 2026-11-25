@@ -124,5 +124,14 @@
   },
   "confirmFill": {
     "message": "填寫"
+  },
+  "contextFillUsername": {
+    "message": "填寫使用者名稱"
+  },
+  "contextFillPassword": {
+    "message": "填寫密碼"
+  },
+  "fieldUnusable": {
+    "message": "無法填寫此欄位。"
   }
 }

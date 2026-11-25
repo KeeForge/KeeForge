@@ -124,5 +124,14 @@
   },
   "confirmFill": {
     "message": "填充"
+  },
+  "contextFillUsername": {
+    "message": "填充用户名"
+  },
+  "contextFillPassword": {
+    "message": "填充密码"
+  },
+  "fieldUnusable": {
+    "message": "无法填充此字段。"
   }
 }

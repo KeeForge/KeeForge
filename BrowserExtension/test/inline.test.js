@@ -172,7 +172,7 @@ function contentPage({ origin = 'https://example.com', readyState = 'complete', 
   const fire = (type, event = {}) => { for (const fn of events[type] || []) fn(event); };
   // Runs one frame: callbacks queued meanwhile (the open menu's watcher) wait for the next.
   const frames = () => { for (const callback of callbacks.splice(0)) callback(); };
-  return { context, document, input, html, events, fire, frames, requests, created, observers, styles, runtime: message => runtimeListener(message), Node };
+  return { context, document, input, html, events, fire, frames, requests, created, observers, styles, runtime: (message, sender = { id: 'self' }) => runtimeListener(message, sender), Node };
 }
 const contentSource = () => readFile(new URL('../src/content.js', import.meta.url), 'utf8');
 const settle = () => new Promise(resolve => setImmediate(resolve));
@@ -242,6 +242,7 @@ test('content buttons reject synthetic clicks, use their own colour, and disclos
   assert.equal(frame.src, 'chrome-extension://self/inline.html#menu-token'); assert.equal(frame.title, 'inlineFrameTitle');
   assert.deepEqual([frame.style.width, frame.style.height], ['320px', '264px']);
   page.runtime({ type: 'closeInlineMenu', token: 'wrong' }); assert.equal(frame.isConnected, true);
+  page.runtime({ type: 'closeInlineMenu', token: 'menu-token' }, { id: 'other' }); assert.equal(frame.isConnected, true);
   page.runtime({ type: 'closeInlineMenu', token: 'menu-token', refocus: true }); assert.equal(frame.isConnected, false);
   assert.equal(page.document.activeElement, page.input); assert.equal(page.requests.length, 1);
   assert.match(host.style.cssText, /width:0!important;height:0!important/);
@@ -379,4 +380,86 @@ test('Chrome keeps the one-click fill', async () => {
   m.visible(); await settle(); m.state.now = 1000;
   await m.login().listeners.click({ isTrusted: true });
   assert.equal(m.fills(), 1); assert.equal(m.content.querySelectorAll('.kf-confirm').length, 0);
+});
+// Right-click fills: the browser's menu click is the only way to get a forced kind accepted.
+function forcedSetup(kind, usable = true) {
+  const s = setup(kind);
+  s.api.contextMenus = { onClicked: new Event(), removed: 0, created: [], async removeAll() { this.removed++; this.created = []; }, create(properties, done) { this.created.push(properties); done(); } };
+  s.api.runtime.getManifest = () => ({ content_scripts: [{ matches: ['https://*/*', 'http://localhost/*'] }] });
+  s.api.i18n = { getMessage: key => key };
+  const execute = s.api.scripting.executeScript;
+  s.api.scripting.executeScript = async options => { const results = await execute(options); if (options.func === prepareInlineDocument) { assert.deepEqual(options.args, [kind]); results[0].result.usable = usable; } return results; };
+  s.click = (menuItemId = { username: 'fill-username', password: 'fill-password', code: 'fill-code' }[kind], frameId = 3, frameUrl = 'https://frame.example/path') => s.b.contextClicked({ menuItemId, frameId, frameUrl }, { id: 7 });
+  s.openForced = (forced = kind) => s.b.openMenu(s.sender, forced);
+  return s;
+}
+test('a forced kind needs a browser menu click for that tab, frame, origin and kind, used once within ten seconds', async () => {
+  let s = forcedSetup('password');
+  await assert.rejects(s.openForced(), { code: 'target-required' });
+  await s.click();
+  assert.deepEqual(s.closed.at(-1), [7, { type: 'contextFill', kind: 'password' }, { frameId: 3 }]);
+  assert.ok((await s.openForced()).token);
+  await assert.rejects(s.openForced(), { code: 'target-required' });
+  for (const [label, act] of [['wrong frame', s => s.click(undefined, 4)], ['wrong kind', s => s.click('fill-username')], ['other origin', s => s.click(undefined, 3, 'https://evil.example/')], ['expired', async s => { await s.click(); s.b.grants.get(7).expires = Date.now() - 1; }]]) {
+    s = forcedSetup('password'); await act(s);
+    await assert.rejects(s.openForced(), { code: 'target-required' }, label);
+    assert.deepEqual(s.requests, []);
+  }
+  s = forcedSetup('password'); await s.b.contextClicked({ menuItemId: 'keeforge', frameId: 3 }, { id: 7 });
+  assert.equal(s.b.grants.size, 0); assert.deepEqual(s.closed, []);
+  s = forcedSetup('password'); await s.click();
+  await assert.rejects(s.b.openMenu(s.sender, 'everything'), { code: 'bad-origin' });
+});
+test('a forced password session injects the password alone into the right-clicked field', async () => {
+  const s = forcedSetup('password'); await s.click();
+  const { token } = await s.openForced();
+  assert.deepEqual(await s.call(token, 'fill', { entry: 'without-code', db: 'db' }), { ok: true });
+  assert.deepEqual([s.fills[0].target.forced, s.fills[0].target.kind, s.fills[0].codeOnly], [true, 'password', false]);
+  const { injectCredential } = await import('../src/fill.js');
+  let args;
+  await injectCredential({ scripting: { executeScript: async options => { args = options.args; return [{ frameId: 3, result: { password: true } }]; } } }, s.fills[0].target, { username: 'demo', password: 'secret' });
+  assert.deepEqual([args[1], args[4], args[5]], [{ password: 'secret' }, 'forced', 'password']);
+});
+test('a forced code session lists only logins with a code and asks for the code alone', async () => {
+  const s = forcedSetup('code'); await s.click();
+  const { token } = await s.openForced();
+  const state = await s.call(token, 'state');
+  assert.deepEqual(state.entries.map(entry => entry.entry), ['with-code']);
+  await s.call(token, 'fill', { entry: 'with-code', db: 'db' });
+  assert.equal(s.requests.at(-1).fields.totp, true); assert.equal(s.fills[0].codeOnly, true);
+});
+test('a right-clicked field that cannot be filled gets a menu that explains it and does nothing else', async () => {
+  const s = forcedSetup('username', false); await s.click();
+  const { token } = await s.openForced();
+  assert.deepEqual(await s.call(token, 'state'), { ok: false, error: 'field-unusable', origin: 'https://frame.example' });
+  for (const action of ['fill', 'reveal', 'unlock', 'launchApp', 'pair']) await assert.rejects(s.call(token, action, { entry: 'without-code', db: 'db' }), { code: 'field-unusable' }, action);
+  assert.deepEqual(s.requests, []); assert.deepEqual(s.fills, []);
+});
+test('the KeeForge context menu has three fill items on editable fields of the content-script sites', async () => {
+  const s = forcedSetup('password');
+  s.b.listen();
+  await s.b.createContextMenus(); await s.b.createContextMenus();
+  assert.equal(s.api.contextMenus.removed, 2);
+  assert.deepEqual(s.api.contextMenus.created.map(item => [item.id, item.parentId, item.title]), [['keeforge', undefined, 'extensionName'], ['fill-username', 'keeforge', 'contextFillUsername'], ['fill-password', 'keeforge', 'contextFillPassword'], ['fill-code', 'keeforge', 'fillCode']]);
+  for (const item of s.api.contextMenus.created) assert.deepEqual([item.contexts, item.documentUrlPatterns], [['editable'], ['https://*/*', 'http://localhost/*']]);
+  assert.equal(s.api.contextMenus.onClicked.listeners.size, 1);
+});
+test('a right-click records the field; only the extension\'s own trusted menu message opens a forced menu', async () => {
+  const page = contentPage();
+  vm.runInNewContext(await contentSource(), page.context); page.frames();
+  page.context.HTMLInputElement.prototype.matches = () => false;
+  page.runtime({ type: 'contextFill', kind: 'password' }); await settle();
+  assert.deepEqual(page.requests, []);
+  page.fire('contextmenu', { isTrusted: false, clientX: 20, clientY: 40, composedPath: () => [page.input] });
+  page.runtime({ type: 'contextFill', kind: 'username' }); await settle();
+  assert.deepEqual(page.requests, []);
+  page.fire('contextmenu', { isTrusted: true, clientX: 20, clientY: 40, composedPath: () => [page.input] });
+  page.runtime({ type: 'contextFill', kind: 'username' }, { id: 'other' }); page.runtime({ type: 'contextFill', kind: 'everything' }); await settle();
+  assert.deepEqual(page.requests, []);
+  page.runtime({ type: 'contextFill', kind: 'username' }); await settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(page.requests)), [{ type: 'openInlineMenu', forced: 'username' }]);
+  assert.equal(page.context.__keeforgeInlineField, page.input);
+  page.fire('pagehide'); page.requests.length = 0;
+  page.runtime({ type: 'contextFill', kind: 'username' }); await settle();
+  assert.deepEqual(page.requests, []);
 });

@@ -124,5 +124,14 @@
   },
   "confirmFill": {
     "message": "Inserisci"
+  },
+  "contextFillUsername": {
+    "message": "Inserisci nome utente"
+  },
+  "contextFillPassword": {
+    "message": "Inserisci password"
+  },
+  "fieldUnusable": {
+    "message": "Impossibile compilare questo campo."
   }
 }

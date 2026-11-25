@@ -124,5 +124,14 @@
   },
   "confirmFill": {
     "message": "Rellenar"
+  },
+  "contextFillUsername": {
+    "message": "Rellenar nombre de usuario"
+  },
+  "contextFillPassword": {
+    "message": "Rellenar contraseña"
+  },
+  "fieldUnusable": {
+    "message": "No se puede rellenar este campo."
   }
 }

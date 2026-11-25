@@ -247,8 +247,43 @@ test('first sign-in steps: a lone e-mail or user-name field is decorated and kin
   assert.deepEqual(fields(user, password), [user, password]);
   assert.equal(fillDocument(undefined, undefined, false, undefined, 'kind', undefined, user), 'login');
 });
+test('code fields without the one-time-code hint are recognized by name, label or placeholder, not by card or coupon words', () => {
+  const kind = input => { page([input]); return fillDocument(undefined, undefined, false, undefined, 'kind', undefined, input); };
+  const label = text => [{ textContent: text }];
+  for (const properties of [
+    { autocomplete: 'off', attrs: { name: 'twofactor_token', id: 'twofactor_token' }, labels: label('Verification code') },
+    { attrs: { placeholder: 'Enter OTP' } }, { attrs: { name: 'otp_code' } }, { type: 'tel', attrs: { id: 'mfa-code' } },
+    { type: 'number', attrs: { 'aria-label': 'Authentication code' } }, { attrs: { name: 'totp' } }, { labels: label('6-digit code from your 2FA app') }
+  ]) assert.equal(kind(new Input({ form: {}, ...properties })), 'code', JSON.stringify(properties));
+  for (const properties of [
+    { attrs: { name: 'code' } }, { attrs: { name: 'coupon_code' }, labels: label('Promo code') }, { labels: label('Card verification code') },
+    { attrs: { name: 'cvc' }, labels: label('Security code') }, { attrs: { name: 'hotpot' } }, { type: 'password', attrs: { name: 'otp' } },
+    { autocomplete: 'username', attrs: { name: 'otp_user' } }
+  ]) assert.notEqual(kind(new Input({ form: {}, ...properties })), 'code', JSON.stringify(properties));
+});
 test('discovery examines at most 400 inputs, however many other elements the page has', () => {
   const hidden = Array.from({ length: 400 }, () => new Input({ hidden: true })), password = new Input({ type: 'password' });
   page([password]); assert.equal(probeFrame().fillable, true);
   page([...hidden, password]); assert.equal(probeFrame().fillable, false);
+});
+test('a right-clicked field needs only its own state, and gets exactly the value its kind names', () => {
+  const clipped = new Input({ type: 'password', parentElement: new Input({ style: { clipPath: 'inset(100%)' } }) });
+  page([clipped]);
+  const forced = (kind, input) => fillDocument(undefined, undefined, false, undefined, 'forced', kind, input);
+  assert.equal(probeFrame().fillable, false); assert.equal(forced('password', clipped), true);
+  assert.equal(forced('username', clipped), false); assert.equal(forced('code', clipped), false);
+  for (const properties of [{ disabled: true }, { readOnly: true, type: 'text' }, { style: { visibility: 'hidden', opacity: '1' } }, { style: { visibility: 'visible', opacity: '0' } }, { box: { top: 900, bottom: 920, left: 0, right: 10, width: 10, height: 20 } }, { hidden: true }, { isConnected: false }]) {
+    const input = new Input({ type: 'text', ...properties }); page([input]);
+    assert.equal(forced('username', input), false, JSON.stringify(properties));
+  }
+  const user = new Input({ type: 'email' }), pass = new Input({ type: 'password' }); page([user, pass]);
+  globalThis.__keeforgeInlineField = pass;
+  const write = (kind, value, token = globalThis.__keeforgeDocumentPin) => fillDocument('https://example.com', value, kind === 'code', token, 'forced', kind);
+  assert.deepEqual(write('password', { password: 'secret' }, 'stale'), { username: false, password: false, totp: false }); assert.equal(pass.value, undefined);
+  assert.deepEqual(write('password', { password: 'secret' }), { username: false, password: true, totp: false });
+  assert.equal(pass.value, 'secret'); assert.equal(user.value, undefined);
+  assert.deepEqual(write('username', { username: 'demo' }), { username: false, password: false, totp: false });
+  globalThis.__keeforgeInlineField = user;
+  assert.deepEqual(write('username', { username: 'demo' }), { username: true, password: false, totp: false }); assert.equal(user.value, 'demo');
+  delete globalThis.__keeforgeInlineField;
 });

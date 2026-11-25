@@ -176,6 +176,10 @@ async function cases(cdp, port) {
     const probe = await world.call();
     check('one-time-code field (code-only fill)', [{ username: false, password: false, totp: true }, { u: '', c: '123456' }], [await fill(world, probe.token, true), await values(tab, ['u', 'c'])]);
   });
+  await withTab('/otp-named.html', async (tab, world) => {
+    const probe = await world.call();
+    check('code field known only by its name and label (code-only fill)', [true, { username: false, password: false, totp: true }, { c: '123456' }], [probe.fillable, await fill(world, probe.token, true), await values(tab, ['c'])]);
+  });
   await withTab('/otp-plain.html', async (tab, world) => {
     await tab.clickSelector('#c');
     const probe = await world.call();

@@ -5,7 +5,7 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
   const pinKey = '__keeforgeDocumentPin';
   const probing = expectedOrigin === undefined;
   if (probing) {
-    if (!['fields', 'visible', 'kind'].includes(mode)) globalThis[pinKey] = [...crypto.getRandomValues(new Uint8Array(32))].map(n => n.toString(16).padStart(2, '0')).join('');
+    if (!['fields', 'visible', 'kind', 'forced'].includes(mode)) globalThis[pinKey] = [...crypto.getRandomValues(new Uint8Array(32))].map(n => n.toString(16).padStart(2, '0')).join('');
   } else if (!expectedToken || globalThis[pinKey] !== expectedToken) return result;
   // A form's named controls (e.g. <input name="hidden">) shadow its DOM members; read them from the prototypes.
   const prototypes = ['HTMLElement', 'Element', 'Node'].map(name => globalThis[name]?.prototype).filter(Boolean);
@@ -44,6 +44,26 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
     return right > left && bottom > top;
   };
   if (mode === 'visible') return visible(candidate, candidate?.type === 'password');
+  // A field the user right-clicked and named: only its own state counts, not the ancestor walk, because detection missed it.
+  const forcedTypes = { username: ['text', 'email', 'tel', ''], password: ['password'], code: ['text', 'tel', 'number', ''] };
+  const usable = (input, kind) => {
+    if (!(input instanceof HTMLInputElement) || !forcedTypes[kind]?.includes(input.type) || !input.isConnected || input.ownerDocument !== document || input.disabled || input.matches(':disabled') || (input.readOnly && kind !== 'password')) return false;
+    const style = getComputedStyle(input);
+    return style.visibility === 'visible' && Number(style.opacity) > 0 && [...input.getClientRects()].some(r => r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight);
+  };
+  if (mode === 'forced') {
+    if (probing) return usable(candidate, expectedFieldKind);
+    const field = globalThis.__keeforgeInlineField, value = credential?.[{ username: 'username', password: 'password', code: 'totp' }[expectedFieldKind]];
+    if (!usable(field, expectedFieldKind) || typeof value !== 'string') return result;
+    if (field.readOnly) call(field, 'focus');
+    if (field.readOnly || !usable(field, expectedFieldKind) || globalThis[pinKey] !== expectedToken || location.origin !== expectedOrigin || globalThis.origin !== expectedOrigin) return result;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (!setter) return result;
+    setter.call(field, value);
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+    return { ...result, [{ username: 'username', password: 'password', code: 'totp' }[expectedFieldKind]]: true };
+  }
   const allowed = input => ['text', 'email', 'tel', 'password', 'number', 'search', 'url', ''].includes(input.type);
   // Cap the inputs examined, not the elements visited, so large pages still get their login fields.
   const inputs = [], shadowGetter = member('shadowRoot')?.get;
@@ -58,9 +78,20 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
   while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
   if (probing && !['fields', 'kind'].includes(mode)) return { focused: document.hasFocus() && fields.includes(active), active: fields.includes(active), touched: globalThis.__keeforgeTouched ?? 0, fillable: fields.length > 0, token: globalThis[pinKey] };
   const hint = (input, token) => (input.autocomplete || '').toLowerCase().split(/\s+/).includes(token);
+  // Many sites omit the one-time-code hint; the field's name, label or placeholder still says what it is.
+  const labelsOf = Object.getOwnPropertyDescriptor(globalThis.HTMLInputElement?.prototype ?? {}, 'labels')?.get;
+  const describe = input => {
+    const read = name => (member('getAttribute')?.value ?? input.getAttribute)?.call(input, name) ?? '';
+    let labels = '';
+    try { labels = [...((labelsOf ? labelsOf.call(input) : input.labels) ?? [])].map(label => label.textContent).join(' '); } catch {}
+    return `${['id', 'name', 'placeholder', 'aria-label'].map(read).join(' ')} ${labels}`.toLowerCase();
+  };
+  const codeWords = /one[\s_-]?time|(^|[^a-z])t?otp([^a-z]|$)|2fa|two[\s_-]?factor|(^|[^a-z])mfa([^a-z]|$)|(verification|authentication|authenticator|auth|login|sign[\s_-]?in)[\s_-]?code|passcode/;
+  const isCode = input => hint(input, 'one-time-code') || (['text', 'tel', 'number', ''].includes(input.type) && !['username', 'email', 'current-password', 'new-password'].some(token => hint(input, token))
+    && codeWords.test(describe(input)) && !/card|cvv|cvc|csc|coupon|promo|gift|zip|postal/.test(describe(input)));
   const text = input => ['text', 'email', 'tel', ''].includes(input.type) && !hint(input, 'current-password') && !hint(input, 'new-password');
   // A user-name field with no password in its form is the first step of a two-step sign-in: it gets the user name only.
-  const kindOf = input => hint(input, 'one-time-code') ? 'code' : input.type !== 'password' && !fields.some(other => other.type === 'password' && other.form === input.form) ? 'username' : 'login';
+  const kindOf = input => isCode(input) ? 'code' : input.type !== 'password' && !fields.some(other => other.type === 'password' && other.form === input.form) ? 'username' : 'login';
   if (mode === 'kind') return fields.includes(candidate) ? kindOf(candidate) : null;
   const preferred = mode === 'inline' ? globalThis.__keeforgeInlineField : null;
   if (mode === 'inline' && (!fields.includes(preferred) || (expectedFieldKind && (kindOf(preferred) !== expectedFieldKind)))) return result;
@@ -71,12 +102,12 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
     const attributes = node => node ? ['id', 'name', 'class', 'action'].map(name => (getAttribute ?? node.getAttribute)?.call(node, name) ?? '').join(' ') : '';
     const closest = (node, selector) => (member('closest')?.value ?? node.closest)?.call(node, selector);
     const words = input => `${attributes(input)} ${input.autocomplete || ''}`.toLowerCase();
-    const firstStep = input => text(input) && !hint(input, 'one-time-code') && (input.type === 'email' || /user|login|e-?mail|account|identifier/.test(words(input)))
+    const firstStep = input => text(input) && !isCode(input) && (input.type === 'email' || /user|login|e-?mail|account|identifier/.test(words(input)))
       && !/search|query|newsletter|subscri|coupon|promo/.test(`${words(input)} ${attributes(input.form).toLowerCase()}`) && !closest(input, '[role=search], search')
-      && !fields.some(other => other !== input && other.form === input.form && (other.type === 'password' || (text(other) && !hint(other, 'one-time-code'))));
-    const selected = new Set(fields.filter(input => input.type === 'password' || (text(input) && hint(input, 'username')) || (['text', 'tel', 'number', ''].includes(input.type) && hint(input, 'one-time-code')) || firstStep(input)));
+      && !fields.some(other => other !== input && other.form === input.form && (other.type === 'password' || (text(other) && !isCode(other))));
+    const selected = new Set(fields.filter(input => input.type === 'password' || (text(input) && hint(input, 'username')) || (['text', 'tel', 'number', ''].includes(input.type) && isCode(input)) || firstStep(input)));
     for (const password of fields.filter(input => input.type === 'password')) {
-      const before = fields.slice(0, fields.indexOf(password)).filter(input => input.form === password.form && text(input) && !hint(input, 'one-time-code'));
+      const before = fields.slice(0, fields.indexOf(password)).filter(input => input.form === password.form && text(input) && !isCode(input));
       const username = before.find(input => hint(input, 'username')) || before.at(-1);
       if (username) selected.add(username);
     }
@@ -85,10 +116,10 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
   const candidates = focused ? fields.filter(input => input.form === focused.form) : fields;
   const password = (focused?.type === 'password' ? focused : null) || candidates.find(input => input.type === 'password' && hint(input, 'current-password')) || candidates.find(input => input.type === 'password');
   const sameForm = password ? fields.filter(input => input.form === password.form) : candidates;
-  const before = password ? sameForm.slice(0, sameForm.indexOf(password)).filter(input => text(input) && !hint(input, 'one-time-code')) : [];
-  const username = (focused && text(focused) && !hint(focused, 'one-time-code') ? focused : null) || sameForm.find(input => hint(input, 'username') && text(input)) || before.at(-1);
+  const before = password ? sameForm.slice(0, sameForm.indexOf(password)).filter(input => text(input) && !isCode(input)) : [];
+  const username = (focused && text(focused) && !isCode(focused) ? focused : null) || sameForm.find(input => hint(input, 'username') && text(input)) || before.at(-1);
   const codes = candidates.filter(input => ['text', 'tel', 'number', ''].includes(input.type));
-  const code = (focused && codes.includes(focused) && hint(focused, 'one-time-code') ? focused : null) || codes.find(input => hint(input, 'one-time-code')) || (codes.includes(focused) ? focused : null);
+  const code = (focused && codes.includes(focused) && isCode(focused) ? focused : null) || codes.find(input => isCode(input)) || (codes.includes(focused) ? focused : null);
   let stopped = false;
   const set = (input, value, types) => {
     if (stopped || !input || typeof value !== 'string') return false;
@@ -110,7 +141,8 @@ export function fillDocument(expectedOrigin, credential, codeOnly = false, expec
 }
 export async function injectCredential(api, target, credential, codeOnly = false) {
   const destination = target.documentId ? { tabId: target.tabId, documentIds: [target.documentId] } : { tabId: target.tabId, frameIds: [target.frameId] };
-  const results = await api.scripting.executeScript({ target: destination, world: 'ISOLATED', func: fillDocument, args: [target.origin, codeOnly ? { totp: credential.totp } : target.kind === 'username' ? { username: credential.username } : { username: credential.username, password: credential.password }, codeOnly, target.token, ...(target.inline ? ['inline', target.kind] : [])] });
+  const values = codeOnly ? { totp: credential.totp } : target.kind === 'username' ? { username: credential.username } : target.kind === 'password' ? { password: credential.password } : { username: credential.username, password: credential.password };
+  const results = await api.scripting.executeScript({ target: destination, world: 'ISOLATED', func: fillDocument, args: [target.origin, values, codeOnly, target.token, ...(target.forced ? ['forced', target.kind] : target.inline ? ['inline', target.kind] : [])] });
   const filled = results.length === 1 && results[0].frameId === target.frameId && !results[0].error && results[0].result;
   if (!filled || !(filled.username || filled.password || filled.totp)) throw new Error('no-fields');
 }

@@ -406,6 +406,30 @@ try {
   await waitFor(async () => (await visibleButtons(shadowed.session)).length === 3, 'button for a field added inside the shadow root later');
   check('open shadow root: a field added later inside the root gets its button without any interaction', true);
   await send('Target.closeTarget', { targetId: shadowed.targetId });
+  // Right-click menu: a field discovery rejects (partial clip-path) still fills through the browser's KeeForge menu item.
+  // The context menu UI cannot be driven, so the worker session dispatches the registered onClicked listener with the data Chrome passes.
+  const clipped = await tab(`${secure}/inline-clipped.html`);
+  check('right-click: the clipped fields get no key button', (await visibleButtons(clipped.session)).length === 0);
+  const rightClick = async (session, x, y) => { for (const type of ['mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, x, y, button: 'right', buttons: 2, clickCount: 1 }, session); };
+  const contextClick = async (url, menuItemId) => evaluate(sw, `chrome.tabs.query({}).then(tabs => { const tab = tabs.find(t => t.url === ${JSON.stringify(url)}); chrome.contextMenus.onClicked.dispatch({ menuItemId: ${JSON.stringify(menuItemId)}, frameId: 0, frameUrl: tab.url, pageUrl: tab.url, editable: true }, tab); return true; })`);
+  const clippedURL = `${secure}/inline-clipped.html`;
+  check('right-click: the menu message alone opens nothing without a right-clicked field', await contextClick(clippedURL, 'fill-password') && (await sleep(800), (await menus()).length === 0));
+  const cp = await rect(clipped.session, '#p');
+  await rightClick(clipped.session, (cp.left + cp.right) / 2, (cp.top + cp.bottom) / 2);
+  await contextClick(clippedURL, 'fill-password');
+  menu = await attach((await waitFor(async () => (await menus())[0], 'forced password menu')).targetId);
+  await waitFor(async () => (await text(menu)).includes('Example'), 'forced password rows');
+  await menuAct(clipped, menu, '.login', async () => (await values(clipped.session)).p === 'mock-password', 'forced password fill');
+  check('right-click Fill password: fills only the right-clicked field', JSON.stringify(await values(clipped.session)) === JSON.stringify({ u: '', p: 'mock-password' }), JSON.stringify(await values(clipped.session)));
+  const cu = await rect(clipped.session, '#u');
+  await rightClick(clipped.session, (cu.left + cu.right) / 2, (cu.top + cu.bottom) / 2);
+  await contextClick(clippedURL, 'fill-password');
+  menu = await attach((await waitFor(async () => (await menus())[0], 'mismatched kind menu')).targetId);
+  const unusable = await evaluate(sw, `chrome.i18n.getMessage('fieldUnusable')`);
+  await waitFor(async () => (await text(menu)).includes(unusable), 'unusable field message');
+  check('right-click Fill password on a text field: the menu says it cannot be filled and offers no login', !(await text(menu)).includes('Example'));
+  await key(menu, 'Escape'); await waitFor(async () => (await menus()).length === 0, 'unusable menu closes');
+  await send('Target.closeTarget', { targetId: clipped.targetId });
   // Top layer: fields in a modal dialog, a popover and a fullscreen element get working buttons (real clicks).
   const dialog = await tab(`${secure}/inline-dialog.html`);
   check('modal dialog: buttons only inside the dialog, not on the inert page behind it', !!(await buttonFor(dialog.session, '#u')) && !(await buttonFor(dialog.session, '#behind')));

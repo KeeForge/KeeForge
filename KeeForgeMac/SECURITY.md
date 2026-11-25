@@ -770,8 +770,10 @@ sandboxed frames and frames smaller than 256×196 px get no buttons (the toolbar
 popup still works there). `activeTab` is kept so the popup works where the user
 limits site access to "on click" or, in Firefox, has not granted host access. A
 compromised extension can read and change all of those pages, not only the ones
-the user fills. Until the user clicks a key button with a real (trusted) click
-or presses Option+Down in the field, the content script sends nothing to the
+the user fills. Until the user clicks a key button with a real (trusted) click,
+presses Option+Down in the field, or chooses KeeForge ▸ Fill username, Fill
+password or Fill verification code from the browser's own context menu on a
+field (`contextMenus`), the content script sends nothing to the
 extension's background or to the app, and the button looks the same on every
 site whatever the vault holds. The click opens a menu: `inline.html`, the
 extension's only web-accessible page, in an iframe inside a closed shadow root.
@@ -781,7 +783,13 @@ new per-document pin, and asks the app for `matches` only then, for that
 frame's own origin. It accepts menu requests only from its own `inline.html` in
 the same tab while the session is current; the first menu document owns the
 session, and a second load of the menu frame closes it. Opening the toolbar
-popup closes an open menu in that tab.
+popup closes an open menu in that tab. The context-menu item gives the
+background a single-use grant, for 10 seconds, for that tab, frame, frame origin
+and kind; the menu then opens at the field the user right-clicked with that
+kind forced and writes only that one value into that one field. Because the
+point is a field the button's detection missed, that field is checked only for
+its own state (type, enabled, not hidden or transparent itself, in the
+viewport), not for clipping or transparency of its ancestors.
 
 The menu frame sends the page nothing. It is a fixed 320×264 px card, smaller
 only when the viewport is, and it closes through the background to the

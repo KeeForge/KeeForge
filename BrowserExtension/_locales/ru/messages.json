@@ -124,5 +124,14 @@
   },
   "confirmFill": {
     "message": "Заполнить"
+  },
+  "contextFillUsername": {
+    "message": "Заполнить имя пользователя"
+  },
+  "contextFillPassword": {
+    "message": "Заполнить пароль"
+  },
+  "fieldUnusable": {
+    "message": "Это поле нельзя заполнить."
   }
 }

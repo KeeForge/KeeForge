@@ -124,5 +124,14 @@
   },
   "confirmFill": {
     "message": "入力"
+  },
+  "contextFillUsername": {
+    "message": "ユーザ名を入力"
+  },
+  "contextFillPassword": {
+    "message": "パスワードを入力"
+  },
+  "fieldUnusable": {
+    "message": "このフィールドには入力できません。"
   }
 }

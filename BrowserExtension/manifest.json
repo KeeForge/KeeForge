@@ -14,7 +14,8 @@
     "nativeMessaging",
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "contextMenus"
   ],
   "action": {
     "default_title": "__MSG_actionTitle__",

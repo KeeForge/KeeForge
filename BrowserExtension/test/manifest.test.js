@@ -8,7 +8,7 @@ const icons = { 16: 'images/icon-16.png', 32: 'images/icon-32.png', 48: 'images/
 
 test('manifest grants exactly the documented permissions and host access', () => {
   assert.equal(manifest.manifest_version, 3);
-  assert.deepEqual(manifest.permissions, ['nativeMessaging', 'activeTab', 'scripting', 'storage']);
+  assert.deepEqual(manifest.permissions, ['nativeMessaging', 'activeTab', 'scripting', 'storage', 'contextMenus']);
   assert.deepEqual(manifest.host_permissions, sites);
   for (const key of ['optional_permissions', 'optional_host_permissions', 'externally_connectable', 'sandbox', 'update_url']) assert.equal(manifest[key], undefined, key);
 });
