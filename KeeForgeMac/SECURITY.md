@@ -762,7 +762,8 @@ non-extractable in IndexedDB, which binds WebCrypto callers only; assume a
 process that can read the browser profile can recover it.
 
 The extension holds host access to every `https` page and to `http` on
-`localhost`, `127.0.0.1` and `[::1]`, and runs an isolated-world content script
+`localhost` and `127.0.0.1` (`[::1]` only through the toolbar popup, because a
+CSP cannot name an IPv6 literal), and runs an isolated-world content script
 in every such frame from `document_start`. It draws a key button, in its own
 colours, at the end of user-name, password and verification-code fields and of
 a lone e-mail or user-name step; documents without inputs get nothing, and

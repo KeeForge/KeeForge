@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile, access } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', root), 'utf8'));
-const sites = ['https://*/*', 'http://localhost/*', 'http://127.0.0.1/*', 'http://[::1]/*'];
+// CSP host sources cannot express IPv6 literals, so the menu could never load on [::1]; the toolbar popup still works there via activeTab.
+const sites = ['https://*/*', 'http://localhost/*', 'http://127.0.0.1/*'];
 const icons = { 16: 'images/icon-16.png', 32: 'images/icon-32.png', 48: 'images/icon-48.png', 128: 'images/icon-128.png' };
 
 test('manifest grants exactly the documented permissions and host access', () => {
@@ -16,7 +17,7 @@ test('manifest grants exactly the documented permissions and host access', () =>
 test('manifest content script, web-accessible resources and CSP are exact', () => {
   assert.deepEqual(manifest.content_scripts, [{ matches: sites, js: ['src/content.js'], all_frames: true, run_at: 'document_start', world: 'ISOLATED' }]);
   assert.deepEqual(manifest.web_accessible_resources, [{ resources: ['inline.html'], matches: sites, use_dynamic_url: true }]);
-  assert.deepEqual(manifest.content_security_policy, { extension_pages: "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'; frame-ancestors https: http://localhost:* http://127.0.0.1:* http://[::1]:*" });
+  assert.deepEqual(manifest.content_security_policy, { extension_pages: "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'; frame-ancestors https: http://localhost:* http://127.0.0.1:*" });
 });
 
 test('manifest browser versions, ids, background and action', () => {
