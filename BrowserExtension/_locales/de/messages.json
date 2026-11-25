@@ -6,7 +6,7 @@
     "message": "KeeForge"
   },
   "extensionDescription": {
-    "message": "Fülle Anmeldedaten aus KeeForge aus."
+    "message": "Fülle Anmeldedaten und Bestätigungscodes aus KeeForge aus, dem KeePass-Passwortmanager für den Mac."
   },
   "loading": {
     "message": "Verbindung wird hergestellt …"
@@ -122,7 +122,13 @@
   "inlineFrameTitle": {
     "message": "KeeForge-Anmeldedaten"
   },
-  "confirmFill": {
-    "message": "Ausfüllen"
+  "contextFillUsername": {
+    "message": "Benutzernamen ausfüllen"
+  },
+  "contextFillPassword": {
+    "message": "Passwort ausfüllen"
+  },
+  "fieldUnusable": {
+    "message": "Dieses Feld kann nicht ausgefüllt werden."
   }
 }

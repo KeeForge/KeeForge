@@ -37,7 +37,7 @@ final class SecretAccessGateTests: XCTestCase {
     }
 
     func testAnAuthenticationOpensTheGracePeriodForTheSelectedDuration() throws {
-        for gracePeriod in SettingsService.AuthenticationGracePeriod.allCases where gracePeriod != .alwaysAsk {
+        for gracePeriod in SettingsService.AuthenticationGracePeriod.allCases where ![.alwaysAsk, .never].contains(gracePeriod) {
             let duration = try XCTUnwrap(gracePeriod.duration)
             let harness = SecretAccessGateHarness(gracePeriod: gracePeriod)
             harness.gate.noteSuccessfulAuthentication()
@@ -200,6 +200,20 @@ final class SecretAccessGateTests: XCTestCase {
         XCTAssertTrue(harness.gate.requiresAuthentication)
     }
 
+    /// The gate never saw Always Ask, but two writes since it last looked
+    /// mean one in between may have been, and a Never Ask grant has no
+    /// time limit to fall back on.
+    func testAnUnannouncedAlwaysAskAndBackThatTheGateNeverSawEndsANeverAskGrant() {
+        let harness = SecretAccessGateHarness(gracePeriod: .never)
+        harness.announcesSettingChanges = false
+        harness.gate.noteSuccessfulAuthentication()
+
+        harness.gracePeriod = .alwaysAsk
+        harness.gracePeriod = .never
+
+        XCTAssertTrue(harness.gate.requiresAuthentication)
+    }
+
     /// One gate per session: a changed setting has to reach all of them.
     func testAChangedSettingReachesEveryLiveGate() {
         let first = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
@@ -236,6 +250,71 @@ final class SecretAccessGateTests: XCTestCase {
         XCTAssertFalse(harness.gate.requiresAuthentication)
     }
 
+    func testNeverAskKeepsTheGrantUntilTheSessionEndsIt() {
+        let harness = SecretAccessGateHarness(gracePeriod: .never)
+        XCTAssertTrue(harness.gate.requiresAuthentication, "Never Ask still needs an unlock or authentication first")
+        harness.gate.noteSuccessfulAuthentication()
+
+        harness.advance(by: .seconds(24 * 60 * 60))
+        XCTAssertFalse(harness.gate.requiresAuthentication)
+
+        harness.gate.invalidate()
+        XCTAssertTrue(harness.gate.requiresAuthentication)
+    }
+
+    func testAFailedPromptEndsANeverAskGrant() async {
+        let harness = SecretAccessGateHarness(gracePeriod: .never)
+        harness.gate.noteSuccessfulAuthentication()
+        harness.promptSucceeds = false
+
+        try? await harness.gate.authenticate(reason: "View password")
+
+        XCTAssertTrue(harness.gate.requiresAuthentication)
+    }
+
+    /// Picking Never Ask in an unlocked app is lengthening like any other.
+    func testSwitchingToNeverAskTakesANewAuthentication() async throws {
+        let harness = SecretAccessGateHarness(gracePeriod: .alwaysAsk)
+        harness.gate.noteSuccessfulAuthentication()
+
+        harness.gracePeriod = .never
+        XCTAssertTrue(harness.gate.requiresAuthentication, "Always Ask was in force at the authentication")
+
+        try await harness.gate.authenticate(reason: "View password")
+        harness.advance(by: .seconds(24 * 60 * 60))
+        XCTAssertFalse(harness.gate.requiresAuthentication)
+    }
+
+    func testAGrantEarnedUnderAPeriodKeepsItsLimitUnderNeverAsk() {
+        let harness = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
+        harness.gate.noteSuccessfulAuthentication()
+
+        harness.gracePeriod = .never
+        harness.advance(by: .seconds(299))
+        XCTAssertFalse(harness.gate.requiresAuthentication)
+        harness.advance(by: .seconds(1))
+
+        XCTAssertTrue(harness.gate.requiresAuthentication)
+    }
+
+    func testLeavingNeverAskCapsTheGrantFromItsStartForGood() {
+        let harness = SecretAccessGateHarness(gracePeriod: .never)
+        harness.gate.noteSuccessfulAuthentication()
+        harness.advance(by: .seconds(20))
+
+        harness.gracePeriod = .oneMinute
+        harness.advance(by: .seconds(39))
+        XCTAssertFalse(harness.gate.requiresAuthentication, "One minute had not run out")
+        harness.gracePeriod = .never
+        harness.advance(by: .seconds(1))
+        XCTAssertTrue(harness.gate.requiresAuthentication, "Never Ask again must not lift the one-minute cap")
+
+        harness.gate.noteSuccessfulAuthentication()
+        harness.gracePeriod = .alwaysAsk
+        harness.gracePeriod = .never
+        XCTAssertTrue(harness.gate.requiresAuthentication, "Always Ask revokes a Never Ask grant")
+    }
+
     func testADeviceWithoutOwnerAuthenticationIsNeverAsked() {
         let harness = SecretAccessGateHarness(gracePeriod: .alwaysAsk)
         harness.isAuthenticationAvailable = false
@@ -268,7 +347,7 @@ final class SecretAccessSessionTests: XCTestCase {
     private let fixturePassword = "testpassword123"
     private var savedLockOnBackground: Bool!
     private var savedAutoLockTimeout: SettingsService.AutoLockTimeout!
-    private var savedGracePeriod: SettingsService.AuthenticationGracePeriod!
+    private var savedGracePeriod: Any?
 
     override func setUp() async throws {
         try await super.setUp()
@@ -276,13 +355,13 @@ final class SecretAccessSessionTests: XCTestCase {
         SharedVaultStore.clearBookmark()
         savedLockOnBackground = SettingsService.lockOnBackground
         savedAutoLockTimeout = SettingsService.autoLockTimeout
-        savedGracePeriod = SettingsService.authenticationGracePeriod
+        savedGracePeriod = UserDefaults.standard.object(forKey: "KeeForge.authenticationGracePeriod")
     }
 
     override func tearDown() async throws {
         SettingsService.lockOnBackground = savedLockOnBackground
         SettingsService.autoLockTimeout = savedAutoLockTimeout
-        SettingsService.authenticationGracePeriod = savedGracePeriod
+        UserDefaults.standard.set(savedGracePeriod, forKey: "KeeForge.authenticationGracePeriod")
         DatabaseListStore.clearAll()
         SharedVaultStore.clearBookmark()
         try await super.tearDown()
@@ -294,6 +373,34 @@ final class SecretAccessSessionTests: XCTestCase {
 
         XCTAssertFalse(vm.secretAccess.requiresAuthentication)
         XCTAssertTrue(harness.promptReasons.isEmpty)
+    }
+
+    func testUnlockingWithNeverAskOpensAGracePeriodThatOnlyEndsWithTheSession() async throws {
+        let harness = SecretAccessGateHarness(gracePeriod: .never)
+        let vm = try await makeUnlockedViewModel(harness)
+
+        harness.advance(by: .seconds(24 * 60 * 60))
+        XCTAssertFalse(vm.secretAccess.requiresAuthentication)
+
+        vm.lockRequest(manuallyTriggered: true)
+        guard case .locked = vm.state else {
+            return XCTFail("Expected locked, got \(vm.state)")
+        }
+        XCTAssertTrue(vm.secretAccess.requiresAuthentication)
+        XCTAssertTrue(harness.promptReasons.isEmpty)
+    }
+
+    func testALockDeferredByUnsavedWorkEndsANeverAskGrant() async throws {
+        let harness = SecretAccessGateHarness(gracePeriod: .never)
+        let vm = try await makeUnlockedViewModel(harness)
+        vm.setEditorHasUnsavedChanges(true, editorID: UUID())
+
+        vm.lockRequest()
+
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected the unsaved editor to defer the lock, got \(vm.state)")
+        }
+        XCTAssertTrue(vm.secretAccess.requiresAuthentication)
     }
 
     func testUnlockingWithAlwaysAskStillRequiresAuthentication() async throws {
@@ -495,6 +602,36 @@ final class SecretAccessSessionTests: XCTestCase {
         XCTAssertFalse(vm.secretAccess.isWithinGracePeriod)
     }
 
+    #if os(macOS)
+    /// The Mac default opens a grace period at unlock that ends with the
+    /// session and never carries over to the next unlock.
+    func testTheShippedMacDefaultOpensAGracePeriodThatEndsWithTheSession() async throws {
+        UserDefaults.standard.removeObject(forKey: "KeeForge.authenticationGracePeriod")
+        let vm = DatabaseViewModel(databaseReference: try makeReference())
+
+        await vm.unlock(password: fixturePassword)
+
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked, got \(vm.state)")
+        }
+        XCTAssertTrue(vm.secretAccess.isWithinGracePeriod)
+        vm.lockRequest(force: true)
+        XCTAssertFalse(vm.secretAccess.isWithinGracePeriod)
+    }
+
+    func testAnExplicitAlwaysAskOnMacOpensNoGracePeriod() async throws {
+        SettingsService.authenticationGracePeriod = .alwaysAsk
+        let vm = DatabaseViewModel(databaseReference: try makeReference())
+
+        await vm.unlock(password: fixturePassword)
+
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked, got \(vm.state)")
+        }
+        XCTAssertFalse(vm.secretAccess.isWithinGracePeriod)
+        vm.lockRequest(force: true)
+    }
+    #else
     func testTheShippedDefaultOpensNoGracePeriod() async throws {
         UserDefaults.standard.removeObject(forKey: "KeeForge.authenticationGracePeriod")
         let vm = DatabaseViewModel(databaseReference: try makeReference())
@@ -507,6 +644,7 @@ final class SecretAccessSessionTests: XCTestCase {
         XCTAssertFalse(vm.secretAccess.isWithinGracePeriod)
         vm.lockRequest(force: true)
     }
+    #endif
 
     // MARK: - Helpers
 

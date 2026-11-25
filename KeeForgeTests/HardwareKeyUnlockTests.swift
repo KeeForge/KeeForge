@@ -338,11 +338,11 @@ final class HardwareKeyUnlockTests: XCTestCase {
     func testUnlockFinishingInTheBackgroundOpensNoAuthenticationGracePeriod() async throws {
         let savedLockOnBackground = SettingsService.lockOnBackground
         let savedAutoLockTimeout = SettingsService.autoLockTimeout
-        let savedGracePeriod = SettingsService.authenticationGracePeriod
+        let savedGracePeriod = UserDefaults.standard.object(forKey: "KeeForge.authenticationGracePeriod")
         defer {
             SettingsService.lockOnBackground = savedLockOnBackground
             SettingsService.autoLockTimeout = savedAutoLockTimeout
-            SettingsService.authenticationGracePeriod = savedGracePeriod
+            UserDefaults.standard.set(savedGracePeriod, forKey: "KeeForge.authenticationGracePeriod")
         }
         SettingsService.lockOnBackground = false
         SettingsService.autoLockTimeout = .never

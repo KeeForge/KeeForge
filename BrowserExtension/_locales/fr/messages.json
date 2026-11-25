@@ -6,7 +6,7 @@
     "message": "KeeForge"
   },
   "extensionDescription": {
-    "message": "Remplissez vos identifiants depuis KeeForge."
+    "message": "Remplissez vos identifiants et codes de vérification depuis KeeForge, le gestionnaire de mots de passe KeePass pour Mac."
   },
   "loading": {
     "message": "Connexion…"
@@ -122,7 +122,13 @@
   "inlineFrameTitle": {
     "message": "Identifiants KeeForge"
   },
-  "confirmFill": {
-    "message": "Remplir"
+  "contextFillUsername": {
+    "message": "Remplir le nom d'utilisateur"
+  },
+  "contextFillPassword": {
+    "message": "Remplir le mot de passe"
+  },
+  "fieldUnusable": {
+    "message": "Ce champ ne peut pas être rempli."
   }
 }

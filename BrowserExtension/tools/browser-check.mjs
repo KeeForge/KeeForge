@@ -176,6 +176,10 @@ async function cases(cdp, port) {
     const probe = await world.call();
     check('one-time-code field (code-only fill)', [{ username: false, password: false, totp: true }, { u: '', c: '123456' }], [await fill(world, probe.token, true), await values(tab, ['u', 'c'])]);
   });
+  await withTab('/otp-named.html', async (tab, world) => {
+    const probe = await world.call();
+    check('code field known only by its name and label (code-only fill)', [true, { username: false, password: false, totp: true }, { c: '123456' }], [probe.fillable, await fill(world, probe.token, true), await values(tab, ['c'])]);
+  });
   await withTab('/otp-plain.html', async (tab, world) => {
     await tab.clickSelector('#c');
     const probe = await world.call();
@@ -204,7 +208,7 @@ async function cases(cdp, port) {
     const probe = await world.call();
     check('login below the fold, not scrolled (viewport rule)', { fillable: false }, { fillable: probe.fillable });
   });
-  for (const technique of ['display-none', 'visibility-hidden', 'opacity-0', 'offscreen', 'clip-path', 'zero-size', 'inert', 'closed-details', 'sr-only-clip', 'content-visibility']) {
+  for (const technique of ['display-none', 'visibility-hidden', 'opacity-0', 'offscreen', 'clip-path', 'zero-size', 'inert', 'closed-details', 'sr-only-clip', 'content-visibility', 'zero-size-contain-paint', 'contents-in-opacity-0']) {
     await withTab(`/hidden.html?h=${technique}`, async (tab, world) => {
       const probe = await world.call();
       check(`hidden ${technique}: hidden empty, visible fills`, [login, { hu: '', hp: '', vu: 'alice', vp: 's3cret-pw' }], [await fill(world, probe.token), await values(tab, ['hu', 'hp', 'vu', 'vp'])]);
@@ -223,6 +227,10 @@ async function cases(cdp, port) {
   await withTab('/typeswap.html', async (tab, world) => {
     const probe = await world.call();
     check('handler swaps password to text: password not written', [none, { p: '', type: 'text' }], [await fill(world, probe.token), await tab.eval(`({ p: document.getElementById('p').value, type: document.getElementById('p').type })`)]);
+  });
+  await withTab('/contents.html', async (tab, world) => {
+    const probe = await world.call();
+    check('login under display:contents wrappers and an empty positioned layer: fills', [true, login, { u: 'alice', p: 's3cret-pw' }], [probe.fillable, await fill(world, probe.token), await values(tab, ['u', 'p'])]);
   });
   await withTab('/shadow-open.html', async (tab, world) => {
     const probe = await world.call();

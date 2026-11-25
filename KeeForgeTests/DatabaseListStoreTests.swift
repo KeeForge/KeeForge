@@ -704,6 +704,44 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertNoThrow(try DatabaseListStore.addCloud(provider: provider, accountId: "one", file: other))
     }
 
+    func testDetachedDriveUploadBlocksTheSameFileFromAnotherAccount() throws {
+        let file = CloudFile(id: "shared-drive-file-id", name: "pending.kdbx", path: "pending.kdbx",
+            isFolder: false, modifiedDate: nil, size: nil)
+        let provider = CloudProviderKind.googleDrive.rawValue
+        let reference = try DatabaseListStore.addCloud(provider: provider, accountId: "one", file: file)
+        _ = try CloudJournalTestContext(reference: reference)
+        var attempt = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        attempt.marker.uploadAttemptID = UUID()
+        _ = try PendingUploadQueue.update(attempt)
+        let current = try XCTUnwrap(DatabaseListStore.readDatabasesStrict().first)
+        XCTAssertEqual(DatabaseListStore.remove(observed: current, keepingUnconfirmedCloudUploads: true), .removed)
+
+        XCTAssertThrowsError(try DatabaseListStore.addCloud(provider: provider, accountId: "two", file: file)) {
+            XCTAssertEqual($0 as? DatabaseListStore.AddDatabaseError, .unresolvedCloudUpload)
+        }
+    }
+
+    func testRemovalDuringCloudUploadPreservesItsAcknowledgement() async throws {
+        let file = CloudFile(id: "live-removal", name: "pending.kdbx", path: "pending.kdbx",
+            isFolder: false, modifiedDate: nil, size: nil)
+        let reference = try DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue,
+            accountId: "one", file: file)
+        let context = try CloudJournalTestContext(reference: reference)
+        let transport = CloudJournalTransport(beforeUpload: {
+            let current = try XCTUnwrap(DatabaseListStore.readDatabasesStrict().first)
+            XCTAssertEqual(DatabaseListStore.remove(observed: current, keepingUnconfirmedCloudUploads: true), .notPublished)
+            let attempt = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            XCTAssertNil(attempt.marker.detachedFilename)
+        })
+
+        let result = try await CloudDatabaseSaver.deliver(context.stored, reference: reference,
+            environment: context.environment(transport: transport))
+        guard case .saved(let updated)? = result else { return XCTFail("Expected the upload acknowledgement to publish") }
+        XCTAssertEqual(updated.cloudSyncMetadata?.remoteRev, transport.response.rev)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertEqual(DatabaseListStore.remove(observed: updated), .removed)
+    }
+
     func testRemoveUnconfirmedCloudUploadRefusesAnUnverifiedRecoveryCopy() throws {
         let file = CloudFile(id: "invalid-removal", name: "pending.kdbx", path: "pending.kdbx",
             isFolder: false, modifiedDate: nil, size: nil)

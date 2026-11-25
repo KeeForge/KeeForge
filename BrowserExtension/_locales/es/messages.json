@@ -6,7 +6,7 @@
     "message": "KeeForge"
   },
   "extensionDescription": {
-    "message": "Rellena inicios de sesión desde KeeForge."
+    "message": "Rellena inicios de sesión y códigos de verificación desde KeeForge, el gestor de contraseñas KeePass para Mac."
   },
   "loading": {
     "message": "Conectando…"
@@ -122,7 +122,13 @@
   "inlineFrameTitle": {
     "message": "Inicios de sesión de KeeForge"
   },
-  "confirmFill": {
-    "message": "Rellenar"
+  "contextFillUsername": {
+    "message": "Rellenar nombre de usuario"
+  },
+  "contextFillPassword": {
+    "message": "Rellenar contraseña"
+  },
+  "fieldUnusable": {
+    "message": "No se puede rellenar este campo."
   }
 }

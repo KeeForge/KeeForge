@@ -6,7 +6,7 @@
     "message": "KeeForge"
   },
   "extensionDescription": {
-    "message": "Fill logins from KeeForge."
+    "message": "Fill logins and verification codes from KeeForge, the KeePass password manager for Mac."
   },
   "loading": {
     "message": "Connecting…"
@@ -122,7 +122,13 @@
   "inlineFrameTitle": {
     "message": "KeeForge logins"
   },
-  "confirmFill": {
-    "message": "Fill"
+  "contextFillUsername": {
+    "message": "Fill username"
+  },
+  "contextFillPassword": {
+    "message": "Fill password"
+  },
+  "fieldUnusable": {
+    "message": "This field cannot be filled."
   }
 }

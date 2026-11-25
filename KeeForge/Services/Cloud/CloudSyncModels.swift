@@ -3,6 +3,7 @@ import Foundation
 enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, Sendable {
     case dropbox = "dropbox"
     case oneDrive = "onedrive"
+    case googleDrive = "googledrive"
     case webDAV = "webdav"
     case ftp = "ftp"
 
@@ -14,6 +15,8 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
             "Dropbox"
         case .oneDrive:
             "OneDrive"
+        case .googleDrive:
+            "Google Drive"
         case .webDAV:
             "WebDAV"
         case .ftp:
@@ -27,6 +30,8 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
             "shippingbox.fill"
         case .oneDrive:
             "cloud.fill"
+        case .googleDrive:
+            "triangle"
         case .webDAV:
             "server.rack"
         case .ftp:
@@ -40,7 +45,7 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
         switch self {
         case .webDAV, .ftp:
             true
-        case .dropbox, .oneDrive:
+        case .dropbox, .oneDrive, .googleDrive:
             false
         }
     }
@@ -62,7 +67,7 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
         switch self {
         case .webDAV, .ftp:
             return true
-        case .dropbox, .oneDrive:
+        case .dropbox, .oneDrive, .googleDrive:
             return false
         }
         #else
@@ -160,9 +165,13 @@ enum CloudSyncIssue: Hashable, Sendable {
     case networkUnavailable
     case fileNotFound
     case conflict
+    case postUploadConflict
+    case uploadResponseLost
+    case uploadVerificationIncomplete
     case writeScopeRequired
     case rateLimited
     case serviceUnavailable
+    case driveRevisionHistoryUnavailable
     case insufficientSpace
     case permissionDenied
     case invalidName
@@ -182,12 +191,20 @@ enum CloudSyncIssue: Hashable, Sendable {
             String(localized: "The remote database could not be found.")
         case .conflict:
             String(localized: "This database changed in the cloud. Reload before saving again.")
+        case .postUploadConflict:
+            String(localized: "Another device wrote to Google Drive during this save. Open Cloud Recovery to export your encrypted copy, then merge it with the other device’s copy.")
+        case .uploadResponseLost:
+            String(localized: "Google Drive may have received your changes. Open Cloud Recovery to export your encrypted copy.")
+        case .uploadVerificationIncomplete:
+            String(localized: "KeeForge could not verify the Google Drive save. Open Cloud Recovery to export your encrypted copy.")
         case .writeScopeRequired:
             String(localized: "Reconnect this cloud account to save changes.")
         case .rateLimited:
             String(localized: "The cloud service is busy right now. Try again in a moment.")
         case .serviceUnavailable:
             String(localized: "The cloud service is temporarily unavailable. Try again later.")
+        case .driveRevisionHistoryUnavailable:
+            String(localized: "KeeForge can’t save changes to this file because Google Drive did not provide its revision history.")
         case .insufficientSpace:
             String(localized: "There isn't enough storage space in this cloud account.")
         case .permissionDenied:
@@ -217,9 +234,13 @@ extension CloudSyncIssue: Codable {
         case .networkUnavailable: "networkUnavailable"
         case .fileNotFound: "fileNotFound"
         case .conflict: "conflict"
+        case .postUploadConflict: "postUploadConflict"
+        case .uploadResponseLost: "uploadResponseLost"
+        case .uploadVerificationIncomplete: "uploadVerificationIncomplete"
         case .writeScopeRequired: "writeScopeRequired"
         case .rateLimited: "rateLimited"
         case .serviceUnavailable: "serviceUnavailable"
+        case .driveRevisionHistoryUnavailable: "driveRevisionHistoryUnavailable"
         case .insufficientSpace: "insufficientSpace"
         case .permissionDenied: "permissionDenied"
         case .invalidName: "invalidName"
@@ -235,9 +256,13 @@ extension CloudSyncIssue: Codable {
         case "networkUnavailable": self = .networkUnavailable
         case "fileNotFound": self = .fileNotFound
         case "conflict": self = .conflict
+        case "postUploadConflict": self = .postUploadConflict
+        case "uploadResponseLost": self = .uploadResponseLost
+        case "uploadVerificationIncomplete": self = .uploadVerificationIncomplete
         case "writeScopeRequired": self = .writeScopeRequired
         case "rateLimited": self = .rateLimited
         case "serviceUnavailable": self = .serviceUnavailable
+        case "driveRevisionHistoryUnavailable": self = .driveRevisionHistoryUnavailable
         case "insufficientSpace": self = .insufficientSpace
         case "permissionDenied": self = .permissionDenied
         case "invalidName": self = .invalidName

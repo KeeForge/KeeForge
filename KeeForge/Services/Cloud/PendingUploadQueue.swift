@@ -221,6 +221,8 @@ enum PendingUploadQueue {
         var localCommitBaseline: LocalCommitBaseline?
         var attemptIsFenced: Bool?
         var detachedFilename: String?
+        var uploadRecoveryIssue: CloudSyncIssue?
+        var observedUploadRevision: String?
         var discardRequested: Bool?
         var requiresLocalRecovery: Bool?
         var absorbedOperationIDs: [UUID]?
@@ -285,6 +287,8 @@ enum PendingUploadQueue {
             localCommitBaseline = try container.decodeIfPresent(LocalCommitBaseline.self, forKey: .localCommitBaseline)
             attemptIsFenced = try container.decodeIfPresent(Bool.self, forKey: .attemptIsFenced)
             detachedFilename = try container.decodeIfPresent(String.self, forKey: .detachedFilename)
+            uploadRecoveryIssue = try container.decodeIfPresent(CloudSyncIssue.self, forKey: .uploadRecoveryIssue)
+            observedUploadRevision = try container.decodeIfPresent(String.self, forKey: .observedUploadRevision)
             discardRequested = try container.decodeIfPresent(Bool.self, forKey: .discardRequested)
             requiresLocalRecovery = try container.decodeIfPresent(Bool.self, forKey: .requiresLocalRecovery)
             absorbedOperationIDs = try container.decodeIfPresent([UUID].self, forKey: .absorbedOperationIDs)
@@ -725,6 +729,21 @@ enum PendingUploadQueue {
         }
         defer { flock(fd, LOCK_UN) }
         return try body()
+    }
+
+    // Held across provider IO so removal cannot detach a live upload.
+    static func acquireDeliveryLock(for databaseID: UUID, environment: Environment = .live) throws -> Int32 {
+        let directory = environment.appGroupContainerURL().appendingPathComponent("pending-upload-locks", isDirectory: true)
+        try environment.createDirectory(directory)
+        let lockURL = directory.appendingPathComponent(databaseID.uuidString + ".delivery.lock")
+        let fd = Darwin.open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else { throw POSIXError(.EIO) }
+        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
+            let error = errno
+            Darwin.close(fd)
+            throw POSIXError(POSIXErrorCode(rawValue: error) ?? .EIO)
+        }
+        return fd
     }
 
     static func hasRekeyJournal(for databaseID: UUID, environment: Environment = .live) -> Bool {

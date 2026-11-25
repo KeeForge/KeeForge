@@ -288,6 +288,28 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
         XCTAssertEqual(prompts, 2)
     }
 
+    /// Never Ask releases every fill of the unlocked session without a prompt,
+    /// until the session ends the grant.
+    func testNeverAskReleasesWithoutAPromptUntilTheGrantEnds() async throws {
+        var prompts = 0
+        var instant = ContinuousClock.now
+        let gate = SecretAccessGate(gracePeriod: { .never }, now: { instant }, isAuthenticationAvailable: { true }, prompt: { _ in prompts += 1 })
+        let entry = try entry()
+        let session = try await makeSession([entry], gate: gate)
+        let handler = handler(gate: BrowserBridgeRequestHandler.deviceOwnerGate)
+        _ = try await matches(handler)
+
+        instant += .seconds(24 * 60 * 60)
+        let released = await send(credential(entry, session), to: handler)
+        XCTAssertEqual(released, .credential(username: "user", password: "password-Login"))
+        XCTAssertEqual(prompts, 0)
+
+        gate.invalidate()
+        _ = await send(credential(entry, session), to: handler)
+        XCTAssertEqual(prompts, 1)
+        session.lockRequest(force: true)
+    }
+
     func testUnavailableOwnerAuthenticationReleasesOnlyInsideTheGracePeriod() async throws {
         var corrupt = KPEntry(title: "Corrupt", password: EncryptedValue(sealedData: Data([1]), hasValue: true), url: origin)
         corrupt.totpConfig = TOTPConfig(secret: try .encrypt("JBSWY3DPEHPK3PXP", using: key))

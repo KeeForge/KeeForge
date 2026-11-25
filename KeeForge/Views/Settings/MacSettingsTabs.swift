@@ -185,7 +185,7 @@ struct MacSecuritySettingsTab: View {
                 }
                 .macSettingsPopUp()
                 .accessibilityIdentifier("settings.security.authentication-grace-picker")
-                settingsCaption("Protected fields can be shown and copied for this long after you authenticate, until the database locks, except in AutoFill.")
+                settingsCaption("Sets how long protected fields can be shown and copied without asking again after you unlock or authenticate. Never Ask has no time limit. Locking the database ends it either way. AutoFill is not affected.")
             }
         }
     }

@@ -568,6 +568,8 @@ enum DatabaseListStore {
         var recordedFile: RemovedDocumentsFile?
         let removedFile = removedDocumentsFileRecord(for: observed)
         do {
+            let deliveryLock = try observed.isCloudBacked ? PendingUploadQueue.acquireDeliveryLock(for: observed.id) : nil
+            defer { if let deliveryLock { Darwin.close(deliveryLock) } }
             return try PendingUploadQueue.withCommitLock(for: observed.id, nonBlocking: true) {
                 let result = mutateRegistry(io: io, authorize: { mutate in
                     var published = false
@@ -3167,7 +3169,8 @@ enum DatabaseListStore {
 
     private static func sameCloudFile(_ provider: String, _ accountID: String, _ fileID: String,
                                       _ otherProvider: String?, _ otherAccountID: String?, _ otherFileID: String?) -> Bool {
-        provider == otherProvider && accountID == otherAccountID && fileID == otherFileID
+        provider == otherProvider && fileID == otherFileID
+            && (provider == CloudProviderKind.googleDrive.rawValue || accountID == otherAccountID)
     }
 
     private static func normalizedFilePath(for url: URL) -> String {

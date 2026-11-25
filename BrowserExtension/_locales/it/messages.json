@@ -6,7 +6,7 @@
     "message": "KeeForge"
   },
   "extensionDescription": {
-    "message": "Inserisci le credenziali da KeeForge."
+    "message": "Inserisci credenziali e codici di verifica da KeeForge, il gestore di password KeePass per Mac."
   },
   "loading": {
     "message": "Connessione…"
@@ -122,7 +122,13 @@
   "inlineFrameTitle": {
     "message": "Credenziali KeeForge"
   },
-  "confirmFill": {
-    "message": "Inserisci"
+  "contextFillUsername": {
+    "message": "Inserisci nome utente"
+  },
+  "contextFillPassword": {
+    "message": "Inserisci password"
+  },
+  "fieldUnusable": {
+    "message": "Impossibile compilare questo campo."
   }
 }

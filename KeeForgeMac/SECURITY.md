@@ -360,14 +360,18 @@ A protected `KP2A_URL_*` field is a protected custom field, not a website: the
 live detail, a History version and its comparison show it concealed with gated
 reveal and copy, and it is never opened, listed as a website, used for AutoFill
 matching or published as a suggestion ([KPEntry.additionalURLFields](../KeeForge/Models/Entry.swift)). With
-the Authentication Grace Period setting at its default, Always Ask, every such
-action prompts. A longer setting (at most five minutes) skips the prompt for that
-long after an unlock or a successful authentication. The grant is held in memory
-only and belongs to its session; invalidating it leaves other sessions' grants
-intact. It ends on every lock request above, including one that unsaved work defers,
-and on a failed or cancelled prompt, and is not extended by using it. Under the
-default lock policy, switching to another app does not lock and therefore does
-not end the period either; the strict policy ends it with the lock.
+the Authentication Grace Period setting at Always Ask, every such action
+prompts. A bounded setting (30 seconds to five minutes) skips the prompt for
+that long after an unlock or a successful authentication. Never Ask, the Mac
+default while no value is stored, skips it until the grant ends, so after an
+unlock anyone at the Mac can reveal and copy every protected value of that
+database until it locks. An unreadable stored value reads as Always Ask. The
+grant is held in memory only and belongs to its session; invalidating it leaves
+other sessions' grants intact. It ends on every lock request above, including
+one that unsaved work defers, and on a failed or cancelled prompt, and is not
+extended by using it. Under the default lock policy, switching to another app
+does not lock and therefore does not end the period either; the strict policy
+ends it with the lock.
 
 A website field opens only an `http` or `https` URL with a host, or a bare host
 read as `https://<value>`, the reading AutoFill matching uses; any other value
@@ -556,9 +560,11 @@ asks the app to front that database's window and selects the entry only there,
 so an entry UUID that also exists in another open database (a copy of the same
 file) is never selected in the wrong one.
 
-Copying follows the database window's rules: the password waits on the same
-device-owner prompt as ⇧⌘C, skipped only inside the session's authentication
-grace period, and is re-checked against the session after it,
+Copying follows the database window's rules: the password takes the same
+device-owner gate as ⇧⌘C. It prompts only outside the session's Authentication
+Grace Period, so under Never Ask, the Mac default, a copy goes through without
+a prompt until the database locks. The database, session, lock cycle and
+content are re-checked either way,
 while the user name and verification code copy without a prompt, unless the
 user name's field references reach a protected value. Copies go
 through `ClipboardService`, with its concealed marker, clear timer, and
@@ -720,9 +726,10 @@ then applies these rules:
 - `credential` is answered only for an entry and database that a `matches` reply
   on the same connection offered for the same origin. It takes that session's
   device-owner gate: it releases inside the session's grace period, which a
-  successful unlock or device-owner authentication starts and which defaults to
-  Always Ask, or after the user passes a prompt that names the entry and the
-  site (Fill “Title” on example.com in your browser). The title is sanitized
+  successful unlock or device-owner authentication starts and which under the
+  Mac default, Never Ask, lasts until the session locks, or after the user
+  passes a prompt that names the entry and the site (Fill “Title” on
+  example.com in your browser). The title is sanitized
   like a browser name and cut to 64 characters; the host is the site matcher's
   (lowercased, without port or a leading `www.`), in punycode because the origin
   must be printable ASCII, and a host longer than 64 characters keeps its end.
@@ -748,13 +755,15 @@ Nothing the bridge does is logged. The app cannot see the browser's page, so it
 trusts the origin the extension names. A compromised paired browser or extension,
 or a same-user process holding that browser's key, can list the offered logins
 for any site it names and obtain a password after the user confirms the prompt,
-or without a prompt inside the grace period. The prompt names the entry and the
+or without a prompt inside the grace period, which under the default Never Ask
+is the whole unlocked session. The prompt names the entry and the
 host so the user can refuse a request for a site they are not filling. The extension keeps its key
 non-extractable in IndexedDB, which binds WebCrypto callers only; assume a
 process that can read the browser profile can recover it.
 
 The extension holds host access to every `https` page and to `http` on
-`localhost`, `127.0.0.1` and `[::1]`, and runs an isolated-world content script
+`localhost` and `127.0.0.1` (`[::1]` only through the toolbar popup, because a
+CSP cannot name an IPv6 literal), and runs an isolated-world content script
 in every such frame from `document_start`. It draws a key button, in its own
 colours, at the end of user-name, password and verification-code fields and of
 a lone e-mail or user-name step; documents without inputs get nothing, and
@@ -762,8 +771,10 @@ sandboxed frames and frames smaller than 256×196 px get no buttons (the toolbar
 popup still works there). `activeTab` is kept so the popup works where the user
 limits site access to "on click" or, in Firefox, has not granted host access. A
 compromised extension can read and change all of those pages, not only the ones
-the user fills. Until the user clicks a key button with a real (trusted) click
-or presses Option+Down in the field, the content script sends nothing to the
+the user fills. Until the user clicks a key button with a real (trusted) click,
+presses Option+Down in the field, or chooses KeeForge ▸ Fill username, Fill
+password or Fill verification code from the browser's own context menu on a
+field (`contextMenus`), the content script sends nothing to the
 extension's background or to the app, and the button looks the same on every
 site whatever the vault holds. The click opens a menu: `inline.html`, the
 extension's only web-accessible page, in an iframe inside a closed shadow root.
@@ -773,7 +784,13 @@ new per-document pin, and asks the app for `matches` only then, for that
 frame's own origin. It accepts menu requests only from its own `inline.html` in
 the same tab while the session is current; the first menu document owns the
 session, and a second load of the menu frame closes it. Opening the toolbar
-popup closes an open menu in that tab.
+popup closes an open menu in that tab. The context-menu item gives the
+background a single-use grant, for 10 seconds, for that tab, frame, frame origin
+and kind; the menu then opens at the field the user right-clicked with that
+kind forced and writes only that one value into that one field. Because the
+point is a field the button's detection missed, that field is checked only for
+its own state (type, enabled, not hidden or transparent itself, in the
+viewport), not for clipping or transparency of its ancestors.
 
 The menu frame sends the page nothing. It is a fixed 320×264 px card, smaller
 only when the viewport is, and it closes through the background to the
@@ -791,9 +808,9 @@ once the menu has been fully visible without a break for 300 ms, 300 ms after
 it opened and 300 ms after its rows last changed. In Chrome it also requires
 IntersectionObserver v2's `isVisible`, so an overlay or opacity on the button
 host or the page makes it refuse; a site with full-viewport overlays can make
-it unusable. Firefox has no such detection, so there a fill needs a second
-click, at least 300 ms later, on a Fill button at a random horizontal offset in
-the row. The menu closes if it or its field moves more than 1 px (scrolling
+it unusable. Firefox has no such detection, yet one click fills there too, so
+that both browsers behave alike: a page that covers or fades the menu can
+trick a click into a fill in Firefox (an accepted risk, see the threat model). The menu closes if it or its field moves more than 1 px (scrolling
 included), its host is restyled, or the viewport or URL changes. What remains
 is a page script moving the menu in the same animation frame as the user's
 click; the page gets no mouse-down for clicks inside the menu, so it must guess
@@ -840,7 +857,7 @@ Firefox against the development mock host only; in Firefox it covers the key
 button and the menu frame (no native host is registered there). Not yet
 verified: the owner prompt on screen (Touch ID or password), including through
 the in-field menu, a verification-code fill through the real app, pairing,
-filling and the two-click confirm in Firefox with a registered host, headed
+filling in Firefox with a registered host, headed
 Chrome, right-to-left layouts, the menu inside a modal dialog
 as drawn, the back/forward cache and a background restart while Touch ID
 waits, store-signed extensions and a distribution-signed app (including

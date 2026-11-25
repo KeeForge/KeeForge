@@ -6,7 +6,7 @@
     "message": "KeeForge"
   },
   "extensionDescription": {
-    "message": "KeeForge からログイン情報を入力します。"
+    "message": "Mac 用 KeePass パスワードマネージャ KeeForge から、ログイン情報と確認コードを入力します。"
   },
   "loading": {
     "message": "接続中…"
@@ -122,7 +122,13 @@
   "inlineFrameTitle": {
     "message": "KeeForge のログイン情報"
   },
-  "confirmFill": {
-    "message": "入力"
+  "contextFillUsername": {
+    "message": "ユーザ名を入力"
+  },
+  "contextFillPassword": {
+    "message": "パスワードを入力"
+  },
+  "fieldUnusable": {
+    "message": "このフィールドには入力できません。"
   }
 }

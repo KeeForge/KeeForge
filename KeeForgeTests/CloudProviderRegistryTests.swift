@@ -10,7 +10,9 @@ final class CloudProviderRegistryTests: XCTestCase {
         // they stay out of the UI. Unhiding them is a later release's call.
         XCTAssertEqual(CloudProviderRegistry.availableProviders, [.webDAV, .ftp])
         #else
-        XCTAssertEqual(CloudProviderRegistry.availableProviders, [.dropbox, .oneDrive, .webDAV, .ftp])
+        let withoutDrive = CloudProviderRegistry.availableProviders.filter { $0 != .googleDrive }
+        XCTAssertEqual(withoutDrive, [.dropbox, .oneDrive, .webDAV, .ftp])
+        XCTAssertEqual(CloudProviderRegistry.availableProviders.contains(.googleDrive), GoogleDriveConfiguration.load() != nil)
         #endif
     }
 
@@ -18,11 +20,13 @@ final class CloudProviderRegistryTests: XCTestCase {
         #if os(macOS)
         XCTAssertFalse(CloudProviderKind.dropbox.isAvailableOnCurrentPlatform)
         XCTAssertFalse(CloudProviderKind.oneDrive.isAvailableOnCurrentPlatform)
+        XCTAssertFalse(CloudProviderKind.googleDrive.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.webDAV.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.ftp.isAvailableOnCurrentPlatform)
         #else
         XCTAssertTrue(CloudProviderKind.dropbox.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.oneDrive.isAvailableOnCurrentPlatform)
+        XCTAssertTrue(CloudProviderKind.googleDrive.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.webDAV.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.ftp.isAvailableOnCurrentPlatform)
         #endif
@@ -35,6 +39,7 @@ final class CloudProviderRegistryTests: XCTestCase {
         // one, because neither has ever been reachable from the Mac UI.
         XCTAssertNil(CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue))
         XCTAssertNil(CloudProviderRegistry.provider(for: CloudProviderKind.oneDrive.rawValue))
+        XCTAssertNil(CloudProviderRegistry.provider(for: CloudProviderKind.googleDrive.rawValue))
         #else
         // The UI gate must not affect provider(for:) resolution: an
         // already-connected Dropbox/OneDrive database must still resolve its
@@ -42,6 +47,7 @@ final class CloudProviderRegistryTests: XCTestCase {
         // provider is hidden from the add/import UI.
         XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue))
         XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.oneDrive.rawValue))
+        XCTAssertTrue(CloudProviderRegistry.provider(for: CloudProviderKind.googleDrive.rawValue) === GoogleDriveCloudProvider.shared)
         #endif
         XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.webDAV.rawValue))
     }
@@ -87,6 +93,29 @@ final class CloudProviderRegistryTests: XCTestCase {
     // meaningless on macOS, where the Mac Info.plist intentionally omits it;
     // the macOS MSAL auth flow lands in slice 03 of the macOS port.
     #if os(iOS)
+    func testDriveConfigurationHonorsBuildFlagWithValidOAuthSettings() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for (name, flag) in [("default", nil), ("disabled", "NO"), ("enabled", "YES")] as [(String, String?)] {
+            let url = root.appendingPathComponent(name + ".bundle")
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            var settings = [
+                "CFBundleIdentifier": "com.keevault.test." + name,
+                "GoogleDriveClientID": "synthetic.apps.googleusercontent.com",
+                "GoogleDriveRedirectScheme": "com.googleusercontent.apps.synthetic",
+            ]
+            settings["GoogleDriveEnabled"] = flag
+            let plist = try PropertyListSerialization.data(fromPropertyList: settings, format: .xml, options: 0)
+            try plist.write(to: url.appendingPathComponent("Info.plist"))
+            let bundle = try XCTUnwrap(Bundle(url: url))
+            XCTAssertEqual(GoogleDriveConfiguration.load(bundle: bundle) != nil, flag == "YES", name)
+        }
+        if Bundle.main.object(forInfoDictionaryKey: "GoogleDriveEnabled") as? String != "YES" {
+            XCTAssertFalse(CloudProviderRegistry.availableProviders.contains(.googleDrive))
+        }
+    }
+
     func testAppInfoPlistIncludesMSALBrokerQuerySchemes() throws {
         let schemes = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "LSApplicationQueriesSchemes") as? [String])
 

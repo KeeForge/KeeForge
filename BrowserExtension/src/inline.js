@@ -52,19 +52,9 @@ async function act(event, action, fields = {}) {
   } catch { failure = 'unavailable'; }
   finally { busy = false; last = ''; void refresh(); }
 }
-// Firefox has no visibility tracking, so an invisible overlay cannot be ruled out: the first click arms the row and the
-// fill needs a second click on a button whose position the page cannot predict.
-function arm(event, row, fields) {
-  if (!allowed(event)) return;
-  for (const other of content.querySelectorAll('.kf-confirm')) other.remove();
-  for (const item of content.querySelectorAll('.kf-row')) item.dataset.selected = String(item === row);
-  const strip = document.createElement('div'); strip.className = 'kf-confirm';
-  const confirm = primary(message('confirmFill'), 'fill', fields);
-  confirm.style.marginInlineStart = `calc((100% - 76px) * ${crypto.getRandomValues(new Uint16Array(1))[0] / 65535})`;
-  strip.append(confirm); row.append(strip); renderedAt = performance.now(); confirm.focus();
-}
+// One click fills in every browser; Firefox has no visibility tracking, so there an overlay cannot be ruled out (threat model).
 function fillButton(node, row, fields) {
-  node.addEventListener('click', event => visibilityV2 ? void act(event, 'fill', fields) : arm(event, row, fields));
+  node.addEventListener('click', event => void act(event, 'fill', fields));
 }
 function render(reply) {
   renderedAt = performance.now();

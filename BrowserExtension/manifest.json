@@ -7,14 +7,18 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "browser-extension@keeforge.com",
-      "strict_min_version": "130.0"
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["authenticationInfo", "browsingActivity"]
+      }
     }
   },
   "permissions": [
     "nativeMessaging",
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "contextMenus"
   ],
   "action": {
     "default_title": "__MSG_actionTitle__",
@@ -34,7 +38,7 @@
     "type": "module"
   },
   "content_security_policy": {
-    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'; frame-ancestors https: http://localhost:* http://127.0.0.1:* http://[::1]:*"
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'; frame-ancestors https: http://localhost:* http://127.0.0.1:*"
   },
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
@@ -55,16 +59,14 @@
   "host_permissions": [
     "https://*/*",
     "http://localhost/*",
-    "http://127.0.0.1/*",
-    "http://[::1]/*"
+    "http://127.0.0.1/*"
   ],
   "content_scripts": [
     {
       "matches": [
         "https://*/*",
         "http://localhost/*",
-        "http://127.0.0.1/*",
-        "http://[::1]/*"
+        "http://127.0.0.1/*"
       ],
       "js": [
         "src/content.js"
@@ -82,8 +84,7 @@
       "matches": [
         "https://*/*",
         "http://localhost/*",
-        "http://127.0.0.1/*",
-        "http://[::1]/*"
+        "http://127.0.0.1/*"
       ],
       "use_dynamic_url": true
     }

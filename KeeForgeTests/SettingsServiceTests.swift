@@ -117,8 +117,22 @@ final class SettingsServiceTests: XCTestCase {
     }
     #endif
 
-    func testAuthenticationGracePeriodDefaultsToAlwaysAsk() {
+    #if os(macOS)
+    func testAuthenticationGracePeriodDefaultsToNeverAskOnMac() {
         UserDefaults.standard.removeObject(forKey: authenticationGraceKey)
+        XCTAssertEqual(SettingsService.AuthenticationGracePeriod.defaultValue, .never)
+        XCTAssertEqual(SettingsService.authenticationGracePeriod, .never)
+    }
+    #else
+    func testAuthenticationGracePeriodDefaultsToAlwaysAskOnIOS() {
+        UserDefaults.standard.removeObject(forKey: authenticationGraceKey)
+        XCTAssertEqual(SettingsService.AuthenticationGracePeriod.defaultValue, .alwaysAsk)
+        XCTAssertEqual(SettingsService.authenticationGracePeriod, .alwaysAsk)
+    }
+    #endif
+
+    func testExplicitAlwaysAskOverridesThePlatformDefault() {
+        UserDefaults.standard.set("alwaysAsk", forKey: authenticationGraceKey)
         XCTAssertEqual(SettingsService.authenticationGracePeriod, .alwaysAsk)
     }
 
@@ -251,15 +265,16 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertNil(SettingsService.AutoLockTimeout.never.seconds)
     }
 
-    /// The longest period is five minutes: no case may skip the prompt for good.
+    /// Never Ask alone has no time limit; Always Ask's grant lasts no time.
     func testAuthenticationGracePeriodDurations() {
-        XCTAssertNil(SettingsService.AuthenticationGracePeriod.alwaysAsk.duration)
+        XCTAssertEqual(SettingsService.AuthenticationGracePeriod.alwaysAsk.duration, .zero)
         XCTAssertEqual(SettingsService.AuthenticationGracePeriod.thirtySeconds.duration, .seconds(30))
         XCTAssertEqual(SettingsService.AuthenticationGracePeriod.oneMinute.duration, .seconds(60))
         XCTAssertEqual(SettingsService.AuthenticationGracePeriod.fiveMinutes.duration, .seconds(300))
+        XCTAssertNil(SettingsService.AuthenticationGracePeriod.never.duration)
         XCTAssertEqual(
             SettingsService.AuthenticationGracePeriod.allCases,
-            [.alwaysAsk, .thirtySeconds, .oneMinute, .fiveMinutes]
+            [.alwaysAsk, .thirtySeconds, .oneMinute, .fiveMinutes, .never]
         )
     }
 
