@@ -31,7 +31,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     private let observation = MacObservation()
     private let noticeObservation = MacObservation()
     private let codeClock: MacVerificationCodeClock
-    /// The one timer that redraws the visible codes while Verification Codes is on screen.
+    /// The one timer that redraws the visible codes while a list with code rows is on screen.
     private(set) var verificationCodeTimer: Timer?
     /// Every code cell made, reuse queue included, so stopping can blank them all.
     private let codeCells = NSHashTable<MacVerificationCodeCellView>.weakObjects()
@@ -328,6 +328,14 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
             return (old.folderPath == nil) != (newRows[index].folderPath == nil)
         })
         if resized.isEmpty == false { tableView.noteHeightOfRows(withIndexesChanged: resized) }
+        // Gaining or losing a code swaps the row's cell class.
+        let recelled = IndexSet(newRows.indices.filter { index in
+            guard let old = oldByID[newRows[index].id] else { return false }
+            return old.hasVerificationCode != newRows[index].hasVerificationCode
+        })
+        if recelled.isEmpty == false {
+            tableView.reloadData(forRowIndexes: recelled, columnIndexes: IndexSet(integer: 0))
+        }
         refreshCells { refreshingAll || changed.contains($0.id) }
     }
 
@@ -345,7 +353,7 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
     // MARK: - Verification codes
 
     private var shouldRunVerificationCodeTimer: Bool {
-        isOnScreen && isUnlocked && snapshot?.showsVerificationCodes == true
+        isOnScreen && isUnlocked && snapshot?.hasLiveVerificationCodes == true
     }
 
     /// Starts the code timer with an immediate redraw, or stops it and forgets the codes shown.
@@ -492,14 +500,14 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         guard rows.indices.contains(row) else { return Self.rowHeight }
-        if snapshot?.showsVerificationCodes == true { return Self.rowHeight }
+        if snapshot?.showsVerificationCode(on: rows[row]) == true { return Self.rowHeight }
         return rows[row].folderPath == nil ? Self.rowHeight : Self.rowWithFolderHeight
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard rows.indices.contains(row), let snapshot else { return nil }
         let cell: MacEntryCellView
-        if snapshot.showsVerificationCodes {
+        if snapshot.showsVerificationCode(on: rows[row]) {
             let codeCell = tableView.makeView(withIdentifier: MacVerificationCodeCellView.codeReuseIdentifier,
                                               owner: self) as? MacVerificationCodeCellView
                 ?? MacVerificationCodeCellView(loadFavicon: loadFavicon)
@@ -518,7 +526,8 @@ final class MacEntryListViewController: NSViewController, NSTableViewDataSource,
         let username = session.resolvingFieldReferences(row.rawUsername)
         if let codeCell = cell as? MacVerificationCodeCellView {
             codeCell.configure(row, username: username, rowIdentifier: rowIdentifier,
-                               display: codeClock.display(for: row.id, session: session))
+                               display: codeClock.display(for: row.id, session: session),
+                               keepsStatusBadges: snapshot?.mode != .collection(.verificationCodes))
         } else {
             cell.configure(row, username: username, rowIdentifier: rowIdentifier)
         }
@@ -1049,8 +1058,9 @@ final class MacEntryBadgeView: NSView {
 
 // MARK: - Verification-code cells
 
-/// A Verification Codes row: the usual title and username, with the live code
-/// trailing as a button that copies it, and a countdown ring.
+/// A row with a verification code, in Verification Codes or a group: the usual
+/// title and username, with the live code trailing as a button that copies it,
+/// and a countdown ring.
 final class MacVerificationCodeCellView: MacEntryCellView {
     static let codeReuseIdentifier = NSUserInterfaceItemIdentifier("entries.code-row")
     static let ringSize: CGFloat = 14
@@ -1091,12 +1101,16 @@ final class MacVerificationCodeCellView: MacEntryCellView {
         update(nil)
     }
 
+    /// A group's rows keep their expired and passkey badges; Verification Codes shows the code alone.
     func configure(_ row: MacEntryListSnapshot.Row, username: String, rowIdentifier: String,
-                   display: MacVerificationCodeClock.Display?) {
+                   display: MacVerificationCodeClock.Display?, keepsStatusBadges: Bool = false) {
         configure(row, username: username, rowIdentifier: rowIdentifier)
         entryID = row.id
         folderRow.isHidden = true
-        for glyph in [expiredGlyph, passkeyGlyph, verificationCodeGlyph] { glyph.isHidden = true }
+        verificationCodeGlyph.isHidden = true
+        if keepsStatusBadges == false {
+            for glyph in [expiredGlyph, passkeyGlyph] { glyph.isHidden = true }
+        }
         update(display)
     }
 

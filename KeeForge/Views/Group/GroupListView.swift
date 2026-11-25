@@ -638,7 +638,7 @@ struct GroupListView: View {
         if !visibleEntries.isEmpty {
             Section("Entries") {
                 ForEach(viewModel.sortedEntries(visibleEntries)) { entry in
-                    entryRow(for: entry)
+                    entryRow(for: entry, showsVerificationCode: isRecycleBin == false)
                 }
             }
         }
@@ -767,12 +767,22 @@ struct GroupListView: View {
                 }
                 .macHoverHighlight()
             } else {
-                browsingEntryRow(for: entry, row: row, showsVerificationCode: showsVerificationCode)
+                browsingEntryRow(
+                    for: entry,
+                    row: row,
+                    showsVerificationCode: showsVerificationCode,
+                    showsFolderPath: showsFolderPath
+                )
             }
         }
     }
 
-    private func browsingEntryRow(for entry: KPEntry, row: EntryRow, showsVerificationCode: Bool) -> some View {
+    private func browsingEntryRow(
+        for entry: KPEntry,
+        row: EntryRow,
+        showsVerificationCode: Bool,
+        showsFolderPath: Bool
+    ) -> some View {
         // A concrete row container lets List defer offscreen rows.
         HStack {
             if showsVerificationCode, let config = entry.totpConfig, let sessionKey = viewModel.sessionKey {
@@ -780,7 +790,7 @@ struct GroupListView: View {
                     entry: entry,
                     customIconData: viewModel.customIconData(for: entry),
                     title: entry.title.isEmpty ? String(localized: "(untitled)") : entry.title,
-                    detail: verificationCodeDetail(for: entry),
+                    detail: verificationCodeDetail(for: entry, showsFolderPath: showsFolderPath),
                     config: config,
                     sessionKey: sessionKey
                 ) {
@@ -854,8 +864,9 @@ struct GroupListView: View {
         }
     }
 
-    private func verificationCodeDetail(for entry: KPEntry) -> String {
-        [viewModel.resolvingFieldReferences(entry.username), viewModel.folderPath(forEntryID: entry.id) ?? ""]
+    private func verificationCodeDetail(for entry: KPEntry, showsFolderPath: Bool) -> String {
+        let folderPath = showsFolderPath ? viewModel.folderPath(forEntryID: entry.id) : nil
+        return [viewModel.resolvingFieldReferences(entry.username), folderPath ?? ""]
             .filter { $0.isEmpty == false }
             .joined(separator: " · ")
     }

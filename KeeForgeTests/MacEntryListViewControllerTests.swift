@@ -789,7 +789,7 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
 
     // MARK: - Verification codes
 
-    func testCodeRowsShowOnlyInVerificationCodes() async throws {
+    func testCodeRowsShowInVerificationCodesAndGroups() async throws {
         let clock = MacVerificationCodeClock(now: { Date(timeIntervalSince1970: 1_000_000_005) },
                                              generate: { _, _, _ in "123456" })
         let (controller, session, _, tree) = try await makeController(codeClock: clock, configure: { _, entries in
@@ -799,8 +799,20 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         })
         let table = controller.tableView
         controller.viewDidAppear()
-        XCTAssertNil(try XCTUnwrap(cell(controller, entryID: tree.work.entries[0].id)) as? MacVerificationCodeCellView)
-        XCTAssertNil(controller.verificationCodeTimer, "A group shows no codes")
+        let groupCodeRow = try XCTUnwrap(cell(controller, entryID: tree.work.entries[0].id)
+            as? MacVerificationCodeCellView, "A group's entry with a code shows it")
+        XCTAssertEqual(code(groupCodeRow), "123 456")
+        XCTAssertTrue(groupCodeRow.verificationCodeGlyph.isHidden, "The code replaces the glyph")
+        XCTAssertEqual(groupCodeRow.textField?.accessibilityIdentifier(), "entry.navlink")
+        XCTAssertNil(try XCTUnwrap(cell(controller, entryID: tree.work.entries[1].id)) as? MacVerificationCodeCellView,
+                     "An entry without a code keeps the plain row")
+        XCTAssertEqual(table.delegate?.tableView?(table, heightOfRow: 0), MacEntryListViewController.rowHeight)
+        XCTAssertNotNil(controller.verificationCodeTimer, "The group's code rows tick")
+        XCTAssertTrue(try XCTUnwrap(controller.footerField.superview).isHidden, "The copy hint is Verification Codes' own")
+
+        session.workspace.selectedGroupID = tree.other.id
+        await settle()
+        XCTAssertNil(controller.verificationCodeTimer, "A group without codes runs no timer")
 
         session.workspace.selectedCollection = .verificationCodes
         await settle()
@@ -848,6 +860,42 @@ final class MacEntryListViewControllerTests: MacSidebarSessionTestCase {
         let readOnlyCell = try XCTUnwrap(cell(readOnly, entryID: readOnlyTree.work.entries[1].id)
             as? MacVerificationCodeCellView)
         XCTAssertEqual(code(readOnlyCell), "123 456", "A read-only database shows codes, as the detail does")
+    }
+
+    func testAGroupRowThatGainsOrLosesACodeSwapsItsCell() async throws {
+        let clock = MacVerificationCodeClock(now: { Date(timeIntervalSince1970: 1_000_000_005) },
+                                             generate: { _, _, _ in "123456" })
+        let (controller, session, _, tree) = try await makeController(codeClock: clock)
+        controller.viewDidAppear()
+        let entryID = tree.work.entries[1].id
+        XCTAssertNil(try XCTUnwrap(cell(controller, entryID: entryID)) as? MacVerificationCodeCellView)
+        XCTAssertNil(controller.verificationCodeTimer)
+
+        try replaceWork(in: session, tree: tree) { entries in entries[1].totpConfig = Self.fakeTOTP }
+        await settle()
+        let gained = try XCTUnwrap(cell(controller, entryID: entryID) as? MacVerificationCodeCellView)
+        XCTAssertEqual(code(gained), "123 456")
+        XCTAssertNotNil(controller.verificationCodeTimer)
+
+        try replaceWork(in: session, tree: tree) { entries in entries[1].totpConfig = nil }
+        await settle()
+        XCTAssertNil(try XCTUnwrap(cell(controller, entryID: entryID)) as? MacVerificationCodeCellView)
+        XCTAssertNil(controller.verificationCodeTimer)
+    }
+
+    func testRecycleBinRowsShowNoCode() async throws {
+        let clock = MacVerificationCodeClock(generate: { _, _, _ in "123456" })
+        let (controller, session, _, tree) = try await makeController(codeClock: clock)
+        let root = tree.root.deepCopy()
+        let bin = try XCTUnwrap(root.groups.first { $0.id == tree.recycleBin.id })
+        bin.entries[0].totpConfig = Self.fakeTOTP
+        session.draft = DatabaseDraft(rootGroup: root, meta: KPMeta(recycleBin: .group(tree.recycleBin.id)),
+                                      sessionKey: try XCTUnwrap(session.sessionKey))
+        session.workspace.selectedGroupID = tree.recycleBin.id
+        await settle()
+        controller.viewDidAppear()
+        XCTAssertNil(try XCTUnwrap(cell(controller, entryID: tree.gone.id)) as? MacVerificationCodeCellView)
+        XCTAssertNil(controller.verificationCodeTimer)
     }
 
     func testTheLastSecondsDimTheCodeAndTurnTheRingOrange() async throws {

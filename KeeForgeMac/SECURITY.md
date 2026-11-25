@@ -488,9 +488,9 @@ database is unlocked. Copy goes through `ClipboardService` (concealed marker,
 clear timer, clear on lock). It applies Block Screen Capture to itself when it
 is created, like the Large Type panel.
 
-The Verification Codes list shows each entry's live code; only the codes on
-screen are kept, and that cache is cleared when the list stops showing or the
-database locks.
+The Verification Codes list, and a group's rows outside the recycle bin, show
+each entry's live code; only the codes on screen are kept, and that cache is
+cleared when the list stops showing or the database locks.
 
 Custom-field drag reordering uses a native list of field names. Field values
 are not displayed in that list or its drag previews.

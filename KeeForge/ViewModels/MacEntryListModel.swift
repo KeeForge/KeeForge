@@ -140,6 +140,7 @@ struct MacEntryListSnapshot: Equatable {
     let mode: Mode
     let rows: [Row]
     let emptyState: EmptyState?
+    /// Rows with a verification code draw it live: in Verification Codes and in a group outside the recycle bin.
     let showsVerificationCodes: Bool
     /// The search's match count for the UI-test overlay; nil outside search.
     let resultCount: Int?
@@ -245,12 +246,12 @@ struct MacEntryListSnapshot: Equatable {
                 isMovable: EntryRowActions(entryID: entry.id, session: session).canMove
             )
         }
-        let showsVerificationCodes = mode == .collection(.verificationCodes) && session.sessionKey != nil
+        let showsVerificationCodes = session.sessionKey != nil && Self.listsLiveCodes(mode: mode, session: session)
         let footer: Footer? = if session.workspace.entrySelection != nil {
             .multipleSelection
         } else if rows.isEmpty {
             nil
-        } else if showsVerificationCodes {
+        } else if showsVerificationCodes, mode == .collection(.verificationCodes) {
             .verificationCodes
         } else if case .search = mode {
             .search
@@ -272,6 +273,27 @@ struct MacEntryListSnapshot: Equatable {
             footer: footer,
             offersNewEntry: offersNewEntry
         )
+    }
+
+    @MainActor
+    private static func listsLiveCodes(mode: Mode, session: DatabaseViewModel) -> Bool {
+        switch mode {
+        case .collection(.verificationCodes):
+            true
+        case .group(let groupID):
+            groupID != session.currentRootGroup?.recycleBinUUID && session.isGroupInRecycleBin(groupID: groupID) == false
+        default:
+            false
+        }
+    }
+
+    func showsVerificationCode(on row: Row) -> Bool {
+        showsVerificationCodes && row.hasVerificationCode
+    }
+
+    /// Whether any row draws a live code, so the list's one timer has something to redraw.
+    var hasLiveVerificationCodes: Bool {
+        showsVerificationCodes && rows.contains(where: \.hasVerificationCode)
     }
 
     /// The boards' wording: "Personal · 12 entries", "Tag · 14 entries in 5
