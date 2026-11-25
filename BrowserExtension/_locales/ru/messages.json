@@ -122,9 +122,6 @@
   "inlineFrameTitle": {
     "message": "Данные для входа KeeForge"
   },
-  "confirmFill": {
-    "message": "Заполнить"
-  },
   "contextFillUsername": {
     "message": "Заполнить имя пользователя"
   },

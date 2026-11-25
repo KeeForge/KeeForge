@@ -363,23 +363,17 @@ test('inline page treats a sub-pixel clip as fully visible but not a real one', 
     assert.equal(m.fills(), expected, `shown ${shownHeight}`);
   }
 });
-test('without visibility tracking a fill needs a second, delayed click on a confirm button', async () => {
-  const m = await menuPage({ supported: false });
-  m.visible(); await settle(); m.state.now = 1000;
-  await m.login().listeners.click({ isTrusted: true });
-  assert.equal(m.fills(), 0);
-  const confirm = m.content.querySelectorAll('.kf-confirm')[0]?.children[0];
-  assert.ok(confirm); assert.match(confirm.style.marginInlineStart, /^calc\(\(100% - 76px\) \* [0-9.]+\)$/);
-  await confirm.listeners.click({ isTrusted: true }); assert.equal(m.fills(), 0);
-  m.state.now = 1400; await confirm.listeners.click({ isTrusted: false }); assert.equal(m.fills(), 0);
-  await confirm.listeners.click({ isTrusted: true }); assert.equal(m.fills(), 1);
-  assert.deepEqual(m.state.posted, []);
-});
-test('Chrome keeps the one-click fill', async () => {
-  const m = await menuPage();
-  m.visible(); await settle(); m.state.now = 1000;
-  await m.login().listeners.click({ isTrusted: true });
-  assert.equal(m.fills(), 1); assert.equal(m.content.querySelectorAll('.kf-confirm').length, 0);
+test('one trusted click on a row fills in both browsers, after the same visibility and delay rules', async () => {
+  for (const supported of [true, false]) {
+    const m = await menuPage({ supported });
+    m.visible(); await settle(); m.state.now = 1000;
+    await m.login().listeners.click({ isTrusted: false }); assert.equal(m.fills(), 0, `untrusted, v2 ${supported}`);
+    await m.login().listeners.click({ isTrusted: true }); assert.equal(m.fills(), 1, `v2 ${supported}`);
+    assert.deepEqual(m.state.posted, []);
+  }
+  const early = await menuPage({ supported: false });
+  early.visible(); await settle(); early.state.now = 100;
+  await early.login().listeners.click({ isTrusted: true }); assert.equal(early.fills(), 0);
 });
 // Right-click fills: the browser's menu click is the only way to get a forced kind accepted.
 function forcedSetup(kind, usable = true) {

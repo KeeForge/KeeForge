@@ -807,9 +807,9 @@ once the menu has been fully visible without a break for 300 ms, 300 ms after
 it opened and 300 ms after its rows last changed. In Chrome it also requires
 IntersectionObserver v2's `isVisible`, so an overlay or opacity on the button
 host or the page makes it refuse; a site with full-viewport overlays can make
-it unusable. Firefox has no such detection, so there a fill needs a second
-click, at least 300 ms later, on a Fill button at a random horizontal offset in
-the row. The menu closes if it or its field moves more than 1 px (scrolling
+it unusable. Firefox has no such detection, yet one click fills there too, so
+that both browsers behave alike: a page that covers or fades the menu can
+trick a click into a fill in Firefox (an accepted risk, see the threat model). The menu closes if it or its field moves more than 1 px (scrolling
 included), its host is restyled, or the viewport or URL changes. What remains
 is a page script moving the menu in the same animation frame as the user's
 click; the page gets no mouse-down for clicks inside the menu, so it must guess
@@ -856,7 +856,7 @@ Firefox against the development mock host only; in Firefox it covers the key
 button and the menu frame (no native host is registered there). Not yet
 verified: the owner prompt on screen (Touch ID or password), including through
 the in-field menu, a verification-code fill through the real app, pairing,
-filling and the two-click confirm in Firefox with a registered host, headed
+filling in Firefox with a registered host, headed
 Chrome, right-to-left layouts, the menu inside a modal dialog
 as drawn, the back/forward cache and a background restart while Touch ID
 waits, store-signed extensions and a distribution-signed app (including

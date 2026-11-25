@@ -47,7 +47,7 @@ try {
   check('a trusted click embeds the inline menu frame', true, menu.url.replace(/#.*/, '#<token>').replace(/\/\/[^/]+/, '//<uuid>'));
   const menuText = await waitFor(async () => { const text = await evaluate(menu.context, 'document.body.innerText'); return text.includes('KeeForge') && !text.includes('…') && text; }, 'menu state');
   check('the menu renders a state with its stylesheets and image loaded', await evaluate(menu.context, `getComputedStyle(document.querySelector('#viewport')).borderTopLeftRadius === '10px' && document.querySelector('.brand').naturalWidth > 0`), menuText.replace(/\s+/g, ' '));
-  check('Firefox lacks visibility tracking, so rows use the two-step confirm', !(await evaluate(menu.context, `'isVisible' in IntersectionObserverEntry.prototype`)));
+  check('Firefox lacks visibility tracking (one-click fill is an accepted risk there)', !(await evaluate(menu.context, `'isVisible' in IntersectionObserverEntry.prototype`)));
   await sleep(1500);
   const seen = await evaluate(context, `JSON.stringify({ messages: window.__msgs, frames: window.length, entries: performance.getEntries().map(e => e.name).filter(n => n.includes('moz-extension')), html: document.documentElement.outerHTML.includes('moz-extension') })`);
   const page = JSON.parse(seen);
