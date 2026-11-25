@@ -11,6 +11,7 @@ final class SecretAccessGateHarness {
     /// `announcesSettingChanges` off to stand in for a bare write.
     var gracePeriod: SettingsService.AuthenticationGracePeriod {
         didSet {
+            settingWrites += 1
             if announcesSettingChanges {
                 SecretAccessGate.gracePeriodSettingDidChange()
             }
@@ -24,6 +25,7 @@ final class SecretAccessGateHarness {
     var duringPrompt: (() -> Void)?
     private(set) var promptReasons: [String] = []
     private(set) var now = ContinuousClock.now
+    private var settingWrites = 0
 
     private(set) lazy var gate = SecretAccessGate(
         gracePeriod: { [weak self] in self?.gracePeriod ?? .alwaysAsk },
@@ -36,7 +38,8 @@ final class SecretAccessGateHarness {
             if self.promptSucceeds == false {
                 throw PromptDeclined()
             }
-        }
+        },
+        settingWriteCount: { [weak self] in self?.settingWrites ?? 0 }
     )
 
     init(gracePeriod: SettingsService.AuthenticationGracePeriod = .fiveMinutes) {

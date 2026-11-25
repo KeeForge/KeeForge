@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 enum SettingsService {
     // MARK: - Keys
@@ -340,8 +341,17 @@ enum SettingsService {
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: Key.authenticationGracePeriod)
+            authenticationGracePeriodWrites.withLock { $0 += 1 }
         }
     }
+
+    /// How many times this process has written the grace period, so a
+    /// `SecretAccessGate` can tell it missed a value in between.
+    static var authenticationGracePeriodWriteCount: Int {
+        authenticationGracePeriodWrites.withLock { $0 }
+    }
+
+    private static let authenticationGracePeriodWrites = OSAllocatedUnfairLock(initialState: 0)
 
     /// App Group-shared so the AutoFill extensions bound their own copies with
     /// the same timeout the app uses. The value used to live in the app-local

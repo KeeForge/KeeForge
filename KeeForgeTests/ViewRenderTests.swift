@@ -175,6 +175,23 @@ final class ViewRenderTests: XCTestCase {
         }
     }
 
+    func testSecuritySettings() throws {
+        let states = [SettingsService.AuthenticationGracePeriod.never, .fiveMinutes].map { period in
+            (period.title, AnyView(NavigationStack {
+                SecuritySettingsView(
+                    autoLockTimeout: .constant(.fiveMinutes),
+                    lockOnBackground: .constant(true),
+                    clipboardTimeout: .constant(.thirtySeconds),
+                    authenticationGracePeriod: .constant(period),
+                    quickUnlockPasswordInterval: .constant(.never),
+                    autoUnlockWithFaceID: .constant(false),
+                    biometricType: .faceID
+                )
+            }))
+        }
+        try renderScreens(states, named: "security-settings")
+    }
+
     func testPasswordGeneratorSheet() throws {
         let saved = SettingsService.passwordGeneratorOptions
         defer { SettingsService.passwordGeneratorOptions = saved }

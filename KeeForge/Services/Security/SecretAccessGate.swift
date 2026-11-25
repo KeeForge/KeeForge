@@ -16,6 +16,7 @@ final class SecretAccessGate {
     typealias Clock = @MainActor () -> ContinuousClock.Instant
     typealias AvailabilityCheck = @MainActor () -> Bool
     typealias Prompt = @MainActor (_ reason: String) async throws -> Void
+    typealias WriteCount = @MainActor () -> Int
 
     private struct Grant {
         let start: ContinuousClock.Instant
@@ -31,6 +32,9 @@ final class SecretAccessGate {
     private let now: Clock
     private let isAuthenticationAvailable: AvailabilityCheck
     private let prompt: Prompt
+    private let settingWriteCount: WriteCount
+    /// The setting's write count when the gate last compared the grant with it.
+    private var settingWritesSeen: Int
     private var grant: Grant?
     private var invalidationCount = 0
 
@@ -40,19 +44,21 @@ final class SecretAccessGate {
         isAuthenticationAvailable: @escaping AvailabilityCheck = { BiometricService.canAuthenticateDeviceOwner },
         prompt: @escaping Prompt = { reason in
             _ = try await BiometricService.authenticateDeviceOwner(reason: reason)
-        }
+        },
+        settingWriteCount: @escaping WriteCount = { SettingsService.authenticationGracePeriodWriteCount }
     ) {
         self.gracePeriod = gracePeriod
         self.now = now
         self.isAuthenticationAvailable = isAuthenticationAvailable
         self.prompt = prompt
+        self.settingWriteCount = settingWriteCount
+        self.settingWritesSeen = settingWriteCount()
         Self.liveGates.add(self)
     }
 
     /// Whoever writes the grace-period setting calls this once the new value
-    /// is stored. Without it a grant that Always Ask or a shorter period
-    /// should have ended would come back as soon as the old period is
-    /// selected again, provided no reveal or copy fell in between.
+    /// is stored, so each live gate caps its grant at exactly that value.
+    /// A gate that missed writes revokes its grant when next asked instead.
     static func gracePeriodSettingDidChange() {
         for gate in liveGates.allObjects {
             gate.tightenGrantToSelectedGracePeriod()
@@ -101,6 +107,7 @@ final class SecretAccessGate {
 
     func noteSuccessfulAuthentication() {
         grant = Grant(start: now(), duration: gracePeriod().duration)
+        settingWritesSeen = settingWriteCount()
     }
 
     func invalidate() {
@@ -110,9 +117,17 @@ final class SecretAccessGate {
 
     /// Caps the grant at the period selected now and keeps the cap, so the
     /// grant cannot grow back when a longer period is selected afterwards.
-    /// Always Ask's zero duration revokes it.
+    /// Always Ask's zero duration revokes it, and so does more than one write
+    /// since the last look, because a value in between may have been Always Ask.
     private func tightenGrantToSelectedGracePeriod() {
+        let writes = settingWriteCount()
+        let missedAWrite = writes - settingWritesSeen > 1
+        settingWritesSeen = writes
         guard let earned = grant else { return }
+        if missedAWrite {
+            grant = nil
+            return
+        }
         let selected = gracePeriod().duration
         let capped: Duration? = switch (earned.duration, selected) {
         case let (current?, limit?): min(current, limit)

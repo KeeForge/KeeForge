@@ -560,9 +560,11 @@ asks the app to front that database's window and selects the entry only there,
 so an entry UUID that also exists in another open database (a copy of the same
 file) is never selected in the wrong one.
 
-Copying follows the database window's rules: the password waits on the same
-device-owner prompt as ⇧⌘C, skipped only inside the session's authentication
-grace period, and is re-checked against the session after it,
+Copying follows the database window's rules: the password takes the same
+device-owner gate as ⇧⌘C. It prompts only outside the session's Authentication
+Grace Period, so under Never Ask, the Mac default, a copy goes through without
+a prompt until the database locks. The database, session, lock cycle and
+content are re-checked either way,
 while the user name and verification code copy without a prompt, unless the
 user name's field references reach a protected value. Copies go
 through `ClipboardService`, with its concealed marker, clear timer, and

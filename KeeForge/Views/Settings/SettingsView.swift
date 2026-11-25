@@ -185,7 +185,7 @@ struct SettingsView: View {
 
 }
 
-private struct SecuritySettingsView: View {
+struct SecuritySettingsView: View {
     @Binding var autoLockTimeout: SettingsService.AutoLockTimeout
     @Binding var lockOnBackground: Bool
     @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
@@ -251,7 +251,7 @@ private struct SecuritySettingsView: View {
                 }
                 .accessibilityIdentifier("settings.security.authentication-grace-picker")
             } footer: {
-                Text("After you unlock a database or authenticate, passwords and protected fields can be shown and copied for this long without asking again. Locking the database or leaving KeeForge ends it. AutoFill is not affected.")
+                Text("Sets how long passwords and protected fields can be shown and copied without asking again after you unlock a database or authenticate. Never Ask has no time limit. Locking the database or leaving KeeForge ends it either way. AutoFill is not affected.")
             }
         }
         .navigationTitle("Security")

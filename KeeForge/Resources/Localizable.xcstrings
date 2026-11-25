@@ -8610,58 +8610,6 @@
         }
       }
     },
-    "After you unlock a database or authenticate, passwords and protected fields can be shown and copied for this long without asking again. Locking the database or leaving KeeForge ends it. AutoFill is not affected." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nachdem du eine Datenbank entsperrt oder dich authentifiziert hast, können Passwörter und geschützte Felder so lange ohne erneute Abfrage angezeigt und kopiert werden. Das Sperren der Datenbank oder das Verlassen von KeeForge beendet diese Zeit. AutoFill ist davon nicht betroffen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Después de desbloquear una base de datos o autenticarte, las contraseñas y los campos protegidos se pueden mostrar y copiar durante este tiempo sin volver a preguntar. Bloquear la base de datos o salir de KeeForge lo termina. El autorrelleno no se ve afectado."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Après avoir déverrouillé une base de données ou vous être authentifié, les mots de passe et les champs protégés peuvent être affichés et copiés pendant cette durée sans nouvelle demande. Verrouiller la base de données ou quitter KeeForge y met fin. Le remplissage automatique n'est pas concerné."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dopo aver sbloccato un database o completato l'autenticazione, puoi visualizzare e copiare password e campi protetti per questo intervallo senza una nuova richiesta. Il blocco del database o l'uscita da KeeForge termina questo intervallo. L'inserimento automatico non è interessato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "データベースのロックを解除するか認証したあと、この時間内は再度確認せずにパスワードと保護されたフィールドを表示およびコピーできます。データベースをロックするか KeeForge を離れると終了します。自動入力には影響しません。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "После разблокировки базы данных или аутентификации пароли и защищённые поля можно показывать и копировать в течение этого времени без повторного запроса. Блокировка базы данных или выход из KeeForge завершает этот период. На автозаполнение это не влияет."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解锁数据库或通过身份验证后，在这段时间内可以显示和拷贝密码及受保护字段，无需再次询问。锁定数据库或离开 KeeForge 会结束这段时间。自动填充不受影响。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解鎖資料庫或通過身分驗證後，在這段時間內可以顯示和拷貝密碼及受保護欄位，無須再次詢問。鎖定資料庫或離開 KeeForge 會結束這段時間。自動填寫不受影響。"
-          }
-        }
-      }
-    },
     "Algorithm" : {
       "localizations" : {
         "de" : {
@@ -56496,58 +56444,6 @@
         }
       }
     },
-    "Protected fields can be shown and copied for this long after you authenticate, until the database locks, except in AutoFill." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Geschützte Felder lassen sich nach der Authentifizierung so lange anzeigen und kopieren, bis die Datenbank gesperrt wird, außer im AutoFill."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Los campos protegidos se pueden mostrar y copiar durante este tiempo tras autenticarte, hasta que la base de datos se bloquee, salvo en el autorrelleno."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les champs protégés peuvent être affichés et copiés pendant ce délai après authentification, jusqu'au verrouillage de la base de données, sauf dans le remplissage automatique."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I campi protetti possono essere mostrati e copiati per questo tempo dopo l'autenticazione, finché il database non si blocca, tranne nell'inserimento automatico."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "認証後この時間内は、データベースがロックされるまで保護されたフィールドを表示およびコピーできます（自動入力を除く）。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Защищённые поля можно показывать и копировать в течение этого времени после проверки подлинности, пока база данных не заблокирована, кроме автозаполнения."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "认证后在此时间内，受保护的字段可以显示和拷贝，直到数据库锁定（自动填充除外）。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "認證後在此時間內，受保護的欄位可以顯示和拷貝，直到資料庫鎖定（自動填寫除外）。"
-          }
-        }
-      }
-    },
     "Provider" : {
       "localizations" : {
         "de" : {
@@ -66355,6 +66251,110 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定…"
+          }
+        }
+      }
+    },
+    "Sets how long passwords and protected fields can be shown and copied without asking again after you unlock a database or authenticate. Never Ask has no time limit. Locking the database or leaving KeeForge ends it either way. AutoFill is not affected." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legt fest, wie lange Passwörter und geschützte Felder nach dem Entsperren einer Datenbank oder einer Authentifizierung ohne erneute Abfrage angezeigt und kopiert werden können. „Nie fragen“ hat keine zeitliche Begrenzung. Das Sperren der Datenbank oder das Verlassen von KeeForge beendet die Zeit in jedem Fall. AutoFill ist davon nicht betroffen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Define durante cuánto tiempo se pueden mostrar y copiar las contraseñas y los campos protegidos sin volver a preguntar después de desbloquear una base de datos o autenticarte. «No preguntar nunca» no tiene límite de tiempo. Bloquear la base de datos o salir de KeeForge lo termina en cualquier caso. El autorrelleno no se ve afectado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Définit pendant combien de temps les mots de passe et les champs protégés peuvent être affichés et copiés sans nouvelle demande après le déverrouillage d'une base de données ou une authentification. « Ne jamais demander » n'a pas de limite de durée. Verrouiller la base de données ou quitter KeeForge y met fin dans tous les cas. Le remplissage automatique n'est pas concerné."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imposta per quanto tempo puoi visualizzare e copiare password e campi protetti senza una nuova richiesta dopo aver sbloccato un database o completato l'autenticazione. “Non chiedere mai” non ha limiti di tempo. Il blocco del database o l'uscita da KeeForge lo termina in ogni caso. L'inserimento automatico non è interessato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースのロックを解除するか認証したあと、再度確認せずにパスワードと保護されたフィールドを表示およびコピーできる時間を設定します。「確認しない」には時間の制限がありません。どの設定でも、データベースをロックするか KeeForge を離れると終了します。自動入力には影響しません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Определяет, как долго после разблокировки базы данных или аутентификации пароли и защищённые поля можно показывать и копировать без повторного запроса. У варианта «Никогда не спрашивать» нет ограничения по времени. Блокировка базы данных или выход из KeeForge в любом случае завершает этот период. На автозаполнение это не влияет."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置解锁数据库或通过身份验证后，无需再次询问即可显示和拷贝密码及受保护字段的时长。“从不询问”没有时间限制。无论选择哪项，锁定数据库或离开 KeeForge 都会结束这段时间。自动填充不受影响。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定解鎖資料庫或通過身分驗證後，無須再次詢問即可顯示和拷貝密碼及受保護欄位的時長。「永不詢問」沒有時間限制。無論選擇哪項，鎖定資料庫或離開 KeeForge 都會結束這段時間。自動填寫不受影響。"
+          }
+        }
+      }
+    },
+    "Sets how long protected fields can be shown and copied without asking again after you unlock or authenticate. Never Ask has no time limit. Locking the database ends it either way. AutoFill is not affected." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legt fest, wie lange geschützte Felder nach dem Entsperren oder einer Authentifizierung ohne erneute Abfrage angezeigt und kopiert werden können. „Nie fragen“ hat keine zeitliche Begrenzung. Das Sperren der Datenbank beendet die Zeit in jedem Fall. AutoFill ist davon nicht betroffen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Define durante cuánto tiempo se pueden mostrar y copiar los campos protegidos sin volver a preguntar después de desbloquear o autenticarte. «No preguntar nunca» no tiene límite de tiempo. Bloquear la base de datos lo termina en cualquier caso. El autorrelleno no se ve afectado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Définit pendant combien de temps les champs protégés peuvent être affichés et copiés sans nouvelle demande après le déverrouillage ou une authentification. « Ne jamais demander » n'a pas de limite de durée. Verrouiller la base de données y met fin dans tous les cas. Le remplissage automatique n'est pas concerné."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imposta per quanto tempo puoi visualizzare e copiare i campi protetti senza una nuova richiesta dopo lo sblocco o l'autenticazione. “Non chiedere mai” non ha limiti di tempo. Il blocco del database lo termina in ogni caso. L'inserimento automatico non è interessato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ロック解除または認証のあと、再度確認せずに保護されたフィールドを表示およびコピーできる時間を設定します。「確認しない」には時間の制限がありません。どの設定でも、データベースをロックすると終了します。自動入力には影響しません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Определяет, как долго после разблокировки или аутентификации защищённые поля можно показывать и копировать без повторного запроса. У варианта «Никогда не спрашивать» нет ограничения по времени. Блокировка базы данных в любом случае завершает этот период. На автозаполнение это не влияет."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置解锁或通过身份验证后，无需再次询问即可显示和拷贝受保护字段的时长。“从不询问”没有时间限制。无论选择哪项，锁定数据库都会结束这段时间。自动填充不受影响。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定解鎖或通過身分驗證後，無須再次詢問即可顯示和拷貝受保護欄位的時長。「永不詢問」沒有時間限制。無論選擇哪項，鎖定資料庫都會結束這段時間。自動填寫不受影響。"
           }
         }
       }

@@ -200,6 +200,20 @@ final class SecretAccessGateTests: XCTestCase {
         XCTAssertTrue(harness.gate.requiresAuthentication)
     }
 
+    /// The gate never saw Always Ask, but two writes since it last looked
+    /// mean one in between may have been, and a Never Ask grant has no
+    /// time limit to fall back on.
+    func testAnUnannouncedAlwaysAskAndBackThatTheGateNeverSawEndsANeverAskGrant() {
+        let harness = SecretAccessGateHarness(gracePeriod: .never)
+        harness.announcesSettingChanges = false
+        harness.gate.noteSuccessfulAuthentication()
+
+        harness.gracePeriod = .alwaysAsk
+        harness.gracePeriod = .never
+
+        XCTAssertTrue(harness.gate.requiresAuthentication)
+    }
+
     /// One gate per session: a changed setting has to reach all of them.
     func testAChangedSettingReachesEveryLiveGate() {
         let first = SecretAccessGateHarness(gracePeriod: .fiveMinutes)
@@ -333,7 +347,7 @@ final class SecretAccessSessionTests: XCTestCase {
     private let fixturePassword = "testpassword123"
     private var savedLockOnBackground: Bool!
     private var savedAutoLockTimeout: SettingsService.AutoLockTimeout!
-    private var savedGracePeriod: SettingsService.AuthenticationGracePeriod!
+    private var savedGracePeriod: Any?
 
     override func setUp() async throws {
         try await super.setUp()
@@ -341,13 +355,13 @@ final class SecretAccessSessionTests: XCTestCase {
         SharedVaultStore.clearBookmark()
         savedLockOnBackground = SettingsService.lockOnBackground
         savedAutoLockTimeout = SettingsService.autoLockTimeout
-        savedGracePeriod = SettingsService.authenticationGracePeriod
+        savedGracePeriod = UserDefaults.standard.object(forKey: "KeeForge.authenticationGracePeriod")
     }
 
     override func tearDown() async throws {
         SettingsService.lockOnBackground = savedLockOnBackground
         SettingsService.autoLockTimeout = savedAutoLockTimeout
-        SettingsService.authenticationGracePeriod = savedGracePeriod
+        UserDefaults.standard.set(savedGracePeriod, forKey: "KeeForge.authenticationGracePeriod")
         DatabaseListStore.clearAll()
         SharedVaultStore.clearBookmark()
         try await super.tearDown()
