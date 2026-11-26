@@ -35,6 +35,39 @@ final class ViewRenderTests: XCTestCase {
         }))], named: "local-save-recovery")
     }
 
+    // MARK: Vault root
+
+    func testCloudSyncStatusRow() async throws {
+        DatabaseListStore.clearAll()
+        defer { DatabaseListStore.clearAll() }
+        let fixture = KDBXTestFixture.test
+        let bytes = try fixture.data(in: Bundle(for: Self.self))
+        var screens: [(String, AnyView)] = []
+        for (caption, status) in [("Opened without checking", CloudSyncResolution.Status.refreshSkipped),
+                                  ("Offline cached copy", .offlineCached)] {
+            let file = CloudFile(id: "/\(caption).kdbx", name: "DatabaseRedux.kdbx", path: "/\(caption).kdbx",
+                                 isFolder: false, modifiedDate: nil, size: nil)
+            var ref = try DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue, accountId: "account", file: file)
+            ref.cloudSyncPolicy = .manual
+            ref.updateCloudSyncMetadata { $0.lastSyncedAt = .now.addingTimeInterval(-180) }
+            DatabaseListStore.testUpsert(ref)
+            let vm = DatabaseViewModel(databaseReference: ref, cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(reference: reference, localURL: DatabaseListStore.cacheLocation(for: reference),
+                                    data: bytes, status: status)
+            })
+            await vm.unlock(password: fixture.password)
+            XCTAssertEqual(vm.state, .unlocked)
+            screens.append((caption, AnyView(NavigationStack {
+                List {
+                    Section { CloudSyncStatusRow(viewModel: vm) }
+                    Section { Text(verbatim: "Banking") }
+                }
+                .navigationTitle("DatabaseRedux")
+            })))
+        }
+        try renderScreens(screens, named: "cloud-sync-status-row")
+    }
+
     // MARK: Database list rows
 
     func testDatabaseListRows() throws {

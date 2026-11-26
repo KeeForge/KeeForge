@@ -24,7 +24,9 @@ struct CloudSyncControls: View {
         viewModel.hasPendingCloudUploads && viewModel.hasPendingUploadConflict == false && viewModel.driveUploadRecoveryIssue == nil
     }
 
-    static func title(for viewModel: DatabaseViewModel) -> String {
+    /// `compact` shortens only the skipped-check notice; failures keep their
+    /// full wording wherever they show.
+    static func title(for viewModel: DatabaseViewModel, compact: Bool = false) -> String {
         let providerName = viewModel.databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")
         if viewModel.isSyncingCloud {
             return String(localized: "Checking \(providerName) for changes…")
@@ -36,6 +38,9 @@ struct CloudSyncControls: View {
             return bannerText
         }
         if viewModel.isCloudRefreshPending {
+            if compact {
+                return String(localized: "Not synced since opening")
+            }
             return String(localized: "Opened without checking \(providerName) for changes.")
         }
         return String(localized: "Cloud Sync")
@@ -121,7 +126,7 @@ struct CloudSyncStatusRow: View {
                 } label: {
                     Label {
                         VStack(alignment: .leading, spacing: Theme.Spacing.textLine) {
-                            Text(CloudSyncControls.title(for: viewModel))
+                            Text(CloudSyncControls.title(for: viewModel, compact: true))
                                 .foregroundStyle(Color.primary)
                             if let detail {
                                 Text(detail)
@@ -145,12 +150,16 @@ struct CloudSyncStatusRow: View {
                     CloudSyncDetails(viewModel: viewModel, showsSyncNow: true) { isShowingDetails = false }
                 }
 
-                Button("Sync Now") {
+                Button {
                     Task { await viewModel.syncCloudNow() }
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .fontWeight(.semibold)
                 }
                 .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
-                .controlSize(.small)
+                .buttonBorderShape(.circle)
+                .accessibilityLabel("Sync Now")
+                .macHelp(String(localized: "Sync Now"))
                 .disabled(viewModel.canSyncCloudNow == false)
                 .accessibilityIdentifier("database.cloud-sync-status.sync-now")
             }
