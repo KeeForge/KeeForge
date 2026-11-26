@@ -62,12 +62,68 @@ final class EncryptionSettingsUITests: DatabaseCreationUITestCase {
         lockAndUnlock(password: password)
     }
 
+    func testLeavingWithoutSavingDiscardsTheSelection() throws {
+        createLocalDatabase(named: "Encryption Settings Discard UI", password: "discard settings 123")
+        _ = openEncryptionSettings()
+        assertKeyDerivationPicker(shows: "Balanced")
+
+        selectKeyDerivation("Strong")
+        assertKeyDerivationPicker(shows: "Strong")
+        tapBackButton()
+        _ = openEncryptionSettingsFromEncryptionPage()
+        assertKeyDerivationPicker(shows: "Balanced")
+
+        selectKeyDerivation("Maximum")
+        assertKeyDerivationPicker(shows: "Maximum")
+        returnToDatabaseDetailsHub()
+        openDatabaseDetailsPage(.encryption)
+        _ = openEncryptionSettingsFromEncryptionPage()
+        assertKeyDerivationPicker(shows: "Balanced")
+    }
+
+    private func selectKeyDerivation(_ option: String, file: StaticString = #filePath, line: UInt = #line) {
+        let kdfPicker = app.buttons["encryption-settings.kdf-preset-picker"]
+        XCTAssertTrue(kdfPicker.waitForExistence(timeout: 5), "Key derivation picker was not visible", file: file, line: line)
+        tapElement(kdfPicker)
+        let optionButton = app.buttons[option].firstMatch
+        XCTAssertTrue(optionButton.waitForExistence(timeout: 5), "\(option) was not offered", file: file, line: line)
+        tapElement(optionButton)
+    }
+
+    private func assertKeyDerivationPicker(
+        shows expected: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let kdfPicker = app.buttons["encryption-settings.kdf-preset-picker"]
+        XCTAssertTrue(kdfPicker.waitForExistence(timeout: 5), "Key derivation picker was not visible", file: file, line: line)
+        func pickerText() -> String {
+            [kdfPicker.label, kdfPicker.value as? String ?? ""].joined(separator: " ")
+        }
+        let deadline = Date().addingTimeInterval(5)
+        while pickerText().contains(expected) == false, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        XCTAssertTrue(
+            pickerText().contains(expected),
+            "Key derivation picker should show \(expected), got: \(pickerText())",
+            file: file,
+            line: line
+        )
+    }
+
     /// Opens Encryption Settings from the unlocked database and returns its
     /// Save button, which must start disabled.
     private func openEncryptionSettings(file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
         openDatabaseDetailsFromVault(file: file, line: line)
         openDatabaseDetailsPage(.encryption, file: file, line: line)
+        return openEncryptionSettingsFromEncryptionPage(file: file, line: line)
+    }
 
+    private func openEncryptionSettingsFromEncryptionPage(
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> XCUIElement {
         let changeRow = app.buttons["database-details.change-encryption-settings"]
         XCTAssertTrue(
             revealElement(changeRow),
