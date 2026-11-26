@@ -14,6 +14,7 @@ final class ScreenProtectionService {
     private var shieldWindow: UIWindow?
     private var observations: [NSObjectProtocol] = []
     private let isScreenCaptured: @MainActor () -> Bool
+    private let blocksScreenCapture: @MainActor () -> Bool
     private let captureEndDelay: Duration
     private var phase = ScenePhase.inactive
     private var hasSeenCapture = false
@@ -22,16 +23,24 @@ final class ScreenProtectionService {
 
     init(
         isScreenCaptured: @escaping @MainActor () -> Bool = ScreenProtectionService.isAnySceneScreenCaptured,
+        blocksScreenCapture: @escaping @MainActor () -> Bool = { SettingsService.blockScreenCapture },
         captureEndDelay: Duration = .seconds(1)
     ) {
         self.isScreenCaptured = isScreenCaptured
+        self.blocksScreenCapture = blocksScreenCapture
         self.captureEndDelay = captureEndDelay
         observe(UIScreen.capturedDidChangeNotification) { $0.applyShieldPolicy() }
+        observe(Self.captureBlockingDidChangeNotification) { $0.applyShieldPolicy() }
         observe(UIScene.willDeactivateNotification) { $0.sceneWillDeactivate() }
         observe(UIScene.didActivateNotification) { $0.update(phase: .active) }
         observe(UIScene.didEnterBackgroundNotification) { $0.update(phase: .background) }
         observe(UIResponder.keyboardWillShowNotification) { $0.dismissKeyboardDuringCapture() }
     }
+
+    /// Posted by Settings when "Hide During Screen Recording and Sharing"
+    /// changes, so a capture that is already running is covered at once.
+    static let captureBlockingDidChangeNotification =
+        Notification.Name("KeeForge.captureBlockingDidChange")
 
     /// The screen each scene is on, not `UIScreen.main`: iPhone Duo moves the
     /// scene between its two displays as it opens and closes.
@@ -71,8 +80,14 @@ final class ScreenProtectionService {
         update(phase: .inactive)
     }
 
+    /// A capture the user allowed in Settings counts as no capture; the
+    /// background shield is unaffected.
+    private func isShieldedCaptureRunning() -> Bool {
+        blocksScreenCapture() && isScreenCaptured()
+    }
+
     private func applyShieldPolicy() {
-        let captured = isScreenCaptured()
+        let captured = isShieldedCaptureRunning()
         if captured { hasSeenCapture = true }
         let action = Self.shieldAction(phase: phase, isScreenCaptured: captured)
         if action != .hide {
@@ -96,7 +111,7 @@ final class ScreenProtectionService {
             try? await Task.sleep(for: captureEndDelay)
             guard let self, Task.isCancelled == false else { return }
             pendingCaptureEnd = nil
-            if Self.shieldAction(phase: phase, isScreenCaptured: isScreenCaptured()) == .hide {
+            if Self.shieldAction(phase: phase, isScreenCaptured: isShieldedCaptureRunning()) == .hide {
                 hasSeenCapture = false
                 hideShield()
             } else {

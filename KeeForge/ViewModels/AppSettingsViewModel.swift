@@ -150,12 +150,10 @@ final class AppSettingsViewModel {
         clearCredentialStore: @escaping () -> Void = { CredentialIdentityStoreManager.clearStore() },
         clearFaviconCache: @escaping () -> Void = { FaviconService.clearCache() },
         capturePolicyDidChange: @escaping () -> Void = {
-            #if os(macOS)
             NotificationCenter.default.post(
                 name: ScreenProtectionService.captureBlockingDidChangeNotification,
                 object: nil
             )
-            #endif
         },
         authenticationGracePeriodDidChange: @escaping () -> Void = {
             // Open sessions drop or shorten the grace period they already

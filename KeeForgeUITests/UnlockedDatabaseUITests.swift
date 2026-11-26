@@ -404,14 +404,6 @@ final class AppSettingsUITests: AppSettingsUITestCase {
         }
     }
 
-    /// The Security settings screen has no dedicated screen-capture-block
-    /// toggle on iOS — that setting is macOS-only (`SettingsService.
-    /// blockScreenCapture`'s doc comment: "iOS ignores it (iOS uses
-    /// `UIScreen.isCaptured` shielding)", unconditionally, with no user
-    /// facing switch). "Lock When App Goes to Background" is the closest
-    /// real protective toggle on the iOS Security screen — locking the vault
-    /// whenever the app leaves the foreground is itself a screen-protection
-    /// behavior — so this test scopes to it instead of inventing a feature.
     func testSecuritySettingsShowsLockOnBackgroundToggleAndPersistsAcrossReopen() {
         openAppSettings()
 

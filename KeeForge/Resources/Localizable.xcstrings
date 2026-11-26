@@ -22413,6 +22413,58 @@
         }
       }
     },
+    "Covers KeeForge while your screen is recorded, shared, mirrored, or shown with AirPlay. When off, anything KeeForge shows can be recorded or seen on the other screen. KeeForge stays covered in the app switcher either way." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verdeckt KeeForge, während dein Bildschirm aufgenommen, geteilt, gespiegelt oder per AirPlay gezeigt wird. Wenn aus, kann alles, was KeeForge anzeigt, aufgenommen oder auf dem anderen Bildschirm gesehen werden. Im App-Umschalter bleibt KeeForge in jedem Fall verdeckt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oculta KeeForge mientras tu pantalla se graba, se comparte, se duplica o se muestra con AirPlay. Si está desactivado, todo lo que muestra KeeForge se puede grabar o ver en la otra pantalla. KeeForge sigue oculto en el selector de apps en cualquier caso."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masque KeeForge pendant que votre écran est enregistré, partagé, recopié ou diffusé avec AirPlay. Désactivé, tout ce qu'affiche KeeForge peut être enregistré ou vu sur l'autre écran. KeeForge reste masqué dans le sélecteur d'apps dans tous les cas."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copre KeeForge mentre lo schermo viene registrato, condiviso, duplicato o mostrato con AirPlay. Se disattivato, tutto ciò che KeeForge mostra può essere registrato o visto sull'altro schermo. In ogni caso KeeForge resta coperto nel selettore app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面の収録、共有、ミラーリング、または AirPlay での表示中は KeeForge を隠します。オフにすると、KeeForge に表示される内容はすべて収録されたり、もう一方の画面で見られたりする可能性があります。App スイッチャでは常に隠されます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закрывает KeeForge, пока экран записывается, транслируется, повторяется или выводится через AirPlay. Если выключено, всё, что показывает KeeForge, можно записать или увидеть на другом экране. В переключателе приложений KeeForge закрыт в любом случае."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在屏幕被录制、共享、镜像或通过 AirPlay 显示时遮盖 KeeForge。关闭后，KeeForge 显示的任何内容都可能被录制，或在另一块屏幕上被看到。无论如何，KeeForge 在 App 切换器中都会被遮盖。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在螢幕錄影、分享、鏡像輸出或透過 AirPlay 顯示時遮蓋 KeeForge。關閉後，KeeForge 顯示的任何內容都可能被錄下，或在另一個螢幕上被看到。無論如何，KeeForge 在 App 切換器中都會被遮蓋。"
+          }
+        }
+      }
+    },
     "Create" : {
       "localizations" : {
         "de" : {
@@ -37249,6 +37301,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在螢幕錄製和截圖中隱藏資料庫視窗"
+          }
+        }
+      }
+    },
+    "Hide During Screen Recording and Sharing" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei Bildschirmaufnahme und Teilen ausblenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocultar al grabar o compartir la pantalla"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masquer pendant l'enregistrement et le partage d'écran"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nascondi durante registrazione e condivisione dello schermo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面収録・共有中は非表示"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрывать при записи и трансляции экрана"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录屏和屏幕共享时隐藏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "螢幕錄影和分享時隱藏"
           }
         }
       }

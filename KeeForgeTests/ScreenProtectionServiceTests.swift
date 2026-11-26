@@ -11,6 +11,7 @@ import XCTest
 final class ScreenProtectionServiceTests: XCTestCase {
     private final class CaptureState {
         var isCaptured = false
+        var blocksCapture = true
     }
 
     private let capture = CaptureState()
@@ -20,6 +21,7 @@ final class ScreenProtectionServiceTests: XCTestCase {
         let capture = capture
         let service = ScreenProtectionService(
             isScreenCaptured: { capture.isCaptured },
+            blocksScreenCapture: { capture.blocksCapture },
             captureEndDelay: captureEndDelay
         )
         service.update(sceneIsActive: true)
@@ -29,6 +31,11 @@ final class ScreenProtectionServiceTests: XCTestCase {
     private func setCaptured(_ isCaptured: Bool) {
         capture.isCaptured = isCaptured
         NotificationCenter.default.post(name: UIScreen.capturedDidChangeNotification, object: nil)
+    }
+
+    private func setBlocksCapture(_ blocksCapture: Bool) {
+        capture.blocksCapture = blocksCapture
+        NotificationCenter.default.post(name: ScreenProtectionService.captureBlockingDidChangeNotification, object: nil)
     }
 
     private func post(_ name: Notification.Name) {
@@ -200,6 +207,52 @@ final class ScreenProtectionServiceTests: XCTestCase {
         post(UIScene.didActivateNotification)
         try await waitPastCaptureEnd()
         XCTAssertFalse(service.isShieldVisible, "The shield stayed after a recording that ended while the app was away")
+    }
+
+    // MARK: - Capture allowed in Settings
+
+    func testAnAllowedCaptureLeavesTheAppVisible() async throws {
+        capture.blocksCapture = false
+        let service = makeService()
+
+        setCaptured(true)
+        XCTAssertFalse(service.isShieldVisible, "A recording the user allowed was covered")
+
+        post(UIScene.willDeactivateNotification)
+        post(UIScene.didActivateNotification)
+        try await waitPastCaptureEnd()
+        XCTAssertFalse(service.isShieldVisible, "Control Center during an allowed recording left the cover up")
+    }
+
+    func testAnAllowedCaptureStillShieldsTheAppSwitcher() {
+        capture.blocksCapture = false
+        let service = makeService()
+        setCaptured(true)
+
+        post(UIScene.willDeactivateNotification)
+        post(UIScene.didEnterBackgroundNotification)
+        XCTAssertTrue(service.isShieldVisible, "Allowing capture dropped the background shield")
+
+        post(UIScene.didActivateNotification)
+        XCTAssertFalse(service.isShieldVisible, "Returning during an allowed recording kept the cover")
+    }
+
+    func testHidingAgainDuringACaptureShowsTheShieldAtOnce() {
+        capture.blocksCapture = false
+        let service = makeService()
+        setCaptured(true)
+        XCTAssertFalse(service.isShieldVisible)
+
+        setBlocksCapture(true)
+        XCTAssertTrue(service.isShieldVisible, "Turning the protection back on left a running recording uncovered")
+    }
+
+    func testARecordingRunningAtLaunchStaysVisibleWhenAllowed() {
+        capture.isCaptured = true
+        capture.blocksCapture = false
+        let service = makeService()
+
+        XCTAssertFalse(service.isShieldVisible)
     }
 }
 #endif
