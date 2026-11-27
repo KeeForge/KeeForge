@@ -101,13 +101,14 @@ test('tag failure, malformed reply, unsolicited id, second hello and malformed e
     assert.equal(s.connection.state, 'error'); assert.equal(s.connection.port, null);
   }
 });
-test('timeouts are 120 seconds for credential, 10 seconds otherwise and close all pending', async () => {
-  for (const type of ['status', 'matches', 'reveal', 'unlock', 'credential']) {
+test('timeouts are 120 seconds for credential, 300 for save, 10 seconds otherwise and close all pending', async () => {
+  const fields = { matches: { origin: 'https://example.com' }, generate: { origin: 'https://example.com' }, save: { origin: 'https://example.com', username: 'u', password: 'p' }, status: {}, unlock: {} };
+  for (const type of ['status', 'matches', 'reveal', 'unlock', 'credential', 'generate', 'save']) {
     const s = await paired({ dropReplies: true });
-    const result = s.connection.request(type, type === 'matches' ? { origin: 'https://example.com' } : type === 'status' || type === 'unlock' ? {} : { entry: ENTRY, db: DB, origin: 'https://example.com' });
-    const ms = type === 'credential' ? 120000 : 10000;
+    const result = s.connection.request(type, fields[type] ?? { entry: ENTRY, db: DB, origin: 'https://example.com' });
+    const ms = { credential: 120000, save: 300000 }[type] ?? 10000;
     await until(() => [...s.timers.tasks.values()].some(t => t.ms === ms));
-    s.timers.fire(type === 'credential' ? 10000 : 120000); assert.equal(s.connection.state, 'ready');
+    s.timers.fire(ms === 10000 ? 120000 : 10000); assert.equal(s.connection.state, 'ready');
     s.timers.fire(ms); await assert.rejects(result, /timeout/); assert.equal(s.connection.pending.size, 0);
   }
 });
@@ -191,4 +192,20 @@ test('popup reconnect after a real disconnect or timeout establishes a fresh wor
     assert.equal((await background.handle({ type: 'getState', reconnect: true })).state, 'ready');
     assert.equal((await s.connection.request('status')).ok, true); assert.equal(s.runtime.ports.length, 2); s.connection.close();
   }
+});
+test('the app\'s feature list comes from its hello and is cleared with the session; an older app has none', async () => {
+  const s = await paired();
+  assert.deepEqual(s.connection.features, ['generate', 'save']);
+  assert.equal(await s.connection.isPaired(), true);
+  const generated = await s.connection.request('generate', { origin: 'https://example.com' });
+  assert.equal(generated.password, 'mock-generated-password');
+  assert.deepEqual(await s.connection.request('save', { origin: 'https://example.com', username: 'u', password: 'secret' }), { id: 1, ok: true });
+  assert.deepEqual(s.app.saved, [{ origin: 'https://example.com', username: 'u', passwordLength: 6 }]);
+  s.connection.close();
+  assert.deepEqual(s.connection.features, []);
+  const older = await paired({ features: null });
+  assert.deepEqual(older.connection.features, []);
+  const fresh = setup();
+  assert.equal(await fresh.connection.isPaired(), false);
+  assert.equal(fresh.runtime.ports.length, 0, 'checking the pairing starts no native host');
 });

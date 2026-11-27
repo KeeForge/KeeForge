@@ -130,5 +130,11 @@
   },
   "fieldUnusable": {
     "message": "Ce champ ne peut pas être rempli."
+  },
+  "suggestPassword": {
+    "message": "Suggérer un mot de passe fort"
+  },
+  "suggestPasswordHint": {
+    "message": "KeeForge vous propose d'enregistrer les identifiants une fois le formulaire envoyé."
   }
 }

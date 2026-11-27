@@ -32,7 +32,7 @@ async function send(action, fields = {}) {
   if (reply.error === 'target-required' || reply.error === 'bad-origin') current = false;
   return reply;
 }
-const GLYPHS = { locked: 'lock', empty: 'key', 'app-unavailable': 'power', unpaired: 'link', pairing: 'link' };
+const GLYPHS = { locked: 'lock', empty: 'key', suggest: 'key', 'app-unavailable': 'power', unpaired: 'link', pairing: 'link' };
 function showState(state, text) {
   content.replaceChildren(); stateBlock.hidden = false; status.textContent = text;
   stateIcon.className = ['loading', 'confirm'].includes(state) ? 'kf-waiting' : `kf-icon kf-state-icon glyph-${GLYPHS[state] || 'alert'}`;
@@ -46,6 +46,7 @@ async function act(event, action, fields = {}) {
   if (action === 'state') { failure = null; last = ''; void refresh(); return; }
   busy = true;
   if (action === 'fill') showState('confirm', message('confirm'));
+  if (action === 'generate') showState('loading', message('loading'));
   try {
     const reply = await send(action, fields);
     if (reply.ok === false) failure = reply.error;
@@ -72,12 +73,16 @@ function render(reply) {
     return;
   }
   if (!Array.isArray(reply.entries)) { showState('error', reason('unavailable')); return; }
+  // A new-password field: the app makes the password and offers to save the login once the form is submitted.
+  const suggest = kind === 'new' && reply.generate === true;
   if (!reply.entries.length) {
     if (reply.locked) { showState('locked', message('locked')); content.append(primary(message('unlock'), 'unlock')); }
+    else if (suggest) { showState('suggest', message('suggestPasswordHint')); content.append(primary(message('suggestPassword'), 'generate')); }
     else { showState('empty', message('noLogins', new URL(reply.origin).host)); content.append(primary(message('openApp'), 'launchApp')); }
     return;
   }
   content.replaceChildren(); stateBlock.hidden = true; status.textContent = '';
+  if (suggest) content.append(primary(message('suggestPassword'), 'generate'));
   renderGroups(content, reply.entries, entry => {
     const fields = { entry: entry.entry, db: entry.db };
     const { row, login, code, reveal } = loginRow(entry, { codeOnly: kind === 'code' });

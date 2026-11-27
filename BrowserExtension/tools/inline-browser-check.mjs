@@ -472,6 +472,31 @@ try {
   check('no buttons in a frame too small for the menu or in a sandboxed (opaque-origin) frame', frameButtons === 0, `${frameButtons} buttons, ${smallTargets.length} out-of-process frames`);
   await send('Target.closeTarget', { targetId: small.targetId });
 
+  // Suggesting a password and offering to save a submitted login (#357).
+  const signup = await tab(`${secure}/inline-signup.html`);
+  const press = async (session, selector) => { const r = await rect(session, selector); await click(session, (r.left + r.right) / 2, (r.top + r.bottom) / 2); };
+  const type = (session, values) => evaluate(session, `for (const [id, value] of Object.entries(${JSON.stringify(values)})) document.getElementById(id).value = value`);
+  check('new-password and confirmation fields get the key button', !!(await buttonFor(signup.session, '#p')) && !!(await buttonFor(signup.session, '#c')));
+  const suggestText = await evaluate(sw, `chrome.i18n.getMessage('suggestPassword')`);
+  menu = await openMenu(signup, '#p'); await waitFor(async () => (await text(menu)).includes(suggestText) && (await text(menu)).includes('Example'), 'suggest action above the logins');
+  await sleep(400); await shot(signup.session, 'menu-suggest', await menuClip(signup, '#p'), [menu]);
+  await menuAct(signup, menu, '#content > .kf-primary', async () => (await values(signup.session)).c === 'mock-generated-password', 'suggest a strong password');
+  const suggested = await values(signup.session);
+  check('Suggest a strong password fills the new password and its confirmation only, from a generate request for the page origin', suggested.p === 'mock-generated-password' && suggested.c === 'mock-generated-password' && suggested.e === '' && suggested.sp === '' && (await requests('generate')).every(r => r.origin === secure) && (await requests('generate')).length === 1, JSON.stringify(suggested));
+  await waitFor(async () => (await menus()).length === 0, 'close after suggesting');
+  await type(signup.session, { fu: 'wrong-user', fp: 'wrong-password' }); await press(signup.session, '#failgo');
+  await sleep(11500);
+  check('a sign-in whose form stays on screen for 10 s sends no save', (await requests('save')).length === 0);
+  await type(signup.session, { su: 'typed-user', sp: 'typed-password' }); await press(signup.session, '#spago');
+  await waitFor(async () => (await requests('save')).length === 1, 'save after the script sign-in', 40);
+  const typed = (await requests('save'))[0];
+  check('a script sign-in that removes its form sends one save with the typed login for the page origin', typed.origin === secure && typed.username === 'typed-user' && typed.passwordLength === 'typed-password'.length, JSON.stringify(typed));
+  await type(signup.session, { e: 'new@example.com' }); await press(signup.session, '#go');
+  await waitFor(async () => (await requests('save')).length === 2, 'save after the sign-up navigates', 40);
+  const created = (await requests('save'))[1];
+  check('a sign-up that navigates sends one save with the e-mail and the generated password', created.origin === secure && created.username === 'new@example.com' && created.passwordLength === 'mock-generated-password'.length, JSON.stringify(created));
+  await send('Target.closeTarget', { targetId: signup.targetId });
+
   // Embedding: only the content-script iframe may load inline.html.
   const prober = await tab(`${secure}/login.html`);
   await evaluate(prober.session, `for (const name of ['popup.html', 'pair.html', 'inline.html#x']) { const f = document.createElement('iframe'); f.src = ${JSON.stringify(extension)} + name; document.body.append(f); }`);

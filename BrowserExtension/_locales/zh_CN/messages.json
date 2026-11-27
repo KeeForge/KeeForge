@@ -130,5 +130,11 @@
   },
   "fieldUnusable": {
     "message": "无法填充此字段。"
+  },
+  "suggestPassword": {
+    "message": "建议强密码"
+  },
+  "suggestPasswordHint": {
+    "message": "提交表单后，KeeForge 会提出保存登录信息。"
   }
 }

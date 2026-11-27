@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Sign up</title><style>:root{color-scheme:light dark;font:16px system-ui}body{margin:40px auto;width:460px}form{margin:0 0 24px}input{box-sizing:border-box;display:block;width:340px;height:40px;margin:10px 0;padding:8px;border:1px solid GrayText;border-radius:6px}</style></head><body>
+<form id="spa"><input id="su" name="user" autocomplete="username" placeholder="User"><input id="sp" type="password" autocomplete="current-password" placeholder="Password"><button id="spago">Sign in (succeeds)</button></form>
+<form id="fail"><input id="fu" name="user" autocomplete="username" placeholder="User"><input id="fp" type="password" autocomplete="current-password" placeholder="Password"><button id="failgo">Sign in (fails)</button></form>
+<form id="signup"><input id="e" type="email" name="email" autocomplete="username" placeholder="Email"><input id="p" type="password" autocomplete="new-password" placeholder="New password"><input id="c" type="password" autocomplete="new-password" placeholder="Confirm password"><button id="go">Sign up</button></form>
+<script>
+// A script sign-in that hides its form, one that keeps it (a failure), and a sign-up that navigates; none puts a value in a URL.
+document.getElementById('spa').addEventListener('submit', event => { event.preventDefault(); setTimeout(() => { event.target.hidden = true; }, 300); });
+document.getElementById('fail').addEventListener('submit', event => event.preventDefault());
+document.getElementById('signup').addEventListener('submit', event => { event.preventDefault(); location.href = '/login.html'; });
+</script></body></html>

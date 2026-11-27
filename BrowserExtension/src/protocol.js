@@ -1,7 +1,9 @@
 export const VERSION = 1;
 export const HOST = 'com.keevault.browser';
 export const OUTER_ERRORS = Object.freeze(['unsupported-version', 'bad-request', 'unpaired', 'bad-handshake', 'pairing-declined', 'pairing-busy', 'disabled']);
-export const INNER_ERRORS = Object.freeze(['bad-request', 'bad-origin', 'locked', 'not-offered', 'no-match', 'denied', 'unavailable', 'rate-limited']);
+export const INNER_ERRORS = Object.freeze(['bad-request', 'bad-origin', 'locked', 'not-offered', 'no-match', 'denied', 'unavailable', 'rate-limited', 'exists', 'declined', 'save-failed']);
+// A `save` request's user name and password are each at most this many characters (UTF-16 code units are not characters, so count code points).
+export const SAVED_FIELD_LIMIT = 1024;
 export class ProtocolError extends Error {
   constructor(code = 'bad-request') { super(code); this.code = code; }
 }
@@ -46,7 +48,11 @@ export function validateEnvelope(frame, direction = 'app') {
     case 'hello':
       base64(frame.eph, 32);
       if (direction === 'client') requireThat(string(frame.client) && /^[0-9a-f]{32}$/.test(frame.client));
-      else requireThat(string(frame.app));
+      else {
+        requireThat(string(frame.app));
+        // An older app sends no feature list.
+        requireThat(frame.features === undefined || (Array.isArray(frame.features) && frame.features.length <= 16 && frame.features.every(string)));
+      }
       break;
     case 'msg': requireThat(integer(frame.n)); requireThat(base64(frame.c).length >= 16); break;
     default: throw new ProtocolError();
@@ -73,6 +79,12 @@ export function validateRequest(request) {
       requireThat(uuid(request.entry) && uuid(request.db)); break;
     case 'reveal': requireThat(uuid(request.entry) && uuid(request.db)); break;
     case 'unlock': requireThat(request.db === undefined || uuid(request.db)); break;
+    case 'generate': origin(request.origin); break;
+    case 'save':
+      origin(request.origin);
+      requireThat(string(request.username) && [...request.username].length <= SAVED_FIELD_LIMIT);
+      requireThat(string(request.password) && request.password.length > 0 && [...request.password].length <= SAVED_FIELD_LIMIT);
+      break;
     default: throw new ProtocolError();
   }
   return request;
@@ -99,7 +111,10 @@ export function validateReply(reply, request) {
       }
       requireThat(string(reply.username) && string(reply.password) && reply.totp === undefined);
       return { ...result, username: reply.username, password: reply.password };
-    case 'reveal': case 'unlock': return result;
+    case 'generate':
+      requireThat(string(reply.password) && reply.password.length > 0);
+      return { ...result, password: reply.password };
+    case 'reveal': case 'unlock': case 'save': return result;
     default: throw new ProtocolError();
   }
 }

@@ -1,7 +1,7 @@
 import { chooseFrame, probeFrame } from './frames.js';
-import { injectCredential } from './fill.js';
+import { injectCredential, injectGenerated } from './fill.js';
 import { Connection } from './connection.js';
-import { ProtocolError, origin, requireThat, integer, object } from './protocol.js';
+import { ProtocolError, SAVED_FIELD_LIMIT, origin, requireThat, integer, object } from './protocol.js';
 
 // Runs in the isolated world; neither result comes from a page-defined property.
 export function inspectDocument() {
@@ -29,10 +29,13 @@ export function prepareInlineDocument(forced) { return globalThis.__keeforgePrep
 export const CONTEXT_KINDS = { 'fill-username': 'username', 'fill-password': 'password', 'fill-code': 'code' };
 const CONTEXT_TITLES = { 'fill-username': 'contextFillUsername', 'fill-password': 'contextFillPassword', 'fill-code': 'fillCode' };
 const GRANT_MS = 10000;
+// A submitted login waits at most this long for the page to show whether the sign-in went through.
+export const CAPTURE_MS = 15000;
 export class Background {
-  constructor({ api = globalThis.chrome, connection = new Connection(), timers = globalThis, injectCredential = null } = {}) {
-    this.api = api; this.connection = connection; this.timers = timers; this.injectCredential = injectCredential;
+  constructor({ api = globalThis.chrome, connection = new Connection(), timers = globalThis, injectCredential = null, injectGenerated = null } = {}) {
+    this.api = api; this.connection = connection; this.timers = timers; this.injectCredential = injectCredential; this.injectGenerated = injectGenerated;
     this.active = 0; this.popupTarget = null; this.menus = new Map(); this.menuOpenings = new Map(); this.grants = new Map();
+    this.captures = new Map(); this.captureQueues = new Map();
   }
   async createContextMenus() {
     const menus = this.api.contextMenus;
@@ -156,7 +159,7 @@ export class Background {
     const previous = this.menus.get(tabId);
     if (previous) await this.closeMenu(previous);
     const prepared = await this.api.scripting.executeScript({ target: sender.documentId ? { tabId, documentIds: [sender.documentId] } : { tabId, frameIds: [frameId] }, world: 'ISOLATED', func: prepareInlineDocument, args: forced ? [forced] : [] });
-    requireThat(prepared.length === 1 && prepared[0].frameId === frameId && prepared[0].documentId === sender.documentId && (forced ? prepared[0].result?.kind === forced : ['login', 'code', 'username'].includes(prepared[0].result?.kind)), 'bad-origin');
+    requireThat(prepared.length === 1 && prepared[0].frameId === frameId && prepared[0].documentId === sender.documentId && (forced ? prepared[0].result?.kind === forced : ['login', 'code', 'username', 'new'].includes(prepared[0].result?.kind)), 'bad-origin');
     const target = await targetDocument(this.api, tabId, frameId);
     requireThat(target.origin === senderOrigin && target.documentId === sender.documentId && typeof target.token === 'string' && target.token === prepared[0].result.token, 'bad-origin');
     requireThat(this.menuOpenings.get(tabId) === opening, 'target-required');
@@ -195,8 +198,23 @@ export class Background {
           if (state.state !== 'ready') { reply = { ...state, origin: session.origin }; break; }
           reply = await this.connection.request('matches', { origin: session.origin });
           if (session.kind === 'code' && reply.entries) reply = { ...reply, entries: reply.entries.filter(entry => entry.hasTotp) };
-          reply = { ...reply, origin: session.origin, kind: session.kind };
+          reply = { ...reply, origin: session.origin, kind: session.kind, ...(session.kind === 'new' ? { generate: this.connection.features.includes('generate') } : {}) };
           break;
+        }
+        case 'generate': {
+          // An app without `generate` would close the connection on the unknown request.
+          requireThat(session.kind === 'new' && typeof this.injectGenerated === 'function' && this.connection.features.includes('generate'), 'unavailable');
+          let generated;
+          try {
+            generated = await this.connection.request('generate', { origin: session.origin });
+            if (!generated.ok) { reply = { ok: false, error: generated.error }; break; }
+            await this.injectGenerated(await this.checkMenu(session), generated.password);
+          } finally {
+            if (generated) delete generated.password;
+            generated = null;
+          }
+          await this.closeMenu(session, true);
+          return { ok: true };
         }
         case 'pair': await this.api.tabs.create({ url: this.api.runtime.getURL('pair.html') }); reply = { ok: true }; break;
         case 'launchApp': reply = await this.handle({ type: 'launchApp' }); break;
@@ -212,13 +230,62 @@ export class Background {
       return reply;
     });
   }
+  // One tab's submitted login and its outcome are handled in order, so a fast navigation's outcome cannot pass its login.
+  serialTab(tabId, operation) {
+    const result = (this.captureQueues.get(tabId) ?? Promise.resolve()).then(operation);
+    const settled = result.catch(() => {});
+    this.captureQueues.set(tabId, settled);
+    settled.then(() => { if (this.captureQueues.get(tabId) === settled) this.captureQueues.delete(tabId); });
+    return result;
+  }
+  dropCapture(tabId, capture = this.captures.get(tabId)) {
+    if (!capture || this.captures.get(tabId) !== capture) return;
+    this.captures.delete(tabId); this.timers.clearTimeout(capture.timer);
+    capture.username = null; capture.password = null;
+  }
+  // A trusted submit of a form with a password: the login is kept in memory only until the page shows the outcome.
+  async loginSubmitted(message, sender) {
+    requireThat(sender.id === this.api.runtime.id && integer(sender.tab?.id) && integer(sender.frameId), 'bad-origin');
+    const { username, password, generated } = message;
+    requireThat(typeof username === 'string' && [...username].length <= SAVED_FIELD_LIMIT && typeof password === 'string' && password.length > 0 && [...password].length <= SAVED_FIELD_LIMIT && typeof generated === 'boolean');
+    const tabId = sender.tab.id;
+    const senderOrigin = deriveOrigin({ href: sender.url, origin: sender.origin ?? new URL(sender.url).origin });
+    this.dropCapture(tabId);
+    // An unpaired profile never starts the native host for this.
+    if (!(await this.connection.isPaired())) return { ok: true };
+    const target = await targetDocument(this.api, tabId, sender.frameId);
+    requireThat(target.origin === senderOrigin && target.documentId === sender.documentId, 'bad-origin');
+    const capture = { frameId: sender.frameId, documentId: sender.documentId, origin: senderOrigin, username, password, generated };
+    capture.timer = this.timers.setTimeout(() => this.dropCapture(tabId, capture), CAPTURE_MS);
+    this.captures.set(tabId, capture);
+    return { ok: true };
+  }
+  // A typed password is offered only after a sign-in that went through; a generated one either way, since losing it locks the user out.
+  async loginOutcome(message, sender) {
+    const tabId = sender.tab?.id, capture = this.captures.get(tabId);
+    requireThat(sender.id === this.api.runtime.id && capture && capture.frameId === sender.frameId && capture.documentId === sender.documentId && typeof message.succeeded === 'boolean', 'target-required');
+    const fields = { origin: capture.origin, username: capture.username, password: capture.password };
+    const offer = message.succeeded || capture.generated;
+    this.dropCapture(tabId, capture);
+    if (offer) this.saving = this.use(() => this.save(fields)).catch(() => {});
+    else { fields.username = null; fields.password = null; }
+    return { ok: true };
+  }
+  // The app's alert can take minutes; nothing waits on it, and the page learns nothing of it.
+  async save(fields) {
+    try {
+      await this.connection.open();
+      if (this.connection.state !== 'ready' || !this.connection.features.includes('save')) return;
+      await this.connection.request('save', fields);
+    } finally { fields.username = null; fields.password = null; }
+  }
   checkPopupTarget(target, message) {
     requireThat(this.popupTarget && message.token === this.popupTarget.token, 'target-required');
     const selected = this.popupTarget;
     requireThat(target.tabId === selected.tabId && target.frameId === selected.frameId && target.origin === selected.origin && target.documentId === selected.documentId && typeof target.token === 'string' && target.token === selected.token, 'bad-origin');
   }
   listen() {
-    this.api.tabs.onRemoved?.addListener(tabId => { this.menus.delete(tabId); this.menuOpenings.delete(tabId); this.grants.delete(tabId); });
+    this.api.tabs.onRemoved?.addListener(tabId => { this.menus.delete(tabId); this.menuOpenings.delete(tabId); this.grants.delete(tabId); this.dropCapture(tabId); });
     this.api.runtime.onInstalled?.addListener(() => void this.createContextMenus().catch(() => {}));
     this.api.runtime.onStartup?.addListener(() => void this.createContextMenus().catch(() => {}));
     this.api.contextMenus?.onClicked.addListener((info, tab) => void this.contextClicked(info, tab));
@@ -226,6 +293,8 @@ export class Background {
       const root = this.api.runtime.getURL('');
       let operation;
       if (message?.type === 'openInlineMenu') operation = () => this.openMenu(sender, message.forced);
+      else if (message?.type === 'loginSubmitted') operation = () => this.serialTab(sender.tab?.id, () => this.use(() => this.loginSubmitted(message, sender)));
+      else if (message?.type === 'loginOutcome') operation = () => this.serialTab(sender.tab?.id, () => this.use(() => this.loginOutcome(message, sender)));
       else if (message?.type === 'inlineMenu') operation = () => this.handleMenu(message, sender);
       else if (message?.type === 'closeInlineMenu') operation = async () => {
         const session = this.menus.get(sender.tab?.id);
@@ -242,4 +311,7 @@ export class Background {
     });
   }
 }
-if (globalThis.chrome?.runtime?.onMessage) new Background({ injectCredential: (target, credential, codeOnly) => injectCredential(globalThis.chrome, target, credential, codeOnly) }).listen();
+if (globalThis.chrome?.runtime?.onMessage) new Background({
+  injectCredential: (target, credential, codeOnly) => injectCredential(globalThis.chrome, target, credential, codeOnly),
+  injectGenerated: (target, password) => injectGenerated(globalThis.chrome, target, password)
+}).listen();

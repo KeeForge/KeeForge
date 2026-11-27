@@ -4,8 +4,10 @@ import { Cipher, keyPair, publicBytes, random, fromBase64, toBase64, commitment,
 export const ENTRY = '11111111-1111-4111-8111-111111111111';
 export const DB = '22222222-2222-4222-8222-222222222222';
 export class MockApp {
-  constructor({ decision = 'allow', dropReplies = false, scenario = 'default', holdCredential = false } = {}) {
+  constructor({ decision = 'allow', dropReplies = false, scenario = 'default', holdCredential = false, features = ['generate', 'save'] } = {}) {
     this.decision = decision; this.dropReplies = dropReplies; this.holdCredential = holdCredential; this.scenario = scenario;
+    // Like the app: a `save` reply means the user confirmed; `saveAnswer` is an error code to answer instead.
+    this.features = features; this.saved = []; this.saveAnswer = null;
     const first = { entry: ENTRY, db: DB, dbName: 'Development', title: 'Example', username: 'demo', hasTotp: true, exact: true };
     this.demoEntry = first;
     this.mixed = [
@@ -55,7 +57,7 @@ export class MockSession {
       const parts = await Promise.all([dh(es.privateKey, ec), dh(es.privateKey, c), dh(this.app.static.privateKey, ec)]);
       const keys = await schedule(concat(...parts), c, s, ec, esPub); parts.forEach(p => p.fill(0));
       this.cipher = new Cipher(keys.s2c, keys.c2s); this.phase = 'ready';
-      this.send(envelope('hello', { eph: toBase64(esPub), app: 'mock' })); return;
+      this.send(envelope('hello', { eph: toBase64(esPub), app: 'mock', ...(this.app.features ? { features: this.app.features } : {}) })); return;
     }
     requireThat(frame.t === 'msg' && this.phase === 'ready');
     const request = validateRequest(await this.cipher.open(frame));
@@ -76,6 +78,15 @@ export class MockSession {
           if (this.app.entries.find(entry => entry.entry === request.entry && entry.db === request.db).hasTotp) reply.totp = '123456';
           else reply = { id: request.id, ok: false, error: 'unavailable' };
         } else Object.assign(reply, { username: 'demo', password: 'mock-password' });
+        break;
+      case 'generate':
+        if (this.app.scenario === 'locked') reply = { id: request.id, ok: false, error: 'locked' };
+        else reply.password = 'mock-generated-password';
+        break;
+      case 'save':
+        if (this.app.scenario === 'locked') reply = { id: request.id, ok: false, error: 'locked' };
+        else if (this.app.saveAnswer) reply = { id: request.id, ok: false, error: this.app.saveAnswer };
+        else this.app.saved.push({ origin: request.origin, username: request.username, passwordLength: request.password.length });
         break;
     }
     if (this.app.replyTransform) reply = this.app.replyTransform(reply);
