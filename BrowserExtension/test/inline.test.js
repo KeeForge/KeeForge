@@ -297,7 +297,7 @@ class MenuNode {
 async function menuPage({ supported = true, top = false, stateReply } = {}) {
   const source = (await readFile(new URL('../src/inline.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
   const rows = await import('../src/rows.js'), { groupsFor } = await import('../src/popup-state.js');
-  const nodes = Object.fromEntries(['#status', '#content', '#site', '#viewport', '#state', '#state-icon', '#secure'].map(id => [id, new MenuNode()]));
+  const nodes = Object.fromEntries(['#status', '#content', '#site', '#viewport', '#state', '#state-icon', '#secure', '#footer'].map(id => [id, new MenuNode()]));
   const content = nodes['#content'];
   const state = { callback: null, now: 0, requests: [], posted: [], listeners: {} };
   class Entry {}
@@ -486,27 +486,33 @@ test('a generated password that the page replaced in the meantime is not filled'
   await assert.rejects(s.call(token, 'generate'));
   assert.equal(filled, 0);
 });
-test('inline page offers a strong password on a new-password field, above any logins, and asks only after the usual gates', async () => {
+test('inline page offers a strong password as one footer row under the logins, and asks only after the usual gates', async () => {
   const origin = 'https://example.com', row = { entry: 'e', db: 'd', title: 'title', username: 'user', exact: true, hasTotp: false };
-  const empty = await menuPage({ stateReply: { ok: true, origin, kind: 'new', generate: true, entries: [], locked: 0 } });
-  empty.visible(); await settle();
-  assert.equal(empty.context.document.querySelector('#status').textContent, 'suggestPasswordHint');
-  const suggest = empty.content.querySelectorAll('.kf-primary')[0];
-  assert.equal(suggest.textContent, 'suggestPassword');
-  await suggest.listeners.click({ isTrusted: true });
-  assert.equal(empty.state.requests.filter(r => r.action === 'generate').length, 0, 'too soon after opening');
-  empty.state.now = 1000;
-  await suggest.listeners.click({ isTrusted: false });
-  await suggest.listeners.click({ isTrusted: true });
-  assert.equal(empty.state.requests.filter(r => r.action === 'generate').length, 1);
+  const footerOf = m => m.context.document.querySelector('#footer');
   const listed = await menuPage({ stateReply: { ok: true, origin, kind: 'new', generate: true, entries: [row], locked: 0 } });
   listed.visible(); await settle();
-  assert.equal(listed.content.children[0].textContent, 'suggestPassword');
-  assert.equal(listed.content.querySelectorAll('.kf-login').length, 1, 'existing logins still fill');
-  const older = await menuPage({ stateReply: { ok: true, origin, kind: 'new', generate: false, entries: [], locked: 0 } });
-  older.visible(); await settle();
-  assert.equal(older.context.document.querySelector('#status').textContent, 'noLogins');
-  assert.equal(older.content.querySelectorAll('.kf-primary')[0].textContent, 'openApp');
+  const footer = footerOf(listed), suggest = footer.children[0];
+  assert.equal(footer.hidden, false); assert.equal(footer.children.length, 1);
+  assert.equal(suggest.className, 'kf-suggest'); assert.equal(suggest.children[1].textContent, 'suggestPassword'); assert.equal(suggest.title, 'suggestPasswordHint');
+  assert.equal(suggest.children[0].attributes['aria-hidden'], 'true');
+  assert.equal(listed.content.querySelectorAll('.kf-login').length, 1, 'existing logins still fill, above the suggestion');
+  assert.equal(listed.content.querySelectorAll('.kf-primary').length, 0, 'no large button in the list');
+  await suggest.listeners.click({ isTrusted: true });
+  assert.equal(listed.state.requests.filter(r => r.action === 'generate').length, 0, 'too soon after opening');
+  listed.state.now = 1000;
+  await suggest.listeners.click({ isTrusted: false });
+  await suggest.listeners.click({ isTrusted: true });
+  assert.equal(listed.state.requests.filter(r => r.action === 'generate').length, 1);
+  const empty = await menuPage({ stateReply: { ok: true, origin, kind: 'new', generate: true, entries: [], locked: 0 } });
+  empty.visible(); await settle();
+  assert.equal(empty.context.document.querySelector('#status').textContent, 'noLogins');
+  assert.equal(empty.content.children.length, 0, 'the footer is the only action without logins');
+  assert.equal(footerOf(empty).hidden, false);
+  for (const reply of [{ ok: true, origin, kind: 'new', generate: false, entries: [], locked: 0 }, { ok: true, origin, kind: 'login', generate: true, entries: [row], locked: 0 }, { ok: true, origin, kind: 'new', generate: true, entries: [], locked: 1 }, { ok: false, error: 'locked', origin }]) {
+    const m = await menuPage({ stateReply: reply });
+    m.visible(); await settle();
+    assert.equal(footerOf(m).hidden, true, JSON.stringify(reply)); assert.equal(footerOf(m).children.length, 0);
+  }
 });
 test('a trusted submit hands the form\'s login to the background, then reports whether the sign-in went through', async () => {
   const page = contentPage();

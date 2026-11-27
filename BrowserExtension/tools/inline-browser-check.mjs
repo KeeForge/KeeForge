@@ -480,7 +480,8 @@ try {
   const suggestText = await evaluate(sw, `chrome.i18n.getMessage('suggestPassword')`);
   menu = await openMenu(signup, '#p'); await waitFor(async () => (await text(menu)).includes(suggestText) && (await text(menu)).includes('Example'), 'suggest action above the logins');
   await sleep(400); await shot(signup.session, 'menu-suggest', await menuClip(signup, '#p'), [menu]);
-  await menuAct(signup, menu, '#content > .kf-primary', async () => (await values(signup.session)).c === 'mock-generated-password', 'suggest a strong password');
+  check('the suggestion is one footer row under the logins, not a button in the list', await evaluate(menu, `document.querySelector('#footer:not([hidden]) .kf-suggest')?.getBoundingClientRect().top > document.querySelector('#content .kf-login').getBoundingClientRect().top && !document.querySelector('#content .kf-primary')`));
+  await menuAct(signup, menu, '#footer .kf-suggest', async () => (await values(signup.session)).c === 'mock-generated-password', 'suggest a strong password');
   const suggested = await values(signup.session);
   check('Suggest a strong password fills the new password and its confirmation only, from a generate request for the page origin', suggested.p === 'mock-generated-password' && suggested.c === 'mock-generated-password' && suggested.e === '' && suggested.sp === '' && (await requests('generate')).every(r => r.origin === secure) && (await requests('generate')).length === 1, JSON.stringify(suggested));
   await waitFor(async () => (await menus()).length === 0, 'close after suggesting');
