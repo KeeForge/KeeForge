@@ -70,7 +70,7 @@ Pairing again with a known `C_pub` replaces that record after the same confirmat
 ## 6. Session handshake
 
 1. extension → app: `{"v":1,"t":"hello","client":"<client id>","eph":"<b64 ec_pub>"}`.
-2. app → extension: `{"v":1,"t":"hello","eph":"<b64 es_pub>","app":"<app version>"}`, or `error` `unpaired` when the client id is not registered (including a browser removed while the handshake is in flight), or `error` `disabled` when the bridge is being turned off.
+2. app → extension: `{"v":1,"t":"hello","eph":"<b64 es_pub>","app":"<app version>","features":["generate","save"]}`, or `error` `unpaired` when the client id is not registered (including a browser removed while the handshake is in flight), or `error` `disabled` when the bridge is being turned off.
 3. Both sides derive two keys:
 
    ```text
@@ -79,6 +79,8 @@ Pairing again with a known `C_pub` replaces that record after the same confirmat
    k_c2s = HKDF-SHA256(ikm, salt, info = "c2s", 32 bytes)
    k_s2c = HKDF-SHA256(ikm, salt, info = "s2c", 32 bytes)
    ```
+
+   `features` lists the optional requests of section 7 that this app answers, at most 16 strings; an app that sends none answers neither. The extension sends an optional request only when the app listed it, because an app that does not know a request type closes the connection (section 3). Unknown entries are ignored.
 
    The extension computes `X25519(C, es)` with its static private key and `X25519(ec, S)` with the app's static public key; the app computes the mirror values. A side that does not hold the right static key derives different keys, so its first message fails to decrypt.
 
@@ -97,6 +99,8 @@ Requests come from the extension and carry an integer `id` chosen by it (0 to 2^
 | `{"type":"credential"}` | `"entry"`, `"db"`, `"origin"`, optional `"totp": true` | without `"totp"`: `"username"` and `"password"`; with `"totp": true`: `"totp"` (the current code) only |
 | `{"type":"reveal"}` | `"entry"`, `"db"` | none |
 | `{"type":"unlock"}` | optional `"db"` | none |
+| `{"type":"generate"}` (optional, `generate`) | `"origin"` | `"password"`: a new password made with the generator settings the user chose in the app |
+| `{"type":"save"}` (optional, `save`) | `"origin"`, `"username"`, `"password"` | none: the login was saved as a new entry |
 
 - `origin` is a serialized web origin, as the browser serializes it: `https://host` or `https://host:port`, printable ASCII only (an internationalized host in punycode). `http://` is accepted only for `localhost`, `127.0.0.1` and `[::1]`. Anything else is `bad-origin`.
 - `entry` and `db` are UUID strings. `username` is already resolved (field references included); `matches` never contains a password, a code, or any other field.
@@ -107,13 +111,19 @@ Requests come from the extension and carry an integer `id` chosen by it (0 to 2^
 - A `credential` request with `"totp": true` asks for the code alone: its reply never contains `username` or `password`, and an entry without a code is `unavailable`. A request without `"totp"` is never answered with a code. The extension rejects a reply that carries the other kind's fields as `bad-request`.
 - `reveal` fronts that database's window and selects the entry. `unlock` fronts the named database's locked window, or the Databases window. Together they allow a burst of 3 per connection, then one per second; more is `rate-limited`.
 
-Error codes: `bad-request`, `bad-origin`, `locked` (no unlocked database, or that one locked since), `not-offered`, `no-match` (the entry no longer matches the site), `denied` (the device-owner check failed, was cancelled, or is unavailable outside the grace period), `unavailable` (the entry or database is gone, or a code-only request names an entry without a code), `rate-limited`.
+- `generate` is answered only while an unlocked database can take a new login (the conditions for `save` below), since a password nobody can save would lock the user out of the new account: `locked` when no database is unlocked, `unavailable` when none of the unlocked ones can take it. It allows a burst of 3 per connection, then one per second; more is `rate-limited`. The app keeps nothing of the password it returns.
+- `save` proposes a new login; it never changes or deletes an entry. `username` is at most 1,024 characters and may be empty, `password` 1 to 1,024 characters; anything else is a decoding error (section 3). `exists`, without any prompt, when an unlocked database already has an exact or possible match for `origin` (as in `matches`, ignoring the entry's password and code) whose user name equals `username` ignoring case and surrounding white space, or any such match when `username` is empty. The databases that can take the login are unlocked with no lock pending, take part in browser filling, are writable, and have no unsaved changes, no open editor and no save in progress; with none, `locked` or `unavailable` as for `generate`.
+- The app then shows its own alert naming the site's host, the user name, the new entry's title (the host) and a choice of database and group (the group new AutoFill entries go to), with Don't Save as the default. Nothing is written unless the user picks Save and then passes the device-owner gate (the grace period or a prompt naming the host, as for `credential`); `declined` for Don't Save, for an alert unanswered after 120 seconds and for one withdrawn because the connection closed, `denied` for the gate. The app shows one save alert at a time, whichever browser asks; a `save` while one is shown, or while this connection has one in flight, and more than a burst of 3 then one per 12 seconds per connection, is `rate-limited`. The app checks the lock state and the match again after the gate.
+- A confirmed login is added to that database's group with the host as title, `origin` as URL and `username` as given, and written through the database's normal save, with its sync, conflict and backup handling; closing the connection after the gate does not interrupt it. The reply is the empty success once the save finished, or `save-failed` when it did not (the entry then stays as an unsaved change in the app, which offers the usual recovery). The reply can take as long as the alert and the prompt; the extension waits up to 300 seconds.
+
+Error codes: `bad-request`, `bad-origin`, `locked` (no unlocked database, or that one locked since), `not-offered`, `no-match` (the entry no longer matches the site), `denied` (the device-owner check failed, was cancelled, or is unavailable outside the grace period), `unavailable` (the entry or database is gone, a code-only request names an entry without a code, or no unlocked database can take a new login), `rate-limited`, `exists` (that login is already saved), `declined` (the user did not save it), `save-failed` (the confirmed login could not be written).
 
 ## 8. Rules both sides keep
 
 - Nothing is logged that names an origin, a title, a user name or a secret.
 - The extension takes `origin` from the browser's own tab or frame data, never from page script.
-- The extension keeps no credential after filling and caches no `matches` reply across openings of its popup or in-field menu.
+- The extension keeps no credential after filling and caches no `matches` reply across openings of its popup or in-field menu. It keeps a generated password only until it has filled it in.
+- The extension sends `save` only for a login the user submitted with a trusted submit of a form on that frame's own origin, never for a change of password (a form with a current and a new password), and only once the page shows the outcome: it navigates or the password field goes away within 10 seconds. A typed password whose field is still shown after 10 seconds is dropped; a generated one is still proposed, since losing it would lock the user out. Until then the login is held in memory only, at most 15 seconds, and never stored.
 - The app releases nothing while the bridge is switched off; switching it off closes every connection.
 
 ## 9. macOS transport

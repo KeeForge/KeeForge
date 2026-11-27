@@ -658,7 +658,9 @@ The browser bridge
 lets the KeeForge extension for Chrome-family browsers and Firefox
 ([BrowserExtension](../BrowserExtension/README.md)) fill one login at a time from
 an unlocked database, from a key button in a login field or from the
-extension's toolbar popup. It is off by default (Settings ▸ Browsers). The wire
+extension's toolbar popup. In a sign-up form it can also fill a password the app
+generates, and the extension can propose a new login, which the app saves only
+after the user confirms in its own alert. It is off by default (Settings ▸ Browsers). The wire
 contract is [browser-bridge-protocol.md](../docs/browser-bridge-protocol.md).
 
 The browser starts the native-messaging host `keeforge-browser-host`, which ships
@@ -746,9 +748,39 @@ then applies these rules:
   and `reveal` selects an entry this connection was offered. Neither unlocks a
   database or shows a secret, and a window brought forward this way does not
   count as the user's deliberate focus on a window restored at launch.
+- `generate` returns a password made with the generator settings the user chose
+  in the app, and only while an unlocked database could take the new login (as
+  for `save`), because a password nobody can save would lock the user out of the
+  new account. The app keeps nothing of it.
+- `save` proposes a new login: a site, a user name (possibly empty) and a
+  password, each field at most 1,024 characters. It never changes or deletes an
+  entry. When an unlocked database already offers a login for the site with that
+  user name, ignoring case and surrounding spaces (any login for the site when
+  the user name is empty), the reply is `exists` and nothing is shown. Otherwise
+  the app shows one alert at a time, whichever browser asks, as a sheet on the
+  Databases window: “Save this login in KeeForge?” with the host, the user name,
+  the new entry's title (the host) and a pop-up of the databases and groups that
+  can take it. Those are the unlocked, writable sessions that take part in
+  AutoFill and have no unsaved changes, open editor or save in progress, most
+  recently opened first, each with the group new AutoFill entries go to. Every
+  name in the alert is sanitized like a browser name. Don't Save holds Return
+  and Escape and takes the initial focus; Save has no key equivalent and is
+  disabled for 1.5 seconds. An alert nobody answers within 120 seconds, or whose
+  connection closes, is withdrawn and declines. After Save the session's
+  device-owner gate runs as for `credential`, with a prompt naming the host
+  (Save a login for example.com from your browser); then the handler checks
+  the session, its lock cycle, its state and the existing logins again. The
+  entry gets the host as title, the origin as URL and the user name exactly as
+  the site received it, and is added and saved like an import, through the
+  session's normal save with its sync, conflict and backup handling. Closing the
+  connection after the gate does not interrupt the write. A failed write leaves
+  the entry as an unsaved change, with the usual unsaved-changes recovery, and
+  answers `save-failed`.
 - Per connection: 16 requests in flight, `matches` a burst of 10 then 5 a
-  second, one credential in flight and 30 a minute, and one `reveal` or
-  `unlock` a second with a burst of 3; more is `rate-limited`. The in-field
+  second, one credential in flight and 30 a minute, one `reveal` or `unlock` a
+  second with a burst of 3, `generate` a burst of 3 then one a second, and one
+  `save` in flight with a burst of 3 then one per 12 seconds; more is
+  `rate-limited`. The in-field
   menu polls `matches` once a second while it is visible.
 
 Nothing the bridge does is logged. The app cannot see the browser's page, so it
@@ -757,7 +789,10 @@ or a same-user process holding that browser's key, can list the offered logins
 for any site it names and obtain a password after the user confirms the prompt,
 or without a prompt inside the grace period, which under the default Never Ask
 is the whole unlocked session. The prompt names the entry and the
-host so the user can refuse a request for a site they are not filling. The extension keeps its key
+host so the user can refuse a request for a site they are not filling. The same
+browser can propose new logins, for any site it names: an unwanted entry, such as
+a lookalike site or a password the attacker knows, is written only if the user
+picks Save and passes the gate, which inside the grace period asks nothing more. The extension keeps its key
 non-extractable in IndexedDB, which binds WebCrypto callers only; assume a
 process that can read the browser profile can recover it.
 
@@ -776,7 +811,17 @@ presses Option+Down in the field, or chooses KeeForge ▸ Fill username, Fill
 password or Fill verification code from the browser's own context menu on a
 field (`contextMenus`), the content script sends nothing to the
 extension's background or to the app, and the button looks the same on every
-site whatever the vault holds. The click opens a menu: `inline.html`, the
+site whatever the vault holds. The one exception is a trusted `submit` of a
+form with a filled password: the content script then reads that form's password
+and user name, never those of another form or frame and never a form with both a
+current and a new password (a change of password, which would update an entry),
+and hands them to the background. The background keeps them in memory only, at
+most 15 seconds, does nothing more if the profile is not paired, and asks the app
+to `save` only once the page shows the sign-in went through: it navigates, or the
+password field goes away within 10 seconds. A typed password whose field is still
+shown after 10 seconds is dropped; a generated one is proposed anyway, so it is
+not lost. A sign-in that fails after a page load still prompts, which is why the
+alert asks the user to save only after signing up or in. The click opens a menu: `inline.html`, the
 extension's only web-accessible page, in an iframe inside a closed shadow root.
 The background builds the menu's session for that tab from the browser's own
 sender data (tab, frame, document, origin) with an unpredictable token and a
@@ -801,7 +846,11 @@ depends only on the field's position and the viewport; it can tell from focus
 when the menu opens and closes; and it can read what is filled. It cannot read
 the closed root, the menu's URL or token, or the logins. A lone user-name step
 gets only the user name, but the app still releases the password to the
-extension, because the protocol has no user-name-only request.
+extension, because the protocol has no user-name-only request. A new-password
+field (hinted `new-password`, or one of the last two password fields of a form
+with two or three) gets a Suggest a strong password action; it fills the
+generated password into that field and its confirmation, never a current
+password, and the extension keeps nothing of it after filling.
 
 Against clickjacking, every control in the menu acts only on a trusted event
 once the menu has been fully visible without a break for 300 ms, 300 ms after
@@ -866,7 +915,10 @@ process that connects to the socket), a store-installed Chromium extension (rele
 allow the Chrome Web Store ID, but the item is not published, so no store copy
 has connected), and whether
 the pairing alert comes forward over a browser. The same-user peer check has no
-test with a peer of another user.
+test with a peer of another user. Generating and saving logins are covered by
+unit tests and the KDBX compatibility gate only: the save alert on screen,
+submit detection on real sites in Chrome and Firefox, and a save through the
+real app are not yet verified.
 
 ## Plaintext attachment files and disk encryption
 

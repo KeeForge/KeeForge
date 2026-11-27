@@ -8974,54 +8974,54 @@
         }
       }
     },
-    "Allow only if your browser shows the same code. A paired browser can see the titles and user names of logins for the sites it asks about, and can fill a password after you confirm." : {
+    "Allow only if your browser shows the same code. A paired browser can see the titles and user names of logins for the sites it asks about, can fill a password after you confirm, and can ask you to save a new login." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Erlaube dies nur, wenn dein Browser denselben Code zeigt. Ein gekoppelter Browser kann die Titel und Benutzernamen der Anmeldedaten für die angefragten Websites sehen und nach deiner Bestätigung ein Passwort ausfüllen."
+            "value" : "Erlaube dies nur, wenn dein Browser denselben Code zeigt. Ein gekoppelter Browser kann die Titel und Benutzernamen der Anmeldedaten für die angefragten Websites sehen, nach deiner Bestätigung ein Passwort ausfüllen und dich bitten, neue Anmeldedaten zu speichern."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Permite solo si tu navegador muestra el mismo código. Un navegador enlazado puede ver los títulos y nombres de usuario de los inicios de sesión de los sitios web que consulte, y rellenar una contraseña después de que confirmes."
+            "value" : "Permite solo si tu navegador muestra el mismo código. Un navegador enlazado puede ver los títulos y nombres de usuario de los inicios de sesión de los sitios web que consulte, rellenar una contraseña después de que confirmes y pedirte que guardes un nuevo inicio de sesión."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Autorisez uniquement si votre navigateur affiche le même code. Un navigateur jumelé peut voir les titres et noms d'utilisateur des identifiants des sites web qu'il demande, et remplir un mot de passe après votre confirmation."
+            "value" : "Autorisez uniquement si votre navigateur affiche le même code. Un navigateur jumelé peut voir les titres et noms d'utilisateur des identifiants des sites web qu'il demande, remplir un mot de passe après votre confirmation et vous proposer d'enregistrer de nouveaux identifiants."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Consenti solo se il browser mostra lo stesso codice. Un browser abbinato può vedere i titoli e i nomi utente delle credenziali dei siti web che richiede e inserire una password dopo la tua conferma."
+            "value" : "Consenti solo se il browser mostra lo stesso codice. Un browser abbinato può vedere i titoli e i nomi utente delle credenziali dei siti web che richiede, inserire una password dopo la tua conferma e chiederti di salvare nuove credenziali."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ブラウザに同じコードが表示されている場合にのみ許可してください。ペアリング済みのブラウザは、問い合わせた Web サイトのログイン情報のタイトルとユーザ名を参照でき、確認後にパスワードを入力できます。"
+            "value" : "ブラウザに同じコードが表示されている場合にのみ許可してください。ペアリング済みのブラウザは、問い合わせた Web サイトのログイン情報のタイトルとユーザ名を参照でき、確認後にパスワードを入力したり、新しいログイン情報の保存を求めたりできます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Разрешайте, только если браузер показывает тот же код. Связанный браузер может видеть названия и имена пользователей логинов для запрашиваемых сайтов и после вашего подтверждения заполнять пароль."
+            "value" : "Разрешайте, только если браузер показывает тот же код. Связанный браузер может видеть названия и имена пользователей логинов для запрашиваемых сайтов, после вашего подтверждения заполнять пароль и предлагать сохранить новые данные для входа."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "仅当浏览器显示相同的代码时才允许。已配对的浏览器可以查看其所询问网站的登录信息标题和用户名，并可在你确认后填充密码。"
+            "value" : "仅当浏览器显示相同的代码时才允许。已配对的浏览器可以查看其所询问网站的登录信息标题和用户名，可在你确认后填充密码，还可以请求你保存新的登录信息。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "僅當瀏覽器顯示相同的代碼時才允許。已配對的瀏覽器可以查看其所詢問網站的登入資訊標題和使用者名稱，並可在你確認後填寫密碼。"
+            "value" : "僅當瀏覽器顯示相同的代碼時才允許。已配對的瀏覽器可以查看其所詢問網站的登入資訊標題和使用者名稱，可在你確認後填寫密碼，還可以請你儲存新的登入資訊。"
           }
         }
       }
@@ -51254,6 +51254,58 @@
         }
       }
     },
+    "No username" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Benutzername"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin nombre de usuario"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun nom d'utilisateur"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessun nome utente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ユーザ名なし"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без имени пользователя"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无用户名"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無使用者名稱"
+          }
+        }
+      }
+    },
     "No Verification Codes" : {
       "localizations" : {
         "de" : {
@@ -62103,6 +62155,58 @@
         }
       }
     },
+    "Save a login for %@ from your browser" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anmeldedaten für %@ aus dem Browser speichern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar un inicio de sesión de %@ desde tu navegador"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer des identifiants pour %@ depuis votre navigateur"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salva credenziali per %@ dal browser"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザから %@ のログイン情報を保存"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить данные для входа на %@ из браузера"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从浏览器保存 %@ 的登录信息"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從瀏覽器儲存 %@ 的登入資訊"
+          }
+        }
+      }
+    },
     "Save and Lock" : {
       "localizations" : {
         "de" : {
@@ -62307,6 +62411,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存衝突"
+          }
+        }
+      }
+    },
+    "Save in:" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sichern in:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar en:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer dans :"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salva in:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存先："
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить в:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存到："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存到："
           }
         }
       }
@@ -62619,6 +62775,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存通行金鑰"
+          }
+        }
+      }
+    },
+    "Save this login in KeeForge?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Anmeldedaten in KeeForge sichern?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Guardar este inicio de sesión en KeeForge?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer ces identifiants dans KeeForge ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvare queste credenziali in KeeForge?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このログイン情報を KeeForge に保存しますか？"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить эти данные для входа в KeeForge?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将此登录信息保存到 KeeForge？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要將此登入資訊儲存到 KeeForge 嗎？"
           }
         }
       }
@@ -89628,54 +89836,54 @@
         }
       }
     },
-    "When on, a paired browser can see which logins match a site and fill one after you confirm, while a database is unlocked." : {
+    "When on, a paired browser can see which logins match a site, fill one after you confirm, and ask you to save a new login, while a database is unlocked." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wenn aktiviert, kann ein gekoppelter Browser sehen, welche Anmeldedaten zu einer Website passen, und nach deiner Bestätigung eine davon ausfüllen, solange eine Datenbank entsperrt ist."
+            "value" : "Wenn aktiviert, kann ein gekoppelter Browser sehen, welche Anmeldedaten zu einer Website passen, nach deiner Bestätigung eine davon ausfüllen und dich bitten, neue Anmeldedaten zu speichern, solange eine Datenbank entsperrt ist."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Si está activado, un navegador enlazado puede ver qué inicios de sesión coinciden con un sitio web y rellenar uno después de que confirmes, mientras haya una base de datos desbloqueada."
+            "value" : "Si está activado, un navegador enlazado puede ver qué inicios de sesión coinciden con un sitio web, rellenar uno después de que confirmes y pedirte que guardes un nuevo inicio de sesión, mientras haya una base de datos desbloqueada."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Si cette option est activée, un navigateur jumelé peut voir quels identifiants correspondent à un site web et en remplir un après votre confirmation, tant qu'une base de données est déverrouillée."
+            "value" : "Si cette option est activée, un navigateur jumelé peut voir quels identifiants correspondent à un site web, en remplir un après votre confirmation et vous proposer d'enregistrer de nouveaux identifiants, tant qu'une base de données est déverrouillée."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se attivata, un browser abbinato può vedere quali credenziali corrispondono a un sito web e inserirne una dopo la tua conferma, mentre un database è sbloccato."
+            "value" : "Se attivata, un browser abbinato può vedere quali credenziali corrispondono a un sito web, inserirne una dopo la tua conferma e chiederti di salvare nuove credenziali, mentre un database è sbloccato."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "オンにすると、データベースのロックが解除されている間、ペアリング済みのブラウザは Web サイトに一致するログイン情報を参照でき、確認後にそのうち 1 件を入力できます。"
+            "value" : "オンにすると、データベースのロックが解除されている間、ペアリング済みのブラウザは Web サイトに一致するログイン情報を参照でき、確認後にそのうち 1 件を入力したり、新しいログイン情報の保存を求めたりできます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Если включено, связанный браузер может видеть, какие логины подходят для сайта, и после вашего подтверждения заполнять один из них, пока база данных разблокирована."
+            "value" : "Если включено, связанный браузер может видеть, какие логины подходят для сайта, после вашего подтверждения заполнять один из них и предлагать сохранить новые данные для входа, пока база данных разблокирована."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "开启后，在数据库解锁期间，已配对的浏览器可以查看哪些登录信息与网站匹配，并在你确认后填充其中一项。"
+            "value" : "开启后，在数据库解锁期间，已配对的浏览器可以查看哪些登录信息与网站匹配，可在你确认后填充其中一项，还可以请求你保存新的登录信息。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "開啟後，在資料庫解鎖期間，已配對的瀏覽器可以查看哪些登入資訊與網站相符，並在你確認後填寫其中一項。"
+            "value" : "開啟後，在資料庫解鎖期間，已配對的瀏覽器可以查看哪些登入資訊與網站相符，可在你確認後填寫其中一項，還可以請你儲存新的登入資訊。"
           }
         }
       }
@@ -90318,6 +90526,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你沒有權限變更此檔案。"
+          }
+        }
+      }
+    },
+    "Your browser asks to save a new login. Save only if you just signed up or signed in on this website.\n\nWebsite: %@\nUsername: %@\nTitle: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Browser möchte neue Anmeldedaten speichern. Sichere sie nur, wenn du dich gerade auf dieser Website registriert oder angemeldet hast.\n\nWebsite: %1$@\nBenutzername: %2$@\nTitel: %3$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu navegador quiere guardar un nuevo inicio de sesión. Guárdalo solo si acabas de registrarte o de iniciar sesión en este sitio web.\n\nSitio web: %1$@\nNombre de usuario: %2$@\nTítulo: %3$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre navigateur demande à enregistrer de nouveaux identifiants. Enregistrez-les uniquement si vous venez de vous inscrire ou de vous connecter sur ce site web.\n\nSite web : %1$@\nNom d'utilisateur : %2$@\nTitre : %3$@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il browser chiede di salvare nuove credenziali. Salvale solo se ti sei appena registrato o hai appena eseguito l'accesso su questo sito web.\n\nSito web: %1$@\nNome utente: %2$@\nTitolo: %3$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウザが新しいログイン情報の保存を求めています。この Web サイトで登録またはサインインしたばかりの場合にのみ保存してください。\n\nWeb サイト：%1$@\nユーザ名：%2$@\nタイトル：%3$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Браузер просит сохранить новые данные для входа. Сохраняйте, только если вы только что зарегистрировались или вошли на этом сайте.\n\nСайт: %1$@\nИмя пользователя: %2$@\nНазвание: %3$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的浏览器请求保存新的登录信息。仅当你刚刚在此网站注册或登录时才保存。\n\n网站：%1$@\n用户名：%2$@\n标题：%3$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的瀏覽器要求儲存新的登入資訊。僅在你剛在此網站註冊或登入時才儲存。\n\n網站：%1$@\n使用者名稱：%2$@\n標題：%3$@"
           }
         }
       }

@@ -278,6 +278,37 @@ final class MacBrowserBridgeControllerTests: XCTestCase {
         XCTAssertEqual(unlocks, [session.databaseReference.id, nil])
     }
 
+    func testOneSaveAlertAppWideIsWithdrawnAndDeclinedAfterTwoMinutes() async throws {
+        let (session, _) = try await makeSession()
+        await start()
+        let shown = expectation(description: "Save alert shown")
+        var asked = 0, withdrawn = 0
+        controller.confirmSave = { _ in
+            asked += 1
+            shown.fulfill()
+            try? await Task.sleep(for: .seconds(3600))
+            withdrawn += 1
+            return .save(db: session.databaseReference.id)
+        }
+        var first = client(); let socket = try connect()
+        let app = try await pair(&first, socket)
+        let save = BrowserBridgeRequest.Operation.save(origin: "https://example.com", username: "new-user", password: "new-secret")
+        try socket.send(first.send(.init(id: 1, operation: save)))
+        await fulfillment(of: [shown], timeout: 5)
+        var second = first; let other = try connect()
+        try other.send(second.hello)
+        let hello = try await other.receive()
+        try second.establish(XCTUnwrap(hello), app: app)
+        let busy = try await request(save, id: 1, client: &second, socket: other)
+        XCTAssertEqual(busy, .failure(.rateLimited), "Another browser's save waits for no second alert")
+        clock.advance(by: MacBrowserBridgeController.saveAnswerTimeout)
+        let reply = try await socket.receive()
+        XCTAssertEqual(try first.receive(XCTUnwrap(reply)).result, .failure(.declined))
+        XCTAssertEqual(withdrawn, 1)
+        XCTAssertEqual(asked, 1)
+        XCTAssertNil(session.draft, "Nothing was added")
+    }
+
     func testHeldCredentialAllowsStatusAndDisableDropsCredential() async throws {
         let (session, entry) = try await makeSession()
         let entered = expectation(description: "Device owner gate entered")

@@ -42,6 +42,8 @@ final class BrowserBridgeProtocolTests: XCTestCase {
         let server = try server(known: client.pub)
         let result = server.receive(try frame(client.hello))
         XCTAssertEqual(result.events, [.established(clientID: client.id)])
+        guard case .serverHello(_, _, let features) = try envelope(result) else { return XCTFail("Expected hello") }
+        XCTAssertEqual(features, ["generate", "save"])
     }
 
     func testFramingRoundTripAndCaps() throws {
@@ -96,13 +98,18 @@ final class BrowserBridgeProtocolTests: XCTestCase {
     func testAllEnvelopeFieldsAreRequiredAndTyped() throws {
         let c = try client(), pub = c.pub
         let envelopes: [BrowserBridgeEnvelope] = [c.commit, .pairKey(pub: pub, eph: pub), c.reveal, .pairResult(ok: true), c.hello,
-            .serverHello(eph: pub, app: "1"), .message(n: 0, c: Data()), .error(.disabled)]
+            .serverHello(eph: pub, app: "1", features: ["generate", "save"]), .message(n: 0, c: Data()), .error(.disabled)]
         for value in envelopes {
             let data = try BrowserBridgeJSON.encode(value)
             XCTAssertEqual(try BrowserBridgeJSON.decode(BrowserBridgeEnvelope.self, from: data), value)
             let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
             for field in object.keys {
                 var missing = object; missing.removeValue(forKey: field)
+                // An older app's hello has no feature list; the extension then offers neither generating nor saving.
+                if field == "features" {
+                    XCTAssertEqual(try BrowserBridgeJSON.decode(BrowserBridgeEnvelope.self, from: JSONSerialization.data(withJSONObject: missing)), .serverHello(eph: pub, app: "1", features: []))
+                    continue
+                }
                 XCTAssertThrowsError(try BrowserBridgeJSON.decode(BrowserBridgeEnvelope.self, from: JSONSerialization.data(withJSONObject: missing)))
                 var wrong = object; wrong[field] = ["wrong"]
                 XCTAssertThrowsError(try BrowserBridgeJSON.decode(BrowserBridgeEnvelope.self, from: JSONSerialization.data(withJSONObject: wrong)))
@@ -112,11 +119,29 @@ final class BrowserBridgeProtocolTests: XCTestCase {
         }
     }
 
+    func testSaveRequestBoundsItsFieldsAndNeverPrintsThem() throws {
+        func decode(_ username: String, _ password: String) throws -> BrowserBridgeRequest {
+            try BrowserBridgeJSON.decode(BrowserBridgeRequest.self, from: JSONSerialization.data(withJSONObject: [
+                "id": 1, "type": "save", "origin": "https://example.com", "username": username, "password": password]))
+        }
+        let limit = BrowserBridgeRequest.savedFieldLimit
+        XCTAssertNoThrow(try decode(String(repeating: "u", count: limit), String(repeating: "p", count: limit)))
+        XCTAssertThrowsError(try decode(String(repeating: "u", count: limit + 1), "p")) { XCTAssertEqual($0 as? BrowserBridgeDecodingError, .invalidField("username")) }
+        XCTAssertThrowsError(try decode("u", String(repeating: "p", count: limit + 1))) { XCTAssertEqual($0 as? BrowserBridgeDecodingError, .invalidField("password")) }
+        XCTAssertThrowsError(try decode("u", "")) { XCTAssertEqual($0 as? BrowserBridgeDecodingError, .invalidField("password")) }
+        let request = try decode("someone@example.com", "hunter2-secret")
+        for text in [String(describing: request), String(reflecting: request), "\(request)"] {
+            XCTAssertFalse(text.contains("hunter2-secret")); XCTAssertFalse(text.contains("someone@example.com"))
+        }
+    }
+
     func testInnerMessagesRoundTripAndStrictFields() throws {
         let uuid = UUID()
         let requests: [BrowserBridgeRequest] = [.init(id: 0, operation: .status), .init(id: 1, operation: .matches(origin: "https://example.com")),
             .init(id: 2, operation: .credential(entry: uuid, db: uuid, origin: "https://example.com", totp: true)),
-            .init(id: 3, operation: .reveal(entry: uuid, db: uuid)), .init(id: 4, operation: .unlock(db: uuid)), .init(id: 5, operation: .unlock(db: nil))]
+            .init(id: 3, operation: .reveal(entry: uuid, db: uuid)), .init(id: 4, operation: .unlock(db: uuid)), .init(id: 5, operation: .unlock(db: nil)),
+            .init(id: 6, operation: .generate(origin: "https://example.com")),
+            .init(id: 7, operation: .save(origin: "https://example.com", username: "", password: "test"))]
         for request in requests {
             let data = try BrowserBridgeJSON.encode(request)
             XCTAssertEqual(try BrowserBridgeJSON.decode(BrowserBridgeRequest.self, from: data), request)
@@ -131,7 +156,7 @@ final class BrowserBridgeProtocolTests: XCTestCase {
             }
         }
         XCTAssertThrowsError(try BrowserBridgeJSON.decode(BrowserBridgeRequest.self, from: Data("{\"id\":1,\"type\":\"future\"}".utf8)))
-        let results: [BrowserBridgeReply.Result] = [.status(app: "1", unlocked: 2, locked: 3), .matches(entries: [.init(entry: uuid, db: uuid, dbName: "Test", title: "Title", username: "user", hasTotp: true, exact: true)], locked: 1), .credential(username: "user", password: "test"), .credential(username: "", password: ""), .totp("123456"), .empty] + BrowserBridgeRequestError.allCases.map { .failure($0) }
+        let results: [BrowserBridgeReply.Result] = [.status(app: "1", unlocked: 2, locked: 3), .matches(entries: [.init(entry: uuid, db: uuid, dbName: "Test", title: "Title", username: "user", hasTotp: true, exact: true)], locked: 1), .credential(username: "user", password: "test"), .credential(username: "", password: ""), .totp("123456"), .password("generated"), .empty] + BrowserBridgeRequestError.allCases.map { .failure($0) }
         for result in results {
             let reply = BrowserBridgeReply(id: 7, result: result)
             let operation: BrowserBridgeRequest.Operation
@@ -140,6 +165,7 @@ final class BrowserBridgeProtocolTests: XCTestCase {
             case .matches: operation = .matches(origin: "https://example.com")
             case .credential: operation = .credential(entry: uuid, db: uuid, origin: "https://example.com", totp: nil)
             case .totp: operation = .credential(entry: uuid, db: uuid, origin: "https://example.com", totp: true)
+            case .password: operation = .generate(origin: "https://example.com")
             case .empty: operation = .unlock(db: nil)
             }
             let encoded = try BrowserBridgeJSON.encode(reply)
@@ -154,6 +180,8 @@ final class BrowserBridgeProtocolTests: XCTestCase {
                 XCTAssertThrowsError(try BrowserBridgeJSON.decodeReply(from: JSONSerialization.data(withJSONObject: wrong), for: operation))
             }
         }
+        let saved = BrowserBridgeReply(id: 7, result: .empty)
+        XCTAssertEqual(try BrowserBridgeJSON.decodeReply(from: BrowserBridgeJSON.encode(saved), for: .save(origin: "https://example.com", username: "u", password: "p")), saved)
         let codeOnly = try XCTUnwrap(JSONSerialization.jsonObject(with: BrowserBridgeJSON.encode(BrowserBridgeReply(id: 7, result: .totp("123456")))) as? [String: Any])
         XCTAssertEqual(Set(codeOnly.keys), ["id", "ok", "totp"])
         let fill = try XCTUnwrap(JSONSerialization.jsonObject(with: BrowserBridgeJSON.encode(BrowserBridgeReply(id: 7, result: .credential(username: "user", password: "test")))) as? [String: Any])

@@ -37,11 +37,14 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
             case showPairing(MacBrowserPairingAlertContent)
             case dismissPairing
             case showPairingFailure
+            case showSave(MacBrowserSaveAlertContent)
+            case dismissSave
         }
 
         var calls: [Call] = []
         var states: [UUID: MacBrowserBridgeWindowState] = [:]
         var answers: [@MainActor (Bool) -> Void] = []
+        var saveAnswers: [@MainActor (UUID?) -> Void] = []
         var visiblePairingAlerts = 0
         var mostVisiblePairingAlerts = 0
         var isActive = true
@@ -66,6 +69,13 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
         }
 
         func showPairingFailure() { calls.append(.showPairingFailure) }
+
+        func showSave(_ content: MacBrowserSaveAlertContent, answer: @escaping @MainActor (UUID?) -> Void) {
+            calls.append(.showSave(content))
+            saveAnswers.append(answer)
+        }
+
+        func dismissSave() { calls.append(.dismissSave) }
 
         /// A click: the alert is gone before the answer runs.
         func click(_ index: Int, allow: Bool) {
@@ -240,6 +250,73 @@ final class MacBrowserBridgePromptsTests: XCTestCase {
         XCTAssertFalse(allow.refusesFirstResponder, "Once armed, a keyboard user can reach Allow with Tab")
         XCTAssertTrue(MacBrowserPairingAlert.isArmed(alert))
         XCTAssertEqual(MacBrowserPairingAlert.allowDelay, .milliseconds(1500))
+    }
+
+    // MARK: - Save
+
+    private func proposal(_ databases: [UUID]) -> BrowserBridgeSaveProposal {
+        .init(destinations: databases.map { .init(db: $0, dbName: "Personal", groupName: "Logins") },
+              title: "example.com", host: "example.com", username: "")
+    }
+
+    func testSaveAlertAnswersWithTheChosenDatabaseOrDeclines() async {
+        let db = UUID()
+        for choice in [db, nil] {
+            let shell = Shell()
+            let prompts = MacBrowserBridgePrompts(source: Source(), shell: shell)
+            let answer = Task { await prompts.confirmSave(self.proposal([db])) }
+            await settle()
+            XCTAssertEqual(shell.calls, [.activate, .showSave(MacBrowserSaveAlertContent(proposal([db])))])
+            let busy = await prompts.confirmSave(proposal([db]))
+            XCTAssertEqual(busy, .busy, "A second save never stacks a second alert")
+            shell.saveAnswers[0](choice)
+            shell.saveAnswers[0](db)
+            let result = await answer.value
+            XCTAssertEqual(result, choice.map { .save(db: $0) } ?? .declined)
+        }
+    }
+
+    func testCancellingTheQuestionWithdrawsTheAlertAndDeclines() async {
+        let shell = Shell()
+        let prompts = MacBrowserBridgePrompts(source: Source(), shell: shell)
+        let answer = Task { await prompts.confirmSave(self.proposal([UUID()])) }
+        await settle()
+        answer.cancel()
+        let result = await answer.value
+        XCTAssertEqual(result, .declined)
+        XCTAssertEqual(shell.calls.last, .dismissSave)
+        shell.saveAnswers[0](UUID())
+        let next = Task { await prompts.confirmSave(self.proposal([UUID()])) }
+        await settle()
+        XCTAssertEqual(shell.saveAnswers.count, 2, "A late click on the withdrawn alert answers nothing")
+        next.cancel()
+        _ = await next.value
+    }
+
+    func testSaveAlertContentIsPlainAndDefaultsToDontSave() throws {
+        let first = UUID(), second = UUID()
+        let content = MacBrowserSaveAlertContent(.init(
+            destinations: [.init(db: first, dbName: "Personal", groupName: "Logins"), .init(db: second, dbName: "Work", groupName: "Web")],
+            title: "example.com", host: "example.com", username: "someone@example.com"))
+        XCTAssertEqual(content.title, String(localized: "Save this login in KeeForge?"))
+        XCTAssertTrue(content.message.contains("someone@example.com"))
+        XCTAssertTrue(content.message.contains("example.com"))
+        XCTAssertEqual(content.choices.map(\.db), [first, second])
+        XCTAssertEqual(content.choices.map(\.label), ["Personal ▸ Logins", "Work ▸ Web"])
+        XCTAssertTrue(MacBrowserSaveAlertContent(proposal([first])).message.contains(String(localized: "No username")))
+        let (alert, destination) = MacBrowserSaveAlert.make(content)
+        XCTAssertEqual(alert.buttons.map(\.title), [String(localized: "Don’t Save"), String(localized: "Save")])
+        XCTAssertEqual(alert.buttons[0].keyEquivalent, "\r", "Return declines")
+        XCTAssertEqual(alert.buttons[1].keyEquivalent, "")
+        XCTAssertFalse(alert.buttons[1].isEnabled, "Save waits to be armed")
+        XCTAssertTrue(alert.buttons[1].refusesFirstResponder)
+        XCTAssertFalse(MacBrowserPairingAlert.isArmed(alert))
+        let escape = try XCTUnwrap(alert.window.contentView?.subviews.compactMap { $0 as? NSButton }.first { $0.keyEquivalent == "\u{1b}" })
+        XCTAssertTrue(escape.target === alert.buttons[0], "Escape declines")
+        XCTAssertEqual(destination.itemTitles, content.choices.map(\.label))
+        XCTAssertEqual(destination.indexOfSelectedItem, 0)
+        XCTAssertTrue(destination.isEnabled)
+        XCTAssertFalse(MacBrowserSaveAlert.make(MacBrowserSaveAlertContent(proposal([first]))).1.isEnabled, "One destination needs no choice")
     }
 
     // MARK: - Reveal and unlock

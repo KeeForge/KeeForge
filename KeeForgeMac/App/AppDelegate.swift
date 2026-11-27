@@ -92,6 +92,7 @@ final class AppDelegate: NSResponder, NSApplicationDelegate, NSMenuItemValidatio
         self.browserBridgePrompts = browserBridgePrompts
         macBrowserBridge.reveal = { [weak browserBridgePrompts] in browserBridgePrompts?.reveal(entryID: $0, databaseID: $1) }
         macBrowserBridge.unlock = { [weak browserBridgePrompts] in browserBridgePrompts?.unlock(databaseID: $0) }
+        macBrowserBridge.confirmSave = { [weak browserBridgePrompts] in await browserBridgePrompts?.confirmSave($0) ?? .declined }
         macBrowserBridge.start()
         repairBrowserHostsOnceListening()
         // Database commands resolve through the coordinator while another window has focus.

@@ -69,7 +69,7 @@ final class BrowserBridgeSession {
                 cipher = BrowserBridgeCipher(sending: keys.s2c, receiving: keys.c2s)
                 clearPairing()
                 state = .established
-                var result = try output(.serverHello(eph: ephemeral.publicKey.rawRepresentation, app: appVersion))
+                var result = try output(.serverHello(eph: ephemeral.publicKey.rawRepresentation, app: appVersion, features: BrowserBridgeFeature.all))
                 result.events = [.established(clientID: client)]
                 return result
             case (.established, .message):

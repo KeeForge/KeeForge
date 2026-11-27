@@ -10,7 +10,7 @@ enum BrowserBridgeErrorCode: String, Codable, CaseIterable, Sendable, Error {
 enum BrowserBridgeRequestError: String, Codable, CaseIterable, Sendable {
     case badRequest = "bad-request", badOrigin = "bad-origin", locked
     case notOffered = "not-offered", noMatch = "no-match", denied, unavailable
-    case rateLimited = "rate-limited"
+    case rateLimited = "rate-limited", exists, declined, saveFailed = "save-failed"
 }
 
 enum BrowserBridgeDecodingError: Error, Equatable {
@@ -82,7 +82,7 @@ enum BrowserBridgeEnvelope: Codable, Equatable {
     case pairReveal(pub: Data, eph: Data, nonce: Data)
     case pairResult(ok: Bool)
     case clientHello(client: String, eph: Data)
-    case serverHello(eph: Data, app: String)
+    case serverHello(eph: Data, app: String, features: [String])
     case message(n: UInt64, c: Data)
     case error(BrowserBridgeErrorCode)
     case host
@@ -108,7 +108,7 @@ enum BrowserBridgeEnvelope: Codable, Equatable {
                 }
                 self = .clientHello(client: client, eph: try c.binary("eph", length: 32))
             } else if c.contains(BrowserBridgeField("app")) {
-                self = .serverHello(eph: try c.binary("eph", length: 32), app: try c.field("app"))
+                self = .serverHello(eph: try c.binary("eph", length: 32), app: try c.field("app"), features: try c.optional("features") ?? [])
             } else { throw BrowserBridgeDecodingError.missingField("client") }
         case "msg": self = .message(n: try c.field("n"), c: try c.binary("c"))
         case "error":
@@ -133,8 +133,8 @@ enum BrowserBridgeEnvelope: Codable, Equatable {
         case .pairResult(let ok): try c.field("t", "pair-result"); try c.field("ok", ok)
         case .clientHello(let client, let eph):
             try c.field("t", "hello"); try c.field("client", client); try c.field("eph", eph.base64EncodedString())
-        case .serverHello(let eph, let app):
-            try c.field("t", "hello"); try c.field("eph", eph.base64EncodedString()); try c.field("app", app)
+        case .serverHello(let eph, let app, let features):
+            try c.field("t", "hello"); try c.field("eph", eph.base64EncodedString()); try c.field("app", app); try c.field("features", features)
         case .message(let n, let ciphertext):
             try c.field("t", "msg"); try c.field("n", n); try c.field("c", ciphertext.base64EncodedString())
         case .error(let code): try c.field("t", "error"); try c.field("code", code)
@@ -143,13 +143,23 @@ enum BrowserBridgeEnvelope: Codable, Equatable {
     }
 }
 
-struct BrowserBridgeRequest: Codable, Equatable, Sendable {
+/// The optional requests this app answers, listed in its `hello`.
+enum BrowserBridgeFeature {
+    static let all = ["generate", "save"]
+}
+
+struct BrowserBridgeRequest: Codable, Equatable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+    /// A `save` request's user name and password are each at most this many characters.
+    static let savedFieldLimit = 1024
+
     enum Operation: Equatable, Sendable {
         case status
         case matches(origin: String)
         case credential(entry: UUID, db: UUID, origin: String, totp: Bool?)
         case reveal(entry: UUID, db: UUID)
         case unlock(db: UUID?)
+        case generate(origin: String)
+        case save(origin: String, username: String, password: String)
     }
     let id: Int
     let operation: Operation
@@ -165,6 +175,12 @@ struct BrowserBridgeRequest: Codable, Equatable, Sendable {
         case "credential": operation = .credential(entry: try c.field("entry"), db: try c.field("db"), origin: try c.field("origin"), totp: try c.optional("totp"))
         case "reveal": operation = .reveal(entry: try c.field("entry"), db: try c.field("db"))
         case "unlock": operation = .unlock(db: try c.optional("db"))
+        case "generate": operation = .generate(origin: try c.field("origin"))
+        case "save":
+            let username: String = try c.field("username"), password: String = try c.field("password")
+            guard username.count <= Self.savedFieldLimit else { throw BrowserBridgeDecodingError.invalidField("username") }
+            guard !password.isEmpty, password.count <= Self.savedFieldLimit else { throw BrowserBridgeDecodingError.invalidField("password") }
+            operation = .save(origin: try c.field("origin"), username: username, password: password)
         default: throw BrowserBridgeDecodingError.unknownType(type)
         }
     }
@@ -179,8 +195,15 @@ struct BrowserBridgeRequest: Codable, Equatable, Sendable {
             if let totp { try c.field("totp", totp) }
         case .reveal(let entry, let db): try c.field("type", "reveal"); try c.field("entry", entry); try c.field("db", db)
         case .unlock(let db): try c.field("type", "unlock"); if let db { try c.field("db", db) }
+        case .generate(let origin): try c.field("type", "generate"); try c.field("origin", origin)
+        case .save(let origin, let username, let password):
+            try c.field("type", "save"); try c.field("origin", origin); try c.field("username", username); try c.field("password", password)
         }
     }
+
+    /// A `save` request carries a password; printing a request never shows its fields.
+    var description: String { "BrowserBridgeRequest(id: \(id))" }
+    var debugDescription: String { description }
 }
 
 struct BrowserBridgeMatch: Codable, Equatable, Sendable {
@@ -200,6 +223,8 @@ struct BrowserBridgeReply: Codable, Equatable, Sendable {
         case credential(username: String, password: String)
         /// The reply to a code-only `credential` request: the current code and nothing else.
         case totp(String)
+        /// The reply to `generate`.
+        case password(String)
         case empty
         case failure(BrowserBridgeRequestError)
     }
@@ -224,7 +249,8 @@ struct BrowserBridgeReply: Codable, Equatable, Sendable {
             case .matches: result = .matches(entries: try c.field("entries"), locked: try c.field("locked"))
             case .credential(_, _, _, let totp) where totp == true: result = .totp(try c.field("totp"))
             case .credential: result = .credential(username: try c.field("username"), password: try c.field("password"))
-            case .reveal, .unlock: result = .empty
+            case .generate: result = .password(try c.field("password"))
+            case .reveal, .unlock, .save: result = .empty
             }
         }
     }
@@ -238,6 +264,7 @@ struct BrowserBridgeReply: Codable, Equatable, Sendable {
         case .matches(let entries, let locked): try c.field("entries", entries); try c.field("locked", locked)
         case .credential(let username, let password): try c.field("username", username); try c.field("password", password)
         case .totp(let code): try c.field("totp", code)
+        case .password(let password): try c.field("password", password)
         case .empty, .failure: break
         }
     }

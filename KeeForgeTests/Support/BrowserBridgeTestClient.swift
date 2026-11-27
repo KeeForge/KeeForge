@@ -38,7 +38,7 @@ struct BrowserBridgeTestClient {
     }
 
     mutating func establish(_ hello: BrowserBridgeEnvelope, app: Data) throws {
-        guard case .serverHello(let es, _) = hello else { throw BrowserBridgeErrorCode.badRequest }
+        guard case .serverHello(let es, _, _) = hello else { throw BrowserBridgeErrorCode.badRequest }
         let keys = try keys(app: app, appEphemeral: es)
         cipher = BrowserBridgeCipher(sending: keys.c2s, receiving: keys.s2c)
     }
