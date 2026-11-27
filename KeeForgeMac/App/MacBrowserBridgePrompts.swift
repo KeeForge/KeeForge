@@ -77,7 +77,8 @@ protocol MacBrowserBridgeShell: AnyObject {
     func showPairing(_ content: MacBrowserPairingAlertContent, answer: @escaping @MainActor (Bool) -> Void)
     func dismissPairing()
     func showPairingFailure()
-    /// `answer` gets the chosen database for Save and nil for Don't Save; a dismissed alert never calls it.
+    /// `answer` gets the chosen database for Save, and nil for Don't Save or when its window closes with the
+    /// alert shown or waiting; withdrawing it through `dismissSave` never calls it.
     func showSave(_ content: MacBrowserSaveAlertContent, answer: @escaping @MainActor (UUID?) -> Void)
     func dismissSave()
 }
@@ -194,6 +195,8 @@ final class MacBrowserBridgeWindowShell: MacBrowserBridgeShell {
     private var alerts: (queue: MacAlertQueue, window: NSWindow)?
     private var pairingAlert: NSAlert?
     private var saveAlert: NSAlert?
+    private var saveAnswer: (@MainActor (UUID?) -> Void)?
+    private var closeObserver: NSObjectProtocol?
 
     init(coordinator: MacWindowCoordinator,
          present: @escaping MacAlertQueue.Present = MacWorkspaceAlerts.presentAsSheet,
@@ -265,8 +268,9 @@ final class MacBrowserBridgeWindowShell: MacBrowserBridgeShell {
         guard let queue = alertQueue() else { answer(nil); return }
         let (alert, destination) = MacBrowserSaveAlert.make(content)
         saveAlert = alert
+        saveAnswer = answer
         queue.enqueue(alert) { [weak self] response in
-            if self?.saveAlert === alert { self?.saveAlert = nil }
+            if self?.saveAlert === alert { self?.saveAlert = nil; self?.saveAnswer = nil }
             guard let save = MacBrowserPairingAlert.allows(response) else { return }
             let index = destination.indexOfSelectedItem
             // Save cannot be clicked before it is armed; anything claiming so declines.
@@ -278,7 +282,16 @@ final class MacBrowserBridgeWindowShell: MacBrowserBridgeShell {
     func dismissSave() {
         guard let alert = saveAlert else { return }
         saveAlert = nil
+        saveAnswer = nil
         alerts?.queue.cancel(alert)
+    }
+
+    /// The queue drops its alerts unanswered when the window closes; a save question must not wait out its timeout.
+    private func alertWindowWillClose() {
+        let answer = saveAnswer
+        saveAlert = nil
+        saveAnswer = nil
+        answer?(nil)
     }
 
     private func alertQueue() -> MacAlertQueue? {
@@ -291,6 +304,10 @@ final class MacBrowserBridgeWindowShell: MacBrowserBridgeShell {
             if alert === pairingAlert || alert === saveAlert { didPresentPairing(alert) }
         }
         alerts = (queue, window)
+        if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
+        closeObserver = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated { self?.alertWindowWillClose() }
+        }
         return queue
     }
 
