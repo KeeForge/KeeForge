@@ -1072,5 +1072,33 @@ final class MacCustomIconManagementUITests: MacUITestCase {
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         confirm.click()
         XCTAssertTrue(rename.waitForNonExistence(timeout: 15))
+        closeCustomIcons()
+        XCTAssertTrue(manage.waitForExistence(timeout: 5), "Closing Manage Custom Icons did not return to the icon picker")
+        XCTAssertTrue(manage.isHittable, "The icon picker stayed covered after Manage Custom Icons closed")
+    }
+
+    func testDoneClosesCustomIconsFromDatabaseSettings() {
+        unlockSuccessfully()
+        typeCommandShortcut("i")
+        let settings = databaseWindow.sheets.matching(identifier: "database-settings.sheet").firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), "⌘I did not open Database Settings")
+        let manage = settings.buttons["database-details.custom-icons"].firstMatch
+        XCTAssertTrue(manage.waitForExistence(timeout: 10))
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: manage)
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 15), .completed)
+        manage.click()
+        closeCustomIcons()
+        XCTAssertTrue(manage.isHittable, "Database Settings stayed covered after Manage Custom Icons closed")
+        settings.buttons["database-settings.done"].firstMatch.click()
+        XCTAssertTrue(settings.waitForNonExistence(timeout: 10), "Done did not close Database Settings")
+    }
+
+    private func closeCustomIcons(file: StaticString = #filePath, line: UInt = #line) {
+        let done = app.buttons["custom-icons.done"].firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 10), "Manage Custom Icons has no Done button", file: file, line: line)
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: done)
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 15), .completed, "Done stayed disabled", file: file, line: line)
+        done.click()
+        XCTAssertTrue(done.waitForNonExistence(timeout: 10), "Done did not close Manage Custom Icons", file: file, line: line)
     }
 }

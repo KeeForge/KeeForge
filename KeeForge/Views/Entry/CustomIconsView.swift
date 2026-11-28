@@ -72,6 +72,16 @@ struct CustomIconsView: View {
             Text("This icon will be removed from the database. Entries, groups, and history versions using it will show their default icons.")
         }
         .saveConflictAlert(viewModel: viewModel)
+        #if os(macOS)
+        // The Mac shows this screen in a sheet, which has no back button.
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }
+                    .disabled(viewModel.isSaving)
+                    .accessibilityIdentifier("custom-icons.done")
+            }
+        }
+        #endif
         .onChange(of: viewModel.lockCycleID) { _, _ in
             needsSave = false
             renameTarget = nil
