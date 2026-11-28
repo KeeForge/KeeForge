@@ -18,6 +18,8 @@ struct BrowserBridgeClock: Sendable {
 final class MacBrowserBridgeController {
     typealias SessionsProvider = BrowserBridgeRequestHandler.SessionsProvider
     static let pairingAnswerTimeout: Duration = .seconds(120)
+    /// A save alert nobody answers is withdrawn and declined after this long.
+    static let saveAnswerTimeout: Duration = .seconds(120)
     static let sendTimeout: Duration = .seconds(5)
 
     enum Unavailability: Equatable {
@@ -53,6 +55,8 @@ final class MacBrowserBridgeController {
     @ObservationIgnored var sessionsProvider: SessionsProvider
     @ObservationIgnored var reveal: @MainActor (UUID, UUID) -> Void
     @ObservationIgnored var unlock: @MainActor (UUID?) -> Void
+    /// Shows the save alert; cancelling the task withdraws it.
+    @ObservationIgnored var confirmSave: BrowserBridgeRequestHandler.SaveConfirmer
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let store: BrowserPairingStore
     @ObservationIgnored private let socketPath: String?
@@ -70,6 +74,8 @@ final class MacBrowserBridgeController {
     @ObservationIgnored private var pairingWrite: Task<Void, Never>?
     @ObservationIgnored private var handlers: [UUID: BrowserBridgeRequestHandler] = [:]
     @ObservationIgnored private var requestTasks: [UUID: [UUID: Task<Void, Never>]] = [:]
+    /// One save alert at a time, whichever browser asks.
+    @ObservationIgnored private var saveQuestionOpen = false
 
     init(
         defaults: UserDefaults = .standard,
@@ -80,6 +86,7 @@ final class MacBrowserBridgeController {
         clock: BrowserBridgeClock = .continuous,
         reveal: @escaping @MainActor (UUID, UUID) -> Void = { _, _ in },
         unlock: @escaping @MainActor (UUID?) -> Void = { _ in },
+        confirmSave: @escaping BrowserBridgeRequestHandler.SaveConfirmer = { _ in .declined },
         authenticateDeviceOwner: @escaping BrowserBridgeRequestHandler.DeviceOwnerAuthenticator = BrowserBridgeRequestHandler.deviceOwnerGate
     ) {
         self.defaults = defaults
@@ -91,6 +98,7 @@ final class MacBrowserBridgeController {
         pairingGate = BrowserPairingGate(now: clock.now)
         self.reveal = reveal
         self.unlock = unlock
+        self.confirmSave = confirmSave
         authenticate = authenticateDeviceOwner
         isEnabled = SettingsService.browserBridgeEnabled(in: defaults)
     }
@@ -328,10 +336,29 @@ final class MacBrowserBridgeController {
             reveal: { [weak self] in self?.reveal($0, $1) },
             unlock: { [weak self] in self?.unlock($0) },
             authenticateDeviceOwner: authenticate,
+            confirmSave: { [weak self] in await self?.askToSave($0) ?? .declined },
             now: clock.now
         )
         handlers[connection.id] = handler
         return handler
+    }
+
+    /// One alert app-wide; an unanswered one is withdrawn after `saveAnswerTimeout`.
+    private func askToSave(_ proposal: BrowserBridgeSaveProposal) async -> BrowserBridgeSaveAnswer {
+        guard !saveQuestionOpen else { return .busy }
+        saveQuestionOpen = true
+        defer { saveQuestionOpen = false }
+        let confirm = confirmSave
+        let question = Task { @MainActor in await confirm(proposal) }
+        let deadline = clock.now() + Self.saveAnswerTimeout
+        let timeout = Task { [clock] in
+            do { try await clock.sleep(deadline) } catch { return }
+            question.cancel()
+        }
+        defer { timeout.cancel() }
+        let answer = await withTaskCancellationHandler { await question.value } onCancel: { question.cancel() }
+        // A withdrawn question declines, whatever the alert reported.
+        return question.isCancelled ? .declined : answer
     }
 }
 

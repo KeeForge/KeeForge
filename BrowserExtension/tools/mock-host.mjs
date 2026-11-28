@@ -17,7 +17,8 @@ function applyControl() {
   if (state.scenario && state.scenario !== app.scenario) app.setScenario(state.scenario);
   app.credentialDelay = Number.isInteger(state.credentialDelay) ? state.credentialDelay : 0;
 }
-app.onRequest = request => { applyControl(); log({ request: request.type, origin: request.origin, totp: request.totp }); };
+// A save logs the user name and the password's length, never the password.
+app.onRequest = request => { applyControl(); log({ request: request.type, origin: request.origin, totp: request.totp, ...(request.type === 'save' ? { username: request.username, passwordLength: request.password.length } : {}) }); };
 // Each native connection is a new process; keep the app identity and pairings across them like the real app.
 if (control) app.staticReady = app.staticReady.then(async () => {
   const file = join(control, 'identity.json'), bytes = value => new Uint8Array(Buffer.from(value, 'base64'));

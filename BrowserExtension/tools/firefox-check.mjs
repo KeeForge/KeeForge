@@ -58,6 +58,10 @@ try {
   await command('browsingContext.navigate', { context, url: `http://localhost:${port}/login.html`, wait: 'complete' });
   const loads = await evaluate(context, `Promise.all(['theme.css', 'src/inline.js', 'images/icon.svg', 'popup.html'].map(n => new Promise(done => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'moz-extension://${uuid}/' + n; l.onload = () => done(n + ':loaded'); l.onerror = () => done(n + ':blocked'); document.head.append(l); }))).then(String)`);
   check('even with the UUID, a page cannot load anything but inline.html', !loads.includes(':loaded'), loads);
+  await command('browsingContext.navigate', { context, url: `http://localhost:${port}/inline-signup.html`, wait: 'complete' });
+  await sleep(1500);
+  const fresh = JSON.parse(await evaluate(context, `JSON.stringify(document.getElementById('p').getBoundingClientRect())`));
+  check('a new-password field gets the key button', await evaluate(context, `document.elementFromPoint(${Math.round(fresh.right - 14)}, ${Math.round(fresh.top + fresh.height / 2)}) === document.documentElement.lastElementChild`));
   console.log(`${results.length} Firefox checks passed`);
 } catch (error) { console.error(error); process.exitCode = 1; }
 finally {

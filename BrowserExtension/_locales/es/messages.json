@@ -130,5 +130,11 @@
   },
   "fieldUnusable": {
     "message": "No se puede rellenar este campo."
+  },
+  "suggestPassword": {
+    "message": "Sugerir una contraseña segura"
+  },
+  "suggestPasswordHint": {
+    "message": "KeeForge te ofrecerá guardar el inicio de sesión cuando envíes el formulario."
   }
 }

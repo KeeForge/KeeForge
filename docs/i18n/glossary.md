@@ -132,6 +132,7 @@ In French, write `Remplissage automatique` capitalized at the start of a label a
 | discard | verwerfen | ignorer / abandonner | descartar | scartare | отменить | 破棄 | 放弃 | 捨棄 |
 | connect / disconnect | verbinden / Verbindung trennen | connecter / déconnecter | conectar / desconectar | collegare / scollegare | подключить / отключить | 接続 / 接続を解除 | 连接 / 断开连接 | 連接 / 中斷連線 |
 | sign in / sign out | anmelden / abmelden | se connecter / se déconnecter | iniciar / cerrar sesión | accedere / esci | войти / выйти | サインイン / サインアウト | 登录 / 退出登录 | 登入 / 登出 |
+| sign up | registrieren | s'inscrire | registrarse | registrarsi | зарегистрироваться | 登録 | 注册 | 註冊 |
 | local | lokal | local | local | locale | локальный | ローカル | 本地 | 本機 |
 | device | Gerät | appareil | dispositivo | dispositivo | устройство | デバイス | 设备 | 裝置 |
 | folder | Ordner | dossier | carpeta | cartella | папка | フォルダ | 文件夹 | 資料夾 |
@@ -148,6 +149,7 @@ In French, write `Remplissage automatique` capitalized at the start of a label a
 | uppercase / lowercase | Großbuchstaben / Kleinbuchstaben | majuscules / minuscules | mayúsculas / minúsculas | maiuscole / minuscole | прописные / строчные буквы | 大文字 / 小文字 | 大写字母 / 小写字母 | 大寫字母 / 小寫字母 |
 | digits / symbols | Ziffern / Symbole | chiffres / symboles | dígitos / símbolos | cifre / simboli | цифры / символы | 数字 / 記号 | 数字 / 符号 | 數字 / 符號 |
 | separator | Trennzeichen | séparateur | separador | separatore | разделитель | 区切り文字 | 分隔符 | 分隔符號 |
+| suggest a strong password | starkes Passwort vorschlagen | suggérer un mot de passe fort | sugerir una contraseña segura | suggerisci una password complessa | предложить надёжный пароль | 強力なパスワードを提案 | 建议强密码 | 建議高強度密碼 |
 | strength | Stärke | robustesse | seguridad | robustezza | надёжность | 強度 | 强度 | 強度 |
 
 ## Common Actions

@@ -21,7 +21,7 @@ struct MacBrowsersSettingsTab: View {
                     Text(message).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("settings.browsers.authentication-unavailable")
                 }
-                settingsCaption("When on, a paired browser can see which logins match a site and fill one after you confirm, while a database is unlocked.", indented: true)
+                settingsCaption("When on, a paired browser can see which logins match a site, fill one after you confirm, and ask you to save a new login, while a database is unlocked.", indented: true)
             }
             MacSettingsSeparator()
             MacSettingsRow("Set up a browser:") {

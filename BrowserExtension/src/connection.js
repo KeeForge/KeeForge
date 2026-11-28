@@ -9,10 +9,11 @@ function deferred() {
   promise.catch(() => {});
   return { promise, resolve, reject };
 }
+const REPLY_MS = { credential: 120000, save: 300000 };
 export class Connection {
   constructor({ runtime = globalThis.chrome?.runtime, store = new KeyStore(), timers = globalThis, onState = () => {} } = {}) {
     this.runtime = runtime; this.store = store; this.timers = timers; this.onState = onState;
-    this.state = 'unpaired'; this.reason = null; this.port = null; this.phase = 'closed';
+    this.state = 'unpaired'; this.reason = null; this.port = null; this.phase = 'closed'; this.features = [];
     this.pending = new Map(); this.nextId = 0; this.generation = 0;
     this.rx = Promise.resolve(); this.tx = Promise.resolve();
   }
@@ -76,7 +77,7 @@ export class Connection {
       port.onDisconnect.removeListener(this.disconnectListener);
       port.disconnect();
     }
-    this.cipher = null; this.record = null; this.ephemeral = null;
+    this.cipher = null; this.record = null; this.ephemeral = null; this.features = [];
     this.pairing = null; this.phase = keepPort ? 'unavailable' : 'closed'; this.nextId = 0;
     this.tx = Promise.resolve(); this.rx = Promise.resolve();
     this.setState(state, reason); this.settleOpen();
@@ -176,6 +177,7 @@ export class Connection {
         requireThat(frame.t === 'hello');
         const keys = await clientKeys(this.record.client, this.ephemeral, this.record.app, fromBase64(frame.eph, 32)); this.check(generation);
         this.cipher = new Cipher(keys.c2s, keys.s2c);
+        this.features = [...(frame.features ?? [])];
         this.record = null; this.ephemeral = null; this.phase = 'ready';
         this.timers.clearTimeout(this.stageTimer); this.setState('ready'); this.settleOpen();
         this.pairResult?.resolve(this.getState()); this.pairResult = null; return;
@@ -198,7 +200,8 @@ export class Connection {
     const generation = this.generation;
     const message = request(this.nextId++, type, fields);
     const reply = deferred();
-    const timer = this.timers.setTimeout(() => this.close('error', 'timeout'), type === 'credential' ? 120000 : 10000);
+    // A credential can wait on the device-owner prompt; a save on the app's alert (two minutes) and then that prompt.
+    const timer = this.timers.setTimeout(() => this.close('error', 'timeout'), REPLY_MS[type] ?? 10000);
     this.pending.set(message.id, { ...reply, timer, request: message });
     this.tx = this.tx.then(async () => {
       this.check(generation);
@@ -207,4 +210,6 @@ export class Connection {
     return reply.promise;
   }
   async forgetPairing() { this.close(); await this.store.forget(); }
+  // Whether this profile has paired, without starting the native host.
+  async isPaired() { return Boolean((await this.store.load()).app); }
 }

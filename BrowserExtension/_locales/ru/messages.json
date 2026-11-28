@@ -130,5 +130,11 @@
   },
   "fieldUnusable": {
     "message": "Это поле нельзя заполнить."
+  },
+  "suggestPassword": {
+    "message": "Предложить надёжный пароль"
+  },
+  "suggestPasswordHint": {
+    "message": "После отправки формы KeeForge предложит сохранить данные для входа."
   }
 }

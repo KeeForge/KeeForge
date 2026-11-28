@@ -130,5 +130,11 @@
   },
   "fieldUnusable": {
     "message": "Impossibile compilare questo campo."
+  },
+  "suggestPassword": {
+    "message": "Suggerisci una password complessa"
+  },
+  "suggestPasswordHint": {
+    "message": "KeeForge ti proporrà di salvare le credenziali dopo l'invio del modulo."
   }
 }

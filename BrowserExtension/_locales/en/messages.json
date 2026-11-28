@@ -130,5 +130,11 @@
   },
   "fieldUnusable": {
     "message": "This field cannot be filled."
+  },
+  "suggestPassword": {
+    "message": "Suggest a strong password"
+  },
+  "suggestPasswordHint": {
+    "message": "KeeForge offers to save the login after you submit the form."
   }
 }

@@ -130,5 +130,11 @@
   },
   "fieldUnusable": {
     "message": "無法填寫此欄位。"
+  },
+  "suggestPassword": {
+    "message": "建議高強度密碼"
+  },
+  "suggestPasswordHint": {
+    "message": "送出表單後，KeeForge 會詢問是否儲存登入資訊。"
   }
 }

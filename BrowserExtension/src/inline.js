@@ -3,7 +3,7 @@ import { loginRow, renderGroups } from './rows.js';
 localizePage();
 const token = location.hash.slice(1), embedded = window.top !== window;
 const status = document.querySelector('#status'), content = document.querySelector('#content'), site = document.querySelector('#site');
-const stateBlock = document.querySelector('#state'), stateIcon = document.querySelector('#state-icon'), secure = document.querySelector('#secure');
+const footer = document.querySelector('#footer'), stateBlock = document.querySelector('#state'), stateIcon = document.querySelector('#state-icon'), secure = document.querySelector('#secure');
 const opened = performance.now();
 // Clickjacking: an action needs the menu fully visible for VISIBLE_MS without a break, and its rows unchanged for SETTLE_MS.
 const VISIBLE_MS = 300, SETTLE_MS = 300;
@@ -46,6 +46,7 @@ async function act(event, action, fields = {}) {
   if (action === 'state') { failure = null; last = ''; void refresh(); return; }
   busy = true;
   if (action === 'fill') showState('confirm', message('confirm'));
+  if (action === 'generate') showState('loading', message('loading'));
   try {
     const reply = await send(action, fields);
     if (reply.ok === false) failure = reply.error;
@@ -56,8 +57,17 @@ async function act(event, action, fields = {}) {
 function fillButton(node, row, fields) {
   node.addEventListener('click', event => void act(event, 'fill', fields));
 }
+// A new-password field: the app makes the password and offers to save the login once the form is submitted.
+function suggestion() {
+  const node = document.createElement('button'); node.type = 'button'; node.className = 'kf-suggest'; node.title = message('suggestPasswordHint');
+  const icon = document.createElement('span'); icon.className = 'kf-icon glyph-key'; icon.setAttribute('aria-hidden', 'true');
+  const label = document.createElement('span'); label.textContent = message('suggestPassword');
+  node.append(icon, label); node.addEventListener('click', event => void act(event, 'generate'));
+  return node;
+}
 function render(reply) {
   renderedAt = performance.now();
+  footer.replaceChildren(); footer.hidden = true;
   if (reply.origin) { const url = new URL(reply.origin); site.textContent = url.host; site.title = url.host; secure.hidden = url.protocol !== 'https:'; }
   if (reply.kind) kind = reply.kind;
   if (failure) { showState('error', reason(failure)); content.append(primary(message('tryAgain'), 'state')); return; }
@@ -72,9 +82,11 @@ function render(reply) {
     return;
   }
   if (!Array.isArray(reply.entries)) { showState('error', reason('unavailable')); return; }
+  const suggest = kind === 'new' && reply.generate === true;
+  if (suggest && !(reply.locked && !reply.entries.length)) { footer.append(suggestion()); footer.hidden = false; }
   if (!reply.entries.length) {
     if (reply.locked) { showState('locked', message('locked')); content.append(primary(message('unlock'), 'unlock')); }
-    else { showState('empty', message('noLogins', new URL(reply.origin).host)); content.append(primary(message('openApp'), 'launchApp')); }
+    else { showState('empty', message('noLogins', new URL(reply.origin).host)); if (!suggest) content.append(primary(message('openApp'), 'launchApp')); }
     return;
   }
   content.replaceChildren(); stateBlock.hidden = true; status.textContent = '';

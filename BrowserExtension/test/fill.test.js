@@ -287,3 +287,65 @@ test('a right-clicked field needs only its own state, and gets exactly the value
   assert.deepEqual(write('username', { username: 'demo' }), { username: true, password: false, totp: false }); assert.equal(user.value, 'demo');
   delete globalThis.__keeforgeInlineField;
 });
+const kindOf = input => fillDocument(undefined, undefined, false, undefined, 'kind', undefined, input);
+const submitted = form => fillDocument(undefined, undefined, false, undefined, 'submitted', undefined, form);
+const generate = field => { globalThis.__keeforgeInlineField = field; return fillDocument('https://example.com', { password: 'generated-secret' }, false, globalThis.__keeforgeDocumentPin, 'generated', 'new'); };
+test('new-password fields: hinted, or the last two of a form with two or three passwords', () => {
+  const form = {}, user = new Input({ form }), pass = new Input({ type: 'password', form }), confirm = new Input({ type: 'password', form });
+  page([user, pass, confirm]); assert.deepEqual([kindOf(user), kindOf(pass), kindOf(confirm)], ['login', 'new', 'new']);
+  const login = new Input({ type: 'password', form: {} }); page([login]); assert.equal(kindOf(login), 'login');
+  const change = {}, current = new Input({ type: 'password', form: change }), fresh = new Input({ type: 'password', form: change }), again = new Input({ type: 'password', form: change });
+  page([current, fresh, again]); assert.deepEqual([kindOf(current), kindOf(fresh), kindOf(again)], ['login', 'new', 'new']);
+  const hinted = {}, old = new Input({ type: 'password', autocomplete: 'current-password', form: hinted }), next = new Input({ type: 'password', form: hinted });
+  page([old, next]); assert.deepEqual([kindOf(old), kindOf(next)], ['login', 'new']);
+  const single = new Input({ type: 'password', autocomplete: 'new-password', form: {} }); page([single]); assert.equal(kindOf(single), 'new');
+  const many = {}, four = [0, 1, 2, 3].map(() => new Input({ type: 'password', form: many })); page(four); assert.deepEqual(four.map(kindOf), ['login', 'login', 'login', 'login']);
+});
+test('a generated password fills the new-password field and its confirmation, never a current password, and is remembered', () => {
+  const form = {}, user = new Input({ form }), current = new Input({ type: 'password', form }), fresh = new Input({ type: 'password', form }), confirm = new Input({ type: 'password', form });
+  page([user, current, fresh, confirm]);
+  assert.deepEqual(generate(fresh), { username: false, password: true, totp: false });
+  assert.deepEqual([user.value, current.value, fresh.value, confirm.value], [undefined, undefined, 'generated-secret', 'generated-secret']);
+  assert.deepEqual(globalThis.__keeforgeGenerated, [fresh, confirm]);
+  for (const input of [fresh, confirm]) assert.deepEqual(input.events, [['input', true], ['change', true]]);
+  page([user, current, fresh, confirm]); globalThis.__keeforgeGenerated = null; fresh.nativeValue = undefined;
+  assert.deepEqual(generate(current), { username: false, password: false, totp: false }, 'a current-password field is refused');
+  assert.equal(current.value, undefined); assert.equal(globalThis.__keeforgeGenerated, null);
+  globalThis.__keeforgeInlineField = fresh;
+  assert.deepEqual(fillDocument('https://example.com', { password: 'x' }, false, 'stale-pin', 'generated', 'new'), { username: false, password: false, totp: false });
+  assert.equal(fresh.value, undefined);
+});
+test('a submitted form yields its own login only: matching new passwords, no change of password, bounded values', () => {
+  const form = {}, other = {}, user = new Input({ form, nativeValue: ' demo ' }), pass = new Input({ type: 'password', form, nativeValue: 'secret' }), elsewhere = new Input({ type: 'password', form: other, nativeValue: 'not-this' });
+  page([user, pass, elsewhere]);
+  const pin = globalThis.__keeforgeDocumentPin;
+  assert.deepEqual(submitted(form), { username: 'demo', password: 'secret', generated: false, field: pass });
+  assert.equal(globalThis.__keeforgeDocumentPin, pin, 'reading a submission keeps the document pin');
+  const signup = {}, email = new Input({ type: 'email', form: signup, nativeValue: 'new@example.com' }), fresh = new Input({ type: 'password', form: signup, nativeValue: 'pw' }), confirm = new Input({ type: 'password', form: signup, nativeValue: 'pw' });
+  page([email, fresh, confirm]); assert.deepEqual(submitted(signup), { username: 'new@example.com', password: 'pw', generated: false, field: fresh });
+  confirm.nativeValue = 'typo'; assert.equal(submitted(signup), null, 'unequal new passwords');
+  const change = {}, a = new Input({ type: 'password', form: change, nativeValue: 'old' }), b = new Input({ type: 'password', form: change, nativeValue: 'new' }), c = new Input({ type: 'password', form: change, nativeValue: 'new' });
+  page([a, b, c]); assert.equal(submitted(change), null, 'changing a password would update an entry');
+  for (const value of ['', 'x'.repeat(1025), undefined]) { pass.nativeValue = value; page([user, pass]); assert.equal(submitted(form), null, String(value?.length)); }
+  pass.nativeValue = 'secret'; user.nativeValue = 'u'.repeat(1025); page([user, pass]); assert.equal(submitted(form), null);
+  const noName = {}, lone = new Input({ type: 'password', form: noName, nativeValue: 'secret' }); page([lone]);
+  assert.deepEqual(submitted(noName), { username: '', password: 'secret', generated: false, field: lone });
+  assert.equal(submitted({}), null, 'a form without a password');
+});
+test('a submission is generated only while every password field still holds what KeeForge filled', () => {
+  const form = {}, fresh = new Input({ type: 'password', form }), confirm = new Input({ type: 'password', form });
+  page([fresh, confirm]); generate(fresh);
+  assert.equal(submitted(form).generated, true);
+  globalThis.__keeforgeGenerated = [fresh];
+  assert.equal(submitted(form).generated, false);
+  globalThis.__keeforgeGenerated = null;
+});
+test('generated injection targets the menu document and reports no fields as a failure', async () => {
+  const { injectGenerated } = await import('../src/fill.js');
+  let call;
+  const api = { scripting: { executeScript: async options => { call = options; return [{ frameId: 2, result: { password: true } }]; } } };
+  assert.equal(await injectGenerated(api, { tabId: 1, frameId: 2, documentId: 'document', origin: 'https://example.com', token: 'pin' }, 'generated-secret'), undefined);
+  assert.deepEqual(call.target, { tabId: 1, documentIds: ['document'] }); assert.equal(call.world, 'ISOLATED');
+  assert.deepEqual(call.args, ['https://example.com', { password: 'generated-secret' }, false, 'pin', 'generated', 'new']);
+  await assert.rejects(injectGenerated({ scripting: { executeScript: async () => [{ frameId: 2, result: { password: false } }] } }, { tabId: 1, frameId: 2 }, 'x'), /no-fields/);
+});

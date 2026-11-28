@@ -23,12 +23,34 @@ struct MacBrowserPairingAlertContent: Equatable {
         self.code = Self.groupedCode(code)
         // Digits read one by one, not as a number.
         codeAccessibilityLabel = code.map(String.init).joined(separator: " ")
-        message = String(localized: "Allow only if your browser shows the same code. A paired browser can see the titles and user names of logins for the sites it asks about, and can fill a password after you confirm.")
+        message = String(localized: "Allow only if your browser shows the same code. A paired browser can see the titles and user names of logins for the sites it asks about, can fill a password after you confirm, and can ask you to save a new login.")
     }
 
     static func groupedCode(_ code: String) -> String {
         guard code.count == 6 else { return code }
         return "\(code.prefix(3)) \(code.suffix(3))"
+    }
+}
+
+/// What the save alert shows. Site, user name, title and names come from the page
+/// or the vault, so they are only ever plain text.
+struct MacBrowserSaveAlertContent: Equatable {
+    struct Choice: Equatable {
+        let db: UUID
+        let label: String
+    }
+    let title: String
+    let message: String
+    let destinationLabel: String
+    /// Never empty; the first is selected.
+    let choices: [Choice]
+
+    init(_ proposal: BrowserBridgeSaveProposal) {
+        title = String(localized: "Save this login in KeeForge?")
+        let username = proposal.username.isEmpty ? String(localized: "No username") : proposal.username
+        message = String(localized: "Your browser asks to save a new login. Save only if you just signed up or signed in on this website.\n\nWebsite: \(proposal.host)\nUsername: \(username)\nTitle: \(proposal.title)")
+        destinationLabel = String(localized: "Save in:")
+        choices = proposal.destinations.map { .init(db: $0.db, label: "\($0.dbName) ▸ \($0.groupName)") }
     }
 }
 
@@ -55,16 +77,21 @@ protocol MacBrowserBridgeShell: AnyObject {
     func showPairing(_ content: MacBrowserPairingAlertContent, answer: @escaping @MainActor (Bool) -> Void)
     func dismissPairing()
     func showPairingFailure()
+    /// `answer` gets the chosen database for Save, and nil for Don't Save or when its window closes with the
+    /// alert shown or waiting; withdrawing it through `dismissSave` never calls it.
+    func showSave(_ content: MacBrowserSaveAlertContent, answer: @escaping @MainActor (UUID?) -> Void)
+    func dismissSave()
 }
 
-/// Shows the bridge's pairing alert and failure, and fronts windows for its
-/// reveal and unlock requests. Nothing here unlocks a database or reveals a secret.
+/// Shows the bridge's pairing alert and failure and its save alert, and fronts windows for its
+/// reveal and unlock requests. Nothing here unlocks a database, reveals a secret or writes an entry.
 @MainActor
 final class MacBrowserBridgePrompts {
     private let source: MacBrowserPairingSource
     private let shell: MacBrowserBridgeShell
     private let observation = MacObservation()
     private var shownPairingID: UUID?
+    private var saveAnswer: CheckedContinuation<BrowserBridgeSaveAnswer, Never>?
 
     init(source: MacBrowserPairingSource, shell: MacBrowserBridgeShell) {
         self.source = source
@@ -93,6 +120,35 @@ final class MacBrowserBridgePrompts {
         } else {
             shell.showDatabasesWindow()
         }
+    }
+
+    /// Asks whether to save a login a browser proposes. Cancelling withdraws the alert and declines.
+    func confirmSave(_ proposal: BrowserBridgeSaveProposal) async -> BrowserBridgeSaveAnswer {
+        guard saveAnswer == nil, !proposal.destinations.isEmpty else { return .busy }
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                guard !Task.isCancelled else { continuation.resume(returning: .declined); return }
+                saveAnswer = continuation
+                front()
+                shell.showSave(MacBrowserSaveAlertContent(proposal)) { [weak self] db in
+                    self?.finishSave(db.map { .save(db: $0) } ?? .declined)
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.withdrawSave() }
+        }
+    }
+
+    private func finishSave(_ answer: BrowserBridgeSaveAnswer) {
+        guard let continuation = saveAnswer else { return }
+        saveAnswer = nil
+        continuation.resume(returning: answer)
+    }
+
+    private func withdrawSave() {
+        guard saveAnswer != nil else { return }
+        shell.dismissSave()
+        finishSave(.declined)
     }
 
     private func reconcile(pending: MacBrowserBridgeController.PendingPairing?, failed: Bool) {
@@ -138,6 +194,9 @@ final class MacBrowserBridgeWindowShell: MacBrowserBridgeShell {
     private let schedule: Schedule
     private var alerts: (queue: MacAlertQueue, window: NSWindow)?
     private var pairingAlert: NSAlert?
+    private var saveAlert: NSAlert?
+    private var saveAnswer: (@MainActor (UUID?) -> Void)?
+    private var closeObserver: NSObjectProtocol?
 
     init(coordinator: MacWindowCoordinator,
          present: @escaping MacAlertQueue.Present = MacWorkspaceAlerts.presentAsSheet,
@@ -205,6 +264,36 @@ final class MacBrowserBridgeWindowShell: MacBrowserBridgeShell {
         alertQueue()?.enqueue(MacBrowserPairingAlert.makeFailure()) { _ in }
     }
 
+    func showSave(_ content: MacBrowserSaveAlertContent, answer: @escaping @MainActor (UUID?) -> Void) {
+        guard let queue = alertQueue() else { answer(nil); return }
+        let (alert, destination) = MacBrowserSaveAlert.make(content)
+        saveAlert = alert
+        saveAnswer = answer
+        queue.enqueue(alert) { [weak self] response in
+            if self?.saveAlert === alert { self?.saveAlert = nil; self?.saveAnswer = nil }
+            guard let save = MacBrowserPairingAlert.allows(response) else { return }
+            let index = destination.indexOfSelectedItem
+            // Save cannot be clicked before it is armed; anything claiming so declines.
+            guard save, MacBrowserPairingAlert.isArmed(alert), content.choices.indices.contains(index) else { answer(nil); return }
+            answer(content.choices[index].db)
+        }
+    }
+
+    func dismissSave() {
+        guard let alert = saveAlert else { return }
+        saveAlert = nil
+        saveAnswer = nil
+        alerts?.queue.cancel(alert)
+    }
+
+    /// The queue drops its alerts unanswered when the window closes; a save question must not wait out its timeout.
+    private func alertWindowWillClose() {
+        let answer = saveAnswer
+        saveAlert = nil
+        saveAnswer = nil
+        answer?(nil)
+    }
+
     private func alertQueue() -> MacAlertQueue? {
         coordinator.showDatabasesWindow()
         guard let window = coordinator.databasesWindow else { return nil }
@@ -212,9 +301,13 @@ final class MacBrowserBridgeWindowShell: MacBrowserBridgeShell {
         let queue = MacAlertQueue(window: window) { [weak self] alert, parent, completion in
             guard let self else { return }
             present(alert, parent, completion)
-            if alert === pairingAlert { didPresentPairing(alert) }
+            if alert === pairingAlert || alert === saveAlert { didPresentPairing(alert) }
         }
         alerts = (queue, window)
+        if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
+        closeObserver = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated { self?.alertWindowWillClose() }
+        }
         return queue
     }
 
@@ -222,7 +315,7 @@ final class MacBrowserBridgeWindowShell: MacBrowserBridgeShell {
     private func didPresentPairing(_ alert: NSAlert) {
         MacBrowserPairingAlert.focusRefusal(in: alert)
         schedule(MacBrowserPairingAlert.allowDelay) { [weak self, weak alert] in
-            guard let alert, self?.pairingAlert === alert else { return }
+            guard let alert, self?.pairingAlert === alert || self?.saveAlert === alert else { return }
             MacBrowserPairingAlert.arm(alert)
         }
     }
@@ -294,5 +387,38 @@ enum MacBrowserPairingAlert {
         alert.messageText = String(localized: "Couldn’t save the pairing. Try again from the browser.")
         alert.addButton(withTitle: String(localized: "OK"))
         return alert
+    }
+}
+
+/// The save alert: the pairing alert's button rules, with the destination in a pop-up.
+@MainActor
+enum MacBrowserSaveAlert {
+    static func make(_ content: MacBrowserSaveAlertContent) -> (NSAlert, NSPopUpButton) {
+        let alert = NSAlert()
+        alert.messageText = content.title
+        alert.informativeText = content.message
+        let label = NSTextField(labelWithString: content.destinationLabel)
+        let destination = NSPopUpButton(frame: .zero, pullsDown: false)
+        destination.addItems(withTitles: content.choices.map(\.label))
+        destination.selectItem(at: 0)
+        destination.isEnabled = content.choices.count > 1
+        destination.setAccessibilityLabel(content.destinationLabel)
+        destination.setAccessibilityIdentifier("browser-save.destination")
+        let row = NSStackView(views: [label, destination])
+        row.orientation = .horizontal
+        row.spacing = 8
+        row.frame.size = NSSize(width: 300, height: max(row.fittingSize.height, 26))
+        alert.accessoryView = row
+        let refuse = alert.addButton(withTitle: String(localized: "Don’t Save"))
+        refuse.keyEquivalent = "\r"
+        refuse.setAccessibilityIdentifier("browser-save.refuse")
+        let save = alert.addButton(withTitle: String(localized: "Save"))
+        save.keyEquivalent = ""
+        save.setAccessibilityIdentifier("browser-save.save")
+        save.isEnabled = false
+        save.refusesFirstResponder = true
+        alert.window.initialFirstResponder = refuse
+        MacAlertEscapeKey.install(in: alert, clicking: refuse)
+        return (alert, destination)
     }
 }

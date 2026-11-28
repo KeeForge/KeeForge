@@ -713,6 +713,35 @@ final class MacWindowCoordinatorTests: XCTestCase {
         XCTAssertEqual(answers, [true])
     }
 
+    /// Closing the Databases window drops its alert queue unanswered; a save question must decline at once,
+    /// not after the bridge's two-minute timeout.
+    func testBridgeSaveAlertDeclinesWhenTheDatabasesWindowClosesWhileShown() throws {
+        try assertSaveAlertDeclinesOnWindowClose(queued: false)
+    }
+
+    func testBridgeSaveAlertDeclinesWhenTheDatabasesWindowClosesWhileQueued() throws {
+        try assertSaveAlertDeclinesOnWindowClose(queued: true)
+    }
+
+    private func assertSaveAlertDeclinesOnWindowClose(queued: Bool) throws {
+        start()
+        var presented: [(alert: NSAlert, answer: @MainActor (NSApplication.ModalResponse) -> Void)] = []
+        let shell = MacBrowserBridgeWindowShell(coordinator: coordinator,
+            present: { alert, _, completion in presented.append((alert, completion)) },
+            schedule: { _, _ in })
+        if queued { shell.showPairingFailure() }
+        var answers: [UUID?] = []
+        let content = MacBrowserSaveAlertContent(.init(destinations: [.init(db: UUID(), dbName: "Personal", groupName: "Logins")],
+                                                       title: "example.com", host: "example.com", username: "demo"))
+        shell.showSave(content) { answers.append($0) }
+        XCTAssertEqual(presented.count, 1, queued ? "The save alert waits behind the failure alert" : "The save alert is shown")
+        try XCTUnwrap(coordinator.databasesWindow).close()
+        XCTAssertEqual(answers, [nil])
+        presented.last?.answer(.alertSecondButtonReturn)
+        shell.dismissSave()
+        XCTAssertEqual(answers, [nil], "Nothing answers twice")
+    }
+
     func testQueuedURLForARestoredDatabaseFrontsItAndMissingDatabasesAreSkipped() throws {
         let a = references[0].id
         let missing = UUID()

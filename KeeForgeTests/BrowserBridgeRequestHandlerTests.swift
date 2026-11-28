@@ -22,14 +22,17 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
 
     private func makeSession(
         _ entries: [KPEntry], groups: [KPGroup] = [], enabled: Bool = true,
-        gate: SecretAccessGate? = nil, databaseID: UUID = UUID()
+        gate: SecretAccessGate? = nil, databaseID: UUID = UUID(), lastOpenedAt: Date? = nil,
+        localSave: @escaping DatabaseViewModel.LocalSaveOperation = { _, _, _, _, _, _, _ in .saved(newSHA512: Data("saved".utf8)) }
     ) async throws -> DatabaseViewModel {
         let url = try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
         var reference = try TestDatabaseSupport.makeReference(for: url, id: databaseID)
         reference.autoFillEnabled = enabled
+        reference.lastOpenedAt = lastOpenedAt
         let key = key
         let session = DatabaseViewModel(
             databaseReference: reference,
+            localSaveOperation: localSave,
             reloadOperation: { reference, _ in
                 .init(reference: reference, rootGroup: KPGroup(name: "Root", entries: entries, groups: groups),
                       meta: KPMeta(), formatVersion: .kdbx4(minor: 1), sessionKey: key,
@@ -53,9 +56,12 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
 
     private func handler(
         gate: @escaping BrowserBridgeRequestHandler.DeviceOwnerAuthenticator = { _, _ in true },
+        confirmSave: @escaping BrowserBridgeRequestHandler.SaveConfirmer = { _ in .declined },
+        generatePassword: @escaping BrowserBridgeRequestHandler.PasswordSource = { "generated-password" },
         now: @escaping @MainActor () -> ContinuousClock.Instant = { .now }
     ) -> BrowserBridgeRequestHandler {
-        BrowserBridgeRequestHandler(sessionsProvider: { [weak self] in self?.sessions ?? [] }, appVersion: "test", authenticateDeviceOwner: gate, now: now)
+        BrowserBridgeRequestHandler(sessionsProvider: { [weak self] in self?.sessions ?? [] }, appVersion: "test", authenticateDeviceOwner: gate,
+                                    confirmSave: confirmSave, generatePassword: generatePassword, now: now)
     }
 
     private func send(_ op: BrowserBridgeRequest.Operation, to handler: BrowserBridgeRequestHandler) async -> BrowserBridgeReply.Result {
@@ -589,5 +595,207 @@ final class BrowserBridgeRequestHandlerTests: XCTestCase {
             XCTAssertEqual(result.result, .failure(.badRequest))
         }
     }
+
+    // MARK: - Generate and save
+
+    private func save(username: String = "new-user", password: String = "new-secret", origin: String = "https://example.com") -> BrowserBridgeRequest.Operation {
+        .save(origin: origin, username: username, password: password)
+    }
+
+    func testGenerateNeedsADatabaseThatCanTakeTheNewLogin() async throws {
+        var instant = ContinuousClock.now
+        let handler = handler(now: { instant += .seconds(1); return instant })
+        let lockedReply = await send(.generate(origin: origin), to: handler)
+        XCTAssertEqual(lockedReply, .failure(.locked))
+        let session = try await makeSession([])
+        let generated = await send(.generate(origin: origin), to: handler)
+        XCTAssertEqual(generated, .password("generated-password"))
+        let badOrigin = await send(.generate(origin: "http://example.com"), to: handler)
+        XCTAssertEqual(badOrigin, .failure(.badOrigin))
+        try session.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(session.currentRootGroup?.id), draft: .init(title: "Pending")))
+        let pendingEdit = await send(.generate(origin: origin), to: handler)
+        XCTAssertEqual(pendingEdit, .failure(.unavailable), "a pending edit would be saved along with the login")
+    }
+
+    func testGenerateAllowsABurstOfThreeThenOnePerSecond() async throws {
+        _ = try await makeSession([])
+        var instant = ContinuousClock.now
+        let handler = handler(now: { instant })
+        var results: [BrowserBridgeReply.Result] = []
+        for _ in 0..<4 { results.append(await send(.generate(origin: origin), to: handler)) }
+        XCTAssertEqual(results, Array(repeating: .password("generated-password"), count: 3) + [.failure(.rateLimited)])
+        instant += .seconds(1)
+        let later = await send(.generate(origin: origin), to: handler)
+        XCTAssertEqual(later, .password("generated-password"))
+    }
+
+    func testDefaultGeneratorUsesTheSavedGeneratorSettings() async {
+        let password = await BrowserBridgeRequestHandler.generatedPassword()
+        let options = SettingsService.passwordGeneratorOptions
+        XCTAssertEqual(options.mode == .characters ? password.count : password.split(separator: Character(options.separator)).count,
+                       options.mode == .characters ? options.length : options.wordCount)
+    }
+
+    func testSaveAsksThenAuthenticatesThenAddsTheEntryThroughTheNormalSave() async throws {
+        let saved = SavedDrafts()
+        let session = try await makeSession([try entry("Other", url: "https://other.net")], localSave: { draft, _, _, _, _, _, _ in
+            saved.append(draft); return .saved(newSHA512: Data("saved".utf8))
+        })
+        var proposals: [BrowserBridgeSaveProposal] = [], reasons: [String] = []
+        let handler = handler(gate: { _, reason in reasons.append(reason); return true },
+                              confirmSave: { proposals.append($0); return .save(db: $0.destinations[0].db) })
+        let reply = await send(save(username: "new\u{202E}user"), to: handler)
+        XCTAssertEqual(reply, .empty)
+        XCTAssertEqual(proposals, [.init(destinations: [.init(db: session.databaseReference.id, dbName: session.databaseReference.displayName, groupName: "Root")],
+                                         title: "example.com", host: "example.com", username: "newuser")])
+        XCTAssertEqual(reasons, [BrowserBridgeRequestHandler.saveReason(origin: origin)])
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertNil(session.draft, "saved, nothing left pending")
+        let created = try XCTUnwrap(session.currentRootGroup?.entries.first { $0.title == "example.com" })
+        XCTAssertEqual(created.username, "new\u{202E}user", "stored as the site received it; only the alert sanitizes")
+        XCTAssertEqual(created.url, origin)
+        XCTAssertEqual(try created.password.decrypt(using: XCTUnwrap(session.sessionKey)), "new-secret")
+        XCTAssertEqual(BrowserBridgeRequestHandler.saveReason(origin: "https://www.example.com:8443"), BrowserBridgeRequestHandler.saveReason(origin: origin))
+    }
+
+    func testSaveWritesNothingWhenDeclinedDeniedOrLockedMeanwhile() async throws {
+        let saved = SavedDrafts()
+        let session = try await makeSession([], localSave: { draft, _, _, _, _, _, _ in saved.append(draft); return .saved(newSHA512: Data("saved".utf8)) })
+        var instant = ContinuousClock.now
+        let clock: @MainActor () -> ContinuousClock.Instant = { instant += .seconds(20); return instant }
+        let declined = await send(save(), to: handler(confirmSave: { _ in .declined }, now: clock))
+        XCTAssertEqual(declined, .failure(.declined))
+        let otherDatabase = await send(save(), to: handler(confirmSave: { _ in .save(db: UUID()) }, now: clock))
+        XCTAssertEqual(otherDatabase, .failure(.declined), "only an offered destination is accepted")
+        let busy = await send(save(), to: handler(confirmSave: { _ in .busy }, now: clock))
+        XCTAssertEqual(busy, .failure(.rateLimited))
+        var authenticated = false
+        let denied = await send(save(), to: handler(gate: { _, _ in authenticated = true; return false }, confirmSave: { .save(db: $0.destinations[0].db) }, now: clock))
+        XCTAssertEqual(denied, .failure(.denied))
+        XCTAssertTrue(authenticated)
+        let lockedDuringAlert = await send(save(), to: handler(confirmSave: { proposal in
+            session.lockRequest(force: true); return .save(db: proposal.destinations[0].db)
+        }, now: clock))
+        XCTAssertEqual(lockedDuringAlert, .failure(.locked))
+        XCTAssertEqual(saved.count, 0)
+        XCTAssertNil(session.draft)
+    }
+
+    func testSaveIsSkippedWithoutAnAlertForAKnownLogin() async throws {
+        _ = try await makeSession([try entry("Existing", url: "https://login.example.com")])
+        var asked = 0
+        var instant = ContinuousClock.now
+        let handler = handler(confirmSave: { _ in asked += 1; return .declined }, now: { instant += .seconds(20); return instant })
+        let sameUser = await send(save(username: " USER "), to: handler)
+        XCTAssertEqual(sameUser, .failure(.exists))
+        let noUser = await send(save(username: ""), to: handler)
+        XCTAssertEqual(noUser, .failure(.exists), "a login for the site counts when the form had no user name")
+        let otherUser = await send(save(username: "someone-else"), to: handler)
+        XCTAssertEqual(otherUser, .failure(.declined))
+        let otherSite = await send(save(username: "user", origin: "https://other.net"), to: handler)
+        XCTAssertEqual(otherSite, .failure(.declined))
+        XCTAssertEqual(asked, 2)
+    }
+
+    func testSaveRefusesWithoutAWritableParticipatingDatabase() async throws {
+        var asked = 0
+        var instant = ContinuousClock.now
+        let handler = handler(confirmSave: { _ in asked += 1; return .declined }, now: { instant += .seconds(20); return instant })
+        let none = await send(save(), to: handler)
+        XCTAssertEqual(none, .failure(.locked))
+        let disabled = try await makeSession([], enabled: false)
+        let notParticipating = await send(save(), to: handler)
+        XCTAssertEqual(notParticipating, .failure(.unavailable))
+        disabled.lockRequest(force: true)
+        let session = try await makeSession([])
+        try session.applyEntryEdit(.createEntry(parentGroupID: XCTUnwrap(session.currentRootGroup?.id), draft: .init(title: "Pending")))
+        let pending = await send(save(), to: handler)
+        XCTAssertEqual(pending, .failure(.unavailable))
+        let badOrigin = await send(save(origin: "http://example.com"), to: handler)
+        XCTAssertEqual(badOrigin, .failure(.badOrigin))
+        XCTAssertEqual(asked, 0)
+    }
+
+    func testSaveOffersEveryWritableDatabaseMostRecentlyOpenedFirst() async throws {
+        let older = try await makeSession([], lastOpenedAt: Date(timeIntervalSince1970: 1))
+        let newer = try await makeSession([], lastOpenedAt: Date(timeIntervalSince1970: 2))
+        var offered: [UUID] = []
+        let reply = await send(save(), to: handler(confirmSave: { proposal in
+            offered = proposal.destinations.map(\.db); return .save(db: older.databaseReference.id)
+        }))
+        XCTAssertEqual(reply, .empty)
+        XCTAssertEqual(offered, [newer.databaseReference.id, older.databaseReference.id])
+        XCTAssertNotNil(older.currentRootGroup?.entries.first { $0.title == "example.com" })
+        XCTAssertNil(newer.currentRootGroup?.entries.first { $0.title == "example.com" })
+    }
+
+    func testNewLoginDraftIsTheOneTheCompatibilityGateOpensInKeePassXC() {
+        let expected = KDBXCompatibilitySupport.browserSaveDraft
+        XCTAssertEqual(BrowserBridgeRequestHandler.newLoginDraft(origin: expected.url, username: expected.username, password: expected.password), expected)
+    }
+
+    func testFailedWriteKeepsTheEntryInTheDraftForTheUsualRecovery() async throws {
+        struct WriteFailed: Error {}
+        let session = try await makeSession([], localSave: { _, _, _, _, _, _, _ in throw WriteFailed() })
+        let reply = await send(save(), to: handler(confirmSave: { .save(db: $0.destinations[0].db) }))
+        XCTAssertEqual(reply, .failure(.saveFailed))
+        XCTAssertTrue(session.isDirty)
+        XCTAssertNotNil(session.currentRootGroup?.entries.first { $0.title == "example.com" })
+    }
+
+    func testClosingTheConnectionAfterConfirmationDoesNotInterruptTheWrite() async throws {
+        let release = AsyncStream<Void>.makeStream()
+        let saved = SavedDrafts()
+        let session = try await makeSession([], localSave: { draft, _, _, _, _, _, _ in
+            for await _ in release.stream { break }
+            saved.append(draft); return .saved(newSHA512: Data("saved".utf8))
+        })
+        let handler = handler(confirmSave: { .save(db: $0.destinations[0].db) })
+        let request = Task { await self.send(save(), to: handler) }
+        while !session.isSaving { await Task.yield() }
+        request.cancel()
+        release.continuation.yield()
+        _ = await request.value
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertNil(session.draft)
+    }
+
+    func testOneSaveAtATimeThenABurstOfThreeThenOnePerTwelveSeconds() async throws {
+        _ = try await makeSession([])
+        var instant = ContinuousClock.now
+        var waiting: CheckedContinuation<BrowserBridgeSaveAnswer, Never>?
+        let handler = handler(confirmSave: { _ in await withCheckedContinuation { waiting = $0 } }, now: { instant })
+        let first = Task { await self.send(save(), to: handler) }
+        while waiting == nil { await Task.yield() }
+        let concurrent = await send(save(), to: handler)
+        XCTAssertEqual(concurrent, .failure(.rateLimited))
+        waiting?.resume(returning: .declined); waiting = nil
+        let firstReply = await first.value
+        XCTAssertEqual(firstReply, .failure(.declined))
+        let quick = handler
+        var results: [BrowserBridgeReply.Result] = []
+        for _ in 0..<2 {
+            let next = Task { await self.send(save(), to: quick) }
+            while waiting == nil { await Task.yield() }
+            waiting?.resume(returning: .declined); waiting = nil
+            results.append(await next.value)
+        }
+        let limited = await send(save(), to: quick)
+        XCTAssertEqual(results, [.failure(.declined), .failure(.declined)])
+        XCTAssertEqual(limited, .failure(.rateLimited))
+        instant += BrowserBridgeRequestHandler.saveInterval
+        let later = Task { await self.send(save(), to: quick) }
+        while waiting == nil { await Task.yield() }
+        waiting?.resume(returning: .declined)
+        let laterReply = await later.value
+        XCTAssertEqual(laterReply, .failure(.declined))
+    }
+}
+
+private final class SavedDrafts: @unchecked Sendable {
+    private let lock = NSLock()
+    private var drafts: [DatabaseDraft] = []
+    func append(_ draft: DatabaseDraft) { lock.lock(); drafts.append(draft); lock.unlock() }
+    var count: Int { lock.lock(); defer { lock.unlock() }; return drafts.count }
 }
 #endif

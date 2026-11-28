@@ -573,6 +573,7 @@ enum KDBXCompatibilitySupport {
     static let scenarioIDsWithoutAttachmentExpectations: Set<String> = [
         "create-entry",
         "import-apple-passwords",
+        "browser-save-login",
         "update-entry",
         "custom-field-edits",
         "set-entry-expiry",
@@ -674,6 +675,10 @@ enum KDBXCompatibilitySupport {
         table["import-apple-passwords"] = [
             .init(entryTitle: "Import Alpha", password: importedAlphaPassword),
             .init(entryTitle: "Import Beta", password: importedBetaPassword),
+            .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
+        ]
+        table["browser-save-login"] = [
+            .init(entryTitle: "signup.example.com", password: browserSavedPassword),
             .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
         ]
         table["attachments-update-entry"] = [
@@ -817,6 +822,7 @@ enum KDBXCompatibilitySupport {
     /// everything else simply writes no TOTP.
     static let scenarioIDsWithoutTOTPExpectations: Set<String> = {
         var ids: Set<String> = [
+            "browser-save-login",
             "custom-field-edits",
             "set-entry-expiry",
             "change-entry-expiry",
@@ -971,6 +977,7 @@ enum KDBXCompatibilitySupport {
             restoreRecycledEntryScenario(),
             restoreRecycledGroupScenario(),
             importApplePasswordsScenario(),
+            browserSaveLoginScenario(),
         ]
     }
 
@@ -2976,6 +2983,16 @@ struct CompatibilitySnapshot {
     }
 }
 
+extension KDBXCompatibilitySupport {
+    static let browserSavedPassword = "Brøwser-Sëcret \"1\" ✓"
+    /// The entry the Mac browser bridge adds for a confirmed `save`; `BrowserBridgeRequestHandlerTests`
+    /// pins `BrowserBridgeRequestHandler.newLoginDraft` to it, since the handler is Mac-only.
+    static let browserSaveDraft = EntryDraftPayload(
+        title: "signup.example.com", username: "new@example.com", password: browserSavedPassword,
+        url: "https://signup.example.com:8443"
+    )
+}
+
 private extension KDBXCompatibilitySupport {
     /// Setup link `update-entry` enrolls on its target. Its parameters are all
     /// otpauth defaults, so it stays consistent with the scenario's
@@ -3628,6 +3645,36 @@ private extension KDBXCompatibilitySupport {
     /// `DatabaseDraft.creatingEntries` call into the visible root. The file exercises quoted commas and
     /// quotes, a multi-line note, non-ASCII text, a TOTP link KeePassXC must
     /// generate codes from, and an HOTP link kept as a protected field.
+    /// A login the browser extension proposed, added the way `DatabaseViewModel.importEntries` adds it,
+    /// into the group a new AutoFill entry goes to.
+    static func browserSaveLoginScenario() -> Scenario {
+        Scenario(
+            id: "browser-save-login",
+            title: "Save a new login proposed by the browser extension",
+            artifactFileName: "synthetic-rich-browser-save-login.kdbx",
+            expectedSearchTerms: ["signup.example.com"],
+            expectedGroupPaths: [],
+            makeImportedEntries: { loaded in
+                (AutoFillSaveCoordinator.destinationGroup(in: loaded.rootGroup, preferredGroupID: nil).id, [browserSaveDraft])
+            },
+            assertChange: { before, after, _ in
+                try assertUnchangedEntries(before: before, after: after)
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                assertMetaUnchanged(before: before, after: after)
+                XCTAssertEqual(after.entries.count, before.entries.count + 1)
+                let saved = try XCTUnwrap(after.entryID(titled: "signup.example.com").flatMap { after.entries[$0] })
+                XCTAssertEqual(saved.username, "new@example.com")
+                XCTAssertEqual(saved.url, "https://signup.example.com:8443")
+                XCTAssertEqual(saved.password, browserSavedPassword)
+                XCTAssertEqual(saved.notes, "")
+                XCTAssertNil(saved.totp)
+                XCTAssertNil(saved.otpURL)
+                XCTAssertTrue(saved.customFields.isEmpty)
+                XCTAssertTrue(saved.history.isEmpty)
+            }
+        )
+    }
+
     static func importApplePasswordsScenario() -> Scenario {
         // CRLF between rows; the quoted note keeps a bare LF.
         let csv = [

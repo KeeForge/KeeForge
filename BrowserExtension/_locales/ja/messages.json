@@ -130,5 +130,11 @@
   },
   "fieldUnusable": {
     "message": "このフィールドには入力できません。"
+  },
+  "suggestPassword": {
+    "message": "強力なパスワードを提案"
+  },
+  "suggestPasswordHint": {
+    "message": "フォームを送信すると、KeeForge がログイン情報の保存を提案します。"
   }
 }
