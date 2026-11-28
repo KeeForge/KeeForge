@@ -40,7 +40,7 @@
 
 ### Custom icons
 
-- `CustomIconsView` is shared by the entry picker and Database Details → General. The session stages rename/delete edits and uses its ordinary save/conflict path. Rename cancellation stages nothing; deletion requires confirmation that live items and history fall back to defaults. Read-only sessions expose no mutations.
+- `CustomIconsView` is shared by the entry picker and Database Details → General. iOS pushes it; both Mac hosts present it in a sheet, so on Mac it carries its own Done (`custom-icons.done`), disabled while a save runs. The session stages rename/delete edits and uses its ordinary save/conflict path. Rename cancellation stages nothing; deletion requires confirmation that live items and history fall back to defaults. Read-only sessions expose no mutations.
 - Icon names are database content, not app preferences; naming upgrades KDBX 4.0 to 4.1 and the rename form explains this.
 
 ### Secrets, values, attachments
