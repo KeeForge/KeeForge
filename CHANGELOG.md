@@ -20,6 +20,7 @@
 
 ### Fixes
 
+- On iPhone and iPad, remove a cloud database with an unconfirmed upload while keeping its verified encrypted copies in Cloud Recovery.
 - FTP creation name conflicts keep the encrypted draft recoverable; conflict copies can try a numbered name.
 - Cloud creations that have not been sent can be discarded from Cloud Recovery.
 - Preserve encrypted cloud creation data when the outcome is uncertain instead of automatically creating another remote copy.

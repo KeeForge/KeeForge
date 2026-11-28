@@ -663,6 +663,102 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
     }
 
+    func testRemoveUnconfirmedCloudUploadKeepsPayloadAndBlocksReaddingItsTarget() async throws {
+        let file = CloudFile(id: "uncertain-removal", name: "pending.kdbx", path: "pending.kdbx",
+            isFolder: false, modifiedDate: nil, size: nil)
+        let provider = CloudProviderKind.webDAV.rawValue
+        let reference = try DatabaseListStore.addCloud(provider: provider, accountId: "one", file: file)
+        let context = try CloudJournalTestContext(reference: reference)
+        var attempt = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        attempt.marker.uploadAttemptID = UUID()
+        attempt = try PendingUploadQueue.update(attempt)
+        let current = try XCTUnwrap(DatabaseListStore.readDatabasesStrict().first)
+
+        XCTAssertEqual(DatabaseListStore.remove(observed: current), .cloudRecoveryRequired(canKeepRecoveryCopies: true))
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [current.id])
+        XCTAssertEqual(DatabaseListStore.remove(observed: current, keepingUnconfirmedCloudUploads: true), .removed)
+
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: current))
+        let retained = try XCTUnwrap(PendingUploadQueue.readJournal(for: current.id).first)
+        XCTAssertEqual(retained.marker.detachedFilename, "pending.kdbx")
+        XCTAssertEqual(retained.marker.uploadAttemptID, attempt.marker.uploadAttemptID)
+        XCTAssertEqual(CloudJournalDecision.state(of: retained.marker), .attempting)
+        XCTAssertEqual(try PendingUploadQueue.readImmutablePayload(retained), context.payload)
+
+        let transport = CloudJournalTransport()
+        let drainer = PendingUploadDrainer(environment: context.drainerEnvironment(saver: context.environment(transport: transport)))
+        let drain = await drainer.drainAll()
+        XCTAssertEqual(drain.skippedDatabaseIDs, [current.id])
+        XCTAssertTrue(transport.effects.uploads.isEmpty)
+        XCTAssertThrowsError(try DatabaseListStore.addCloud(provider: provider, accountId: "one", file: file)) {
+            XCTAssertEqual($0 as? DatabaseListStore.AddDatabaseError, .unresolvedCloudUpload)
+        }
+        XCTAssertThrowsError(try DatabaseListStore.validateCreatedCloud(
+            provider: provider, accountId: "one", fileId: file.id, filename: file.name
+        )) {
+            XCTAssertEqual($0 as? DatabaseListStore.AddDatabaseError, .unresolvedCloudUpload)
+        }
+        let other = CloudFile(id: "different-file", name: file.name, path: file.path,
+            isFolder: false, modifiedDate: nil, size: nil)
+        XCTAssertNoThrow(try DatabaseListStore.addCloud(provider: provider, accountId: "one", file: other))
+    }
+
+    func testDetachedDriveUploadBlocksTheSameFileFromAnotherAccount() throws {
+        let file = CloudFile(id: "shared-drive-file-id", name: "pending.kdbx", path: "pending.kdbx",
+            isFolder: false, modifiedDate: nil, size: nil)
+        let provider = CloudProviderKind.googleDrive.rawValue
+        let reference = try DatabaseListStore.addCloud(provider: provider, accountId: "one", file: file)
+        _ = try CloudJournalTestContext(reference: reference)
+        var attempt = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        attempt.marker.uploadAttemptID = UUID()
+        _ = try PendingUploadQueue.update(attempt)
+        let current = try XCTUnwrap(DatabaseListStore.readDatabasesStrict().first)
+        XCTAssertEqual(DatabaseListStore.remove(observed: current, keepingUnconfirmedCloudUploads: true), .removed)
+
+        XCTAssertThrowsError(try DatabaseListStore.addCloud(provider: provider, accountId: "two", file: file)) {
+            XCTAssertEqual($0 as? DatabaseListStore.AddDatabaseError, .unresolvedCloudUpload)
+        }
+    }
+
+    func testRemovalDuringCloudUploadPreservesItsAcknowledgement() async throws {
+        let file = CloudFile(id: "live-removal", name: "pending.kdbx", path: "pending.kdbx",
+            isFolder: false, modifiedDate: nil, size: nil)
+        let reference = try DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue,
+            accountId: "one", file: file)
+        let context = try CloudJournalTestContext(reference: reference)
+        let transport = CloudJournalTransport(beforeUpload: {
+            let current = try XCTUnwrap(DatabaseListStore.readDatabasesStrict().first)
+            XCTAssertEqual(DatabaseListStore.remove(observed: current, keepingUnconfirmedCloudUploads: true), .notPublished)
+            let attempt = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+            XCTAssertNil(attempt.marker.detachedFilename)
+        })
+
+        let result = try await CloudDatabaseSaver.deliver(context.stored, reference: reference,
+            environment: context.environment(transport: transport))
+        guard case .saved(let updated)? = result else { return XCTFail("Expected the upload acknowledgement to publish") }
+        XCTAssertEqual(updated.cloudSyncMetadata?.remoteRev, transport.response.rev)
+        XCTAssertTrue(try PendingUploadQueue.readJournal(for: reference.id).isEmpty)
+        XCTAssertEqual(DatabaseListStore.remove(observed: updated), .removed)
+    }
+
+    func testRemoveUnconfirmedCloudUploadRefusesAnUnverifiedRecoveryCopy() throws {
+        let file = CloudFile(id: "invalid-removal", name: "pending.kdbx", path: "pending.kdbx",
+            isFolder: false, modifiedDate: nil, size: nil)
+        let reference = try DatabaseListStore.addCloud(provider: CloudProviderKind.webDAV.rawValue, accountId: "one", file: file)
+        let context = try CloudJournalTestContext(reference: reference)
+        var attempt = try XCTUnwrap(PendingUploadQueue.readJournal(for: reference.id).first)
+        attempt.marker.uploadAttemptID = UUID()
+        _ = try PendingUploadQueue.update(attempt)
+        try Data("different bytes".utf8).write(to: context.payloadURL)
+        let current = try XCTUnwrap(DatabaseListStore.readDatabasesStrict().first)
+
+        XCTAssertEqual(DatabaseListStore.remove(observed: current, keepingUnconfirmedCloudUploads: true),
+            .cloudRecoveryRequired(canKeepRecoveryCopies: false))
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [current.id])
+        XCTAssertEqual(try Data(contentsOf: context.cacheURL), context.payload)
+    }
+
     func testRemoveActiveDatabaseTriggersTargetedRemovalIncludingLegacy() async throws {
         let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "active.kdbx"))
         _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "other.kdbx"))

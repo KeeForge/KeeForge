@@ -220,6 +220,7 @@ enum PendingUploadQueue {
         var journalVersion: Int?
         var localCommitBaseline: LocalCommitBaseline?
         var attemptIsFenced: Bool?
+        var detachedFilename: String?
         var uploadRecoveryIssue: CloudSyncIssue?
         var observedUploadRevision: String?
         var discardRequested: Bool?
@@ -285,6 +286,7 @@ enum PendingUploadQueue {
             journalVersion = try container.decodeIfPresent(Int.self, forKey: .journalVersion)
             localCommitBaseline = try container.decodeIfPresent(LocalCommitBaseline.self, forKey: .localCommitBaseline)
             attemptIsFenced = try container.decodeIfPresent(Bool.self, forKey: .attemptIsFenced)
+            detachedFilename = try container.decodeIfPresent(String.self, forKey: .detachedFilename)
             uploadRecoveryIssue = try container.decodeIfPresent(CloudSyncIssue.self, forKey: .uploadRecoveryIssue)
             observedUploadRevision = try container.decodeIfPresent(String.self, forKey: .observedUploadRevision)
             discardRequested = try container.decodeIfPresent(Bool.self, forKey: .discardRequested)
@@ -459,8 +461,10 @@ enum PendingUploadQueue {
         return directories.filter { databaseID == nil || $0.lastPathComponent == databaseID?.uuidString }
     }
 
-    static func readJournal(for databaseID: UUID? = nil, environment: Environment = .live) throws -> [StoredMarker] {
+    static func readJournal(for databaseID: UUID? = nil, excluding excludedIDs: Set<UUID> = [],
+                            environment: Environment = .live) throws -> [StoredMarker] {
         let directories = try journalDirectories(for: databaseID, environment: environment)
+            .filter { UUID(uuidString: $0.lastPathComponent).map { !excludedIDs.contains($0) } ?? false }
         var records: [StoredMarker] = []
         for folder in directories {
             for file in try environment.listDirectory(folder) where file.pathExtension == "json" {
@@ -727,6 +731,21 @@ enum PendingUploadQueue {
         return try body()
     }
 
+    // Held across provider IO so removal cannot detach a live upload.
+    static func acquireDeliveryLock(for databaseID: UUID, environment: Environment = .live) throws -> Int32 {
+        let directory = environment.appGroupContainerURL().appendingPathComponent("pending-upload-locks", isDirectory: true)
+        try environment.createDirectory(directory)
+        let lockURL = directory.appendingPathComponent(databaseID.uuidString + ".delivery.lock")
+        let fd = Darwin.open(lockURL.path, O_CREAT | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else { throw POSIXError(.EIO) }
+        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
+            let error = errno
+            Darwin.close(fd)
+            throw POSIXError(POSIXErrorCode(rawValue: error) ?? .EIO)
+        }
+        return fd
+    }
+
     static func hasRekeyJournal(for databaseID: UUID, environment: Environment = .live) -> Bool {
         (try? readJournal(for: databaseID, environment: environment).contains { $0.marker.keyChange != nil }) ?? true
     }
@@ -931,9 +950,11 @@ enum PendingUploadQueue {
         }
     }
 
-    /// A remote divergence affects the whole local lineage, including descendants not attempted yet.
-    static func markDatabaseConflicted(for databaseID: UUID, environment: Environment = .live) throws {
-        for stored in try readJournal(for: databaseID, environment: environment) where !stored.marker.isConflicted {
+    /// Use the inspected generations so a stale probe cannot overwrite a delivery attempt or receipt.
+    static func markConflictedLineage(_ snapshots: [StoredMarker], environment: Environment = .live) throws {
+        for stored in snapshots where !stored.marker.isConflicted {
+            let state = CloudJournalDecision.state(of: stored.marker)
+            guard state != .attempting, state != .confirmed else { continue }
             _ = try markConflicted(stored, environment: environment)
         }
     }

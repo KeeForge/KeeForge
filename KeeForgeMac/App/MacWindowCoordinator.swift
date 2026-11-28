@@ -146,7 +146,7 @@ final class MacWindowCoordinator {
             let outcome = await listViewModel.removeDatabase(reference)
             switch outcome {
             case .removed, .alreadyMissing: break
-            case .recoveryRequired, .revokedRegistryNotPublished:
+            case .recoveryRequired, .revokedRegistryNotPublished, .cloudRecoveryRequired:
                 self.launcher.sheet = .details(reference.id)
             case .rejected, .notPublished, .revocationUnconfirmed, .visibleUnconfirmed:
                 self.launcher.selectionAlert = .init(title: String(localized: "Databases"), message: CocoaError(.fileWriteUnknown).localizedDescription)
